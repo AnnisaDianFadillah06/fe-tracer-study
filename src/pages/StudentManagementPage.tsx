@@ -77,15 +77,15 @@ const StudentManagementPage = () => {
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm">
-              <Upload className="w-4 h-4 mr-2" />
+              <Upload className="mr-2 h-4 w-4" />
               Import
             </Button>
             <Button variant="outline" size="sm">
-              <Download className="w-4 h-4 mr-2" />
+              <Download className="mr-2 h-4 w-4" />
               Export
             </Button>
             <Button onClick={handleOpenAdd}>
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="mr-2 h-4 w-4" />
               Tambah Mahasiswa
             </Button>
           </div>
@@ -163,13 +163,13 @@ const StudentManagementPage = () => {
         </Card>
 
         {/* Table */}
-        <Card className="glass-card">
-          <CardHeader className="pb-3">
+        <Card className="overflow-hidden">
+          <CardHeader className="border-b border-border/60 pb-3">
             <CardTitle className="text-base">Daftar Mahasiswa ({filtered.length})</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="rounded-md border border-border overflow-hidden">
-              <Table>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table className="min-w-[980px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">No</TableHead>
@@ -185,14 +185,14 @@ const StudentManagementPage = () => {
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-10">
+                      <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                         Tidak ada data mahasiswa ditemukan
                       </TableCell>
                     </TableRow>
                   ) : (
                     filtered.map((student, index) => (
                       <TableRow key={student.id}>
-                        <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
                         <TableCell className="font-mono font-medium">{student.nim}</TableCell>
                         <TableCell>{student.username}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">{student.email}</TableCell>
@@ -216,13 +216,13 @@ const StudentManagementPage = () => {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end">
-                            <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(student)}>
-                              <Edit className="w-3.5 h-3.5 mr-1" />
+                          <div className="flex justify-end gap-2 whitespace-nowrap">
+                            <Button variant="outline" size="sm" onClick={() => handleOpenEdit(student)}>
+                              <Edit className="mr-2 h-4 w-4" />
                               Edit
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => confirmDelete(student.id)}>
-                              <Trash2 className="w-3.5 h-3.5 mr-1 text-destructive" />
+                            <Button variant="destructive" size="sm" onClick={() => confirmDelete(student.id)}>
+                              <Trash2 className="mr-2 h-4 w-4" />
                               Hapus
                             </Button>
                           </div>

@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,11 +18,17 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -33,16 +40,14 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import type { FormSection, Question } from "@/hooks/useQuestionManagement";
+import {
+  getInitialForms,
+  saveForms,
+  type BuilderQuestion,
+  type FormListItem,
+} from "@/lib/formManagement";
 import {
   CheckCircle2,
   Download,
@@ -50,207 +55,10 @@ import {
   Eye,
   FileText,
   Plus,
-  Star,
   Trash2,
   Users,
   XCircle,
 } from "lucide-react";
-
-interface FormResponseMock {
-  respondent: string;
-  submittedAt: string;
-  answers: Record<string, string | number | string[]>;
-}
-
-interface FormListItem {
-  id: string;
-  title: string;
-  target: string;
-  isActive: boolean;
-  respondents: string[];
-  sections: FormSection[];
-  responses: FormResponseMock[];
-}
-
-const initialForms: FormListItem[] = [
-  {
-    id: "form-2026-it",
-    title: "Tracer Study Lulusan Teknik Informatika 2026",
-    target: "Lulusan Angkatan 2026",
-    isActive: true,
-    respondents: ["Ayu Pratama", "Dimas Saputra", "Nabila Rahma", "Rizky Hidayat"],
-    sections: [
-      {
-        id: "section-1",
-        title: "Identitas Responden",
-        description: "Data dasar lulusan untuk kebutuhan pemetaan tracer study.",
-        questions: [
-          {
-            id: "q-1",
-            type: "short",
-            question: "Nama lengkap",
-            options: [],
-            required: true,
-          },
-          {
-            id: "q-2",
-            type: "dropdown",
-            question: "Status pekerjaan saat ini",
-            options: [
-              { id: "o-1", label: "Bekerja" },
-              { id: "o-2", label: "Wiraswasta" },
-              { id: "o-3", label: "Studi lanjut" },
-              { id: "o-4", label: "Mencari kerja" },
-            ],
-            required: true,
-          },
-        ],
-      },
-      {
-        id: "section-2",
-        title: "Kesesuaian Pendidikan",
-        description: "Masukan untuk evaluasi kurikulum dan kompetensi lulusan.",
-        questions: [
-          {
-            id: "q-3",
-            type: "linear_scale",
-            question: "Seberapa relevan pendidikan Anda dengan pekerjaan saat ini?",
-            options: [],
-            required: true,
-            scaleMin: 1,
-            scaleMax: 5,
-            scaleMinLabel: "Tidak relevan",
-            scaleMaxLabel: "Sangat relevan",
-          },
-          {
-            id: "q-4",
-            type: "paragraph",
-            question: "Ceritakan masukan Anda untuk program studi",
-            options: [],
-            required: false,
-          },
-        ],
-      },
-    ],
-    responses: [
-      {
-        respondent: "Ayu Pratama",
-        submittedAt: "2026-03-18",
-        answers: {
-          "q-1": "Ayu Pratama",
-          "q-2": "Bekerja",
-          "q-3": 4,
-          "q-4": "Lebih banyak praktik industri akan sangat membantu.",
-        },
-      },
-      {
-        respondent: "Dimas Saputra",
-        submittedAt: "2026-03-19",
-        answers: {
-          "q-1": "Dimas Saputra",
-          "q-2": "Studi lanjut",
-          "q-3": 5,
-          "q-4": "Materi pemrograman sudah sangat relevan.",
-        },
-      },
-    ],
-  },
-  {
-    id: "form-2025-satisfaction",
-    title: "Survei Kepuasan Alumni 2025",
-    target: "Lulusan Angkatan 2025",
-    isActive: false,
-    respondents: ["Nabila Rahma", "Fahri Maulana"],
-    sections: [
-      {
-        id: "section-3",
-        title: "Evaluasi Pengalaman Kuliah",
-        questions: [
-          {
-            id: "q-5",
-            type: "multiple_choice",
-            question: "Bagaimana Anda menilai layanan akademik?",
-            options: [
-              { id: "o-5", label: "Sangat baik" },
-              { id: "o-6", label: "Baik" },
-              { id: "o-7", label: "Cukup" },
-              { id: "o-8", label: "Perlu perbaikan" },
-            ],
-            required: true,
-          },
-          {
-            id: "q-6",
-            type: "checkbox",
-            question: "Fasilitas yang paling sering Anda gunakan",
-            options: [
-              { id: "o-9", label: "Perpustakaan" },
-              { id: "o-10", label: "Laboratorium" },
-              { id: "o-11", label: "Ruang diskusi" },
-            ],
-            required: false,
-          },
-        ],
-      },
-    ],
-    responses: [
-      {
-        respondent: "Nabila Rahma",
-        submittedAt: "2025-11-02",
-        answers: {
-          "q-5": "Baik",
-          "q-6": ["Perpustakaan", "Laboratorium"],
-        },
-      },
-    ],
-  },
-  {
-    id: "form-2026-industry",
-    title: "Formulir Tindak Lanjut Mitra Industri",
-    target: "Mitra Industri",
-    isActive: true,
-    respondents: ["PT Inovasi Nusantara", "CV Solusi Digital"],
-    sections: [
-      {
-        id: "section-4",
-        title: "Informasi Perusahaan",
-        questions: [
-          {
-            id: "q-7",
-            type: "short",
-            question: "Nama perusahaan",
-            options: [],
-            required: true,
-          },
-          {
-            id: "q-8",
-            type: "date",
-            question: "Tanggal kerja sama dimulai",
-            options: [],
-            required: true,
-          },
-        ],
-      },
-    ],
-    responses: [
-      {
-        respondent: "PT Inovasi Nusantara",
-        submittedAt: "2026-04-02",
-        answers: {
-          "q-7": "PT Inovasi Nusantara",
-          "q-8": "2026-04-02",
-        },
-      },
-      {
-        respondent: "CV Solusi Digital",
-        submittedAt: "2026-04-10",
-        answers: {
-          "q-7": "CV Solusi Digital",
-          "q-8": "2026-04-10",
-        },
-      },
-    ],
-  },
-];
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("id-ID", {
@@ -268,39 +76,21 @@ const formatAnswer = (value: string | number | string[] | undefined) => {
 const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
 
 const statusStyles = {
-  true: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  false: "border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300",
+  aktif: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  nonaktif: "border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300",
 };
-
-interface FormEditorData {
-  title: string;
-  target: string;
-  isActive: "aktif" | "nonaktif";
-  respondents: string;
-}
-
-const emptyEditorData: FormEditorData = {
-  title: "",
-  target: "",
-  isActive: "aktif",
-  respondents: "",
-};
-
-const toSlug = (value: string) =>
-  value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 
 const DaftarFormulirPage = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
-  const [forms, setForms] = useState<FormListItem[]>(initialForms);
+
+  const [forms, setForms] = useState<FormListItem[]>(() => getInitialForms());
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
-  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
-  const [editingFormId, setEditingFormId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [editorData, setEditorData] = useState<FormEditorData>(emptyEditorData);
+
+  useEffect(() => {
+    saveForms(forms);
+  }, [forms]);
 
   const selectedForm = useMemo(
     () => forms.find((form) => form.id === selectedFormId) ?? null,
@@ -309,97 +99,21 @@ const DaftarFormulirPage = () => {
 
   const stats = useMemo(() => {
     const totalForms = forms.length;
-    const activeForms = forms.filter((form) => form.isActive).length;
+    const activeForms = forms.filter((form) => form.status === "aktif").length;
     const totalRespondents = forms.reduce((acc, form) => acc + form.responses.length, 0);
 
     return { totalForms, activeForms, totalRespondents };
   }, [forms]);
 
-  const resetEditor = () => {
-    setEditorData(emptyEditorData);
-    setEditingFormId(null);
-  };
-
-  const openCreateDialog = () => {
-    resetEditor();
-    setIsFormDialogOpen(true);
-  };
-
-  const openEditDialog = (form: FormListItem) => {
-    setEditingFormId(form.id);
-    setEditorData({
-      title: form.title,
-      target: form.target,
-      isActive: form.isActive ? "aktif" : "nonaktif",
-      respondents: form.respondents.join(", "),
-    });
-    setIsFormDialogOpen(true);
-  };
-
-  const handleSaveForm = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!editorData.title.trim() || !editorData.target.trim()) {
-      toast({
-        title: "Data belum lengkap",
-        description: "Judul dan sasaran formulir wajib diisi.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const parsedRespondents = editorData.respondents
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
-
-    if (editingFormId) {
-      setForms((prev) =>
-        prev.map((form) =>
-          form.id === editingFormId
-            ? {
-                ...form,
-                title: editorData.title.trim(),
-                target: editorData.target.trim(),
-                isActive: editorData.isActive === "aktif",
-                respondents: parsedRespondents,
-              }
-            : form,
-        ),
-      );
-      toast({ title: "Berhasil", description: "Formulir berhasil diperbarui." });
-    } else {
-      const nowId = Date.now();
-      const newForm: FormListItem = {
-        id: `form-${toSlug(editorData.title)}-${nowId}`,
-        title: editorData.title.trim(),
-        target: editorData.target.trim(),
-        isActive: editorData.isActive === "aktif",
-        respondents: parsedRespondents,
-        sections: [
-          {
-            id: `section-${nowId}`,
-            title: "Bagian 1",
-            description: "Bagian awal formulir.",
-            questions: [],
-          },
-        ],
-        responses: [],
-      };
-      setForms((prev) => [newForm, ...prev]);
-      toast({ title: "Berhasil", description: "Formulir baru berhasil ditambahkan." });
-    }
-
-    setIsFormDialogOpen(false);
-    resetEditor();
-  };
-
   const handleDeleteForm = () => {
     if (!deleteTargetId) return;
+
     setForms((prev) => prev.filter((form) => form.id !== deleteTargetId));
     if (selectedFormId === deleteTargetId) {
       setSelectedFormId(null);
     }
     setDeleteTargetId(null);
+
     toast({ title: "Berhasil", description: "Formulir berhasil dihapus." });
   };
 
@@ -446,34 +160,34 @@ const DaftarFormulirPage = () => {
             </div>
             <h2 className="font-heading text-2xl font-bold sm:text-3xl">Form Management</h2>
             <p className="max-w-2xl text-sm text-muted-foreground">
-              Pantau formulir yang tersedia, lihat preview isinya, dan unduh hasil respon dalam format CSV.
+              Kelola formulir, buka mode builder penuh untuk tambah/edit, lihat preview, dan unduh hasil respon CSV.
             </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:items-end">
-            <Button onClick={openCreateDialog} className="w-full sm:w-auto">
+            <Button onClick={() => navigate("/dashboard/form-management/new")} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Tambah Formulir
             </Button>
             <div className="grid grid-cols-3 gap-3 sm:max-w-xl">
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Total formulir</p>
-                <p className="mt-1 text-2xl font-bold">{stats.totalForms}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Form aktif</p>
-                <p className="mt-1 text-2xl font-bold">{stats.activeForms}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Total respon</p>
-                <p className="mt-1 text-2xl font-bold">{stats.totalRespondents}</p>
-              </CardContent>
-            </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-muted-foreground">Total formulir</p>
+                  <p className="mt-1 text-2xl font-bold">{stats.totalForms}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-muted-foreground">Form aktif</p>
+                  <p className="mt-1 text-2xl font-bold">{stats.activeForms}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-muted-foreground">Total respon</p>
+                  <p className="mt-1 text-2xl font-bold">{stats.totalRespondents}</p>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </div>
@@ -487,9 +201,9 @@ const DaftarFormulirPage = () => {
                     <TableHead className="w-16">No</TableHead>
                     <TableHead>Judul</TableHead>
                     <TableHead>Responden</TableHead>
-                    <TableHead className="w-36">Aktif</TableHead>
+                    <TableHead className="w-36">Status</TableHead>
                     <TableHead>Sasaran</TableHead>
-                    <TableHead className="w-[420px] text-right">Detail</TableHead>
+                    <TableHead className="w-[420px] text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -522,17 +236,17 @@ const DaftarFormulirPage = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={statusStyles[String(form.isActive) as keyof typeof statusStyles]}>
-                          {form.isActive ? (
+                        <Badge variant="outline" className={statusStyles[form.status]}>
+                          {form.status === "aktif" ? (
                             <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
                           ) : (
                             <XCircle className="mr-1 h-3.5 w-3.5" />
                           )}
-                          {form.isActive ? "Aktif" : "Nonaktif"}
+                          {form.status === "aktif" ? "Aktif" : "Nonaktif"}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <p className="text-sm leading-snug">{form.target}</p>
+                        <p className="text-sm leading-snug">{form.target || "-"}</p>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-2 whitespace-nowrap">
@@ -540,7 +254,11 @@ const DaftarFormulirPage = () => {
                             <Eye className="mr-2 h-4 w-4" />
                             Lihat
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => openEditDialog(form)}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/dashboard/form-management/${form.id}/edit`)}
+                          >
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </Button>
@@ -563,75 +281,6 @@ const DaftarFormulirPage = () => {
         </Card>
       </div>
 
-      <Dialog open={isFormDialogOpen} onOpenChange={(open) => {
-        setIsFormDialogOpen(open);
-        if (!open) resetEditor();
-      }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editingFormId ? "Edit Formulir" : "Tambah Formulir"}</DialogTitle>
-            <DialogDescription>
-              Kelola metadata formulir untuk kebutuhan manajemen dashboard.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSaveForm} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="form-title">Judul Formulir</Label>
-              <Input
-                id="form-title"
-                placeholder="Contoh: Tracer Study Lulusan 2026"
-                value={editorData.title}
-                onChange={(event) => setEditorData((prev) => ({ ...prev, title: event.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="form-target">Sasaran</Label>
-              <Input
-                id="form-target"
-                placeholder="Contoh: Lulusan Angkatan 2026"
-                value={editorData.target}
-                onChange={(event) => setEditorData((prev) => ({ ...prev, target: event.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="form-status">Status</Label>
-              <Select
-                value={editorData.isActive}
-                onValueChange={(value: "aktif" | "nonaktif") =>
-                  setEditorData((prev) => ({ ...prev, isActive: value }))
-                }
-              >
-                <SelectTrigger id="form-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="aktif">Aktif</SelectItem>
-                  <SelectItem value="nonaktif">Nonaktif</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="form-respondents">Responden (pisahkan dengan koma)</Label>
-              <Textarea
-                id="form-respondents"
-                rows={3}
-                placeholder="Contoh: Ayu Pratama, Dimas Saputra"
-                value={editorData.respondents}
-                onChange={(event) =>
-                  setEditorData((prev) => ({ ...prev, respondents: event.target.value }))
-                }
-              />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsFormDialogOpen(false)}>
-                Batal
-              </Button>
-              <Button type="submit">{editingFormId ? "Simpan Perubahan" : "Tambah Formulir"}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={Boolean(selectedForm)} onOpenChange={(open) => !open && setSelectedFormId(null)}>
         <DialogContent className="max-w-5xl p-0 sm:max-h-[90vh] sm:rounded-2xl">
           {selectedForm && (
@@ -639,12 +288,12 @@ const DaftarFormulirPage = () => {
               <DialogHeader className="border-b border-border px-6 py-5 text-left">
                 <div className="flex flex-wrap items-center gap-3">
                   <DialogTitle className="text-xl">{selectedForm.title}</DialogTitle>
-                  <Badge variant="outline" className={statusStyles[String(selectedForm.isActive) as keyof typeof statusStyles]}>
-                    {selectedForm.isActive ? "Aktif" : "Nonaktif"}
+                  <Badge variant="outline" className={statusStyles[selectedForm.status]}>
+                    {selectedForm.status === "aktif" ? "Aktif" : "Nonaktif"}
                   </Badge>
                 </div>
                 <DialogDescription className="flex flex-wrap gap-4 pt-2">
-                  <span>{selectedForm.target}</span>
+                  <span>{selectedForm.target || "Tanpa sasaran"}</span>
                   <span>•</span>
                   <span>{selectedForm.responses.length} responden</span>
                 </DialogDescription>
@@ -714,7 +363,7 @@ const DaftarFormulirPage = () => {
 };
 
 interface PreviewQuestionFieldProps {
-  question: Question;
+  question: BuilderQuestion;
 }
 
 const PreviewQuestionField = ({ question }: PreviewQuestionFieldProps) => {
@@ -728,24 +377,42 @@ const PreviewQuestionField = ({ question }: PreviewQuestionFieldProps) => {
     case "multiple_choice":
       return (
         <div className="space-y-2">
-          {question.options.map((option) => (
-            <div key={option.id} className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2">
+          {question.options.map((option, index) => (
+            <div
+              key={`${question.id}-multiple-${index}`}
+              className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2"
+            >
               <div className="h-4 w-4 rounded-full border-2 border-muted-foreground" />
-              <span className="text-sm">{option.label}</span>
+              <span className="text-sm">{option}</span>
             </div>
           ))}
+          {question.allowOther && (
+            <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2">
+              <div className="h-4 w-4 rounded-full border-2 border-muted-foreground" />
+              <span className="text-sm">Other</span>
+            </div>
+          )}
         </div>
       );
 
     case "checkbox":
       return (
         <div className="space-y-2">
-          {question.options.map((option) => (
-            <div key={option.id} className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2">
+          {question.options.map((option, index) => (
+            <div
+              key={`${question.id}-checkbox-${index}`}
+              className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2"
+            >
               <Checkbox disabled />
-              <span className="text-sm">{option.label}</span>
+              <span className="text-sm">{option}</span>
             </div>
           ))}
+          {question.allowOther && (
+            <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2">
+              <Checkbox disabled />
+              <span className="text-sm">Other</span>
+            </div>
+          )}
         </div>
       );
 
@@ -756,11 +423,12 @@ const PreviewQuestionField = ({ question }: PreviewQuestionFieldProps) => {
             <SelectValue placeholder="Pilih salah satu" />
           </SelectTrigger>
           <SelectContent>
-            {question.options.map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                {option.label}
+            {question.options.map((option, index) => (
+              <SelectItem key={`${question.id}-dropdown-${index}`} value={`${index}`}>
+                {option}
               </SelectItem>
             ))}
+            {question.allowOther && <SelectItem value="other">Other</SelectItem>}
           </SelectContent>
         </Select>
       );
@@ -768,21 +436,23 @@ const PreviewQuestionField = ({ question }: PreviewQuestionFieldProps) => {
     case "linear_scale": {
       const min = question.scaleMin ?? 1;
       const max = question.scaleMax ?? 5;
-      const values = Array.from({ length: max - min + 1 }, (_, index) => index + min);
+      const values = Array.from({ length: Math.max(0, max - min + 1) }, (_, idx) => min + idx);
 
       return (
-        <div className="space-y-3 rounded-lg border border-border/60 bg-background p-4">
-          <div className="flex items-center gap-3 text-sm">
-            {question.scaleMinLabel && <span className="w-24 text-right text-muted-foreground">{question.scaleMinLabel}</span>}
-            <div className="flex flex-1 justify-center gap-3">
-              {values.map((value) => (
-                <label key={value} className="flex cursor-default flex-col items-center gap-1">
-                  <input type="radio" disabled className="h-4 w-4 accent-primary" />
-                  <span className="text-xs text-muted-foreground">{value}</span>
-                </label>
-              ))}
-            </div>
-            {question.scaleMaxLabel && <span className="w-24 text-left text-muted-foreground">{question.scaleMaxLabel}</span>}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {values.map((value) => (
+              <div
+                key={`${question.id}-scale-${value}`}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background text-sm"
+              >
+                {value}
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>{min}</span>
+            <span>{max}</span>
           </div>
         </div>
       );
@@ -790,9 +460,9 @@ const PreviewQuestionField = ({ question }: PreviewQuestionFieldProps) => {
 
     case "rating":
       return (
-        <div className="flex gap-1">
+        <div className="flex gap-2 text-muted-foreground">
           {Array.from({ length: 5 }).map((_, index) => (
-            <Star key={index} className="h-7 w-7 text-yellow-400" fill="currentColor" />
+            <span key={`${question.id}-rating-${index}`}>☆</span>
           ))}
         </div>
       );
@@ -803,17 +473,10 @@ const PreviewQuestionField = ({ question }: PreviewQuestionFieldProps) => {
     case "time":
       return <Input type="time" disabled className="max-w-xs bg-background" />;
 
-    case "file_upload":
-      return (
-        <div className="rounded-xl border-2 border-dashed border-border bg-background p-6 text-center text-sm text-muted-foreground">
-          Unggah file
-        </div>
-      );
-
     default:
       return (
-        <div className="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-muted-foreground">
-          Tipe pertanyaan tidak didukung.
+        <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          Preview untuk tipe ini tersedia setelah renderer responden terintegrasi penuh.
         </div>
       );
   }
