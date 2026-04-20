@@ -19,8 +19,7 @@ import ProfilePage from "./pages/ProfilePage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import TeamManagementPage from "./pages/TeamManagementPage";
 import StudentManagementPage from "./pages/StudentManagementPage";
-import QuestionManagementPage from "./pages/QuestionManagementPage";
-import FormPreviewPage from "./pages/FormPreviewPage";
+import DaftarFormulirPage from "./pages/FormManagementPage";
 import NotFound from "./pages/NotFound";
 
 // Student-facing pages
@@ -55,8 +54,7 @@ const App = () => (
             <Route path="/dashboard/change-password" element={<ChangePasswordPage />} />
             <Route path="/dashboard/team-management" element={<TeamManagementPage />} />
             <Route path="/dashboard/student-management" element={<StudentManagementPage />} />
-            <Route path="/dashboard/question-management" element={<QuestionManagementPage />} />
-            <Route path="/dashboard/form-preview" element={<FormPreviewPage />} />
+            <Route path="/dashboard/form-management" element={<DaftarFormulirPage />} />
 
             {/* Student-facing form routes */}
             <Route path="/form/login" element={<StudentLoginPage />} />

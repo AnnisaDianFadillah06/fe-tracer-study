@@ -41,7 +41,7 @@ const StudentLoginPage = () => {
       } else {
         toast({
           title: "Login Gagal",
-          description: "NIM/email atau password salah, atau akun tidak aktif",
+          description: "NIM/email atau password salah, atau akun Nonaktif",
           variant: "destructive",
         });
       }

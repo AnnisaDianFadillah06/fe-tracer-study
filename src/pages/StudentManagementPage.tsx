@@ -38,7 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle } from "lucide-react";
 
 const StudentManagementPage = () => {
   const {
@@ -200,9 +200,18 @@ const StudentManagementPage = () => {
                         <TableCell>{student.angkatan}</TableCell>
                         <TableCell>
                           <Badge
-                            variant={student.status === "aktif" ? "default" : "secondary"}
-                            className={student.status === "aktif" ? "bg-green-500/20 text-green-600 hover:bg-green-500/20" : ""}
+                            variant="outline"
+                            className={
+                              student.status === "aktif"
+                                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                : "border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                            }
                           >
+                            {student.status === "aktif" ? (
+                              <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                            ) : (
+                              <XCircle className="mr-1 h-3.5 w-3.5" />
+                            )}
                             {student.status === "aktif" ? "Aktif" : "Nonaktif"}
                           </Badge>
                         </TableCell>
