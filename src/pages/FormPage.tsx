@@ -14,12 +14,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GraduationCap, LogOut, Star, CheckCircle2, User } from "lucide-react";
+import { LogOut, Star, CheckCircle2, User } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useStudentAuth } from "@/hooks/useStudentAuth";
 import { useFormResponse } from "@/hooks/useFormResponse";
 import type { Question } from "@/hooks/useQuestionManagement";
 import { useState } from "react";
+import PolbanLogo from "@/components/PolbanLogo";
 
 const FormPage = () => {
   const navigate = useNavigate();
@@ -92,12 +93,7 @@ const FormPage = () => {
     <div className="min-h-screen bg-background">
       {/* Top Nav */}
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-lg border-b border-border flex items-center justify-between px-6 h-14">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-orange-400 flex items-center justify-center">
-            <GraduationCap className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-heading font-semibold text-sm">Tracer Study Polban</span>
-        </div>
+        <PolbanLogo compact title="Tracer Study" subtitle="POLBAN" textClassName="hidden sm:block" />
         <div className="flex items-center gap-2">
           {session && (
             <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
