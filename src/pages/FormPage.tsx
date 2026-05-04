@@ -34,13 +34,26 @@ const FormPage = () => {
     section,
     isLastSection,
     progressPercent,
+    questionsLoading,
+    isSubmitting,
+    fetchError,
     setAnswer,
     setCheckboxAnswer,
     handleNext,
     handleBack,
     handleSubmit,
     handleReset,
-  } = useFormResponse();
+  } = useFormResponse(
+    session ? {
+      kodeProdi: session.prodi,
+      alumniData: {
+        nim: session.nim,
+        name: session.username,
+        email: session.email,
+        tahun_lulus: parseInt(session.angkatan) || new Date().getFullYear(),
+      },
+    } : {}
+  );
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -120,83 +133,112 @@ const FormPage = () => {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-4">
-        {sections.length > 1 && (
-          <div className="text-right text-xs text-muted-foreground">
-            Bagian {currentSection + 1} dari {sections.length}
-          </div>
+        {questionsLoading && (
+          <Card className="border-t-4 border-t-primary">
+            <CardContent className="pt-10 pb-10 text-center">
+              <div className="space-y-2">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <p className="text-muted-foreground">Memuat pertanyaan...</p>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
-        {/* Section Header */}
-        <Card className="border-t-4 border-t-primary">
-          <CardContent className="pt-5 pb-5">
-            <h1 className="font-heading text-xl font-bold">{section.title}</h1>
-            {section.description && (
-              <p className="text-muted-foreground text-sm mt-1">{section.description}</p>
-            )}
-            {section.questions.some((q) => q.required) && (
-              <p className="text-xs text-destructive mt-3">* Pertanyaan wajib diisi</p>
-            )}
-          </CardContent>
-        </Card>
+        {fetchError && (
+          <Card className="border-t-4 border-t-destructive">
+            <CardContent className="pt-5 pb-5">
+              <p className="text-destructive font-medium">Gagal memuat kuesioner</p>
+              <p className="text-sm text-muted-foreground mt-1">{fetchError}</p>
+              <p className="text-xs text-muted-foreground mt-3">
+                Menggunakan form default sebagai fallback.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Questions */}
-        <form
-          onSubmit={
-            isLastSection
-              ? handleSubmit
-              : (e) => {
-                  e.preventDefault();
-                  handleNext();
-                }
-          }
-        >
-          <div className="space-y-4">
-            {section.questions.map((q) => (
-              <Card
-                key={q.id}
-                className={`glass-card ${errors[q.id] ? "border-destructive" : ""}`}
-              >
-                <CardContent className="pt-5 pb-5 space-y-3">
-                  <div>
-                    <Label className="text-base font-medium leading-snug">
-                      {q.question || (
-                        <span className="italic text-muted-foreground">Pertanyaan Tanpa Judul</span>
+        {!questionsLoading && sections.length > 0 && (
+          <>
+            {sections.length > 1 && (
+              <div className="text-right text-xs text-muted-foreground">
+                Bagian {currentSection + 1} dari {sections.length}
+              </div>
+            )}
+
+            {/* Section Header */}
+            <Card className="border-t-4 border-t-primary">
+              <CardContent className="pt-5 pb-5">
+                <h1 className="font-heading text-xl font-bold">{section.title}</h1>
+                {section.description && (
+                  <p className="text-muted-foreground text-sm mt-1">{section.description}</p>
+                )}
+                {section.questions.some((q) => q.required) && (
+                  <p className="text-xs text-destructive mt-3">* Pertanyaan wajib diisi</p>
+                )}
+              </CardContent>
+            </Card>
+
+          {/* Questions */}
+          <form
+              onSubmit={
+                isLastSection
+                  ? handleSubmit
+                  : (e) => {
+                      e.preventDefault();
+                      handleNext();
+                    }
+              }
+            >
+              <div className="space-y-4">
+                {section.questions.map((q) => (
+                  <Card
+                    key={q.id}
+                    className={`glass-card ${errors[q.id] ? "border-destructive" : ""}`}
+                  >
+                    <CardContent className="pt-5 pb-5 space-y-3">
+                      <div>
+                        <Label className="text-base font-medium leading-snug">
+                          {q.question || (
+                            <span className="italic text-muted-foreground">Pertanyaan Tanpa Judul</span>
+                          )}
+                          {q.required && <span className="text-destructive ml-1">*</span>}
+                        </Label>
+                        {q.description && (
+                          <p className="text-sm text-muted-foreground mt-1">{q.description}</p>
+                        )}
+                      </div>
+
+                      <AnswerField
+                        q={q}
+                        answer={answers[q.id]}
+                        setAnswer={setAnswer}
+                        setCheckboxAnswer={setCheckboxAnswer}
+                      />
+
+                      {errors[q.id] && (
+                        <p className="text-xs text-destructive flex items-center gap-1">
+                          <span>⚠</span> {errors[q.id]}
+                        </p>
                       )}
-                      {q.required && <span className="text-destructive ml-1">*</span>}
-                    </Label>
-                    {q.description && (
-                      <p className="text-sm text-muted-foreground mt-1">{q.description}</p>
-                    )}
-                  </div>
+                    </CardContent>
+                  </Card>
+                ))}
 
-                  <AnswerField
-                    q={q}
-                    answer={answers[q.id]}
-                    setAnswer={setAnswer}
-                    setCheckboxAnswer={setCheckboxAnswer}
-                  />
-
-                  {errors[q.id] && (
-                    <p className="text-xs text-destructive flex items-center gap-1">
-                      <span>⚠</span> {errors[q.id]}
-                    </p>
+                <div className="flex justify-between pt-2">
+                  {currentSection > 0 ? (
+                    <Button type="button" variant="outline" onClick={handleBack}>
+                      Sebelumnya
+                    </Button>
+                  ) : (
+                    <div />
                   )}
-                </CardContent>
-              </Card>
-            ))}
-
-            <div className="flex justify-between pt-2">
-              {currentSection > 0 ? (
-                <Button type="button" variant="outline" onClick={handleBack}>
-                  Sebelumnya
-                </Button>
-              ) : (
-                <div />
-              )}
-              <Button type="submit">{isLastSection ? "Kirim" : "Berikutnya"}</Button>
-            </div>
-          </div>
-        </form>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Mengirim..." : isLastSection ? "Kirim" : "Berikutnya"}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );

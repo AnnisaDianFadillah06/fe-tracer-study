@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { RoleProvider } from "@/contexts/RoleContext";
 import Landing from "./pages/Landing";
-import Login from "./pages/Login";
+import LoginWithAPI from "./pages/LoginWithAPI";
 
 // Router pages (role-agnostic, delegates to role-specific components)
 import OverviewPage from "./pages/dashboard/overview/OverviewPage";
@@ -39,7 +39,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
+            <Route path="/login" element={<LoginWithAPI />} />
             
             {/* Default redirect */}
             <Route path="/dashboard" element={<Navigate to="/dashboard/overview" replace />} />

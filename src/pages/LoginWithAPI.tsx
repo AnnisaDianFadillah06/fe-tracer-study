@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, GraduationCap, Loader2 } from "lucide-react";
@@ -7,14 +7,43 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { apiService } from "@/lib/apiClient";
+
+type DemoAccount = {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  program_name?: string | null;
+  program_code?: string | null;
+  program_degree?: string | null;
+  password_hint?: string;
+};
 
 const LoginWithAPI = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [demoAccounts, setDemoAccounts] = useState<DemoAccount[]>([]);
+  const [demoLoading, setDemoLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { login, isLoading } = useAuth();
+
+  useEffect(() => {
+    const loadDemoAccounts = async () => {
+      try {
+        const response = await apiService.getDemoAccounts();
+        setDemoAccounts(response.data || response);
+      } catch (error) {
+        console.error("Failed to load demo accounts:", error);
+      } finally {
+        setDemoLoading(false);
+      }
+    };
+
+    loadDemoAccounts();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,9 +158,21 @@ const LoginWithAPI = () => {
         </form>
 
         {/* Footer */}
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          Demo credentials: admin@example.com / password
-        </p>
+        <div className="mt-4 rounded-lg border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground">
+          <p className="text-center font-medium text-foreground">Akun demo yang tersedia</p>
+          {demoLoading ? (
+            <p className="mt-3 text-center text-sm text-muted-foreground">Memuat akun dari database...</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {demoAccounts.map((account) => (
+                <li key={account.id} className="flex flex-col items-center gap-0.5 text-center">
+                  <span className="font-medium text-foreground">{account.name}</span>
+                  <span>{account.email} / {account.password_hint ?? "-"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </motion.div>
     </div>
   );

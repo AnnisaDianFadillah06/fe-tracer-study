@@ -60,6 +60,11 @@ export const apiService = {
     return response.data;
   },
 
+  getDemoAccounts: async () => {
+    const response = await apiClient.get("/auth/demo-accounts");
+    return response.data;
+  },
+
   // Programs endpoints
   getPrograms: async () => {
     const response = await apiClient.get("/programs");
@@ -83,6 +88,31 @@ export const apiService = {
 
   deleteProgram: async (id: string | number) => {
     await apiClient.delete(`/programs/${id}`);
+  },
+
+  // Questionnaire CRUD endpoints
+  getQuestionnaires: async () => {
+    const response = await apiClient.get("/questionnaires");
+    return response.data;
+  },
+
+  getQuestionnaireById: async (id: string | number) => {
+    const response = await apiClient.get(`/questionnaires/${id}`);
+    return response.data;
+  },
+
+  createQuestionnaire: async (data: any) => {
+    const response = await apiClient.post("/questionnaires", data);
+    return response.data;
+  },
+
+  updateQuestionnaire: async (id: string | number, data: any) => {
+    const response = await apiClient.put(`/questionnaires/${id}`, data);
+    return response.data;
+  },
+
+  deleteQuestionnaire: async (id: string | number) => {
+    await apiClient.delete(`/questionnaires/${id}`);
   },
 
   // Generic GET request
@@ -114,6 +144,19 @@ export const apiService = {
   // Generic DELETE request
   delete: async <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     const response = await apiClient.delete<T>(url, config);
+    return response.data;
+  },
+
+  // Tracer Study Questionnaire endpoints
+  getQuestionnaireForms: async (kodeProdi: string) => {
+    const response = await apiClient.get("/tracer-study/forms", {
+      params: { kode_prodi: kodeProdi },
+    });
+    return response.data;
+  },
+
+  submitTracerStudyForm: async (data: any) => {
+    const response = await apiClient.post("/tracer-study/submit", data);
     return response.data;
   },
 };

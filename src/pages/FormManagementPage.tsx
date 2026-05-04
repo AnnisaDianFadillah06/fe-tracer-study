@@ -44,10 +44,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   getInitialForms,
+  loadBackendForms,
   saveForms,
   type BuilderQuestion,
   type FormListItem,
 } from "@/lib/formManagement";
+import { apiService } from "@/lib/apiClient";
 import {
   CheckCircle2,
   Download,
@@ -89,6 +91,27 @@ const DaftarFormulirPage = () => {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const hydrateBackendForms = async () => {
+      try {
+        const backendForms = await loadBackendForms();
+        if (!cancelled && backendForms.length > 0) {
+          setForms(backendForms);
+        }
+      } catch {
+        // Keep local fallback forms if backend is unavailable.
+      }
+    };
+
+    hydrateBackendForms();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     saveForms(forms);
   }, [forms]);
 
@@ -108,13 +131,29 @@ const DaftarFormulirPage = () => {
   const handleDeleteForm = () => {
     if (!deleteTargetId) return;
 
-    setForms((prev) => prev.filter((form) => form.id !== deleteTargetId));
-    if (selectedFormId === deleteTargetId) {
-      setSelectedFormId(null);
-    }
-    setDeleteTargetId(null);
+    const deleteForm = async () => {
+      try {
+        if (/^\d+$/.test(deleteTargetId)) {
+          await apiService.deleteQuestionnaire(deleteTargetId);
+        }
 
-    toast({ title: "Berhasil", description: "Formulir berhasil dihapus." });
+        setForms((prev) => prev.filter((form) => form.id !== deleteTargetId));
+        if (selectedFormId === deleteTargetId) {
+          setSelectedFormId(null);
+        }
+        setDeleteTargetId(null);
+
+        toast({ title: "Berhasil", description: "Formulir berhasil dihapus." });
+      } catch (error: any) {
+        toast({
+          title: "Gagal",
+          description: error?.response?.data?.message || "Formulir gagal dihapus dari database.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    void deleteForm();
   };
 
   const downloadCsv = (form: FormListItem) => {

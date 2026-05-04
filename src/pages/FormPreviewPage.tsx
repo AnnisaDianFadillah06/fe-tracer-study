@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import {
   type BuilderQuestion,
   type FormListItem,
   getInitialForms,
+  loadBackendForms,
 } from "@/lib/formManagement";
 import { ArrowLeft } from "lucide-react";
 
@@ -31,10 +32,33 @@ const FormPreviewPage = () => {
 
   const state = (location.state ?? {}) as PreviewLocationState;
 
+  const [backendForms, setBackendForms] = useState<FormListItem[]>(() => getInitialForms());
+
   const fallbackForm = useMemo(() => {
     if (!formId) return null;
-    return getInitialForms().find((item) => item.id === formId) ?? null;
-  }, [formId]);
+    return backendForms.find((item) => item.id === formId) ?? null;
+  }, [backendForms, formId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateBackendForms = async () => {
+      try {
+        const loaded = await loadBackendForms("TI");
+        if (!cancelled && loaded.length > 0) {
+          setBackendForms(loaded);
+        }
+      } catch {
+        // Use local fallback.
+      }
+    };
+
+    hydrateBackendForms();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const form = state.form ?? fallbackForm;
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +20,8 @@ import {
   createId,
   isGridQuestionType,
   isOptionQuestionType,
+  formToQuestionnairePayload,
+  loadBackendForms,
   type BuilderQuestion,
   type BuilderQuestionType,
   type BuilderSection,
@@ -27,6 +29,7 @@ import {
   getInitialForms,
   saveForms,
 } from "@/lib/formManagement";
+import { apiService } from "@/lib/apiClient";
 import {
   ArrowLeft,
   Copy,
@@ -71,9 +74,38 @@ const FormBuilderPage = () => {
   const navigate = useNavigate();
   const { formId } = useParams<{ formId: string }>();
 
-  const existingForms = useMemo(() => getInitialForms(), []);
+  const [existingForms, setExistingForms] = useState<FormListItem[]>(() => getInitialForms());
   const isEditMode = Boolean(formId);
   const sourceForm = existingForms.find((item) => item.id === formId);
+  const [backendLoaded, setBackendLoaded] = useState(!isEditMode);
+
+  useEffect(() => {
+    if (isEditMode && sourceForm) {
+      setForm(JSON.parse(JSON.stringify(sourceForm)) as FormListItem);
+    }
+    let cancelled = false;
+
+    const hydrateBackendForms = async () => {
+      try {
+        const backendForms = await loadBackendForms();
+        if (!cancelled && backendForms.length > 0) {
+          setExistingForms(backendForms);
+        }
+      } catch {
+        // Keep local fallback data.
+      } finally {
+        if (!cancelled) {
+          setBackendLoaded(true);
+        }
+      }
+    };
+
+    hydrateBackendForms();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [form, setForm] = useState<FormListItem>(() => {
     if (sourceForm) {
@@ -271,16 +303,34 @@ const FormBuilderPage = () => {
       return;
     }
 
-    const allForms = getInitialForms();
-    const exists = allForms.some((item) => item.id === form.id);
+    const persistForm = async () => {
+      try {
+        const payload = formToQuestionnairePayload(form);
 
-    const updatedForms = exists
-      ? allForms.map((item) => (item.id === form.id ? form : item))
-      : [form, ...allForms];
+        if (isEditMode && /^\d+$/.test(form.id)) {
+          await apiService.updateQuestionnaire(form.id, payload);
+        } else {
+          await apiService.createQuestionnaire(payload);
+        }
 
-    saveForms(updatedForms);
-    toast({ title: "Berhasil", description: "Formulir berhasil disimpan." });
-    navigate("/dashboard/form-management");
+        const backendForms = await loadBackendForms();
+        if (backendForms.length > 0) {
+          setExistingForms(backendForms);
+          saveForms(backendForms);
+        }
+
+        toast({ title: "Berhasil", description: "Formulir berhasil disimpan ke database." });
+        navigate("/dashboard/form-management");
+      } catch (error: any) {
+        toast({
+          title: "Gagal",
+          description: error?.response?.data?.message || "Formulir gagal disimpan ke database.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    void persistForm();
   };
 
   const floatingAction = (label: string) => {
@@ -296,7 +346,7 @@ const FormBuilderPage = () => {
     navigate("/dashboard/form-management/new/preview", { state: { form } });
   };
 
-  if (isEditMode && !sourceForm) {
+  if (isEditMode && backendLoaded && !sourceForm) {
     return (
       <div className="grid min-h-screen place-items-center bg-background px-6">
         <Card className="w-full max-w-md">
