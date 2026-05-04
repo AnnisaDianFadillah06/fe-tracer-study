@@ -57,6 +57,44 @@ const questionTypeOptions: Array<{ value: BuilderQuestionType; label: string }> 
 ];
 
 const PREVIEW_DRAFT_KEY = "tracer_form_preview_draft";
+const BUILDER_DRAFT_KEY = "tracer_form_builder_draft";
+
+const normalizeTargets = (data: FormListItem): FormListItem => {
+  const rawTarget = (data as { target?: string | string[] }).target;
+  const targets = Array.isArray(rawTarget)
+    ? rawTarget
+    : rawTarget
+      ? [rawTarget]
+      : [];
+
+  return {
+    ...data,
+    target: targets,
+  };
+};
+
+const ensureFirstQuestionRequired = (data: FormListItem): FormListItem => {
+  const firstSection = data.sections[0];
+  const firstQuestion = firstSection?.questions[0];
+
+  if (!firstSection || !firstQuestion || firstQuestion.required) {
+    return data;
+  }
+
+  return {
+    ...data,
+    sections: data.sections.map((section, index) =>
+      index === 0
+        ? {
+            ...section,
+            questions: section.questions.map((question, qIndex) =>
+              qIndex === 0 ? { ...question, required: true } : question,
+            ),
+          }
+        : section,
+    ),
+  };
+};
 
 interface DragQuestionPayload {
   sectionId: string;
@@ -79,17 +117,32 @@ const FormBuilderPage = () => {
   const isEditMode = Boolean(formId);
   const sourceForm = existingForms.find((item) => item.id === formId);
 
+  const builderDraft = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const key = formId ? `${BUILDER_DRAFT_KEY}:${formId}` : `${BUILDER_DRAFT_KEY}:new`;
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as FormListItem) : null;
+    } catch {
+      return null;
+    }
+  }, [formId]);
+
   const [form, setForm] = useState<FormListItem>(() => {
+    if (builderDraft) {
+      return ensureFirstQuestionRequired(normalizeTargets(builderDraft));
+    }
     if (sourceForm) {
-      return JSON.parse(JSON.stringify(sourceForm)) as FormListItem;
+      const cloned = JSON.parse(JSON.stringify(sourceForm)) as FormListItem;
+      return ensureFirstQuestionRequired(normalizeTargets(cloned));
     }
 
-    return {
+    return ensureFirstQuestionRequired({
       id: `form-${createId("new")}`,
       title: "Untitled Form",
       description: "",
       status: "aktif",
-      target: "",
+      target: [],
       respondents: [],
       sections: [
         {
@@ -100,7 +153,7 @@ const FormBuilderPage = () => {
         },
       ],
       responses: [],
-    };
+    });
   });
 
   const [draggedQuestion, setDraggedQuestion] = useState<DragQuestionPayload | null>(null);
@@ -112,6 +165,7 @@ const FormBuilderPage = () => {
     top: 120,
     left: 0,
   });
+  const [targetPickerValue, setTargetPickerValue] = useState<string | undefined>(undefined);
 
   const angkatanOptions = useMemo(() => {
     const counts = new Map<number, number>();
@@ -143,12 +197,30 @@ const FormBuilderPage = () => {
       addOption(`Lulusan Angkatan ${year}`, `Lulusan Angkatan ${year} (${count} alumni)`);
     });
 
-    if (form.target && !seen.has(form.target)) {
-      addOption(form.target, `Sasaran tersimpan: ${form.target}`);
-    }
+    form.target.forEach((target) => {
+      if (!seen.has(target)) {
+        addOption(target, `Sasaran tersimpan: ${target}`);
+      }
+    });
 
     return options;
   }, [angkatanOptions, form.target]);
+
+  const addTarget = (value: string) => {
+    if (!value) return;
+    setForm((prev) => {
+      if (prev.target.includes(value)) return prev;
+      return { ...prev, target: [...prev.target, value] };
+    });
+    setTargetPickerValue(undefined);
+  };
+
+  const removeTarget = (value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      target: prev.target.filter((item) => item !== value),
+    }));
+  };
 
   const updateFloatingPanelPosition = () => {
     const panel = panelRef.current;
@@ -197,6 +269,18 @@ const FormBuilderPage = () => {
       window.removeEventListener("resize", scheduleUpdate);
     };
   }, [activeQuestionKey, form.sections.length]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const key = formId ? `${BUILDER_DRAFT_KEY}:${formId}` : `${BUILDER_DRAFT_KEY}:new`;
+    const timer = window.setTimeout(() => {
+      localStorage.setItem(key, JSON.stringify(form));
+    }, 400);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [form, formId]);
 
   const updateQuestion = (
     sectionId: string,
@@ -375,6 +459,10 @@ const FormBuilderPage = () => {
       : [form, ...allForms];
 
     saveForms(updatedForms);
+    if (typeof window !== "undefined") {
+      const key = formId ? `${BUILDER_DRAFT_KEY}:${formId}` : `${BUILDER_DRAFT_KEY}:new`;
+      localStorage.removeItem(key);
+    }
     toast({ title: "Berhasil", description: "Formulir berhasil disimpan." });
     navigate("/dashboard/form-management");
   };
@@ -465,8 +553,8 @@ const FormBuilderPage = () => {
               <div className="space-y-2">
                 <Label htmlFor="form-target">Sasaran</Label>
                 <Select
-                  value={form.target || undefined}
-                  onValueChange={(value) => setForm((prev) => ({ ...prev, target: value }))}
+                  value={targetPickerValue}
+                  onValueChange={addTarget}
                 >
                   <SelectTrigger id="form-target">
                     <SelectValue
@@ -489,8 +577,28 @@ const FormBuilderPage = () => {
                     )}
                   </SelectContent>
                 </Select>
+                {form.target.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {form.target.map((target) => (
+                      <div
+                        key={target}
+                        className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1 text-xs"
+                      >
+                        <span>{target}</span>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={() => removeTarget(target)}
+                          aria-label={`Hapus sasaran ${target}`}
+                        >
+                          x
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  Sasaran diambil dari akun mahasiswa dan dikelompokkan per angkatan.
+                  Tambahkan lebih dari satu sasaran jika diperlukan.
                 </p>
               </div>
               <div className="space-y-2">

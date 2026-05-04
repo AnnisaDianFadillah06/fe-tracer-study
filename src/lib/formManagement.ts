@@ -52,7 +52,7 @@ export interface FormListItem {
   title: string;
   description?: string;
   status: FormStatus;
-  target: string;
+  target: string[];
   respondents: string[];
   sections: BuilderSection[];
   responses: FormResponseMock[];
@@ -85,7 +85,7 @@ const initialForms: FormListItem[] = [
     title: "Survey Kepuasan",
     description: "Isi dengan jujur",
     status: "aktif",
-    target: "Alumni",
+    target: ["Semua Alumni"],
     respondents: ["Ayu", "Budi", "Citra"],
     sections: [
       {
@@ -119,7 +119,7 @@ const initialForms: FormListItem[] = [
     title: "Tracer Study Lulusan Teknik Informatika 2026",
     description: "Isi dengan jujur dan lengkap.",
     status: "aktif",
-    target: "Lulusan Angkatan 2026",
+    target: ["Lulusan Angkatan 2026"],
     respondents: ["Ayu Pratama", "Dimas Saputra", "Nabila Rahma", "Rizky Hidayat"],
     sections: [
       {
@@ -195,7 +195,7 @@ const initialForms: FormListItem[] = [
     title: "Survei Kepuasan Alumni 2025",
     description: "Masukan alumni terhadap proses pendidikan.",
     status: "nonaktif",
-    target: "Lulusan Angkatan 2025",
+    target: ["Lulusan Angkatan 2025"],
     respondents: ["Nabila Rahma", "Fahri Maulana"],
     sections: [
       {
@@ -230,8 +230,17 @@ export const getInitialForms = (): FormListItem[] => {
   try {
     const saved = localStorage.getItem(FORM_STORAGE_KEY);
     if (saved) {
-      const parsed = JSON.parse(saved) as FormListItem[];
-      if (Array.isArray(parsed)) return parsed;
+      const parsed = JSON.parse(saved) as Array<FormListItem & { target?: string | string[] }>;
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => ({
+          ...item,
+          target: Array.isArray(item.target)
+            ? item.target
+            : item.target
+              ? [item.target]
+              : [],
+        }));
+      }
     }
   } catch {
     // Ignore malformed localStorage and fall back to seed data.

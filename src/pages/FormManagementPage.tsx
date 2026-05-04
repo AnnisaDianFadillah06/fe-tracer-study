@@ -213,7 +213,9 @@ const DaftarFormulirPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <p className="text-sm leading-snug">{form.target || "-"}</p>
+                        <p className="text-sm leading-snug">
+                          {form.target.length > 0 ? form.target.join(", ") : "-"}
+                        </p>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-2 whitespace-nowrap">
