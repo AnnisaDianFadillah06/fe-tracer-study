@@ -26,6 +26,7 @@ import NotFound from "./pages/NotFound";
 
 // Student-facing pages
 import StudentLoginPage from "./pages/StudentLoginPage";
+import StudentFormListPage from "./pages/StudentFormListPage";
 import FormPage from "./pages/FormPage";
 
 const queryClient = new QueryClient();
@@ -64,7 +65,9 @@ const App = () => (
 
             {/* Student-facing form routes */}
             <Route path="/form/login" element={<StudentLoginPage />} />
-            <Route path="/form" element={<FormPage />} />
+            <Route path="/form" element={<StudentFormListPage />} />
+            <Route path="/form/:formId" element={<FormPreviewPage />} />
+            <Route path="/form/fill" element={<FormPage />} />
             
             {/* Legacy redirects */}
             <Route path="/dashboard/summary" element={<Navigate to="/dashboard/overview" replace />} />

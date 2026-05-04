@@ -86,6 +86,7 @@ const FormPreviewPage = () => {
 
   const state = (location.state ?? {}) as PreviewLocationState;
   const isDraftMode = searchParams.get("draft") === "1";
+  const isStudentMode = searchParams.get("mode") === "student";
 
   const draftForm = useMemo(() => {
     if (!isDraftMode || typeof window === "undefined") return null;
@@ -115,6 +116,10 @@ const FormPreviewPage = () => {
   const isLastSection = currentSection === form.sections.length - 1;
 
   const backToBuilder = () => {
+    if (isStudentMode) {
+      navigate("/form");
+      return;
+    }
     if (formId) {
       navigate(`/dashboard/form-management/${formId}/edit`);
       return;
@@ -189,11 +194,17 @@ const FormPreviewPage = () => {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Preview Form</p>
-              <h1 className="text-base font-semibold">Mode Read-only</h1>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {isStudentMode ? "Pengisian Form" : "Preview Form"}
+              </p>
+              <h1 className="text-base font-semibold">
+                {isStudentMode ? "Isi Form Tracer Study" : "Mode Read-only"}
+              </h1>
             </div>
           </div>
-          <Button variant="outline" onClick={backToBuilder}>Kembali ke Builder</Button>
+          <Button variant="outline" onClick={backToBuilder}>
+            {isStudentMode ? "Kembali ke Daftar" : "Kembali ke Builder"}
+          </Button>
         </div>
       </header>
 
@@ -203,26 +214,34 @@ const FormPreviewPage = () => {
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-2xl font-bold">{form.title || "Untitled Form"}</h2>
               <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                Demo Pengerjaan
+                {isStudentMode ? "Pengisian Form" : "Demo Pengerjaan"}
               </span>
             </div>
             <p className="text-sm text-muted-foreground">{form.description || "Tanpa deskripsi"}</p>
-            <p className="text-xs text-muted-foreground">
-              Ini adalah preview interaktif untuk mencoba alur pengisian sebelum disebarkan.
-            </p>
+            {!isStudentMode && (
+              <p className="text-xs text-muted-foreground">
+                Ini adalah preview interaktif untuk mencoba alur pengisian sebelum disebarkan.
+              </p>
+            )}
           </CardContent>
         </Card>
 
         {submitted ? (
           <Card className="shadow-sm">
             <CardContent className="space-y-3 p-6 text-center">
-              <h3 className="text-lg font-semibold">Jawaban demo tersimpan</h3>
+              <h3 className="text-lg font-semibold">
+                {isStudentMode ? "Jawaban tersimpan" : "Jawaban demo tersimpan"}
+              </h3>
               <p className="text-sm text-muted-foreground">
-                Ini hanya simulasi. Data tidak dikirim ke backend.
+                {isStudentMode
+                  ? "Terima kasih. Jawaban Anda tersimpan untuk simulasi ini."
+                  : "Ini hanya simulasi. Data tidak dikirim ke backend."}
               </p>
               <div className="flex justify-center gap-2">
                 <Button variant="outline" onClick={resetDemo}>Isi Ulang</Button>
-                <Button onClick={backToBuilder}>Kembali ke Builder</Button>
+                <Button onClick={backToBuilder}>
+                  {isStudentMode ? "Kembali ke Daftar" : "Kembali ke Builder"}
+                </Button>
               </div>
             </CardContent>
           </Card>

@@ -1,4 +1,4 @@
-import { useStudentManagement, prodiList } from "@/hooks/useStudentManagement";
+import { useStudentManagement } from "@/hooks/useStudentManagement";
 import { exportAlumniReport } from "@/hooks/useDashboardData";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
@@ -51,6 +51,7 @@ const StudentManagementPage = () => {
     setSearchQuery,
     filterProdi,
     setFilterProdi,
+    programs,
     isDialogOpen,
     setIsDialogOpen,
     isDeleteDialogOpen,
@@ -166,8 +167,10 @@ const StudentManagementPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Semua Program Studi</SelectItem>
-                  {prodiList.map((p) => (
-                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                  {programs.map((program) => (
+                    <SelectItem key={program.id} value={String(program.id)}>
+                      {program.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -284,10 +287,17 @@ const StudentManagementPage = () => {
               </div>
               <div className="col-span-2 space-y-2">
                 <Label htmlFor="prodi">Program Studi *</Label>
-                <Select value={formData.prodi} onValueChange={(v) => setFormData({ ...formData, prodi: v })}>
+                <Select
+                  value={formData.programId}
+                  onValueChange={(v) => setFormData({ ...formData, programId: v })}
+                >
                   <SelectTrigger><SelectValue placeholder="Pilih Program Studi" /></SelectTrigger>
                   <SelectContent>
-                    {prodiList.map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
+                    {programs.map((program) => (
+                      <SelectItem key={program.id} value={String(program.id)}>
+                        {program.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

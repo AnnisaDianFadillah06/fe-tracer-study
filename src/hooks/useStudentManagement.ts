@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useMemo, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -28,6 +28,7 @@ export interface Student {
   email: string;
   password: string;
   prodi: string;
+  programId: string;
   angkatan: string;
   status: "aktif" | "nonaktif";
 }
@@ -45,6 +46,13 @@ export const prodiList = [
   "Teknik Konversi Energi",
 ];
 
+export interface ProgramOption {
+  id: number;
+  name: string;
+  code?: string | null;
+  degree?: string | null;
+}
+
 // ── Map backend alumni → frontend Student ─────────────────────────────────
 function alumniToStudent(a: AlumniRecord): Student {
   return {
@@ -54,6 +62,7 @@ function alumniToStudent(a: AlumniRecord): Student {
     email: a.email ?? "",
     password: "", // Backend doesn't return passwords
     prodi: a.program_name ?? "",
+    programId: a.program_id ? String(a.program_id) : "",
     angkatan: a.graduation_year ? String(a.graduation_year - 3) : "", // estimasi angkatan
     status: "aktif",
   };
@@ -64,7 +73,7 @@ const defaultForm = {
   username: "",
   email: "",
   password: "",
-  prodi: "",
+  programId: "",
   angkatan: "",
   status: "aktif" as "aktif" | "nonaktif",
 };
@@ -95,6 +104,42 @@ export const useStudentManagement = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ ...defaultForm });
 
+  const userRole = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      const raw = localStorage.getItem("auth_user");
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed?.role ?? "";
+    } catch {
+      return "";
+    }
+  }, []);
+
+  const {
+    data: programsResponse,
+  } = useQuery({
+    queryKey: ["programs"],
+    queryFn: async () => {
+      const { data } = await api.get("/programs", { params: { include_inactive: true } });
+      return data;
+    },
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  const programs: ProgramOption[] = useMemo(() => {
+    if (programsResponse?.success && Array.isArray(programsResponse.data)) {
+      return programsResponse.data.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        code: item.code ?? null,
+        degree: item.degree ?? null,
+      }));
+    }
+
+    return [];
+  }, [programsResponse]);
+
   // ── Fetch alumni dari backend ───────────────────────────────────────────
   const {
     data: apiResponse,
@@ -123,7 +168,7 @@ export const useStudentManagement = () => {
 
   // Client-side filter
   const filtered = students.filter((s) => {
-    const matchProdi = filterProdi === "all" || s.prodi === filterProdi;
+    const matchProdi = filterProdi === "all" || s.programId === filterProdi;
     return matchProdi;
   });
 
@@ -198,7 +243,7 @@ export const useStudentManagement = () => {
       username: student.username,
       email: student.email,
       password: "",
-      prodi: student.prodi,
+      programId: student.programId,
       angkatan: student.angkatan,
       status: student.status,
     });
@@ -221,10 +266,22 @@ export const useStudentManagement = () => {
       nim: formData.nim,
       name: formData.username,
       email: formData.email,
+      entry_year: formData.angkatan ? parseInt(formData.angkatan) : null,
       graduation_year: formData.angkatan
         ? parseInt(formData.angkatan) + 3
         : null,
     };
+
+    if (formData.programId) {
+      payload.program_id = Number(formData.programId);
+    } else if (userRole === "admin") {
+      toast({
+        title: "Error",
+        description: "Program studi wajib dipilih untuk akun baru.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (editingStudent) {
       updateMutation.mutate({ id: editingStudent.id, payload });
@@ -264,6 +321,7 @@ export const useStudentManagement = () => {
     setSearchQuery,
     filterProdi,
     setFilterProdi,
+    programs,
     isDialogOpen,
     setIsDialogOpen,
     isDeleteDialogOpen,
