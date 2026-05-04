@@ -28,11 +28,55 @@ const SUPPORTED_DEMO_TYPES = new Set([
   "multiple_choice",
   "checkbox",
   "dropdown",
+  "multiple_choice_grid",
+  "checkbox_grid",
+  "file_upload",
   "linear_scale",
   "rating",
   "date",
   "time",
 ]);
+
+const getScaleLabels = (min: number, max: number, customLabels?: string[]) => {
+  const count = Math.max(0, max - min + 1);
+  const hasCustom = Array.isArray(customLabels) && customLabels.some((label) => label.trim() !== "");
+  if (count === 5) {
+    return [
+      "Sangat tidak setuju",
+      "Tidak setuju",
+      "Netral",
+      "Setuju",
+      "Sangat setuju",
+    ];
+  }
+  if (count === 4) {
+    return ["Sangat buruk", "Buruk", "Baik", "Sangat baik"];
+  }
+  if (count === 3) {
+    return ["Rendah", "Sedang", "Tinggi"];
+  }
+  if (count === 7) {
+    return [
+      "Sangat rendah",
+      "Rendah",
+      "Agak rendah",
+      "Netral",
+      "Agak tinggi",
+      "Tinggi",
+      "Sangat tinggi",
+    ];
+  }
+  const defaults = Array.from({ length: count }, (_, index) => `Nilai ${min + index}`);
+
+  if (!hasCustom || !customLabels) {
+    return defaults;
+  }
+
+  return defaults.map((fallback, index) => {
+    const label = customLabels[index]?.trim();
+    return label ? label : fallback;
+  });
+};
 
 const FormPreviewPage = () => {
   const navigate = useNavigate();
@@ -60,7 +104,9 @@ const FormPreviewPage = () => {
 
   const form = state.form ?? draftForm ?? fallbackForm;
 
-  const [answers, setAnswers] = useState<Record<string, string | number | string[]>>({});
+  const [answers, setAnswers] = useState<
+    Record<string, string | number | string[] | Record<string, string> | Record<string, string[]>>
+  >({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
 
@@ -214,8 +260,14 @@ const FormPreviewPage = () => {
 
 interface InteractiveQuestionPreviewProps {
   question: BuilderQuestion;
-  value: string | number | string[] | undefined;
-  onChange: (value: string | number | string[]) => void;
+  value:
+    | string
+    | number
+    | string[]
+    | Record<string, string>
+    | Record<string, string[]>
+    | undefined;
+  onChange: (value: string | number | string[] | Record<string, string> | Record<string, string[]>) => void;
 }
 
 const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQuestionPreviewProps) => {
@@ -339,29 +391,128 @@ const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQu
         </Select>
       );
 
+    case "multiple_choice_grid": {
+      const rows = question.gridRows ?? [];
+      const columns = question.gridColumns ?? [];
+      const currentGrid =
+        typeof currentValue === "object" && !Array.isArray(currentValue)
+          ? (currentValue as Record<string, string>)
+          : {};
+
+      return (
+        <div className="overflow-x-auto rounded-lg border bg-background">
+          <table className="w-full min-w-[520px] border-collapse text-sm">
+            <thead>
+              <tr>
+                <th className="border-b border-r bg-muted/40 px-3 py-2 text-left font-medium">Pernyataan</th>
+                {columns.map((column, index) => (
+                  <th key={`${question.id}-column-${index}`} className="border-b px-3 py-2 text-center font-medium">
+                    {column}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={`${question.id}-row-${rowIndex}`}>
+                  <td className="border-r border-t bg-muted/20 px-3 py-2">{row}</td>
+                  {columns.map((column, colIndex) => (
+                    <td key={`${question.id}-cell-${rowIndex}-${colIndex}`} className="border-t px-3 py-2 text-center">
+                      <input
+                        type="radio"
+                        name={`${question.id}-${rowIndex}`}
+                        checked={currentGrid[row] === column}
+                        onChange={() => onChange({ ...currentGrid, [row]: column })}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    case "checkbox_grid": {
+      const rows = question.gridRows ?? [];
+      const columns = question.gridColumns ?? [];
+      const currentGrid =
+        typeof currentValue === "object" && !Array.isArray(currentValue)
+          ? (currentValue as Record<string, string[]>)
+          : {};
+
+      const toggleGridValue = (row: string, column: string, checked: boolean) => {
+        const rowValues = currentGrid[row] ?? [];
+        const nextValues = checked
+          ? [...rowValues, column]
+          : rowValues.filter((item) => item !== column);
+        onChange({ ...currentGrid, [row]: nextValues });
+      };
+
+      return (
+        <div className="overflow-x-auto rounded-lg border bg-background">
+          <table className="w-full min-w-[520px] border-collapse text-sm">
+            <thead>
+              <tr>
+                <th className="border-b border-r bg-muted/40 px-3 py-2 text-left font-medium">Pernyataan</th>
+                {columns.map((column, index) => (
+                  <th key={`${question.id}-column-${index}`} className="border-b px-3 py-2 text-center font-medium">
+                    {column}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={`${question.id}-row-${rowIndex}`}>
+                  <td className="border-r border-t bg-muted/20 px-3 py-2">{row}</td>
+                  {columns.map((column, colIndex) => (
+                    <td key={`${question.id}-cell-${rowIndex}-${colIndex}`} className="border-t px-3 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={(currentGrid[row] ?? []).includes(column)}
+                        onChange={(event) =>
+                          toggleGridValue(row, column, event.target.checked)
+                        }
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    case "file_upload":
+      return <Input type="file" className="max-w-xs bg-background" />;
+
     case "linear_scale": {
       const min = question.scaleMin ?? 1;
       const max = question.scaleMax ?? 5;
       const values = Array.from({ length: Math.max(0, max - min + 1) }, (_, idx) => min + idx);
+      const labels = getScaleLabels(min, max, question.scaleLabels);
 
       return (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {values.map((value) => (
-              <Button
-                key={`${question.id}-scale-${value}`}
-                type="button"
-                variant={currentValue === value ? "default" : "outline"}
-                size="sm"
-                onClick={() => onChange(value)}
-              >
-                {value}
-              </Button>
+          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${values.length}, minmax(0, 1fr))` }}>
+            {values.map((value, index) => (
+              <div key={`${question.id}-scale-${value}`} className="flex flex-col items-center gap-1">
+                <Button
+                  type="button"
+                  variant={currentValue === value ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => onChange(value)}
+                >
+                  {value}
+                </Button>
+                <span className="text-[11px] text-muted-foreground text-center">
+                  {labels[index]}
+                </span>
+              </div>
             ))}
-          </div>
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{min}</span>
-            <span>{max}</span>
           </div>
         </div>
       );

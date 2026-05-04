@@ -32,6 +32,7 @@ export interface BuilderQuestion {
   allowOther?: boolean;
   scaleMin?: number;
   scaleMax?: number;
+  scaleLabels?: string[];
 }
 
 export const isOptionQuestionType = (type: BuilderQuestionType) =>
@@ -77,6 +78,7 @@ export const createDefaultQuestion = (
   allowOther: false,
   scaleMin: 1,
   scaleMax: 5,
+  scaleLabels: ["", "", "", "", ""],
 });
 
 const initialForms: FormListItem[] = [

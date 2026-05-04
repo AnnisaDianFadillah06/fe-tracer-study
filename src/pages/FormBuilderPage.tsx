@@ -985,27 +985,66 @@ const QuestionEditor = ({ question, onChange }: QuestionEditorProps) => {
   }
 
   if (question.type === "linear_scale") {
+    const minValue = question.scaleMin ?? 1;
+    const maxValue = question.scaleMax ?? 5;
+    const count = Math.max(0, maxValue - minValue + 1);
+    const labels = Array.from({ length: count }, (_, index) => question.scaleLabels?.[index] ?? "");
+
+    const updateScale = (nextMin: number, nextMax: number) => {
+      const normalizedMin = Number.isFinite(nextMin) ? nextMin : 1;
+      const normalizedMax = Number.isFinite(nextMax) ? nextMax : normalizedMin;
+      const nextCount = Math.max(0, normalizedMax - normalizedMin + 1);
+      const nextLabels = Array.from({ length: nextCount }, (_, index) => labels[index] ?? "");
+      onChange({
+        scaleMin: normalizedMin,
+        scaleMax: normalizedMax,
+        scaleLabels: nextLabels,
+      });
+    };
+
     return (
-      <div className="grid gap-2 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label className="text-xs">Min</Label>
-          <Input
-            type="number"
-            min={0}
-            max={9}
-            value={question.scaleMin ?? 1}
-            onChange={(event) => onChange({ scaleMin: Number(event.target.value) || 1 })}
-          />
+      <div className="space-y-3">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Min</Label>
+            <Input
+              type="number"
+              min={0}
+              max={9}
+              value={minValue}
+              onChange={(event) => updateScale(Number(event.target.value) || 1, maxValue)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Max</Label>
+            <Input
+              type="number"
+              min={1}
+              max={10}
+              value={maxValue}
+              onChange={(event) => updateScale(minValue, Number(event.target.value) || 5)}
+            />
+          </div>
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Max</Label>
-          <Input
-            type="number"
-            min={1}
-            max={10}
-            value={question.scaleMax ?? 5}
-            onChange={(event) => onChange({ scaleMax: Number(event.target.value) || 5 })}
-          />
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {labels.map((label, index) => {
+            const value = minValue + index;
+            return (
+              <div key={`${question.id}-label-${value}`} className="space-y-1">
+                <Label className="text-xs">Label {value}</Label>
+                <Input
+                  value={label}
+                  onChange={(event) => {
+                    const nextLabels = [...labels];
+                    nextLabels[index] = event.target.value;
+                    onChange({ scaleLabels: nextLabels });
+                  }}
+                  placeholder={`Keterangan untuk ${value}`}
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
     );
