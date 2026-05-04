@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { LogOut, Star, CheckCircle2, User } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import PolbanLogo from "@/components/PolbanLogo";
 import { useStudentAuth } from "@/hooks/useStudentAuth";
 import { useTracerForm } from "@/hooks/useTracerForm";
 import type { Question } from "@/hooks/useQuestionManagement";
