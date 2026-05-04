@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
-  GraduationCap, 
   LayoutDashboard, 
   BarChart3, 
   ChevronLeft, 
@@ -16,7 +15,6 @@ import {
   BookOpen,
   UserCog,
   ClipboardList,
-  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +28,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import RoleSwitcher from "@/components/dashboard/RoleSwitcher";
 import { useRole } from "@/contexts/RoleContext";
 import { Badge } from "@/components/ui/badge";
+import PolbanLogo from "@/components/PolbanLogo";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -80,23 +79,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Logo */}
         <div className="p-4 border-b border-sidebar-border">
           <Link to="/dashboard/overview" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-orange-light flex items-center justify-center flex-shrink-0">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
-            </div>
-            {!collapsed && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <span className="font-heading font-bold text-lg text-sidebar-foreground">
-                  Tracer Study
-                </span>
-                <span className="text-xs text-muted-foreground block -mt-1">
-                  Dashboard
-                </span>
-              </motion.div>
-            )}
+            <PolbanLogo compact title="Tracer Study" subtitle="Dashboard" showText={!collapsed} />
           </Link>
         </div>
 
@@ -151,8 +134,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           {[
             { href: "/dashboard/team-management", icon: Users, title: "Tim Koordinator", desc: "Kelola tim tracer" },
             { href: "/dashboard/student-management", icon: UserCog, title: "Akun Mahasiswa", desc: "CRUD akun kuesioner" },
-            { href: "/dashboard/question-management", icon: ClipboardList, title: "Pertanyaan", desc: "Manajemen kuesioner" },
-            { href: "/dashboard/form-preview", icon: FileText, title: "Preview Form", desc: "Lihat tampilan form" },
+            { href: "/dashboard/form-management", icon: ClipboardList, title: "Form Management", desc: "Kelola formulir dan hasil respon" },
           ].map((item) => {
             const isActive = location.pathname === item.href;
             return (

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, GraduationCap, ArrowLeft, Loader2 } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,8 +45,8 @@ const Login = () => {
           className="w-full max-w-md"
         >
           {/* Back Link */}
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-8"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -54,15 +54,7 @@ const Login = () => {
           </Link>
 
           {/* Logo */}
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-orange-light flex items-center justify-center">
-              <GraduationCap className="w-7 h-7 text-primary-foreground" />
-            </div>
-            <div>
-              <span className="font-heading font-bold text-xl">Tracer Study</span>
-              <span className="text-sm text-muted-foreground block -mt-1">POLBAN</span>
-            </div>
-          </div>
+          <PolbanLogo className="mb-8" markClassName="h-12 w-12" title="Tracer Study" subtitle="POLBAN" />
 
           {/* Header */}
           <div className="mb-8">
@@ -114,8 +106,8 @@ const Login = () => {
               </div>
             </div>
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="btn-primary w-full h-12 text-base"
               disabled={isLoading}
             >
@@ -143,7 +135,7 @@ const Login = () => {
       <div className="hidden lg:flex w-1/2 relative overflow-hidden">
         {/* Background */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-background to-cyan-accent/20" />
-        
+
         {/* Decorative Elements */}
         <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/30 rounded-full blur-3xl animate-pulse-slow" />
         <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-cyan-accent/30 rounded-full blur-3xl animate-pulse-slow animation-delay-300" />

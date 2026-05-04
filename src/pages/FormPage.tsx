@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GraduationCap, LogOut, Star, CheckCircle2, User } from "lucide-react";
+import { LogOut, Star, CheckCircle2, User } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useStudentAuth } from "@/hooks/useStudentAuth";
 import { useTracerForm } from "@/hooks/useTracerForm";
@@ -51,16 +51,16 @@ const FormPage = () => {
   const handleSubmit = (e: React.FormEvent) => {
     const identityData = session
       ? {
-          nim: session.nim,
-          name: session.username,
-          email: session.email,
-          phone: session.phone ?? "",
-          tahun_lulus: session.graduationYear ?? (parseInt(session.angkatan) + 3),
-          kdpstmsmh: kodeProdi ?? "",
-          kode_pt: "",
-          nik: "",
-          npwp: "",
-        }
+        nim: session.nim,
+        name: session.username,
+        email: session.email,
+        phone: session.phone ?? "",
+        tahun_lulus: session.graduationYear ?? (parseInt(session.angkatan) + 3),
+        kdpstmsmh: kodeProdi ?? "",
+        kode_pt: "",
+        nik: "",
+        npwp: "",
+      }
       : undefined;
     submitToBackend(e, identityData);
   };
@@ -128,12 +128,7 @@ const FormPage = () => {
     <div className="min-h-screen bg-background">
       {/* Top Nav */}
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-lg border-b border-border flex items-center justify-between px-6 h-14">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-orange-400 flex items-center justify-center">
-            <GraduationCap className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-heading font-semibold text-sm">Tracer Study Polban</span>
-        </div>
+        <PolbanLogo compact title="Tracer Study" subtitle="POLBAN" textClassName="hidden sm:block" />
         <div className="flex items-center gap-2">
           {session && (
             <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
@@ -185,9 +180,9 @@ const FormPage = () => {
             isLastSection
               ? handleSubmit
               : (e) => {
-                  e.preventDefault();
-                  handleNext();
-                }
+                e.preventDefault();
+                handleNext();
+              }
           }
         >
           <div className="space-y-4">
@@ -267,9 +262,8 @@ const AnswerField = ({ q, answer, setAnswer, setCheckboxAnswer }: AnswerFieldPro
           return (
             <Star
               key={i}
-              className={`w-8 h-8 cursor-pointer transition-colors ${
-                filled ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/40"
-              }`}
+              className={`w-8 h-8 cursor-pointer transition-colors ${filled ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/40"
+                }`}
               onMouseEnter={() => setHoverRating(val)}
               onMouseLeave={() => setHoverRating(null)}
               onClick={() => setAnswer(q.id, val)}
