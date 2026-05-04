@@ -56,6 +56,8 @@ const questionTypeOptions: Array<{ value: BuilderQuestionType; label: string }> 
   { value: "time", label: "Time" },
 ];
 
+const PREVIEW_DRAFT_KEY = "tracer_form_preview_draft";
+
 interface DragQuestionPayload {
   sectionId: string;
   questionId: string;
@@ -382,12 +384,13 @@ const FormBuilderPage = () => {
   };
 
   const openPreview = () => {
-    if (isEditMode && formId) {
-      navigate(`/dashboard/form-management/${formId}/preview`, { state: { form } });
-      return;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(PREVIEW_DRAFT_KEY, JSON.stringify(form));
+      const previewPath = isEditMode && formId
+        ? `/dashboard/form-management/${formId}/preview`
+        : "/dashboard/form-management/new/preview";
+      window.open(`${previewPath}?draft=1`, "_blank", "noopener,noreferrer");
     }
-
-    navigate("/dashboard/form-management/new/preview", { state: { form } });
   };
 
   if (isEditMode && !sourceForm) {

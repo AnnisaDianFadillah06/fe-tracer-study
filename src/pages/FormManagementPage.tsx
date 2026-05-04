@@ -15,21 +15,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -37,17 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import {
-  getInitialForms,
-  saveForms,
-  type BuilderQuestion,
-  type FormListItem,
-} from "@/lib/formManagement";
+import { getInitialForms, saveForms, type FormListItem } from "@/lib/formManagement";
 import {
   CheckCircle2,
   Download,
@@ -85,17 +61,11 @@ const DaftarFormulirPage = () => {
   const { toast } = useToast();
 
   const [forms, setForms] = useState<FormListItem[]>(() => getInitialForms());
-  const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     saveForms(forms);
   }, [forms]);
-
-  const selectedForm = useMemo(
-    () => forms.find((form) => form.id === selectedFormId) ?? null,
-    [forms, selectedFormId],
-  );
 
   const stats = useMemo(() => {
     const totalForms = forms.length;
@@ -109,9 +79,6 @@ const DaftarFormulirPage = () => {
     if (!deleteTargetId) return;
 
     setForms((prev) => prev.filter((form) => form.id !== deleteTargetId));
-    if (selectedFormId === deleteTargetId) {
-      setSelectedFormId(null);
-    }
     setDeleteTargetId(null);
 
     toast({ title: "Berhasil", description: "Formulir berhasil dihapus." });
@@ -250,7 +217,17 @@ const DaftarFormulirPage = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-2 whitespace-nowrap">
-                          <Button variant="outline" size="sm" onClick={() => setSelectedFormId(form.id)}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              window.open(
+                                `/dashboard/form-management/${form.id}/preview`,
+                                "_blank",
+                                "noopener,noreferrer",
+                              )
+                            }
+                          >
                             <Eye className="mr-2 h-4 w-4" />
                             Lihat
                           </Button>
@@ -281,64 +258,6 @@ const DaftarFormulirPage = () => {
         </Card>
       </div>
 
-      <Dialog open={Boolean(selectedForm)} onOpenChange={(open) => !open && setSelectedFormId(null)}>
-        <DialogContent className="max-w-5xl p-0 sm:max-h-[90vh] sm:rounded-2xl">
-          {selectedForm && (
-            <div className="flex max-h-[90vh] flex-col">
-              <DialogHeader className="border-b border-border px-6 py-5 text-left">
-                <div className="flex flex-wrap items-center gap-3">
-                  <DialogTitle className="text-xl">{selectedForm.title}</DialogTitle>
-                  <Badge variant="outline" className={statusStyles[selectedForm.status]}>
-                    {selectedForm.status === "aktif" ? "Aktif" : "Nonaktif"}
-                  </Badge>
-                </div>
-                <DialogDescription className="flex flex-wrap gap-4 pt-2">
-                  <span>{selectedForm.target || "Tanpa sasaran"}</span>
-                  <span>•</span>
-                  <span>{selectedForm.responses.length} responden</span>
-                </DialogDescription>
-              </DialogHeader>
-
-              <ScrollArea className="max-h-[calc(90vh-88px)]">
-                <div className="space-y-6 px-6 py-6">
-                  {selectedForm.sections.map((section, sectionIndex) => (
-                    <Card key={section.id} className="border-t-4 border-t-primary/70">
-                      <CardContent className="space-y-5 pt-5">
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="font-heading text-lg font-semibold">{section.title}</h3>
-                            <Badge variant="secondary" className="text-xs">
-                              Bagian {sectionIndex + 1}
-                            </Badge>
-                          </div>
-                          {section.description && <p className="text-sm text-muted-foreground">{section.description}</p>}
-                        </div>
-
-                        <div className="space-y-4">
-                          {section.questions.map((question) => (
-                            <div key={question.id} className="rounded-xl border border-border/60 bg-muted/20 p-4">
-                              <div className="mb-3 flex items-start justify-between gap-3">
-                                <div>
-                                  <Label className="text-sm font-medium leading-snug">
-                                    {question.question || "Pertanyaan tanpa judul"}
-                                    {question.required && <span className="ml-1 text-destructive">*</span>}
-                                  </Label>
-                                </div>
-                              </div>
-                              <PreviewQuestionField question={question} />
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
       <AlertDialog open={Boolean(deleteTargetId)} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -360,126 +279,6 @@ const DaftarFormulirPage = () => {
       </AlertDialog>
     </DashboardLayout>
   );
-};
-
-interface PreviewQuestionFieldProps {
-  question: BuilderQuestion;
-}
-
-const PreviewQuestionField = ({ question }: PreviewQuestionFieldProps) => {
-  switch (question.type) {
-    case "short":
-      return <Input disabled placeholder="Jawaban singkat" className="max-w-xl bg-background" />;
-
-    case "paragraph":
-      return <Textarea disabled placeholder="Jawaban panjang" rows={4} className="max-w-2xl bg-background" />;
-
-    case "multiple_choice":
-      return (
-        <div className="space-y-2">
-          {question.options.map((option, index) => (
-            <div
-              key={`${question.id}-multiple-${index}`}
-              className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2"
-            >
-              <div className="h-4 w-4 rounded-full border-2 border-muted-foreground" />
-              <span className="text-sm">{option}</span>
-            </div>
-          ))}
-          {question.allowOther && (
-            <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2">
-              <div className="h-4 w-4 rounded-full border-2 border-muted-foreground" />
-              <span className="text-sm">Other</span>
-            </div>
-          )}
-        </div>
-      );
-
-    case "checkbox":
-      return (
-        <div className="space-y-2">
-          {question.options.map((option, index) => (
-            <div
-              key={`${question.id}-checkbox-${index}`}
-              className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2"
-            >
-              <Checkbox disabled />
-              <span className="text-sm">{option}</span>
-            </div>
-          ))}
-          {question.allowOther && (
-            <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2">
-              <Checkbox disabled />
-              <span className="text-sm">Other</span>
-            </div>
-          )}
-        </div>
-      );
-
-    case "dropdown":
-      return (
-        <Select disabled>
-          <SelectTrigger className="max-w-xl bg-background">
-            <SelectValue placeholder="Pilih salah satu" />
-          </SelectTrigger>
-          <SelectContent>
-            {question.options.map((option, index) => (
-              <SelectItem key={`${question.id}-dropdown-${index}`} value={`${index}`}>
-                {option}
-              </SelectItem>
-            ))}
-            {question.allowOther && <SelectItem value="other">Other</SelectItem>}
-          </SelectContent>
-        </Select>
-      );
-
-    case "linear_scale": {
-      const min = question.scaleMin ?? 1;
-      const max = question.scaleMax ?? 5;
-      const values = Array.from({ length: Math.max(0, max - min + 1) }, (_, idx) => min + idx);
-
-      return (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {values.map((value) => (
-              <div
-                key={`${question.id}-scale-${value}`}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background text-sm"
-              >
-                {value}
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{min}</span>
-            <span>{max}</span>
-          </div>
-        </div>
-      );
-    }
-
-    case "rating":
-      return (
-        <div className="flex gap-2 text-muted-foreground">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <span key={`${question.id}-rating-${index}`}>☆</span>
-          ))}
-        </div>
-      );
-
-    case "date":
-      return <Input type="date" disabled className="max-w-xs bg-background" />;
-
-    case "time":
-      return <Input type="time" disabled className="max-w-xs bg-background" />;
-
-    default:
-      return (
-        <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-          Preview untuk tipe ini tersedia setelah renderer responden terintegrasi penuh.
-        </div>
-      );
-  }
 };
 
 export default DaftarFormulirPage;
