@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -103,6 +103,13 @@ const FormBuilderPage = () => {
 
   const [draggedQuestion, setDraggedQuestion] = useState<DragQuestionPayload | null>(null);
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
+  const [activeQuestionKey, setActiveQuestionKey] = useState<string | null>(null);
+  const questionRefs = useRef(new Map<string, HTMLDivElement | null>());
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [panelStyle, setPanelStyle] = useState<{ top: number; left: number }>({
+    top: 120,
+    left: 0,
+  });
 
   const angkatanOptions = useMemo(() => {
     const counts = new Map<number, number>();
@@ -140,6 +147,54 @@ const FormBuilderPage = () => {
 
     return options;
   }, [angkatanOptions, form.target]);
+
+  const updateFloatingPanelPosition = () => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const panelRect = panel.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const defaultLeft = Math.max(16, viewportWidth - panelRect.width - 24);
+    const clampTop = (value: number) =>
+      Math.min(Math.max(value, 96), viewportHeight - panelRect.height - 24);
+
+    if (activeQuestionKey) {
+      const target = questionRefs.current.get(activeQuestionKey);
+      if (target) {
+        const rect = target.getBoundingClientRect();
+        const desiredLeft = Math.min(rect.right + 16, defaultLeft);
+        setPanelStyle({
+          top: clampTop(rect.top),
+          left: Math.max(16, desiredLeft),
+        });
+        return;
+      }
+    }
+
+    setPanelStyle({ top: clampTop(120), left: defaultLeft });
+  };
+
+  useEffect(() => {
+    let frame: number | null = null;
+
+    const scheduleUpdate = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        updateFloatingPanelPosition();
+      });
+    };
+
+    scheduleUpdate();
+    window.addEventListener("scroll", scheduleUpdate, true);
+    window.addEventListener("resize", scheduleUpdate);
+
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", scheduleUpdate, true);
+      window.removeEventListener("resize", scheduleUpdate);
+    };
+  }, [activeQuestionKey, form.sections.length]);
 
   const updateQuestion = (
     sectionId: string,
@@ -475,6 +530,8 @@ const FormBuilderPage = () => {
 
                 <div className="space-y-4">
                   {section.questions.map((question) => {
+                    const questionKey = `${section.id}:${question.id}`;
+                    const isActive = activeQuestionKey === questionKey;
                     const isDropTarget =
                       dragTarget?.sectionId === section.id &&
                       dragTarget?.questionId === question.id &&
@@ -483,12 +540,23 @@ const FormBuilderPage = () => {
                     return (
                       <Card
                         key={question.id}
-                        className={`border shadow-none transition ${
+                        ref={(node) => {
+                          if (node) {
+                            questionRefs.current.set(questionKey, node);
+                          } else {
+                            questionRefs.current.delete(questionKey);
+                          }
+                        }}
+                        className={`border border-slate-300/80 bg-white shadow-sm transition ${
                           isDropTarget
-                            ? "border-primary ring-1 ring-primary/40"
-                            : "border-border/70"
+                            ? "border-primary ring-2 ring-primary/30"
+                            : isActive
+                              ? "border-primary/80 ring-1 ring-primary/20"
+                            : ""
                         }`}
                         draggable
+                        onClick={() => setActiveQuestionKey(questionKey)}
+                        onFocusCapture={() => setActiveQuestionKey(questionKey)}
                         onDragStart={(event) => {
                           const payload: DragQuestionPayload = {
                             sectionId: section.id,
@@ -654,8 +722,18 @@ const FormBuilderPage = () => {
           </Card>
         </div>
 
-        <div className="md:sticky md:top-24 md:h-fit">
-          <Card className="shadow-sm">
+        <div className="relative">
+          <Card
+            ref={panelRef}
+            style={{
+              position: "fixed",
+              top: panelStyle.top,
+              left: panelStyle.left,
+            }}
+            className={`z-40 w-[72px] shadow-sm transition-all duration-200 ${
+              activeQuestionKey ? "ring-1 ring-primary/30" : ""
+            }`}
+          >
             <CardContent className="flex flex-col gap-3 p-3">
               <Button
                 variant="outline"
