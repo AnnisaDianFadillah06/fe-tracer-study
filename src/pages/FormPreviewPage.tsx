@@ -109,6 +109,10 @@ const FormPreviewPage = () => {
   >({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [currentSection, setCurrentSection] = useState(0);
+
+  const section = form.sections[currentSection];
+  const isLastSection = currentSection === form.sections.length - 1;
 
   const backToBuilder = () => {
     if (formId) {
@@ -138,34 +142,42 @@ const FormPreviewPage = () => {
     setAnswers({});
     setErrors({});
     setSubmitted(false);
+    setCurrentSection(0);
   };
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     const nextErrors: Record<string, string> = {};
 
-    form.sections.forEach((section) => {
-      section.questions.forEach((question) => {
-        if (!question.required) return;
-        if (!SUPPORTED_DEMO_TYPES.has(question.type)) return;
+    section?.questions.forEach((question) => {
+      if (!question.required) return;
+      if (!SUPPORTED_DEMO_TYPES.has(question.type)) return;
 
-        const value = answers[question.id];
-        const isEmpty =
-          value === undefined ||
-          value === null ||
-          (typeof value === "string" && value.trim() === "") ||
-          (Array.isArray(value) && value.length === 0);
+      const value = answers[question.id];
+      const isEmpty =
+        value === undefined ||
+        value === null ||
+        (typeof value === "string" && value.trim() === "") ||
+        (Array.isArray(value) && value.length === 0);
 
-        if (isEmpty) {
-          nextErrors[question.id] = "Pertanyaan ini wajib diisi.";
-        }
-      });
+      if (isEmpty) {
+        nextErrors[question.id] = "Pertanyaan ini wajib diisi.";
+      }
     });
 
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length === 0) {
+    if (Object.keys(nextErrors).length > 0) return;
+
+    if (isLastSection) {
       setSubmitted(true);
+      return;
     }
+
+    setCurrentSection((prev) => Math.min(prev + 1, form.sections.length - 1));
+  };
+
+  const handleBack = () => {
+    setCurrentSection((prev) => Math.max(prev - 1, 0));
   };
 
   return (
@@ -214,45 +226,54 @@ const FormPreviewPage = () => {
               </div>
             </CardContent>
           </Card>
-        ) : (
+        ) : section ? (
           <form onSubmit={handleSubmit} className="space-y-5">
-            {form.sections.map((section) => (
-              <Card key={section.id} className="shadow-sm">
-                <CardContent className="space-y-5 p-6">
-                  <div>
-                    <h3 className="text-lg font-semibold">{section.title}</h3>
-                    {section.description && (
-                      <p className="text-sm text-muted-foreground">{section.description}</p>
+            {form.sections.length > 1 && (
+              <div className="text-right text-xs text-muted-foreground">
+                Bagian {currentSection + 1} dari {form.sections.length}
+              </div>
+            )}
+
+            <Card className="shadow-sm">
+              <CardContent className="space-y-5 p-6">
+                <div>
+                  <h3 className="text-lg font-semibold">{section.title}</h3>
+                  {section.description && (
+                    <p className="text-sm text-muted-foreground">{section.description}</p>
+                  )}
+                </div>
+
+                {section.questions.map((question) => (
+                  <div key={question.id} className="space-y-3 rounded-lg border p-4">
+                    <Label className="text-sm font-medium leading-snug">
+                      {question.question || "Pertanyaan belum diisi"}
+                      {question.required && <span className="ml-1 text-destructive">*</span>}
+                    </Label>
+                    <InteractiveQuestionPreview
+                      question={question}
+                      value={answers[question.id]}
+                      onChange={(value) =>
+                        setAnswers((prev) => ({ ...prev, [question.id]: value }))
+                      }
+                    />
+                    {errors[question.id] && (
+                      <p className="text-xs text-destructive">{errors[question.id]}</p>
                     )}
                   </div>
+                ))}
+              </CardContent>
+            </Card>
 
-                  {section.questions.map((question) => (
-                    <div key={question.id} className="space-y-3 rounded-lg border p-4">
-                      <Label className="text-sm font-medium leading-snug">
-                        {question.question || "Pertanyaan belum diisi"}
-                        {question.required && <span className="ml-1 text-destructive">*</span>}
-                      </Label>
-                      <InteractiveQuestionPreview
-                        question={question}
-                        value={answers[question.id]}
-                        onChange={(value) =>
-                          setAnswers((prev) => ({ ...prev, [question.id]: value }))
-                        }
-                      />
-                      {errors[question.id] && (
-                        <p className="text-xs text-destructive">{errors[question.id]}</p>
-                      )}
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            ))}
-
-            <div className="flex justify-end">
-              <Button type="submit">Kirim Demo</Button>
+            <div className="flex justify-between">
+              <Button type="button" variant="outline" onClick={handleBack} disabled={currentSection === 0}>
+                Sebelumnya
+              </Button>
+              <Button type="submit">
+                {isLastSection ? "Kirim Demo" : "Berikutnya"}
+              </Button>
             </div>
           </form>
-        )}
+        ) : null}
       </main>
     </div>
   );
@@ -523,7 +544,7 @@ const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQu
         <div className="flex gap-2">
           {Array.from({ length: 5 }).map((_, index) => {
             const ratingValue = index + 1;
-            const isActive = currentValue === ratingValue;
+            const isActive = typeof currentValue === "number" && currentValue >= ratingValue;
             return (
               <Button
                 key={`${question.id}-rating-${index}`}
