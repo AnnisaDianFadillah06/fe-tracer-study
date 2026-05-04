@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { useDashboardData } from "@/hooks/useDashboardData";
 import {
   createDefaultQuestion,
   createId,
@@ -70,6 +71,7 @@ const FormBuilderPage = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { formId } = useParams<{ formId: string }>();
+  const { alumni, isLoading: isAlumniLoading } = useDashboardData();
 
   const existingForms = useMemo(() => getInitialForms(), []);
   const isEditMode = Boolean(formId);
@@ -101,6 +103,43 @@ const FormBuilderPage = () => {
 
   const [draggedQuestion, setDraggedQuestion] = useState<DragQuestionPayload | null>(null);
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
+
+  const angkatanOptions = useMemo(() => {
+    const counts = new Map<number, number>();
+
+    alumni.forEach((item) => {
+      if (!item.graduation_year) return;
+      const angkatan = item.graduation_year - 3;
+      if (!Number.isFinite(angkatan)) return;
+      counts.set(angkatan, (counts.get(angkatan) ?? 0) + 1);
+    });
+
+    return Array.from(counts.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([year, count]) => ({ year: String(year), count }));
+  }, [alumni]);
+
+  const targetOptions = useMemo(() => {
+    const options: Array<{ value: string; label: string }> = [];
+    const seen = new Set<string>();
+
+    const addOption = (value: string, label: string) => {
+      if (!value || seen.has(value)) return;
+      options.push({ value, label });
+      seen.add(value);
+    };
+
+    addOption("Semua Alumni", "Semua Alumni");
+    angkatanOptions.forEach(({ year, count }) => {
+      addOption(`Lulusan Angkatan ${year}`, `Lulusan Angkatan ${year} (${count} alumni)`);
+    });
+
+    if (form.target && !seen.has(form.target)) {
+      addOption(form.target, `Sasaran tersimpan: ${form.target}`);
+    }
+
+    return options;
+  }, [angkatanOptions, form.target]);
 
   const updateQuestion = (
     sectionId: string,
@@ -367,12 +406,34 @@ const FormBuilderPage = () => {
             <CardContent className="grid gap-4 p-5 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="form-target">Sasaran</Label>
-                <Input
-                  id="form-target"
-                  value={form.target}
-                  onChange={(event) => setForm((prev) => ({ ...prev, target: event.target.value }))}
-                  placeholder="Contoh: Lulusan Angkatan 2026"
-                />
+                <Select
+                  value={form.target || undefined}
+                  onValueChange={(value) => setForm((prev) => ({ ...prev, target: value }))}
+                >
+                  <SelectTrigger id="form-target">
+                    <SelectValue
+                      placeholder={
+                        isAlumniLoading ? "Memuat data alumni..." : "Pilih angkatan alumni"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {targetOptions.length === 0 ? (
+                      <SelectItem value="no-data" disabled>
+                        Belum ada data alumni tersedia
+                      </SelectItem>
+                    ) : (
+                      targetOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Sasaran diambil dari akun mahasiswa dan dikelompokkan per angkatan.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="form-respondents">Contoh responden (opsional)</Label>
@@ -570,27 +631,76 @@ const FormBuilderPage = () => {
                   <Plus className="mr-2 h-4 w-4" />
                   Tambah Pertanyaan pada Section Ini
                 </Button>
+                <p className="text-xs text-muted-foreground">
+                  Pertanyaan baru akan masuk ke section ini. Gunakan tombol di bawah untuk membuat section baru.
+                </p>
               </CardContent>
             </Card>
           ))}
+
+          <Card className="border-dashed bg-white/70 shadow-sm">
+            <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Buat section baru</p>
+                <p className="text-xs text-muted-foreground">
+                  Pisahkan kelompok pertanyaan agar alur pengisian lebih jelas.
+                </p>
+              </div>
+              <Button onClick={addSection}>
+                <FileText className="mr-2 h-4 w-4" />
+                Tambah Section Baru
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="md:sticky md:top-24 md:h-fit">
           <Card className="shadow-sm">
-            <CardContent className="flex flex-col gap-2 p-3">
-              <Button variant="outline" size="icon" onClick={() => addQuestion()} title="Tambah pertanyaan baru">
+            <CardContent className="flex flex-col gap-3 p-3">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => addQuestion()}
+                title="Tambah pertanyaan (section terakhir)"
+                aria-label="Tambah pertanyaan (section terakhir)"
+              >
                 <Plus className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" onClick={addSection} title="Tambah section baru">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={addSection}
+                title="Tambah section baru"
+                aria-label="Tambah section baru"
+              >
                 <FileText className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" onClick={() => floatingAction("Tambah gambar")} title="Tambah gambar">
+              <Separator />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => floatingAction("Tambah gambar")}
+                title="Tambah gambar"
+                aria-label="Tambah gambar"
+              >
                 <FileImage className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" onClick={() => floatingAction("Tambah video")} title="Tambah video">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => floatingAction("Tambah video")}
+                title="Tambah video"
+                aria-label="Tambah video"
+              >
                 <Film className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" onClick={() => floatingAction("Tambah deskripsi teks")} title="Tambah deskripsi teks">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => floatingAction("Tambah deskripsi teks")}
+                title="Tambah deskripsi teks"
+                aria-label="Tambah deskripsi teks"
+              >
                 <FileText className="h-4 w-4" />
               </Button>
             </CardContent>

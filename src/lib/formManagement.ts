@@ -73,7 +73,7 @@ export const createDefaultQuestion = (
   options: isOptionQuestionType(type) ? ["Opsi 1"] : [],
   gridRows: isGridQuestionType(type) ? ["Baris 1", "Baris 2"] : [],
   gridColumns: isGridQuestionType(type) ? ["Kolom 1", "Kolom 2"] : [],
-  required: false,
+  required: true,
   allowOther: false,
   scaleMin: 1,
   scaleMax: 5,
