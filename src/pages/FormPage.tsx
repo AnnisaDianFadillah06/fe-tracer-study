@@ -17,13 +17,17 @@ import {
 import { GraduationCap, LogOut, Star, CheckCircle2, User } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useStudentAuth } from "@/hooks/useStudentAuth";
-import { useFormResponse } from "@/hooks/useFormResponse";
+import { useTracerForm } from "@/hooks/useTracerForm";
 import type { Question } from "@/hooks/useQuestionManagement";
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 
 const FormPage = () => {
   const navigate = useNavigate();
   const { session, isLoggedIn, logout } = useStudentAuth();
+
+  // Pass kode_prodi dari session agar backend bisa filter kuesioner yang relevan
+  const kodeProdi = session?.kodeProdi ?? undefined;
   const {
     sections,
     answers,
@@ -33,13 +37,33 @@ const FormPage = () => {
     section,
     isLastSection,
     progressPercent,
+    isLoadingForms,
+    isSubmitting,
     setAnswer,
     setCheckboxAnswer,
     handleNext,
     handleBack,
-    handleSubmit,
+    handleSubmit: submitToBackend,
     handleReset,
-  } = useFormResponse();
+  } = useTracerForm(kodeProdi);
+
+  // Wrap submit to include identity data from session
+  const handleSubmit = (e: React.FormEvent) => {
+    const identityData = session
+      ? {
+          nim: session.nim,
+          name: session.username,
+          email: session.email,
+          phone: session.phone ?? "",
+          tahun_lulus: session.graduationYear ?? (parseInt(session.angkatan) + 3),
+          kdpstmsmh: kodeProdi ?? "",
+          kode_pt: "",
+          nik: "",
+          npwp: "",
+        }
+      : undefined;
+    submitToBackend(e, identityData);
+  };
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -49,6 +73,18 @@ const FormPage = () => {
   }, [isLoggedIn, navigate]);
 
   if (!isLoggedIn) return null;
+
+  // Loading state saat fetch kuesioner dari backend
+  if (isLoadingForms) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Memuat kuesioner...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogout = () => {
     logout();
@@ -197,7 +233,11 @@ const FormPage = () => {
               ) : (
                 <div />
               )}
-              <Button type="submit">{isLastSection ? "Kirim" : "Berikutnya"}</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" />Mengirim...</>
+                ) : isLastSection ? "Kirim" : "Berikutnya"}
+              </Button>
             </div>
           </div>
         </form>

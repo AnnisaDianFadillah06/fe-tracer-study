@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { BookOpen, GraduationCap, Target, Award, LucideIcon } from "lucide-react";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 export interface EducationMetric {
   title: string;
@@ -19,16 +20,24 @@ export function useP2mppEducation() {
   const [selectedProdi, setSelectedProdi] = useState("all");
   const [selectedTahun, setSelectedTahun] = useState("all");
   const [selectedJenjang, setSelectedJenjang] = useState("all");
+  const { summary, isLoading } = useDashboardData();
+
+  const hasData = summary && summary.totalAlumni > 0;
 
   const filters = { prodi: selectedProdi, jenjang: selectedJenjang, tahun: selectedTahun };
+
+  const studiLanjutPersen = hasData
+    ? ((summary.studiLanjut / summary.totalAlumni) * 100).toFixed(1)
+    : "12.3";
 
   const metrics: EducationMetric[] = [
     { title: "IPK Rata-rata", value: "3.41", icon: GraduationCap, color: "text-primary" },
     { title: "Kompetensi Sesuai", value: "78.5%", icon: Target, color: "text-emerald-500" },
-    { title: "Lanjut Studi", value: "12.3%", icon: BookOpen, color: "text-cyan-500" },
+    { title: "Lanjut Studi", value: `${studiLanjutPersen}%`, icon: BookOpen, color: "text-cyan-500" },
     { title: "Bersertifikasi", value: "45.2%", icon: Award, color: "text-amber-500" },
   ];
 
+  // Kompetensi rows — static for now (requires backend chart endpoints)
   const kompetensiRows: KompetensiRow[] = [
     { kompetensi: "Pengetahuan Teknis", dicapai: 3.8, dibutuhkan: 4.0, gap: -0.2 },
     { kompetensi: "Kemampuan Analitis", dicapai: 3.6, dibutuhkan: 4.2, gap: -0.6 },
@@ -43,5 +52,6 @@ export function useP2mppEducation() {
     selectedTahun, setSelectedTahun,
     selectedJenjang, setSelectedJenjang,
     filters, metrics, kompetensiRows,
+    isLoading,
   };
 }

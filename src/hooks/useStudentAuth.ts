@@ -1,18 +1,28 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import api from "@/lib/api";
 
 const SESSION_KEY = "tracer_student_session";
 
 export interface StudentSession {
+  id: number;
   nim: string;
   username: string;
   email: string;
+  phone: string;
   prodi: string;
+  kodeProdi: string;
   angkatan: string;
+  graduationYear: number | null;
 }
 
 /**
- * Lightweight in-memory student session stored in sessionStorage.
- * Replace with real auth when a backend is connected.
+ * Hook autentikasi alumni/mahasiswa untuk mengisi kuesioner.
+ *
+ * Endpoint: POST /api/auth/alumni-login
+ * Body: { nim_or_email, password }
+ * Response: { success, data: { nim, name, email, program_name, program_code, ... } }
+ *
+ * Password default = NIM (sesuai backend AlumniAuthController).
  */
 export const useStudentAuth = () => {
   const [session, setSession] = useState<StudentSession | null>(() => {
@@ -24,9 +34,32 @@ export const useStudentAuth = () => {
     }
   });
 
-  const login = (student: StudentSession) => {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(student));
-    setSession(student);
+  const login = async (nimOrEmail: string, password: string): Promise<StudentSession> => {
+    const { data } = await api.post("/auth/alumni-login", {
+      nim_or_email: nimOrEmail,
+      password,
+    });
+
+    if (!data.success) {
+      throw new Error(data.message || "Login gagal");
+    }
+
+    const alumniData = data.data;
+    const studentSession: StudentSession = {
+      id: alumniData.id,
+      nim: alumniData.nim,
+      username: alumniData.name,
+      email: alumniData.email ?? "",
+      phone: alumniData.phone ?? "",
+      prodi: alumniData.program_name ?? "",
+      kodeProdi: alumniData.program_code ?? "",
+      angkatan: alumniData.entry_year ? String(alumniData.entry_year) : "",
+      graduationYear: alumniData.graduation_year,
+    };
+
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(studentSession));
+    setSession(studentSession);
+    return studentSession;
   };
 
   const logout = () => {

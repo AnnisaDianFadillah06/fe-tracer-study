@@ -1,11 +1,12 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { useAuth, type AuthUser } from "@/hooks/useAuth";
 
 export type UserRole = "p2mpp" | "kaprodi" | "kotc";
 
 interface RoleContextType {
   currentRole: UserRole;
   setCurrentRole: (role: UserRole) => void;
-  selectedProdi: string | null; // For Kaprodi role, hardcoded for demo
+  selectedProdi: string | null; // For Kaprodi role
   roleLabels: Record<UserRole, string>;
   roleDescriptions: Record<UserRole, string>;
 }
@@ -24,11 +25,42 @@ export const roleDescriptions: Record<UserRole, string> = {
   kotc: "Koordinator Tracer Study",
 };
 
-export function RoleProvider({ children }: { children: ReactNode }) {
-  const [currentRole, setCurrentRole] = useState<UserRole>("p2mpp");
+/**
+ * Map backend role string → frontend UserRole type.
+ * Backend uses: "admin", "kaprodi", "kotc"
+ */
+const mapBackendRole = (backendRole?: string): UserRole => {
+  switch (backendRole) {
+    case "admin":
+      return "p2mpp";
+    case "kaprodi":
+      return "kaprodi";
+    case "kotc":
+      return "kotc";
+    default:
+      return "p2mpp";
+  }
+};
 
-  // For Kaprodi, hardcode prodi for demo
-  const selectedProdi = currentRole === "kaprodi" ? "Teknik Informatika" : null;
+export function RoleProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+
+  const [currentRole, setCurrentRole] = useState<UserRole>(
+    mapBackendRole(user?.role)
+  );
+
+  // Sync role when user changes (login/logout)
+  useEffect(() => {
+    if (user?.role) {
+      setCurrentRole(mapBackendRole(user.role));
+    }
+  }, [user?.role]);
+
+  // For Kaprodi, use the program name from the authenticated user
+  const selectedProdi =
+    currentRole === "kaprodi"
+      ? user?.program_name ?? "Teknik Informatika"
+      : null;
 
   return (
     <RoleContext.Provider

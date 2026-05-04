@@ -4,49 +4,42 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, Eye, EyeOff } from "lucide-react";
+import { GraduationCap, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useStudentAuth } from "@/hooks/useStudentAuth";
-import { useStudentManagement } from "@/hooks/useStudentManagement";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const StudentLoginPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { login } = useStudentAuth();
-  const { authenticate } = useStudentManagement();
   const [nimOrEmail, setNimOrEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nimOrEmail || !password) {
       toast({ title: "Error", description: "Isi NIM/email dan password", variant: "destructive" });
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      const student = authenticate(nimOrEmail, password);
-      if (student) {
-        login({
-          nim: student.nim,
-          username: student.username,
-          email: student.email,
-          prodi: student.prodi,
-          angkatan: student.angkatan,
-        });
-        navigate("/form");
-      } else {
-        toast({
-          title: "Login Gagal",
-          description: "NIM/email atau password salah, atau akun tidak aktif",
-          variant: "destructive",
-        });
-      }
+    try {
+      await login(nimOrEmail, password);
+      toast({ title: "Login Berhasil", description: "Selamat datang!" });
+      navigate("/form");
+    } catch (err: any) {
+      const message =
+        err.response?.data?.message || err.message || "Login gagal. Periksa NIM dan password.";
+      toast({
+        title: "Login Gagal",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
       setLoading(false);
-    }, 400);
+    }
   };
 
   return (
@@ -71,7 +64,7 @@ const StudentLoginPage = () => {
             </div>
             <h1 className="font-heading text-2xl font-bold">Masuk</h1>
             <p className="text-sm text-muted-foreground">
-              Gunakan NIM dan password yang diberikan admin untuk mengisi kuesioner
+              Gunakan NIM sebagai username dan password untuk mengisi kuesioner
             </p>
           </div>
 
@@ -95,7 +88,7 @@ const StudentLoginPage = () => {
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      placeholder="Password"
+                      placeholder="Gunakan NIM Anda"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="pr-10"
@@ -114,14 +107,21 @@ const StudentLoginPage = () => {
                 </div>
 
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Memverifikasi..." : "Masuk ke Kuesioner"}
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Memverifikasi...
+                    </>
+                  ) : (
+                    "Masuk ke Kuesioner"
+                  )}
                 </Button>
               </form>
             </CardContent>
           </Card>
 
           <p className="text-center text-xs text-muted-foreground">
-            Hubungi admin jika Anda belum memiliki akun atau lupa password
+            Password default adalah NIM Anda. Hubungi admin jika Anda tidak dapat masuk.
           </p>
         </div>
       </div>

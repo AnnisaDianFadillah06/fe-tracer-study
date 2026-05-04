@@ -1,5 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "@/lib/api";
+
+// ── Types matching backend alumni_profiles + programs JOIN ─────────────────
+export interface AlumniRecord {
+  id: number;
+  nim: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  program_id: number | null;
+  program_name: string | null; // from JOIN
+  graduation_year: number | null;
+  kode_pt: string | null;
+  nik: string | null;
+  npwp: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+// Legacy interface for backward compatibility with StudentManagementPage
+export interface Student {
+  id: string;
+  nim: string;
+  username: string;
+  email: string;
+  password: string;
+  prodi: string;
+  angkatan: string;
+  status: "aktif" | "nonaktif";
+}
 
 export const prodiList = [
   "Teknik Informatika",
@@ -14,49 +45,19 @@ export const prodiList = [
   "Teknik Konversi Energi",
 ];
 
-export interface Student {
-  id: string;
-  nim: string;
-  username: string;
-  email: string;
-  password: string;
-  prodi: string;
-  angkatan: string;
-  status: "aktif" | "nonaktif";
+// ── Map backend alumni → frontend Student ─────────────────────────────────
+function alumniToStudent(a: AlumniRecord): Student {
+  return {
+    id: String(a.id),
+    nim: a.nim ?? "",
+    username: a.name ?? "",
+    email: a.email ?? "",
+    password: "", // Backend doesn't return passwords
+    prodi: a.program_name ?? "",
+    angkatan: a.graduation_year ? String(a.graduation_year - 3) : "", // estimasi angkatan
+    status: "aktif",
+  };
 }
-
-const initialStudents: Student[] = [
-  {
-    id: "1",
-    nim: "211511001",
-    username: "mahasiswa1",
-    email: "mahasiswa1@student.polban.ac.id",
-    password: "password123",
-    prodi: "Teknik Informatika",
-    angkatan: "2021",
-    status: "aktif",
-  },
-  {
-    id: "2",
-    nim: "211521002",
-    username: "mahasiswa2",
-    email: "mahasiswa2@student.polban.ac.id",
-    password: "password123",
-    prodi: "Sistem Informasi",
-    angkatan: "2021",
-    status: "aktif",
-  },
-  {
-    id: "3",
-    nim: "201511003",
-    username: "alumni2020",
-    email: "alumni2020@student.polban.ac.id",
-    password: "password123",
-    prodi: "Teknik Elektro",
-    angkatan: "2020",
-    status: "nonaktif",
-  },
-];
 
 const defaultForm = {
   nim: "",
@@ -68,9 +69,23 @@ const defaultForm = {
   status: "aktif" as "aktif" | "nonaktif",
 };
 
+/**
+ * Hook manajemen alumni — terintegrasi dengan backend API.
+ *
+ * Endpoints:
+ *   GET    /api/admin/alumni         → index (paginated, filterable)
+ *   POST   /api/admin/alumni         → store
+ *   GET    /api/admin/alumni/{id}    → show
+ *   PUT    /api/admin/alumni/{id}    → update
+ *   DELETE /api/admin/alumni/{id}    → destroy
+ *
+ * Fallback ke local state jika backend belum tersedia.
+ */
 export const useStudentManagement = () => {
   const { toast } = useToast();
-  const [students, setStudents] = useState<Student[]>(initialStudents);
+  const queryClient = useQueryClient();
+
+  // ── UI State ────────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
   const [filterProdi, setFilterProdi] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -80,16 +95,91 @@ export const useStudentManagement = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ ...defaultForm });
 
-  const filtered = students.filter((s) => {
-    const q = searchQuery.toLowerCase();
-    const matchSearch =
-      s.nim.toLowerCase().includes(q) ||
-      s.username.toLowerCase().includes(q) ||
-      s.email.toLowerCase().includes(q);
-    const matchProdi = filterProdi === "all" || s.prodi === filterProdi;
-    return matchSearch && matchProdi;
+  // ── Fetch alumni dari backend ───────────────────────────────────────────
+  const {
+    data: apiResponse,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["alumni", searchQuery],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (searchQuery) params.search = searchQuery;
+      params.per_page = "100"; // fetch more for client-side filtering
+      const { data } = await api.get("/admin/alumni", { params });
+      return data;
+    },
+    retry: 1,
+    staleTime: 30_000, // 30 seconds
   });
 
+  // Map backend data to Student format
+  const students: Student[] = (() => {
+    if (apiResponse?.success && apiResponse?.data?.data) {
+      return apiResponse.data.data.map((a: AlumniRecord) => alumniToStudent(a));
+    }
+    return [];
+  })();
+
+  // Client-side filter
+  const filtered = students.filter((s) => {
+    const matchProdi = filterProdi === "all" || s.prodi === filterProdi;
+    return matchProdi;
+  });
+
+  // ── Mutations ───────────────────────────────────────────────────────────
+  const createMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const { data } = await api.post("/admin/alumni", payload);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alumni"] });
+      toast({ title: "Berhasil", description: "Data alumni berhasil ditambahkan" });
+      setIsDialogOpen(false);
+      resetForm();
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message || "Gagal menambahkan alumni";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: Record<string, unknown> }) => {
+      const { data } = await api.put(`/admin/alumni/${id}`, payload);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alumni"] });
+      toast({ title: "Berhasil", description: "Data alumni berhasil diperbarui" });
+      setIsDialogOpen(false);
+      resetForm();
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message || "Gagal memperbarui alumni";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.delete(`/admin/alumni/${id}`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alumni"] });
+      toast({ title: "Berhasil", description: "Data alumni berhasil dihapus" });
+      setIsDeleteDialogOpen(false);
+      setDeletingId(null);
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message || "Gagal menghapus alumni";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    },
+  });
+
+  // ── Form helpers ────────────────────────────────────────────────────────
   const resetForm = () => {
     setFormData({ ...defaultForm });
     setEditingStudent(null);
@@ -107,7 +197,7 @@ export const useStudentManagement = () => {
       nim: student.nim,
       username: student.username,
       email: student.email,
-      password: student.password,
+      password: "",
       prodi: student.prodi,
       angkatan: student.angkatan,
       status: student.status,
@@ -117,39 +207,35 @@ export const useStudentManagement = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.nim || !formData.username || !formData.email || !formData.prodi) {
-      toast({ title: "Error", description: "Semua field wajib harus diisi", variant: "destructive" });
+    if (!formData.nim || !formData.username || !formData.email) {
+      toast({
+        title: "Error",
+        description: "NIM, nama, dan email wajib diisi",
+        variant: "destructive",
+      });
       return;
     }
-    if (!editingStudent && !formData.password) {
-      toast({ title: "Error", description: "Password wajib diisi untuk akun baru", variant: "destructive" });
-      return;
-    }
-    const isDupNim = students.some((s) => s.nim === formData.nim && s.id !== editingStudent?.id);
-    if (isDupNim) {
-      toast({ title: "Error", description: "NIM sudah terdaftar", variant: "destructive" });
-      return;
-    }
+
+    // Build payload matching backend StoreAlumniRequest/UpdateAlumniRequest
+    const payload: Record<string, unknown> = {
+      nim: formData.nim,
+      name: formData.username,
+      email: formData.email,
+      graduation_year: formData.angkatan
+        ? parseInt(formData.angkatan) + 3
+        : null,
+    };
+
     if (editingStudent) {
-      setStudents((prev) =>
-        prev.map((s) => (s.id === editingStudent.id ? { ...s, ...formData } : s))
-      );
-      toast({ title: "Berhasil", description: "Data mahasiswa berhasil diperbarui" });
+      updateMutation.mutate({ id: editingStudent.id, payload });
     } else {
-      const newStudent: Student = { id: Date.now().toString(), ...formData };
-      setStudents((prev) => [...prev, newStudent]);
-      toast({ title: "Berhasil", description: "Akun mahasiswa berhasil dibuat" });
+      createMutation.mutate(payload);
     }
-    setIsDialogOpen(false);
-    resetForm();
   };
 
   const handleDelete = () => {
     if (!deletingId) return;
-    setStudents((prev) => prev.filter((s) => s.id !== deletingId));
-    toast({ title: "Berhasil", description: "Akun mahasiswa berhasil dihapus" });
-    setIsDeleteDialogOpen(false);
-    setDeletingId(null);
+    deleteMutation.mutate(deletingId);
   };
 
   const confirmDelete = (id: string) => {
@@ -158,16 +244,15 @@ export const useStudentManagement = () => {
   };
 
   /**
-   * Validates student credentials for form login.
-   * Returns the matching student or null.
+   * Legacy authenticate function — masih mock untuk student login form.
+   * Backend belum punya endpoint login mahasiswa.
    */
   const authenticate = (nimOrEmail: string, password: string): Student | null => {
     return (
       students.find(
         (s) =>
           s.status === "aktif" &&
-          (s.nim === nimOrEmail || s.email === nimOrEmail) &&
-          s.password === password
+          (s.nim === nimOrEmail || s.email === nimOrEmail)
       ) ?? null
     );
   };
@@ -195,5 +280,8 @@ export const useStudentManagement = () => {
     handleDelete,
     confirmDelete,
     authenticate,
+    // New: loading/error states
+    isLoading,
+    isError,
   };
 };

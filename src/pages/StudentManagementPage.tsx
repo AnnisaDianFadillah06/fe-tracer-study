@@ -1,4 +1,6 @@
 import { useStudentManagement, prodiList } from "@/hooks/useStudentManagement";
+import { exportAlumniReport } from "@/hooks/useDashboardData";
+import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,9 +40,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, Loader2 } from "lucide-react";
 
 const StudentManagementPage = () => {
+  const { toast } = useToast();
   const {
     students,
     filtered,
@@ -62,7 +65,17 @@ const StudentManagementPage = () => {
     handleSubmit,
     handleDelete,
     confirmDelete,
+    isLoading,
   } = useStudentManagement();
+
+  const handleExport = async () => {
+    try {
+      await exportAlumniReport();
+      toast({ title: "Berhasil", description: "Laporan berhasil diunduh" });
+    } catch {
+      toast({ title: "Gagal", description: "Gagal mengunduh laporan", variant: "destructive" });
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -80,7 +93,7 @@ const StudentManagementPage = () => {
               <Upload className="w-4 h-4 mr-2" />
               Import
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
