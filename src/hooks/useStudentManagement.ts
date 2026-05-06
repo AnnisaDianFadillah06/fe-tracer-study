@@ -12,6 +12,7 @@ export interface AlumniRecord {
   phone: string | null;
   program_id: number | null;
   program_name: string | null; // from JOIN
+  jurusan_name: string | null; // from JOIN
   graduation_year: number | null;
   kode_pt: string | null;
   nik: string | null;
@@ -28,6 +29,7 @@ export interface Student {
   email: string;
   password: string;
   prodi: string;
+  jurusan: string;
   programId: string;
   angkatan: string;
   status: "aktif" | "nonaktif";
@@ -62,6 +64,7 @@ function alumniToStudent(a: AlumniRecord): Student {
     email: a.email ?? "",
     password: "", // Backend doesn't return passwords
     prodi: a.program_name ?? "",
+    jurusan: a.jurusan_name ?? "",
     programId: a.program_id ? String(a.program_id) : "",
     angkatan: a.graduation_year ? String(a.graduation_year - 3) : "", // estimasi angkatan
     status: "aktif",
@@ -97,6 +100,7 @@ export const useStudentManagement = () => {
   // ── UI State ────────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
   const [filterProdi, setFilterProdi] = useState("all");
+  const [filterJurusan, setFilterJurusan] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -169,8 +173,13 @@ export const useStudentManagement = () => {
   // Client-side filter
   const filtered = students.filter((s) => {
     const matchProdi = filterProdi === "all" || s.programId === filterProdi;
-    return matchProdi;
+    const matchJurusan = filterJurusan === "all" || s.jurusan === filterJurusan;
+    return matchProdi && matchJurusan;
   });
+
+  const jurusanOptions = useMemo(() => {
+    return Array.from(new Set(students.map((s) => s.jurusan).filter(Boolean))).sort();
+  }, [students]);
 
   // ── Mutations ───────────────────────────────────────────────────────────
   const createMutation = useMutation({
@@ -321,6 +330,9 @@ export const useStudentManagement = () => {
     setSearchQuery,
     filterProdi,
     setFilterProdi,
+    filterJurusan,
+    setFilterJurusan,
+    jurusanOptions,
     programs,
     isDialogOpen,
     setIsDialogOpen,

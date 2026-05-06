@@ -52,6 +52,9 @@ const StudentManagementPage = () => {
     setSearchQuery,
     filterProdi,
     setFilterProdi,
+    filterJurusan,
+    setFilterJurusan,
+    jurusanOptions,
     programs,
     isDialogOpen,
     setIsDialogOpen,
@@ -73,8 +76,8 @@ const StudentManagementPage = () => {
   const handleExport = async () => {
     try {
       // Prepare CSV data
-      const headers = ["NIM", "Username", "Email", "Program Studi", "Angkatan", "Status"];
-      const rows = students.map((s) => [s.nim, s.username, s.email, s.prodi, s.angkatan, s.status]);
+      const headers = ["NIM", "Username", "Email", "Program Studi", "Jurusan", "Angkatan", "Status"];
+      const rows = students.map((s) => [s.nim, s.username, s.email, s.prodi, s.jurusan, s.angkatan, s.status]);
 
       // Escape CSV values
       const escapeCsv = (value: string) => `"${String(value).replace(/"/g, '""')}"`;
@@ -208,7 +211,7 @@ const StudentManagementPage = () => {
         {/* Filter & Search */}
         <Card className="glass-card">
           <CardContent className="pt-4 pb-4">
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -227,6 +230,19 @@ const StudentManagementPage = () => {
                   {programs.map((program) => (
                     <SelectItem key={program.id} value={String(program.id)}>
                       {program.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterJurusan} onValueChange={setFilterJurusan}>
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Filter Jurusan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Jurusan</SelectItem>
+                  {jurusanOptions.map((jurusan) => (
+                    <SelectItem key={jurusan} value={jurusan}>
+                      {jurusan}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -250,6 +266,7 @@ const StudentManagementPage = () => {
                     <TableHead>Username</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Program Studi</TableHead>
+                    <TableHead>Jurusan</TableHead>
                     <TableHead>Angkatan</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
@@ -258,7 +275,7 @@ const StudentManagementPage = () => {
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                         Tidak ada data mahasiswa ditemukan
                       </TableCell>
                     </TableRow>
@@ -270,6 +287,7 @@ const StudentManagementPage = () => {
                         <TableCell>{student.username}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">{student.email}</TableCell>
                         <TableCell><span className="text-sm">{student.prodi}</span></TableCell>
+                        <TableCell><span className="text-sm">{student.jurusan || "-"}</span></TableCell>
                         <TableCell>{student.angkatan}</TableCell>
                         <TableCell>
                           <Badge
