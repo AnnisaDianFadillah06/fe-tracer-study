@@ -4,7 +4,15 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
- import {
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -34,6 +42,7 @@ import {
   Trash2,
   Users,
   XCircle,
+  Search,
 } from "lucide-react";
 
 const formatDate = (value: string) =>
@@ -62,6 +71,8 @@ const DaftarKuisionerPage = () => {
 
   const [forms, setForms] = useState<FormListItem[]>(() => getInitialForms());
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "aktif" | "nonaktif">("all");
 
   useEffect(() => {
     saveForms(forms);
@@ -74,6 +85,18 @@ const DaftarKuisionerPage = () => {
 
     return { totalForms, activeForms, totalRespondents };
   }, [forms]);
+
+  const filtered = useMemo(() => {
+    return forms.filter((form) => {
+      const matchSearch =
+        !searchQuery ||
+        form.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        form.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        form.target.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchStatus = statusFilter === "all" || form.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [forms, searchQuery, statusFilter]);
 
   const handleDeleteForm = () => {
     if (!deleteTargetId) return;
@@ -159,6 +182,33 @@ const DaftarKuisionerPage = () => {
           </div>
         </div>
 
+        {/* Filter & Search */}
+        <Card className="glass-card">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  placeholder="Cari kuisioner berdasarkan judul, deskripsi, atau sasaran..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Filter Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Status</SelectItem>
+                  <SelectItem value="aktif">Aktif</SelectItem>
+                  <SelectItem value="nonaktif">Nonaktif</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="overflow-hidden">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -174,14 +224,16 @@ const DaftarKuisionerPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {forms.length === 0 && (
+                  {filtered.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                        Belum ada kuisioner. Klik tombol "Tambah Kuisioner" untuk membuat kuisioner baru.
+                        {searchQuery || statusFilter !== "all"
+                          ? "Tidak ada kuisioner yang sesuai dengan pencarian."
+                          : "Belum ada kuisioner. Klik tombol \"Tambah Kuisioner\" untuk membuat kuisioner baru."}
                       </TableCell>
                     </TableRow>
                   )}
-                  {forms.map((form, index) => (
+                  {filtered.map((form, index) => (
                     <TableRow key={form.id}>
                       <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell>
