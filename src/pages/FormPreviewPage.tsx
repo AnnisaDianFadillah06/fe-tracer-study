@@ -124,7 +124,7 @@ const FormPreviewPage = () => {
       navigate(`/dashboard/form-management/${formId}/edit`);
       return;
     }
-    navigate("/dashboard/form-management/new");
+    navigate("/dashboard/form-management/new/builder");
   };
 
   if (!form) {

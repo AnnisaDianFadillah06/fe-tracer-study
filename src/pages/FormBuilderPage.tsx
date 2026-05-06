@@ -28,6 +28,7 @@ import {
   getInitialForms,
   saveForms,
 } from "@/lib/formManagement";
+import { BUILDER_DRAFT_STORAGE_KEY, createBlankFormDraft } from "@/lib/questionnaireDrafts";
 import {
   ArrowLeft,
   Copy,
@@ -57,7 +58,6 @@ const questionTypeOptions: Array<{ value: BuilderQuestionType; label: string }> 
 ];
 
 const PREVIEW_DRAFT_KEY = "tracer_form_preview_draft";
-const BUILDER_DRAFT_KEY = "tracer_form_builder_draft";
 
 const normalizeTargets = (data: FormListItem): FormListItem => {
   const rawTarget = (data as { target?: string | string[] }).target;
@@ -119,7 +119,7 @@ const FormBuilderPage = () => {
 
   const builderDraft = useMemo(() => {
     if (typeof window === "undefined") return null;
-    const key = formId ? `${BUILDER_DRAFT_KEY}:${formId}` : `${BUILDER_DRAFT_KEY}:new`;
+    const key = formId ? `${BUILDER_DRAFT_STORAGE_KEY}:${formId}` : `${BUILDER_DRAFT_STORAGE_KEY}:new`;
     try {
       const raw = localStorage.getItem(key);
       return raw ? (JSON.parse(raw) as FormListItem) : null;
@@ -137,23 +137,7 @@ const FormBuilderPage = () => {
       return ensureFirstQuestionRequired(normalizeTargets(cloned));
     }
 
-    return ensureFirstQuestionRequired({
-      id: `form-${createId("new")}`,
-      title: "Untitled Form",
-      description: "",
-      status: "aktif",
-      target: [],
-      respondents: [],
-      sections: [
-        {
-          id: createId("section"),
-          title: "Bagian 1",
-          description: "",
-          questions: [createDefaultQuestion("short")],
-        },
-      ],
-      responses: [],
-    });
+    return ensureFirstQuestionRequired(createBlankFormDraft());
   });
 
   const [draggedQuestion, setDraggedQuestion] = useState<DragQuestionPayload | null>(null);
@@ -272,7 +256,7 @@ const FormBuilderPage = () => {
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
-    const key = formId ? `${BUILDER_DRAFT_KEY}:${formId}` : `${BUILDER_DRAFT_KEY}:new`;
+    const key = formId ? `${BUILDER_DRAFT_STORAGE_KEY}:${formId}` : `${BUILDER_DRAFT_STORAGE_KEY}:new`;
     const timer = window.setTimeout(() => {
       localStorage.setItem(key, JSON.stringify(form));
     }, 400);
@@ -460,7 +444,7 @@ const FormBuilderPage = () => {
 
     saveForms(updatedForms);
     if (typeof window !== "undefined") {
-      const key = formId ? `${BUILDER_DRAFT_KEY}:${formId}` : `${BUILDER_DRAFT_KEY}:new`;
+      const key = formId ? `${BUILDER_DRAFT_STORAGE_KEY}:${formId}` : `${BUILDER_DRAFT_STORAGE_KEY}:new`;
       localStorage.removeItem(key);
     }
     toast({ title: "Berhasil", description: "Kuisioner berhasil disimpan." });
