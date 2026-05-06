@@ -463,7 +463,7 @@ const FormBuilderPage = () => {
       const key = formId ? `${BUILDER_DRAFT_KEY}:${formId}` : `${BUILDER_DRAFT_KEY}:new`;
       localStorage.removeItem(key);
     }
-    toast({ title: "Berhasil", description: "Formulir berhasil disimpan." });
+    toast({ title: "Berhasil", description: "Kuisioner berhasil disimpan." });
     navigate("/dashboard/form-management");
   };
 
@@ -486,9 +486,9 @@ const FormBuilderPage = () => {
       <div className="grid min-h-screen place-items-center bg-background px-6">
         <Card className="w-full max-w-md">
           <CardContent className="space-y-3 py-8 text-center">
-            <h1 className="text-xl font-semibold">Formulir tidak ditemukan</h1>
-            <p className="text-sm text-muted-foreground">Data formulir yang ingin Anda edit tidak tersedia.</p>
-            <Button onClick={() => navigate("/dashboard/form-management")}>Kembali ke Form Management</Button>
+            <h1 className="text-xl font-semibold">Kuisioner tidak ditemukan</h1>
+            <p className="text-sm text-muted-foreground">Data kuisioner yang ingin Anda edit tidak tersedia.</p>
+            <Button onClick={() => navigate("/dashboard/form-management")}>Kembali ke Manajemen Kuisioner</Button>
           </CardContent>
         </Card>
       </div>
@@ -505,7 +505,7 @@ const FormBuilderPage = () => {
             </Button>
             <div className="min-w-0 flex-1 space-y-2">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {isEditMode ? "Edit Formulir" : "Tambah Formulir"}
+                {isEditMode ? "Edit Kuisioner" : "Tambah Kuisioner"}
               </p>
               <Input
                 value={form.title}
@@ -517,7 +517,7 @@ const FormBuilderPage = () => {
                 value={form.description ?? ""}
                 onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
                 className="h-8 border-0 bg-transparent px-0 text-sm text-muted-foreground focus-visible:ring-0"
-                placeholder="Deskripsi formulir (opsional)"
+                placeholder="Deskripsi kuisioner (opsional)"
               />
             </div>
           </div>

@@ -4,7 +4,7 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import {
+ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -56,7 +56,7 @@ const statusStyles = {
   nonaktif: "border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300",
 };
 
-const DaftarFormulirPage = () => {
+const DaftarKuisionerPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -81,7 +81,7 @@ const DaftarFormulirPage = () => {
     setForms((prev) => prev.filter((form) => form.id !== deleteTargetId));
     setDeleteTargetId(null);
 
-    toast({ title: "Berhasil", description: "Formulir berhasil dihapus." });
+    toast({ title: "Berhasil", description: "Kuisioner berhasil dihapus." });
   };
 
   const downloadCsv = (form: FormListItem) => {
@@ -123,29 +123,29 @@ const DaftarFormulirPage = () => {
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
               <FileText className="h-3.5 w-3.5" />
-              Manajemen formulir tracer study
+              Manajemen kuisioner tracer study
             </div>
-            <h2 className="font-heading text-2xl font-bold sm:text-3xl">Form Management</h2>
+            <h2 className="font-heading text-2xl font-bold sm:text-3xl">Manajemen Kuisioner</h2>
             <p className="max-w-2xl text-sm text-muted-foreground">
-              Kelola formulir, buka mode builder penuh untuk tambah/edit, lihat preview, dan unduh hasil respon CSV.
+              Kelola kuisioner, buka mode builder penuh untuk tambah/edit, lihat preview, dan unduh hasil respon CSV.
             </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:items-end">
             <Button onClick={() => navigate("/dashboard/form-management/new")} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
-              Tambah Formulir
+              Tambah Kuisioner
             </Button>
             <div className="grid grid-cols-3 gap-3 sm:max-w-xl">
               <Card>
                 <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">Total formulir</p>
+                  <p className="text-xs text-muted-foreground">Total kuisioner</p>
                   <p className="mt-1 text-2xl font-bold">{stats.totalForms}</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">Form aktif</p>
+                  <p className="text-xs text-muted-foreground">Kuisioner aktif</p>
                   <p className="mt-1 text-2xl font-bold">{stats.activeForms}</p>
                 </CardContent>
               </Card>
@@ -177,7 +177,7 @@ const DaftarFormulirPage = () => {
                   {forms.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                        Belum ada formulir. Klik tombol "Tambah Formulir" untuk membuat formulir baru.
+                        Belum ada kuisioner. Klik tombol "Tambah Kuisioner" untuk membuat kuisioner baru.
                       </TableCell>
                     </TableRow>
                   )}
@@ -187,7 +187,7 @@ const DaftarFormulirPage = () => {
                       <TableCell>
                         <div className="space-y-1">
                           <p className="font-medium leading-snug">{form.title}</p>
-                          <p className="text-xs text-muted-foreground">{form.sections.length} bagian formulir</p>
+                          <p className="text-xs text-muted-foreground">{form.sections.length} bagian kuisioner</p>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -263,9 +263,9 @@ const DaftarFormulirPage = () => {
       <AlertDialog open={Boolean(deleteTargetId)} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hapus Formulir?</AlertDialogTitle>
+            <AlertDialogTitle>Hapus Kuisioner?</AlertDialogTitle>
             <AlertDialogDescription>
-              Formulir yang dihapus tidak bisa dipulihkan. Data respon terkait juga akan ikut terhapus dari daftar.
+              Kuisioner yang dihapus tidak bisa dipulihkan. Data respon terkait juga akan ikut terhapus dari daftar.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -283,4 +283,4 @@ const DaftarFormulirPage = () => {
   );
 };
 
-export default DaftarFormulirPage;
+export default DaftarKuisionerPage;

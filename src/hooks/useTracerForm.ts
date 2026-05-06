@@ -89,7 +89,7 @@ const fallbackSections: FormSection[] = [
   {
     id: "s1",
     title: "Kuesioner Tracer Study",
-    description: "Silakan isi formulir berikut dengan jujur dan lengkap.",
+    description: "Silakan isi kuisioner berikut dengan jujur dan lengkap.",
     questions: [
       {
         id: "q1",

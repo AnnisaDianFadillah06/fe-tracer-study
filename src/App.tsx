@@ -19,7 +19,7 @@ import ProfilePage from "./pages/ProfilePage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import TeamManagementPage from "./pages/TeamManagementPage";
 import StudentManagementPage from "./pages/StudentManagementPage";
-import DaftarFormulirPage from "./pages/FormManagementPage";
+import DaftarKuisionerPage from "./pages/FormManagementPage";
 import FormBuilderPage from "./pages/FormBuilderPage";
 import FormPreviewPage from "./pages/FormPreviewPage";
 import NotFound from "./pages/NotFound";
@@ -57,7 +57,7 @@ const App = () => (
             <Route path="/dashboard/change-password" element={<ChangePasswordPage />} />
             <Route path="/dashboard/team-management" element={<TeamManagementPage />} />
             <Route path="/dashboard/student-management" element={<StudentManagementPage />} />
-            <Route path="/dashboard/form-management" element={<DaftarFormulirPage />} />
+            <Route path="/dashboard/form-management" element={<DaftarKuisionerPage />} />
             <Route path="/dashboard/form-management/new" element={<FormBuilderPage />} />
             <Route path="/dashboard/form-management/:formId/edit" element={<FormBuilderPage />} />
             <Route path="/dashboard/form-management/new/preview" element={<FormPreviewPage />} />

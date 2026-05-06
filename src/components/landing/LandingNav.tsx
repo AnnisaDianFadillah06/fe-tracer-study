@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import PolbanLogo from "@/components/PolbanLogo";
 
 const LandingNav = () => {
@@ -44,6 +45,7 @@ const LandingNav = () => {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center gap-3">
+            <ThemeToggle />
             <Link to="/login">
               <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
                 Masuk
@@ -89,6 +91,7 @@ const LandingNav = () => {
                 </a>
               ))}
               <div className="flex gap-2 mt-4 px-4">
+                <ThemeToggle />
                 <Link to="/login" className="flex-1">
                   <Button variant="outline" className="w-full">
                     Masuk

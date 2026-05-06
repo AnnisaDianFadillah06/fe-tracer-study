@@ -134,7 +134,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           {[
             { href: "/dashboard/team-management", icon: Users, title: "Tim Koordinator", desc: "Kelola tim tracer" },
             { href: "/dashboard/student-management", icon: UserCog, title: "Akun Mahasiswa", desc: "CRUD akun kuesioner" },
-            { href: "/dashboard/form-management", icon: ClipboardList, title: "Form Management", desc: "Kelola formulir dan hasil respon" },
+            { href: "/dashboard/form-management", icon: ClipboardList, title: "Manajemen Kuisioner", desc: "Kelola kuisioner dan hasil respon" },
           ].map((item) => {
             const isActive = location.pathname === item.href;
             return (

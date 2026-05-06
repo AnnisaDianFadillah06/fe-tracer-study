@@ -62,9 +62,9 @@ const StudentFormListPage = () => {
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         <div className="space-y-2">
-          <h1 className="font-heading text-2xl font-bold">Daftar Form Tracer Study</h1>
+          <h1 className="font-heading text-2xl font-bold">Daftar Kuisioner Tracer Study</h1>
           <p className="text-sm text-muted-foreground">
-            {session?.username}, pilih form yang sesuai dengan angkatan Anda untuk mulai mengisi.
+            {session?.username}, pilih kuisioner yang sesuai dengan angkatan Anda untuk mulai mengisi.
           </p>
         </div>
 
@@ -75,7 +75,7 @@ const StudentFormListPage = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">No</TableHead>
-                    <TableHead>Nama Form</TableHead>
+                    <TableHead>Nama Kuisioner</TableHead>
                     <TableHead>Deskripsi</TableHead>
                     <TableHead>Sasaran</TableHead>
                     <TableHead>Status</TableHead>
@@ -86,7 +86,7 @@ const StudentFormListPage = () => {
                   {filteredForms.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                        Belum ada form untuk angkatan Anda.
+                        Belum ada kuisioner untuk angkatan Anda.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -115,7 +115,7 @@ const StudentFormListPage = () => {
                               size="sm"
                               onClick={() => navigate(`/form/${form.id}?mode=student`)}
                             >
-                              Isi Form
+                              Isi Kuisioner
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
                           </TableCell>

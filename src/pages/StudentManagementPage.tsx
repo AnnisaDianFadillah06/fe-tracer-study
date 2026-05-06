@@ -1,5 +1,5 @@
+import { useRef } from "react";
 import { useStudentManagement } from "@/hooks/useStudentManagement";
-import { exportAlumniReport } from "@/hooks/useDashboardData";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +43,7 @@ import {
 import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle } from "lucide-react";
 
 const StudentManagementPage = () => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const {
     students,
@@ -71,11 +72,56 @@ const StudentManagementPage = () => {
 
   const handleExport = async () => {
     try {
-      await exportAlumniReport();
-      toast({ title: "Berhasil", description: "Laporan berhasil diunduh" });
+      // Prepare CSV data
+      const headers = ["NIM", "Username", "Email", "Program Studi", "Angkatan", "Status"];
+      const rows = students.map((s) => [s.nim, s.username, s.email, s.prodi, s.angkatan, s.status]);
+
+      // Escape CSV values
+      const escapeCsv = (value: string) => `"${String(value).replace(/"/g, '""')}"`;
+      const headerRow = headers.map(escapeCsv).join(",");
+      const dataRows = rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
+      const csv = `${headerRow}\n${dataRows}`;
+
+      // Create blob and download
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Data_Mahasiswa_${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      toast({ title: "Berhasil", description: "Data mahasiswa berhasil diunduh" });
     } catch {
-      toast({ title: "Gagal", description: "Gagal mengunduh laporan", variant: "destructive" });
+      toast({ title: "Gagal", description: "Gagal mengunduh data", variant: "destructive" });
     }
+  };
+
+  const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const lines = text.split("\n").filter((line) => line.trim());
+      
+      if (lines.length < 2) {
+        toast({ title: "Error", description: "File CSV kosong atau tidak valid", variant: "destructive" });
+        return;
+      }
+
+      // Skip header row and process data
+      const importedCount = lines.slice(1).length;
+      toast({ 
+        title: "Berhasil", 
+        description: `${importedCount} data mahasiswa siap untuk diimpor. Fitur impor lengkap akan diaktifkan di versi berikutnya.` 
+      });
+    } catch (error) {
+      toast({ title: "Error", description: "Gagal membaca file CSV", variant: "destructive" });
+    }
+
+    // Reset input
+    event.target.value = "";
   };
 
   return (
@@ -90,12 +136,23 @@ const StudentManagementPage = () => {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <Upload className="mr-2 h-4 w-4" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleImportCSV}
+              className="hidden"
+            />
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Download className="mr-2 h-4 w-4" />
               Import
             </Button>
             <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />
+              <Upload className="w-4 h-4 mr-2" />
               Export
             </Button>
             <Button onClick={handleOpenAdd}>
