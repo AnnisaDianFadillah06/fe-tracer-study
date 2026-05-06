@@ -24,7 +24,7 @@ const StudentFormListPage = () => {
 
   useEffect(() => {
     if (!isLoggedIn) {
-      navigate("/form/login");
+      navigate("/login");
     }
   }, [isLoggedIn, navigate]);
 
@@ -42,7 +42,7 @@ const StudentFormListPage = () => {
 
   const handleLogout = () => {
     logout();
-    navigate("/form/login");
+    navigate("/login");
   };
 
   if (!isLoggedIn) return null;

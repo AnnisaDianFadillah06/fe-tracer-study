@@ -24,8 +24,6 @@ import FormBuilderPage from "./pages/FormBuilderPage";
 import FormPreviewPage from "./pages/FormPreviewPage";
 import NotFound from "./pages/NotFound";
 
-// Student-facing pages
-import StudentLoginPage from "./pages/StudentLoginPage";
 import StudentFormListPage from "./pages/StudentFormListPage";
 import FormPage from "./pages/FormPage";
 
@@ -64,7 +62,7 @@ const App = () => (
             <Route path="/dashboard/form-management/:formId/preview" element={<FormPreviewPage />} />
 
             {/* Student-facing form routes */}
-            <Route path="/form/login" element={<StudentLoginPage />} />
+            <Route path="/form/login" element={<Navigate to="/login" replace />} />
             <Route path="/form" element={<StudentFormListPage />} />
             <Route path="/form/:formId" element={<FormPreviewPage />} />
             <Route path="/form/fill" element={<FormPage />} />

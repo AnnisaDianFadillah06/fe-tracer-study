@@ -69,7 +69,7 @@ const FormPage = () => {
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoggedIn) {
-      navigate("/form/login");
+      navigate("/login");
     }
   }, [isLoggedIn, navigate]);
 
@@ -89,7 +89,7 @@ const FormPage = () => {
 
   const handleLogout = () => {
     logout();
-    navigate("/form/login");
+    navigate("/login");
   };
 
   if (submitted) {
