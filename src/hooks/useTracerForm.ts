@@ -30,18 +30,34 @@ function mapBackendToSections(backendData: any[]): FormSection[] {
     title: qnr.title ?? "Kuesioner",
     description: qnr.description ?? undefined,
     questions: (qnr.questions ?? []).map((q: any) => {
-      const feType = mapQuestionType(q.question_type);
       const meta = q.metadata ?? {};
+
+      // Smart type detection: 'number' with scale metadata → linear_scale
+      let feType = mapQuestionType(q.question_type);
+      if (q.question_type === "number" && meta.scale_min != null && meta.scale_max != null) {
+        feType = "linear_scale";
+      }
+
+      // Boolean questions → multiple_choice with auto-generated Ya/Tidak options
+      let options: Option[] = (q.options ?? []).map((o: any) => ({
+        id: o.value ?? String(o.id),
+        label: o.label ?? "",
+      }));
+
+      if (q.question_type === "boolean") {
+        feType = "multiple_choice";
+        options = [
+          { id: "1", label: "Ya" },
+          { id: "0", label: "Tidak" },
+        ];
+      }
 
       const question: Question = {
         id: q.question_code ?? String(q.id), // use question_code as the key for answers
         type: feType,
         question: q.question_text ?? "",
         description: meta.description ?? undefined,
-        options: (q.options ?? []).map((o: any) => ({
-          id: o.value ?? String(o.id),
-          label: o.label ?? "",
-        })),
+        options,
         required: !!q.is_required,
         scaleMin: meta.scale_min ?? 1,
         scaleMax: meta.scale_max ?? 5,
@@ -64,12 +80,14 @@ function mapQuestionType(
     short_text: "short",
     short: "short",
     text: "short",
+    number: "short",
     long_text: "paragraph",
     paragraph: "paragraph",
     textarea: "paragraph",
     multiple_choice: "multiple_choice",
     radio: "multiple_choice",
     single_choice: "multiple_choice",
+    boolean: "multiple_choice",
     checkbox: "checkbox",
     multi_select: "checkbox",
     dropdown: "dropdown",

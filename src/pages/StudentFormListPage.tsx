@@ -14,13 +14,25 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import PolbanLogo from "@/components/PolbanLogo";
 import { useStudentAuth } from "@/hooks/useStudentAuth";
-import { getInitialForms, type FormListItem } from "@/lib/formManagement";
-import { ArrowRight, LogOut } from "lucide-react";
+import { ArrowRight, LogOut, Loader2 } from "lucide-react";
+import api from "@/lib/api";
+
+interface BackendQuestionnaire {
+  id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  status: string;
+  program_id: number | null;
+  is_global: boolean;
+  questions: unknown[];
+}
 
 const StudentFormListPage = () => {
   const navigate = useNavigate();
   const { session, isLoggedIn, logout } = useStudentAuth();
-  const [forms] = useState<FormListItem[]>(() => getInitialForms());
+  const [forms, setForms] = useState<BackendQuestionnaire[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -28,17 +40,29 @@ const StudentFormListPage = () => {
     }
   }, [isLoggedIn, navigate]);
 
-  const filteredForms = useMemo(() => {
-    if (!session) return [];
-    const angkatanTarget = session.angkatan ? `Lulusan Angkatan ${session.angkatan}` : "";
+  // Fetch forms from backend API using alumni's kode_prodi
+  useEffect(() => {
+    if (!session?.kodeProdi) return;
 
-    return forms.filter((form) => {
-      if (!form.target || form.target.length === 0) return false;
-      if (form.target.includes("Semua Alumni")) return true;
-      if (angkatanTarget && form.target.includes(angkatanTarget)) return true;
-      return false;
-    });
-  }, [forms, session]);
+    const fetchForms = async () => {
+      setIsLoading(true);
+      try {
+        const { data } = await api.get("/tracer-study/forms", {
+          params: { kode_prodi: session.kodeProdi },
+        });
+
+        if (data.success && data.data) {
+          setForms(data.data);
+        }
+      } catch (err) {
+        console.warn("[StudentFormListPage] Failed to fetch forms:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchForms();
+  }, [session?.kodeProdi]);
 
   const handleLogout = () => {
     logout();
@@ -64,64 +88,74 @@ const StudentFormListPage = () => {
         <div className="space-y-2">
           <h1 className="font-heading text-2xl font-bold">Daftar Form Tracer Study</h1>
           <p className="text-sm text-muted-foreground">
-            {session?.username}, pilih form yang sesuai dengan angkatan Anda untuk mulai mengisi.
+            {session?.username}, berikut adalah kuesioner yang tersedia untuk program studi Anda ({session?.prodi}).
           </p>
         </div>
 
         <Card className="shadow-sm">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <Table className="min-w-[900px]">
+              <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">No</TableHead>
-                    <TableHead>Nama Form</TableHead>
+                    <TableHead>Nama Kuesioner</TableHead>
                     <TableHead>Deskripsi</TableHead>
-                    <TableHead>Sasaran</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Jenis</TableHead>
+                    <TableHead>Pertanyaan</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredForms.length === 0 ? (
+                  {isLoading ? (
                     <TableRow>
                       <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                        Belum ada form untuk angkatan Anda.
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Memuat kuesioner...
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : forms.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                        Belum ada kuesioner aktif untuk program studi Anda.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredForms.map((form, index) => {
-                      const hasResponded = form.responses.some(
-                        (response) => response.respondent?.toLowerCase() === session?.username?.toLowerCase()
-                      );
-
-                      return (
-                        <TableRow key={form.id}>
-                          <TableCell className="font-medium">{index + 1}</TableCell>
-                          <TableCell className="font-medium">{form.title}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {form.description || "-"}
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {form.target.length > 0 ? form.target.join(", ") : "-"}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={hasResponded ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700" : "border-slate-200 bg-slate-100 text-slate-700"}>
-                              {hasResponded ? "Sudah diisi" : "Belum diisi"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              onClick={() => navigate(`/form/${form.id}?mode=student`)}
-                            >
-                              Isi Form
-                              <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
+                    forms.map((form, index) => (
+                      <TableRow key={form.id}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
+                        <TableCell>
+                          <p className="font-medium leading-snug">{form.title}</p>
+                          <p className="text-xs text-muted-foreground">{form.code}</p>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                          {form.description || "-"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={
+                            form.is_global
+                              ? "border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                              : "border-purple-500/20 bg-purple-500/10 text-purple-700 dark:text-purple-300"
+                          }>
+                            {form.is_global ? "Kementrian" : "Prodi"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {Array.isArray(form.questions) ? form.questions.length : 0} soal
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            onClick={() => navigate("/form/fill")}
+                          >
+                            Isi Form
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
                 </TableBody>
               </Table>
