@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ExcelJS from "exceljs";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +43,7 @@ import {
   Trash2,
   Users,
   XCircle,
+  Search,
 } from "lucide-react";
 
 const formatDate = (value: string) =>
@@ -49,19 +59,69 @@ const formatAnswer = (value: string | number | string[] | undefined) => {
   return String(value);
 };
 
-const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
+const downloadXlsxFile = async (
+  form: any,
+  formatDate: (date: string) => string,
+  formatAnswer: (value: any) => string,
+  toast: any,
+) => {
+  const questionColumns = form.sections.flatMap((section: any) =>
+    section.questions.map((question: any) => question.question || "Pertanyaan tanpa judul"),
+  );
+  const headers = ["Responden", "Tanggal Pengisian", ...questionColumns];
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Respon");
+
+  worksheet.addRow(headers);
+
+  form.responses.forEach((response: any) => {
+    worksheet.addRow([
+      response.respondent,
+      formatDate(response.submittedAt),
+      ...form.sections.flatMap((section: any) =>
+        section.questions.map((question: any) => formatAnswer(response.answers[question.id])),
+      ),
+    ]);
+  });
+
+  worksheet.getRow(1).font = { bold: true };
+  worksheet.columns = headers.map((header) => ({
+    header,
+    key: header,
+    width: Math.max(18, header.length + 4),
+  }));
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${form.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.xlsx`;
+  link.click();
+  URL.revokeObjectURL(url);
+
+  toast({
+    title: "Unduhan XLSX siap",
+    description: `Data respon untuk ${form.title} sedang diunduh.`,
+  });
+};
 
 const statusStyles = {
   aktif: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   nonaktif: "border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300",
 };
 
-const DaftarFormulirPage = () => {
+const DaftarKuisionerPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const [forms, setForms] = useState<FormListItem[]>(() => getInitialForms());
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "aktif" | "nonaktif">("all");
 
   useEffect(() => {
     saveForms(forms);
@@ -75,45 +135,25 @@ const DaftarFormulirPage = () => {
     return { totalForms, activeForms, totalRespondents };
   }, [forms]);
 
+  const filtered = useMemo(() => {
+    return forms.filter((form) => {
+      const matchSearch =
+        !searchQuery ||
+        form.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        form.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        form.target.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchStatus = statusFilter === "all" || form.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [forms, searchQuery, statusFilter]);
+
   const handleDeleteForm = () => {
     if (!deleteTargetId) return;
 
     setForms((prev) => prev.filter((form) => form.id !== deleteTargetId));
     setDeleteTargetId(null);
 
-    toast({ title: "Berhasil", description: "Formulir berhasil dihapus." });
-  };
-
-  const downloadCsv = (form: FormListItem) => {
-    const questionColumns = form.sections.flatMap((section) =>
-      section.questions.map((question) => question.question || "Pertanyaan tanpa judul"),
-    );
-    const headers = ["Responden", "Tanggal Pengisian", ...questionColumns];
-
-    const rows = form.responses.map((response) => {
-      const cells = [
-        response.respondent,
-        formatDate(response.submittedAt),
-        ...form.sections.flatMap((section) =>
-          section.questions.map((question) => formatAnswer(response.answers[question.id])),
-        ),
-      ];
-      return cells.map((cell) => escapeCsv(cell)).join(",");
-    });
-
-    const csv = [headers.map(escapeCsv).join(","), ...rows].join("\n");
-    const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${form.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: "Unduhan CSV siap",
-      description: `Data respon untuk ${form.title} sedang diunduh.`,
-    });
+    toast({ title: "Berhasil", description: "Kuisioner berhasil dihapus." });
   };
 
   return (
@@ -123,29 +163,29 @@ const DaftarFormulirPage = () => {
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
               <FileText className="h-3.5 w-3.5" />
-              Manajemen formulir tracer study
+              Manajemen kuisioner tracer study
             </div>
-            <h2 className="font-heading text-2xl font-bold sm:text-3xl">Form Management</h2>
+            <h2 className="font-heading text-2xl font-bold sm:text-3xl">Manajemen Kuisioner</h2>
             <p className="max-w-2xl text-sm text-muted-foreground">
-              Kelola formulir, buka mode builder penuh untuk tambah/edit, lihat preview, dan unduh hasil respon CSV.
+              Kelola kuisioner, buka mode builder penuh untuk tambah/edit, lihat preview, dan unduh hasil respon CSV.
             </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:items-end">
             <Button onClick={() => navigate("/dashboard/form-management/new")} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
-              Tambah Formulir
+              Tambah Kuisioner
             </Button>
             <div className="grid grid-cols-3 gap-3 sm:max-w-xl">
               <Card>
                 <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">Total formulir</p>
+                  <p className="text-xs text-muted-foreground">Total kuisioner</p>
                   <p className="mt-1 text-2xl font-bold">{stats.totalForms}</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">Form aktif</p>
+                  <p className="text-xs text-muted-foreground">Kuisioner aktif</p>
                   <p className="mt-1 text-2xl font-bold">{stats.activeForms}</p>
                 </CardContent>
               </Card>
@@ -158,6 +198,33 @@ const DaftarFormulirPage = () => {
             </div>
           </div>
         </div>
+
+        {/* Filter & Search */}
+        <Card className="glass-card">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  placeholder="Cari kuisioner berdasarkan judul, deskripsi, atau sasaran..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Filter Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Status</SelectItem>
+                  <SelectItem value="aktif">Aktif</SelectItem>
+                  <SelectItem value="nonaktif">Nonaktif</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="overflow-hidden">
           <CardContent className="p-0">
@@ -174,20 +241,22 @@ const DaftarFormulirPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {forms.length === 0 && (
+                  {filtered.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                        Belum ada formulir. Klik tombol "Tambah Formulir" untuk membuat formulir baru.
+                        {searchQuery || statusFilter !== "all"
+                          ? "Tidak ada kuisioner yang sesuai dengan pencarian."
+                          : "Belum ada kuisioner. Klik tombol \"Tambah Kuisioner\" untuk membuat kuisioner baru."}
                       </TableCell>
                     </TableRow>
                   )}
-                  {forms.map((form, index) => (
+                  {filtered.map((form, index) => (
                     <TableRow key={form.id}>
                       <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell>
                         <div className="space-y-1">
                           <p className="font-medium leading-snug">{form.title}</p>
-                          <p className="text-xs text-muted-foreground">{form.sections.length} bagian formulir</p>
+                          <p className="text-xs text-muted-foreground">{form.sections.length} bagian kuisioner</p>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -241,7 +310,7 @@ const DaftarFormulirPage = () => {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </Button>
-                          <Button size="sm" onClick={() => downloadCsv(form)}>
+                          <Button size="sm" onClick={() => downloadXlsxFile(form, formatDate, formatAnswer, toast)}>
                             <Download className="mr-2 h-4 w-4" />
                             Unduh
                           </Button>
@@ -263,9 +332,9 @@ const DaftarFormulirPage = () => {
       <AlertDialog open={Boolean(deleteTargetId)} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hapus Formulir?</AlertDialogTitle>
+            <AlertDialogTitle>Hapus Kuisioner?</AlertDialogTitle>
             <AlertDialogDescription>
-              Formulir yang dihapus tidak bisa dipulihkan. Data respon terkait juga akan ikut terhapus dari daftar.
+              Kuisioner yang dihapus tidak bisa dipulihkan. Data respon terkait juga akan ikut terhapus dari daftar.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -283,4 +352,4 @@ const DaftarFormulirPage = () => {
   );
 };
 
-export default DaftarFormulirPage;
+export default DaftarKuisionerPage;

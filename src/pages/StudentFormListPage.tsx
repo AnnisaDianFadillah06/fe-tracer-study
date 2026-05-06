@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,11 +36,10 @@ const StudentFormListPage = () => {
 
   useEffect(() => {
     if (!isLoggedIn) {
-      navigate("/form/login");
+      navigate("/login");
     }
   }, [isLoggedIn, navigate]);
 
-  // Fetch forms from backend API using alumni's kode_prodi
   useEffect(() => {
     if (!session?.kodeProdi) return;
 
@@ -66,7 +65,7 @@ const StudentFormListPage = () => {
 
   const handleLogout = () => {
     logout();
-    navigate("/form/login");
+    navigate("/login");
   };
 
   if (!isLoggedIn) return null;
@@ -86,7 +85,7 @@ const StudentFormListPage = () => {
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         <div className="space-y-2">
-          <h1 className="font-heading text-2xl font-bold">Daftar Form Tracer Study</h1>
+          <h1 className="font-heading text-2xl font-bold">Daftar Kuesioner Tracer Study</h1>
           <p className="text-sm text-muted-foreground">
             {session?.username}, berikut adalah kuesioner yang tersedia untuk program studi Anda ({session?.prodi}).
           </p>
@@ -139,7 +138,7 @@ const StudentFormListPage = () => {
                               ? "border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300"
                               : "border-purple-500/20 bg-purple-500/10 text-purple-700 dark:text-purple-300"
                           }>
-                            {form.is_global ? "Kementrian" : "Prodi"}
+                            {form.is_global ? "Kementerian" : "Prodi"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm">
@@ -148,9 +147,9 @@ const StudentFormListPage = () => {
                         <TableCell className="text-right">
                           <Button
                             size="sm"
-                            onClick={() => navigate("/form/fill")}
+                            onClick={() => navigate(`/form/${form.id}`)}
                           >
-                            Isi Form
+                            Isi Kuesioner
                             <ArrowRight className="ml-2 h-4 w-4" />
                           </Button>
                         </TableCell>

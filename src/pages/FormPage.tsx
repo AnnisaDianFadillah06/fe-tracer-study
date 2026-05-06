@@ -69,7 +69,7 @@ const FormPage = () => {
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoggedIn) {
-      navigate("/form/login");
+      navigate("/login");
     }
   }, [isLoggedIn, navigate]);
 
@@ -81,7 +81,7 @@ const FormPage = () => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Memuat kuesioner...</p>
+          <p className="text-muted-foreground">Memuat kuisioner...</p>
         </div>
       </div>
     );
@@ -89,7 +89,7 @@ const FormPage = () => {
 
   const handleLogout = () => {
     logout();
-    navigate("/form/login");
+    navigate("/login");
   };
 
   if (submitted) {

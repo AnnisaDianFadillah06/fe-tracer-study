@@ -124,7 +124,7 @@ const FormPreviewPage = () => {
       navigate(`/dashboard/form-management/${formId}/edit`);
       return;
     }
-    navigate("/dashboard/form-management/new");
+    navigate("/dashboard/form-management/new/builder");
   };
 
   if (!form) {
@@ -134,7 +134,7 @@ const FormPreviewPage = () => {
           <CardContent className="space-y-3 py-8 text-center">
             <h1 className="text-xl font-semibold">Preview tidak tersedia</h1>
             <p className="text-sm text-muted-foreground">
-              Data formulir tidak ditemukan. Kembali ke form builder untuk melanjutkan penyuntingan.
+              Data kuisioner tidak ditemukan. Kembali ke kuisioner builder untuk melanjutkan penyuntingan.
             </p>
             <Button onClick={backToBuilder}>Kembali ke Builder</Button>
           </CardContent>
@@ -195,10 +195,10 @@ const FormPreviewPage = () => {
             </Button>
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {isStudentMode ? "Pengisian Form" : "Preview Form"}
+                {isStudentMode ? "Pengisian Kuisioner" : "Preview Kuisioner"}
               </p>
               <h1 className="text-base font-semibold">
-                {isStudentMode ? "Isi Form Tracer Study" : "Mode Read-only"}
+                {isStudentMode ? "Isi Kuisioner Tracer Study" : "Mode Read-only"}
               </h1>
             </div>
           </div>

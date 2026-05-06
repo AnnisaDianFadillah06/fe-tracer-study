@@ -19,13 +19,12 @@ import ProfilePage from "./pages/ProfilePage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import TeamManagementPage from "./pages/TeamManagementPage";
 import StudentManagementPage from "./pages/StudentManagementPage";
-import DaftarFormulirPage from "./pages/FormManagementPage";
+import DaftarKuisionerPage from "./pages/FormManagementPage";
+import FormCreationChoicePage from "./pages/FormCreationChoicePage";
 import FormBuilderPage from "./pages/FormBuilderPage";
 import FormPreviewPage from "./pages/FormPreviewPage";
 import NotFound from "./pages/NotFound";
 
-// Student-facing pages
-import StudentLoginPage from "./pages/StudentLoginPage";
 import StudentFormListPage from "./pages/StudentFormListPage";
 import FormPage from "./pages/FormPage";
 
@@ -57,14 +56,15 @@ const App = () => (
             <Route path="/dashboard/change-password" element={<ChangePasswordPage />} />
             <Route path="/dashboard/team-management" element={<TeamManagementPage />} />
             <Route path="/dashboard/student-management" element={<StudentManagementPage />} />
-            <Route path="/dashboard/form-management" element={<DaftarFormulirPage />} />
-            <Route path="/dashboard/form-management/new" element={<FormBuilderPage />} />
+            <Route path="/dashboard/form-management" element={<DaftarKuisionerPage />} />
+            <Route path="/dashboard/form-management/new" element={<FormCreationChoicePage />} />
+            <Route path="/dashboard/form-management/new/builder" element={<FormBuilderPage />} />
             <Route path="/dashboard/form-management/:formId/edit" element={<FormBuilderPage />} />
             <Route path="/dashboard/form-management/new/preview" element={<FormPreviewPage />} />
             <Route path="/dashboard/form-management/:formId/preview" element={<FormPreviewPage />} />
 
             {/* Student-facing form routes */}
-            <Route path="/form/login" element={<StudentLoginPage />} />
+            <Route path="/form/login" element={<Navigate to="/login" replace />} />
             <Route path="/form" element={<StudentFormListPage />} />
             <Route path="/form/:formId" element={<FormPreviewPage />} />
             <Route path="/form/fill" element={<FormPage />} />

@@ -1,35 +1,51 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useStudentAuth } from "@/hooks/useStudentAuth";
 import PolbanLogo from "@/components/PolbanLogo";
 
 const Login = () => {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { login, isLoading } = useAuth();
+  const { login: alumniLogin } = useStudentAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await login(email, password);
-      toast({
-        title: "Login Berhasil",
-        description: "Selamat datang di Dashboard Tracer Study",
-      });
-      navigate("/dashboard/overview");
+      try {
+        const result = await login(identifier, password);
+        toast({
+          title: "Login Berhasil",
+          description: "Selamat datang di Dashboard Tracer Study",
+        });
+        if (result.user?.role) {
+          navigate("/dashboard/overview");
+        } else {
+          navigate("/dashboard/overview");
+        }
+        return;
+      } catch {
+        await alumniLogin(identifier, password);
+        toast({
+          title: "Login Berhasil",
+          description: "Selamat datang, silakan isi kuisioner",
+        });
+        navigate("/form");
+      }
     } catch (err: any) {
       toast({
         title: "Login Gagal",
-        description: err.message,
+        description: err?.message || "Login gagal",
         variant: "destructive",
       });
     }
@@ -59,22 +75,22 @@ const Login = () => {
 
           {/* Header */}
           <div className="mb-8">
-            <h1 className="font-heading text-3xl font-bold mb-2">Selamat Datang</h1>
+            <h1 className="font-heading text-3xl font-bold mb-2">Masuk ke Tracer Study</h1>
             <p className="text-muted-foreground">
-              Masuk ke dashboard untuk mengakses analitik tracer study
+              Gunakan akun yang sesuai; sistem akan mengarahkan Anda ke dashboard admin atau kuisioner alumni.
             </p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="identifier">Email atau NIM</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="nama@polban.ac.id"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="identifier"
+                type="text"
+                placeholder="nama@polban.ac.id atau 211511001"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 className="bg-secondary/50 border-border/50 focus:border-primary/50 h-12"
                 required
               />
@@ -126,7 +142,7 @@ const Login = () => {
           {/* Demo Access */}
           <div className="mt-8 p-4 bg-secondary/30 rounded-lg border border-border/30">
             <p className="text-sm text-muted-foreground text-center">
-              Demo akses: Klik tombol "Masuk" untuk langsung mengakses dashboard
+              Admin login memakai email. Alumni login memakai NIM atau email alumni.
             </p>
           </div>
         </motion.div>
@@ -153,8 +169,7 @@ const Login = () => {
               Dashboard <span className="gradient-text">Analitik</span>
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto mb-8">
-              Akses data tracer study secara real-time dengan visualisasi interaktif
-              dan analisis clustering untuk penjaminan mutu
+              Akses data tracer study secara real-time untuk admin, atau isi kuisioner untuk alumni.
             </p>
 
             {/* Feature Cards */}

@@ -1,5 +1,5 @@
+import { useRef } from "react";
 import { useStudentManagement } from "@/hooks/useStudentManagement";
-import { exportAlumniReport } from "@/hooks/useDashboardData";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +43,7 @@ import {
 import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle } from "lucide-react";
 
 const StudentManagementPage = () => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const {
     students,
@@ -51,6 +52,9 @@ const StudentManagementPage = () => {
     setSearchQuery,
     filterProdi,
     setFilterProdi,
+    filterJurusan,
+    setFilterJurusan,
+    jurusanOptions,
     programs,
     isDialogOpen,
     setIsDialogOpen,
@@ -71,11 +75,56 @@ const StudentManagementPage = () => {
 
   const handleExport = async () => {
     try {
-      await exportAlumniReport();
-      toast({ title: "Berhasil", description: "Laporan berhasil diunduh" });
+      // Prepare CSV data
+      const headers = ["NIM", "Username", "Email", "Program Studi", "Jurusan", "Angkatan", "Status"];
+      const rows = students.map((s) => [s.nim, s.username, s.email, s.prodi, s.jurusan, s.angkatan, s.status]);
+
+      // Escape CSV values
+      const escapeCsv = (value: string) => `"${String(value).replace(/"/g, '""')}"`;
+      const headerRow = headers.map(escapeCsv).join(",");
+      const dataRows = rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
+      const csv = `${headerRow}\n${dataRows}`;
+
+      // Create blob and download
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Data_Mahasiswa_${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      toast({ title: "Berhasil", description: "Data mahasiswa berhasil diunduh" });
     } catch {
-      toast({ title: "Gagal", description: "Gagal mengunduh laporan", variant: "destructive" });
+      toast({ title: "Gagal", description: "Gagal mengunduh data", variant: "destructive" });
     }
+  };
+
+  const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const lines = text.split("\n").filter((line) => line.trim());
+      
+      if (lines.length < 2) {
+        toast({ title: "Error", description: "File CSV kosong atau tidak valid", variant: "destructive" });
+        return;
+      }
+
+      // Skip header row and process data
+      const importedCount = lines.slice(1).length;
+      toast({ 
+        title: "Berhasil", 
+        description: `${importedCount} data mahasiswa siap untuk diimpor. Fitur impor lengkap akan diaktifkan di versi berikutnya.` 
+      });
+    } catch (error) {
+      toast({ title: "Error", description: "Gagal membaca file CSV", variant: "destructive" });
+    }
+
+    // Reset input
+    event.target.value = "";
   };
 
   return (
@@ -90,12 +139,23 @@ const StudentManagementPage = () => {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <Upload className="mr-2 h-4 w-4" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleImportCSV}
+              className="hidden"
+            />
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Download className="mr-2 h-4 w-4" />
               Import
             </Button>
             <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />
+              <Upload className="w-4 h-4 mr-2" />
               Export
             </Button>
             <Button onClick={handleOpenAdd}>
@@ -151,7 +211,7 @@ const StudentManagementPage = () => {
         {/* Filter & Search */}
         <Card className="glass-card">
           <CardContent className="pt-4 pb-4">
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -170,6 +230,19 @@ const StudentManagementPage = () => {
                   {programs.map((program) => (
                     <SelectItem key={program.id} value={String(program.id)}>
                       {program.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterJurusan} onValueChange={setFilterJurusan}>
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Filter Jurusan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Jurusan</SelectItem>
+                  {jurusanOptions.map((jurusan) => (
+                    <SelectItem key={jurusan} value={jurusan}>
+                      {jurusan}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -193,6 +266,7 @@ const StudentManagementPage = () => {
                     <TableHead>Username</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Program Studi</TableHead>
+                    <TableHead>Jurusan</TableHead>
                     <TableHead>Angkatan</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
@@ -201,7 +275,7 @@ const StudentManagementPage = () => {
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                         Tidak ada data mahasiswa ditemukan
                       </TableCell>
                     </TableRow>
@@ -213,6 +287,7 @@ const StudentManagementPage = () => {
                         <TableCell>{student.username}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">{student.email}</TableCell>
                         <TableCell><span className="text-sm">{student.prodi}</span></TableCell>
+                        <TableCell><span className="text-sm">{student.jurusan || "-"}</span></TableCell>
                         <TableCell>{student.angkatan}</TableCell>
                         <TableCell>
                           <Badge

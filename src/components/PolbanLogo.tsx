@@ -23,15 +23,15 @@ const PolbanLogo = ({
     <div className={cn("flex items-center gap-3", className)}>
       <div
         className={cn(
-          "flex items-center justify-center overflow-hidden rounded-xl border border-border/40 bg-white shadow-sm",
-          compact ? "h-8 w-8 rounded-lg" : "h-10 w-10",
+          "flex aspect-square flex-none items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-white/95 shadow-sm ring-1 ring-black/5",
+          compact ? "h-9 w-9" : "h-11 w-11",
           markClassName,
         )}
       >
         <img
           src="/icon/android-chrome-192x192.png"
           alt="Logo POLBAN"
-          className="h-full w-full object-contain p-1"
+          className="h-auto w-auto max-h-[72%] max-w-[72%] object-contain"
         />
       </div>
 
