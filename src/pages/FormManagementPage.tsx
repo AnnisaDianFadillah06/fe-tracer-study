@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ExcelJS from "exceljs";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +59,55 @@ const formatAnswer = (value: string | number | string[] | undefined) => {
   return String(value);
 };
 
-const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
+const downloadXlsxFile = async (
+  form: any,
+  formatDate: (date: string) => string,
+  formatAnswer: (value: any) => string,
+  toast: any,
+) => {
+  const questionColumns = form.sections.flatMap((section: any) =>
+    section.questions.map((question: any) => question.question || "Pertanyaan tanpa judul"),
+  );
+  const headers = ["Responden", "Tanggal Pengisian", ...questionColumns];
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Respon");
+
+  worksheet.addRow(headers);
+
+  form.responses.forEach((response: any) => {
+    worksheet.addRow([
+      response.respondent,
+      formatDate(response.submittedAt),
+      ...form.sections.flatMap((section: any) =>
+        section.questions.map((question: any) => formatAnswer(response.answers[question.id])),
+      ),
+    ]);
+  });
+
+  worksheet.getRow(1).font = { bold: true };
+  worksheet.columns = headers.map((header) => ({
+    header,
+    key: header,
+    width: Math.max(18, header.length + 4),
+  }));
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${form.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.xlsx`;
+  link.click();
+  URL.revokeObjectURL(url);
+
+  toast({
+    title: "Unduhan XLSX siap",
+    description: `Data respon untuk ${form.title} sedang diunduh.`,
+  });
+};
 
 const statusStyles = {
   aktif: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
@@ -105,38 +154,6 @@ const DaftarKuisionerPage = () => {
     setDeleteTargetId(null);
 
     toast({ title: "Berhasil", description: "Kuisioner berhasil dihapus." });
-  };
-
-  const downloadCsv = (form: FormListItem) => {
-    const questionColumns = form.sections.flatMap((section) =>
-      section.questions.map((question) => question.question || "Pertanyaan tanpa judul"),
-    );
-    const headers = ["Responden", "Tanggal Pengisian", ...questionColumns];
-
-    const rows = form.responses.map((response) => {
-      const cells = [
-        response.respondent,
-        formatDate(response.submittedAt),
-        ...form.sections.flatMap((section) =>
-          section.questions.map((question) => formatAnswer(response.answers[question.id])),
-        ),
-      ];
-      return cells.map((cell) => escapeCsv(cell)).join(",");
-    });
-
-    const csv = [headers.map(escapeCsv).join(","), ...rows].join("\n");
-    const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${form.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: "Unduhan CSV siap",
-      description: `Data respon untuk ${form.title} sedang diunduh.`,
-    });
   };
 
   return (
@@ -293,7 +310,7 @@ const DaftarKuisionerPage = () => {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </Button>
-                          <Button size="sm" onClick={() => downloadCsv(form)}>
+                          <Button size="sm" onClick={() => downloadXlsxFile(form, formatDate, formatAnswer, toast)}>
                             <Download className="mr-2 h-4 w-4" />
                             Unduh
                           </Button>
