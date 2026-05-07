@@ -18,7 +18,7 @@ import { LogOut, Star, CheckCircle2, User } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import PolbanLogo from "@/components/PolbanLogo";
 import { useStudentAuth } from "@/hooks/useStudentAuth";
-import { useTracerForm } from "@/hooks/useTracerForm";
+import { useTracerForm, isQuestionVisible } from "@/hooks/useTracerForm";
 import type { Question } from "@/hooks/useQuestionManagement";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
@@ -187,7 +187,9 @@ const FormPage = () => {
           }
         >
           <div className="space-y-4">
-            {section.questions.map((q) => (
+            {section.questions
+              .filter((q) => isQuestionVisible(q, answers))
+              .map((q) => (
               <Card
                 key={q.id}
                 className={`glass-card ${errors[q.id] ? "border-destructive" : ""}`}

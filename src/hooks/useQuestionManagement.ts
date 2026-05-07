@@ -31,6 +31,10 @@ export interface Question {
   scaleMax?: number;
   scaleMinLabel?: string;
   scaleMaxLabel?: string;
+  showIf?: Record<string, (string | number)[]>;
+  groupCode?: string;
+  groupTitle?: string;
+  groupLabel?: string;
 }
 
 export interface FormSection {

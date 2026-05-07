@@ -29,45 +29,125 @@ function mapBackendToSections(backendData: any[]): FormSection[] {
     id: String(qnr.id),
     title: qnr.title ?? "Kuesioner",
     description: qnr.description ?? undefined,
-    questions: (qnr.questions ?? []).map((q: any) => {
-      const meta = q.metadata ?? {};
+    questions: mergeGroupedQuestions(
+      (qnr.questions ?? []).map((q: any) => {
+        const meta = q.metadata ?? {};
 
-      // Smart type detection: 'number' with scale metadata → linear_scale
-      let feType = mapQuestionType(q.question_type);
-      if (q.question_type === "number" && meta.scale_min != null && meta.scale_max != null) {
-        feType = "linear_scale";
-      }
+        // Smart type detection: 'number' with scale metadata → linear_scale
+        let feType = mapQuestionType(q.question_type);
+        if (q.question_type === "number" && meta.scale_min != null && meta.scale_max != null) {
+          feType = "linear_scale";
+        }
 
-      // Boolean questions → multiple_choice with auto-generated Ya/Tidak options
-      let options: Option[] = (q.options ?? []).map((o: any) => ({
-        id: o.value ?? String(o.id),
-        label: o.label ?? "",
-      }));
+        // Boolean questions without group → multiple_choice with Ya/Tidak
+        let options: Option[] = (q.options ?? []).map((o: any) => ({
+          id: o.value ?? String(o.id),
+          label: o.label ?? "",
+        }));
 
-      if (q.question_type === "boolean") {
-        feType = "multiple_choice";
-        options = [
-          { id: "1", label: "Ya" },
-          { id: "0", label: "Tidak" },
-        ];
-      }
+        if (q.question_type === "boolean" && !meta.group_code) {
+          feType = "multiple_choice";
+          options = [
+            { id: "1", label: "Ya" },
+            { id: "0", label: "Tidak" },
+          ];
+        }
 
-      const question: Question = {
-        id: q.question_code ?? String(q.id), // use question_code as the key for answers
-        type: feType,
-        question: q.question_text ?? "",
-        description: meta.description ?? undefined,
-        options,
-        required: !!q.is_required,
-        scaleMin: meta.scale_min ?? 1,
-        scaleMax: meta.scale_max ?? 5,
-        scaleMinLabel: meta.scale_min_label ?? "",
-        scaleMaxLabel: meta.scale_max_label ?? "",
-      };
+        const question: Question = {
+          id: q.question_code ?? String(q.id),
+          type: feType,
+          question: q.question_text ?? "",
+          description: meta.description ?? undefined,
+          options,
+          required: !!q.is_required,
+          scaleMin: meta.scale_min ?? 1,
+          scaleMax: meta.scale_max ?? 5,
+          scaleMinLabel: meta.scale_min_label ?? "",
+          scaleMaxLabel: meta.scale_max_label ?? "",
+          showIf: meta.show_if ?? undefined,
+          groupCode: meta.group_code ?? undefined,
+          groupTitle: meta.group_title ?? undefined,
+          groupLabel: meta.group_label ?? undefined,
+        };
 
-      return question;
-    }),
+        return question;
+      })
+    ),
   }));
+}
+
+/**
+ * Merge questions with the same group_code into a single checkbox question.
+ * e.g. f401-f415 (15 separate booleans) → 1 checkbox card with 15 options.
+ */
+function mergeGroupedQuestions(questions: Question[]): Question[] {
+  const grouped: Record<string, Question[]> = {};
+  const result: Question[] = [];
+  const seenGroups = new Set<string>();
+
+  for (const q of questions) {
+    if (q.groupCode) {
+      if (!grouped[q.groupCode]) grouped[q.groupCode] = [];
+      grouped[q.groupCode].push(q);
+
+      if (!seenGroups.has(q.groupCode)) {
+        seenGroups.add(q.groupCode);
+        // Insert a placeholder at this position
+        result.push(q);
+      }
+    } else {
+      result.push(q);
+    }
+  }
+
+  // Replace placeholders with merged checkbox questions
+  return result.map((q) => {
+    if (!q.groupCode || !grouped[q.groupCode]) return q;
+
+    const items = grouped[q.groupCode];
+    if (items.length <= 1) return q; // Don't merge single items
+
+    // Find group_title from first item that has it
+    const titleItem = items.find((i) => i.groupTitle);
+
+    return {
+      id: q.groupCode,
+      type: "checkbox" as Question["type"],
+      question: titleItem?.groupTitle ?? q.question,
+      description: q.description,
+      options: items.map((item) => ({
+        id: item.id,
+        label: item.groupLabel ?? item.question,
+      })),
+      required: false,
+      showIf: q.showIf,
+    };
+  });
+}
+
+/**
+ * Check if a question should be visible based on current answers.
+ * Exported for use in FormPage.tsx.
+ */
+export function isQuestionVisible(
+  q: Question,
+  answers: Record<string, unknown>
+): boolean {
+  if (!q.showIf) return true;
+
+  return Object.entries(q.showIf).every(([depCode, allowedValues]) => {
+    const currentAnswer = answers[depCode];
+    if (currentAnswer === undefined || currentAnswer === null || currentAnswer === "") return false;
+
+    // For grouped checkbox answers (arrays), check if ANY selected value matches
+    if (Array.isArray(currentAnswer)) {
+      return allowedValues.some((v) =>
+        currentAnswer.includes(String(v))
+      );
+    }
+
+    return allowedValues.some((v) => String(v) === String(currentAnswer));
+  });
 }
 
 /**
@@ -233,6 +313,8 @@ export const useTracerForm = (kodeProdi?: string) => {
     let valid = true;
     sec.questions.forEach((q) => {
       if (!q.required) return;
+      if (q.showIf && !isQuestionVisible(q, answers)) return; // Skip hidden questions
+      
       const ans = answers[q.id];
       const isEmpty =
         ans === undefined ||

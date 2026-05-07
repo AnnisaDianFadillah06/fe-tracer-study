@@ -147,7 +147,7 @@ const StudentFormListPage = () => {
                         <TableCell className="text-right">
                           <Button
                             size="sm"
-                            onClick={() => navigate(`/form/${form.id}`)}
+                            onClick={() => navigate("/form/fill")}
                           >
                             Isi Kuesioner
                             <ArrowRight className="ml-2 h-4 w-4" />

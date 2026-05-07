@@ -104,7 +104,7 @@ function computeSummary(alumni: AlumniWithResponses[]): DashboardSummary {
   const bekerja = alumni.filter((a) => a.employment_status === "employed").length;
   const wiraswasta = alumni.filter((a) => a.employment_status === "entrepreneur").length;
   const studiLanjut = alumni.filter((a) => a.is_further_study).length;
-  const mencariKerja = alumni.filter((a) => a.employment_status === "seeking").length;
+  const mencariKerja = alumni.filter((a) => a.employment_status === "seeking_work").length;
   const belumBekerja = totalAlumni - bekerja - wiraswasta - studiLanjut - mencariKerja;
 
   const withWaiting = alumni.filter(
@@ -143,7 +143,7 @@ function computeSummary(alumni: AlumniWithResponses[]): DashboardSummary {
     if (a.employment_status === "employed") byYear[year].bekerja++;
     if (a.employment_status === "entrepreneur") byYear[year].wiraswasta++;
     if (a.is_further_study) byYear[year].studiLanjut++;
-    if (a.employment_status === "seeking") byYear[year].mencariKerja++;
+    if (a.employment_status === "seeking_work") byYear[year].mencariKerja++;
   });
 
   // Compute avgWaiting per year
