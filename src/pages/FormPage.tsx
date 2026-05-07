@@ -49,18 +49,16 @@ const FormPage = () => {
   } = useTracerForm(kodeProdi);
 
   // Wrap submit to include identity data from session
+  // Only include fields genuinely known from session — nik/npwp/kode_pt come from form answers
   const handleSubmit = (e: React.FormEvent) => {
     const identityData = session
       ? {
         nim: session.nim,
         name: session.username,
         email: session.email,
-        phone: session.phone ?? "",
+        phone: session.phone || undefined,
         tahun_lulus: session.graduationYear ?? (parseInt(session.angkatan) + 3),
         kdpstmsmh: kodeProdi ?? "",
-        kode_pt: "",
-        nik: "",
-        npwp: "",
       }
       : undefined;
     submitToBackend(e, identityData);

@@ -131,6 +131,69 @@ export const createDefaultQuestion = (
   scaleLabels: ["", "", "", "", ""],
 });
 
+/**
+ * Convert a backend questionnaire (GET /api/questionnaires/:id) to a FormListItem
+ * so the FormBuilder can edit seeded/backend questionnaires.
+ */
+export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
+  const mapType = (t: string): BuilderQuestionType => {
+    const typeMap: Record<string, BuilderQuestionType> = {
+      short_text: "short",
+      long_text: "paragraph",
+      single_choice: "multiple_choice",
+      multiple_choice: "checkbox",
+      dropdown: "dropdown",
+      number: "linear_scale",
+      boolean: "multiple_choice",
+      date: "date",
+      time: "time",
+      file: "file_upload",
+      rating: "rating",
+      linear_scale: "linear_scale",
+    };
+    return typeMap[t] ?? "short";
+  };
+
+  const sections: BuilderSection[] = (bq.sections ?? []).map((sec) => ({
+    id: String(sec.id),
+    title: sec.title ?? "Bagian",
+    description: sec.description ?? undefined,
+    questions: (sec.questions ?? []).map((q): BuilderQuestion => ({
+      id: q.code || String(q.id),
+      type: mapType(q.type),
+      question: q.question_text || q.question || "",
+      description: q.description ?? undefined,
+      options: (q.options ?? []).map((o) => o.label),
+      required: !!q.required,
+      allowOther: !!q.allowOther,
+      scaleMin: q.scaleMin ?? 1,
+      scaleMax: q.scaleMax ?? 5,
+      gridRows: q.gridRows ?? [],
+      gridColumns: q.gridColumns ?? [],
+    })),
+  }));
+
+  // If no sections returned, create a default empty one
+  if (sections.length === 0) {
+    sections.push({
+      id: createId("section"),
+      title: "Bagian 1",
+      questions: [createDefaultQuestion()],
+    });
+  }
+
+  return {
+    id: String(bq.id),
+    title: bq.title ?? "Untitled Form",
+    description: bq.description ?? undefined,
+    status: bq.status === "published" ? "aktif" : "nonaktif",
+    target: bq.target ? [bq.target] : [],
+    respondents: bq.respondents ?? [],
+    sections,
+    responses: [],
+  };
+}
+
 const initialForms: FormListItem[] = [
   {
     id: "form-survey-kepuasan",
@@ -306,35 +369,8 @@ export const saveForms = (forms: FormListItem[]) => {
   localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(forms));
 };
 
-/** Convert backend questionnaire shape to FormListItem for the builder / preview */
-export const backendToFormListItem = (q: BackendQuestionnaire): FormListItem => ({
-  id: String(q.id),
-  title: q.title,
-  description: q.description ?? undefined,
-  status: q.status === "published" ? "aktif" : "nonaktif",
-  target: q.target ? [q.target] : [],
-  respondents: q.respondents ?? [],
-  sections: (q.sections ?? []).map((s) => ({
-    id: String(s.id),
-    title: s.title,
-    description: s.description ?? undefined,
-    questions: (s.questions ?? []).map((qq) => ({
-      id: String(qq.id),
-      type: (qq.type ?? "short") as BuilderQuestionType,
-      question: qq.question_text ?? qq.question,
-      description: qq.description ?? undefined,
-      options: qq.options?.map((o) => o.label) ?? [],
-      required: qq.required,
-      allowOther: qq.allowOther ?? false,
-      scaleMin: qq.scaleMin ?? 1,
-      scaleMax: qq.scaleMax ?? 5,
-      scaleLabels: [],
-      gridRows: qq.gridRows ?? [],
-      gridColumns: qq.gridColumns ?? [],
-    })),
-  })),
-  responses: [],
-});
+
+
 
 /** Convert FormListItem → backend API payload for POST/PUT /api/questionnaires */
 export const formListItemToApiPayload = (form: FormListItem) => ({
@@ -348,7 +384,7 @@ export const formListItemToApiPayload = (form: FormListItem) => ({
     description: s.description ?? null,
     order_no: si + 1,
     questions: s.questions.map((q, qi) => ({
-      code: q.id.startsWith("q_") ? q.id : `q_${qi + 1}`,
+      code: q.id,
       question: q.question,
       type: q.type,
       required: q.required,

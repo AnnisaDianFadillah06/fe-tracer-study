@@ -70,29 +70,14 @@ function mapBackendToSections(backendData: any[]): FormSection[] {
   const allSections: FormSection[] = [];
 
   for (const qnr of backendData) {
-    const backendSections = qnr.sections ?? [];
-
-    if (backendSections.length > 0) {
-      // Use backend sections as individual form steps
-      for (const sec of backendSections) {
-        const rawQuestions = (sec.questions ?? []).map(mapSingleQuestion);
-        allSections.push({
-          id: String(sec.id),
-          title: sec.title ?? "Bagian",
-          description: sec.description ?? undefined,
-          questions: mergeGroupedQuestions(rawQuestions),
-        });
-      }
-    } else {
-      // Fallback: treat whole questionnaire as single section (backward compat)
-      const rawQuestions = (qnr.questions ?? []).map(mapSingleQuestion);
-      allSections.push({
-        id: String(qnr.id),
-        title: qnr.title ?? "Kuesioner",
-        description: qnr.description ?? undefined,
-        questions: mergeGroupedQuestions(rawQuestions),
-      });
-    }
+    // 1 questionnaire = 1 page. Flatten all backend sections' questions.
+    const rawQuestions = (qnr.questions ?? []).map(mapSingleQuestion);
+    allSections.push({
+      id: String(qnr.id),
+      title: qnr.title ?? "Kuesioner",
+      description: qnr.description ?? undefined,
+      questions: mergeGroupedQuestions(rawQuestions),
+    });
   }
 
   return allSections;
@@ -402,10 +387,10 @@ export const useTracerForm = (kodeProdi?: string) => {
 
     setIsSubmitting(true);
     try {
-      // Gabungkan identity data (nim, name, email, phone, dll) + jawaban kuesioner
+      // Gabungkan jawaban kuesioner + identity data (identity wins for overlapping keys)
       const payload = {
-        ...identityData,
         ...answers,
+        ...identityData,
       };
 
       await api.post("/tracer-study/submit", payload);

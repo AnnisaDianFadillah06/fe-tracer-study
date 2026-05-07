@@ -22,6 +22,7 @@ import {
   isGridQuestionType,
   isOptionQuestionType,
   formListItemToApiPayload,
+  backendToFormListItem,
   type BuilderQuestion,
   type BuilderQuestionType,
   type BuilderSection,
@@ -141,6 +142,36 @@ const FormBuilderPage = () => {
 
     return ensureFirstQuestionRequired(createBlankFormDraft());
   });
+
+  const [isLoadingForm, setIsLoadingForm] = useState(false);
+
+  // Fetch from API when editing a backend questionnaire not in localStorage
+  useEffect(() => {
+    if (!formId || sourceForm || builderDraft) return;
+    // Only fetch if formId looks like a numeric backend ID
+    if (!/^\d+$/.test(formId)) return;
+
+    const fetchFromApi = async () => {
+      setIsLoadingForm(true);
+      try {
+        const { data } = await api.get(`/questionnaires/${formId}`);
+        if (data.success && data.data) {
+          const converted = backendToFormListItem(data.data);
+          setForm(ensureFirstQuestionRequired(normalizeTargets(converted)));
+        }
+      } catch (err) {
+        console.error("[FormBuilder] Failed to fetch questionnaire from API:", err);
+        toast({
+          title: "Gagal",
+          description: "Tidak dapat memuat data kuesioner dari server.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingForm(false);
+      }
+    };
+    fetchFromApi();
+  }, [formId, sourceForm, builderDraft]);
 
   const [draggedQuestion, setDraggedQuestion] = useState<DragQuestionPayload | null>(null);
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
