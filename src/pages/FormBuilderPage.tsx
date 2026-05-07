@@ -21,6 +21,7 @@ import {
   createId,
   isGridQuestionType,
   isOptionQuestionType,
+  formListItemToApiPayload,
   type BuilderQuestion,
   type BuilderQuestionType,
   type BuilderSection,
@@ -28,6 +29,7 @@ import {
   getInitialForms,
   saveForms,
 } from "@/lib/formManagement";
+import api from "@/lib/api";
 import { BUILDER_DRAFT_STORAGE_KEY, createBlankFormDraft } from "@/lib/questionnaireDrafts";
 import {
   ArrowLeft,
@@ -429,26 +431,40 @@ const FormBuilderPage = () => {
     });
   };
 
-  const saveForm = () => {
+  const saveForm = async () => {
     if (!form.title.trim()) {
       toast({ title: "Judul wajib diisi", variant: "destructive" });
       return;
     }
 
-    const allForms = getInitialForms();
-    const exists = allForms.some((item) => item.id === form.id);
+    try {
+      const payload = formListItemToApiPayload(form);
+      const isNumericId = /^\d+$/.test(form.id);
 
-    const updatedForms = exists
-      ? allForms.map((item) => (item.id === form.id ? form : item))
-      : [form, ...allForms];
+      if (isEditMode && isNumericId) {
+        await api.put(`/questionnaires/${form.id}`, payload);
+      } else {
+        await api.post('/questionnaires', payload);
+      }
 
-    saveForms(updatedForms);
-    if (typeof window !== "undefined") {
-      const key = formId ? `${BUILDER_DRAFT_STORAGE_KEY}:${formId}` : `${BUILDER_DRAFT_STORAGE_KEY}:new`;
-      localStorage.removeItem(key);
+      // Also keep localStorage cache for preview/edit bridge
+      const allForms = getInitialForms();
+      const exists = allForms.some((item) => item.id === form.id);
+      const updatedForms = exists
+        ? allForms.map((item) => (item.id === form.id ? form : item))
+        : [form, ...allForms];
+      saveForms(updatedForms);
+
+      if (typeof window !== "undefined") {
+        const key = formId ? `${BUILDER_DRAFT_STORAGE_KEY}:${formId}` : `${BUILDER_DRAFT_STORAGE_KEY}:new`;
+        localStorage.removeItem(key);
+      }
+      toast({ title: "Berhasil", description: "Kuisioner berhasil disimpan ke server." });
+      navigate("/dashboard/form-management");
+    } catch (err: any) {
+      const msg = err.response?.data?.message || "Gagal menyimpan kuisioner ke server.";
+      toast({ title: "Gagal", description: msg, variant: "destructive" });
     }
-    toast({ title: "Berhasil", description: "Kuisioner berhasil disimpan." });
-    navigate("/dashboard/form-management");
   };
 
   const floatingAction = (label: string) => {

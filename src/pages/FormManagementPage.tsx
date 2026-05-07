@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ExcelJS from "exceljs";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,13 +31,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { getInitialForms, saveForms, type FormListItem } from "@/lib/formManagement";
+import type { BackendQuestionnaire } from "@/lib/formManagement";
+import { backendToFormListItem, saveForms, getInitialForms } from "@/lib/formManagement";
+import api from "@/lib/api";
 import {
   CheckCircle2,
-  Download,
   Edit,
   Eye,
+  FileSpreadsheet,
   FileText,
+  Loader2,
   Plus,
   Trash2,
   Users,
@@ -46,91 +48,54 @@ import {
   Search,
 } from "lucide-react";
 
-const formatDate = (value: string) =>
-  new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(`${value}T00:00:00`));
-
-const formatAnswer = (value: string | number | string[] | undefined) => {
-  if (Array.isArray(value)) return value.join("; ");
-  if (value === undefined || value === null || value === "") return "-";
-  return String(value);
+const statusStyles: Record<string, string> = {
+  published: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  draft: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
 };
 
-const downloadXlsxFile = async (
-  form: any,
-  formatDate: (date: string) => string,
-  formatAnswer: (value: any) => string,
-  toast: any,
-) => {
-  const questionColumns = form.sections.flatMap((section: any) =>
-    section.questions.map((question: any) => question.question || "Pertanyaan tanpa judul"),
-  );
-  const headers = ["Responden", "Tanggal Pengisian", ...questionColumns];
-
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet("Respon");
-
-  worksheet.addRow(headers);
-
-  form.responses.forEach((response: any) => {
-    worksheet.addRow([
-      response.respondent,
-      formatDate(response.submittedAt),
-      ...form.sections.flatMap((section: any) =>
-        section.questions.map((question: any) => formatAnswer(response.answers[question.id])),
-      ),
-    ]);
-  });
-
-  worksheet.getRow(1).font = { bold: true };
-  worksheet.columns = headers.map((header) => ({
-    header,
-    key: header,
-    width: Math.max(18, header.length + 4),
-  }));
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${form.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.xlsx`;
-  link.click();
-  URL.revokeObjectURL(url);
-
-  toast({
-    title: "Unduhan XLSX siap",
-    description: `Data respon untuk ${form.title} sedang diunduh.`,
-  });
-};
-
-const statusStyles = {
-  aktif: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  nonaktif: "border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300",
+const statusLabel: Record<string, string> = {
+  published: "Published",
+  draft: "Draft",
 };
 
 const DaftarKuisionerPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [forms, setForms] = useState<FormListItem[]>(() => getInitialForms());
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [forms, setForms] = useState<BackendQuestionnaire[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "aktif" | "nonaktif">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
+  const [exportingId, setExportingId] = useState<number | null>(null);
 
+  // Fetch questionnaires from backend
   useEffect(() => {
-    saveForms(forms);
-  }, [forms]);
+    const fetchForms = async () => {
+      setIsLoading(true);
+      try {
+        const { data } = await api.get("/questionnaires");
+        if (data.success && data.data) {
+          setForms(data.data);
+        }
+      } catch (err) {
+        console.error("[FormManagementPage] Failed to fetch questionnaires:", err);
+        toast({
+          title: "Gagal memuat data",
+          description: "Tidak dapat mengambil data kuisioner dari server.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchForms();
+  }, []);
 
   const stats = useMemo(() => {
     const totalForms = forms.length;
-    const activeForms = forms.filter((form) => form.status === "aktif").length;
-    const totalRespondents = forms.reduce((acc, form) => acc + form.responses.length, 0);
+    const activeForms = forms.filter((form) => form.status === "published").length;
+    const totalRespondents = forms.reduce((acc, form) => acc + (form.response_count ?? 0), 0);
 
     return { totalForms, activeForms, totalRespondents };
   }, [forms]);
@@ -141,20 +106,91 @@ const DaftarKuisionerPage = () => {
         !searchQuery ||
         form.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         form.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        form.target.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+        form.code?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchStatus = statusFilter === "all" || form.status === statusFilter;
       return matchSearch && matchStatus;
     });
   }, [forms, searchQuery, statusFilter]);
 
-  const handleDeleteForm = () => {
-    if (!deleteTargetId) return;
-
-    setForms((prev) => prev.filter((form) => form.id !== deleteTargetId));
-    setDeleteTargetId(null);
-
-    toast({ title: "Berhasil", description: "Kuisioner berhasil dihapus." });
+  const handleDeleteForm = async () => {
+    if (deleteTargetId === null) return;
+    try {
+      const { data } = await api.delete(`/questionnaires/${deleteTargetId}`);
+      if (data.success) {
+        setForms((prev) => prev.filter((form) => form.id !== deleteTargetId));
+        toast({ title: "Berhasil", description: "Kuisioner berhasil dihapus." });
+      } else {
+        toast({ title: "Gagal", description: data.message, variant: "destructive" });
+      }
+    } catch (err: any) {
+      const message = err.response?.data?.message || "Gagal menghapus kuisioner.";
+      toast({ title: "Gagal", description: message, variant: "destructive" });
+    } finally {
+      setDeleteTargetId(null);
+    }
   };
+
+  const handleExport = async (form: BackendQuestionnaire) => {
+    setExportingId(form.id);
+    try {
+      const response = await api.get("/admin/reports/export-alumni", {
+        params: { questionnaire_id: form.id },
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `export_${form.code}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Export berhasil",
+        description: `File Excel untuk "${form.title}" sedang diunduh.`,
+      });
+    } catch {
+      toast({
+        title: "Gagal",
+        description: "Gagal mengekspor data. Pastikan Anda sudah login sebagai admin.",
+        variant: "destructive",
+      });
+    } finally {
+      setExportingId(null);
+    }
+  };
+
+  const handlePreview = (form: BackendQuestionnaire) => {
+    // Bridge: convert backend data to FormListItem and store in localStorage for preview page
+    const formListItem = backendToFormListItem(form);
+    const allForms = getInitialForms();
+    const existsIndex = allForms.findIndex((f) => f.id === formListItem.id);
+    if (existsIndex >= 0) {
+      allForms[existsIndex] = formListItem;
+    } else {
+      allForms.unshift(formListItem);
+    }
+    saveForms(allForms);
+    window.open(
+      `/dashboard/form-management/${form.id}/preview`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+
+  const handleEdit = (form: BackendQuestionnaire) => {
+    // Bridge: store backend data as FormListItem in localStorage for the FormBuilder
+    const formListItem = backendToFormListItem(form);
+    const allForms = getInitialForms();
+    const existsIndex = allForms.findIndex((f) => f.id === formListItem.id);
+    if (existsIndex >= 0) {
+      allForms[existsIndex] = formListItem;
+    } else {
+      allForms.unshift(formListItem);
+    }
+    saveForms(allForms);
+    navigate(`/dashboard/form-management/${form.id}/edit`);
+  };
+
+  const deleteTarget = deleteTargetId !== null ? forms.find((f) => f.id === deleteTargetId) : null;
 
   return (
     <DashboardLayout>
@@ -167,7 +203,7 @@ const DaftarKuisionerPage = () => {
             </div>
             <h2 className="font-heading text-2xl font-bold sm:text-3xl">Manajemen Kuisioner</h2>
             <p className="max-w-2xl text-sm text-muted-foreground">
-              Kelola kuisioner, buka mode builder penuh untuk tambah/edit, lihat preview, dan unduh hasil respon CSV.
+              Kelola kuisioner, lihat preview, edit, hapus, dan export hasil respon ke Excel.
             </p>
           </div>
 
@@ -207,7 +243,7 @@ const DaftarKuisionerPage = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   className="pl-9"
-                  placeholder="Cari kuisioner berdasarkan judul, deskripsi, atau sasaran..."
+                  placeholder="Cari kuisioner berdasarkan judul, deskripsi, atau kode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -218,8 +254,8 @@ const DaftarKuisionerPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Semua Status</SelectItem>
-                  <SelectItem value="aktif">Aktif</SelectItem>
-                  <SelectItem value="nonaktif">Nonaktif</SelectItem>
+                  <SelectItem value="published">Published</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -236,92 +272,123 @@ const DaftarKuisionerPage = () => {
                     <TableHead>Judul</TableHead>
                     <TableHead>Responden</TableHead>
                     <TableHead className="w-36">Status</TableHead>
-                    <TableHead>Sasaran</TableHead>
+                    <TableHead>Jenis</TableHead>
                     <TableHead className="w-[420px] text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.length === 0 && (
+                  {isLoading && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Memuat kuisioner dari server...
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {!isLoading && filtered.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
                         {searchQuery || statusFilter !== "all"
                           ? "Tidak ada kuisioner yang sesuai dengan pencarian."
-                          : "Belum ada kuisioner. Klik tombol \"Tambah Kuisioner\" untuk membuat kuisioner baru."}
+                          : "Belum ada kuisioner di database."}
                       </TableCell>
                     </TableRow>
                   )}
-                  {filtered.map((form, index) => (
-                    <TableRow key={form.id}>
-                      <TableCell className="font-medium">{index + 1}</TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <p className="font-medium leading-snug">{form.title}</p>
-                          <p className="text-xs text-muted-foreground">{form.sections.length} bagian kuisioner</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
+                  {!isLoading &&
+                    filtered.map((form, index) => (
+                      <TableRow key={form.id}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <p className="font-medium leading-snug">{form.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {form.code} • {(form.sections ?? []).length} bagian
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-2">
                             <Users className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{form.responses.length} responden</span>
+                            <span className="font-medium">{form.response_count ?? 0} responden</span>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {form.respondents.slice(0, 2).join(", ")}
-                            {form.respondents.length > 2 ? ` +${form.respondents.length - 2} lainnya` : ""}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={statusStyles[form.status]}>
-                          {form.status === "aktif" ? (
-                            <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                          ) : (
-                            <XCircle className="mr-1 h-3.5 w-3.5" />
-                          )}
-                          {form.status === "aktif" ? "Aktif" : "Nonaktif"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm leading-snug">
-                          {form.target.length > 0 ? form.target.join(", ") : "-"}
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end gap-2 whitespace-nowrap">
-                          <Button
+                        </TableCell>
+                        <TableCell>
+                          <Badge
                             variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              window.open(
-                                `/dashboard/form-management/${form.id}/preview`,
-                                "_blank",
-                                "noopener,noreferrer",
-                              )
+                            className={statusStyles[form.status] ?? statusStyles.draft}
+                          >
+                            {form.status === "published" ? (
+                              <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                            ) : (
+                              <XCircle className="mr-1 h-3.5 w-3.5" />
+                            )}
+                            {statusLabel[form.status] ?? form.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={
+                              form.is_global
+                                ? "border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                                : "border-purple-500/20 bg-purple-500/10 text-purple-700 dark:text-purple-300"
                             }
                           >
-                            <Eye className="mr-2 h-4 w-4" />
-                            Lihat
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => navigate(`/dashboard/form-management/${form.id}/edit`)}
-                          >
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </Button>
-                          <Button size="sm" onClick={() => downloadXlsxFile(form, formatDate, formatAnswer, toast)}>
-                            <Download className="mr-2 h-4 w-4" />
-                            Unduh
-                          </Button>
-                          <Button variant="destructive" size="sm" onClick={() => setDeleteTargetId(form.id)}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Hapus
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            {form.is_global ? "Kementerian" : "Prodi"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handlePreview(form)}
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              Lihat
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(form)}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={exportingId === form.id || (form.response_count ?? 0) === 0}
+                              title={
+                                (form.response_count ?? 0) === 0
+                                  ? "Tidak ada responden untuk diekspor"
+                                  : "Export ke Excel"
+                              }
+                              onClick={() => handleExport(form)}
+                            >
+                              <FileSpreadsheet className="mr-2 h-4 w-4" />
+                              {exportingId === form.id ? "Mengekspor..." : "Export"}
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={(form.response_count ?? 0) > 0}
+                              title={
+                                (form.response_count ?? 0) > 0
+                                  ? `Tidak bisa dihapus: ${form.response_count} responden`
+                                  : "Hapus kuisioner"
+                              }
+                              onClick={() => setDeleteTargetId(form.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Hapus
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                 </TableBody>
               </Table>
             </div>
@@ -329,12 +396,14 @@ const DaftarKuisionerPage = () => {
         </Card>
       </div>
 
-      <AlertDialog open={Boolean(deleteTargetId)} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+      <AlertDialog open={deleteTargetId !== null} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Kuisioner?</AlertDialogTitle>
             <AlertDialogDescription>
-              Kuisioner yang dihapus tidak bisa dipulihkan. Data respon terkait juga akan ikut terhapus dari daftar.
+              {deleteTarget
+                ? `Kuisioner "${deleteTarget.title}" akan dihapus secara permanen. Tindakan ini tidak bisa dibatalkan.`
+                : "Kuisioner yang dihapus tidak bisa dipulihkan."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

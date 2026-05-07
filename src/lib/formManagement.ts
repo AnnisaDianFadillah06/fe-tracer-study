@@ -1,3 +1,53 @@
+// ── Backend API types ──────────────────────────────────────────────────────────
+/** Shape returned by GET /api/questionnaires */
+export interface BackendQuestionnaire {
+  id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  target: string | null;
+  respondents: string[];
+  period_year: number;
+  version: number;
+  status: string;             // 'published' | 'draft'
+  program_id: number | null;
+  is_global: boolean;
+  response_count: number;
+  sections: BackendSection[];
+}
+
+export interface BackendSection {
+  id: number;
+  title: string;
+  description: string | null;
+  questions: BackendQuestion[];
+}
+
+export interface BackendQuestion {
+  id: number;
+  code: string;
+  question: string;
+  question_text: string;
+  type: string;
+  description: string | null;
+  options: BackendOption[];
+  required: boolean;
+  allowOther: boolean;
+  scaleMin: number;
+  scaleMax: number;
+  gridRows: string[];
+  gridColumns: string[];
+}
+
+export interface BackendOption {
+  id: number;
+  code: string;
+  label: string;
+  value: string | null;
+  order_no: number;
+}
+
+// ── Local / Builder types ──────────────────────────────────────────────────────
 export type FormStatus = "aktif" | "nonaktif";
 
 export type BuilderQuestionType =
@@ -255,3 +305,64 @@ export const saveForms = (forms: FormListItem[]) => {
   if (typeof window === "undefined") return;
   localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(forms));
 };
+
+/** Convert backend questionnaire shape to FormListItem for the builder / preview */
+export const backendToFormListItem = (q: BackendQuestionnaire): FormListItem => ({
+  id: String(q.id),
+  title: q.title,
+  description: q.description ?? undefined,
+  status: q.status === "published" ? "aktif" : "nonaktif",
+  target: q.target ? [q.target] : [],
+  respondents: q.respondents ?? [],
+  sections: (q.sections ?? []).map((s) => ({
+    id: String(s.id),
+    title: s.title,
+    description: s.description ?? undefined,
+    questions: (s.questions ?? []).map((qq) => ({
+      id: String(qq.id),
+      type: (qq.type ?? "short") as BuilderQuestionType,
+      question: qq.question_text ?? qq.question,
+      description: qq.description ?? undefined,
+      options: qq.options?.map((o) => o.label) ?? [],
+      required: qq.required,
+      allowOther: qq.allowOther ?? false,
+      scaleMin: qq.scaleMin ?? 1,
+      scaleMax: qq.scaleMax ?? 5,
+      scaleLabels: [],
+      gridRows: qq.gridRows ?? [],
+      gridColumns: qq.gridColumns ?? [],
+    })),
+  })),
+  responses: [],
+});
+
+/** Convert FormListItem → backend API payload for POST/PUT /api/questionnaires */
+export const formListItemToApiPayload = (form: FormListItem) => ({
+  title: form.title,
+  description: form.description ?? null,
+  target: Array.isArray(form.target) ? form.target.join(", ") : (form.target ?? null),
+  respondents: form.respondents ?? [],
+  status: form.status === "aktif" ? "published" : "draft",
+  sections: form.sections.map((s, si) => ({
+    title: s.title,
+    description: s.description ?? null,
+    order_no: si + 1,
+    questions: s.questions.map((q, qi) => ({
+      code: q.id.startsWith("q_") ? q.id : `q_${qi + 1}`,
+      question: q.question,
+      type: q.type,
+      required: q.required,
+      order_no: qi + 1,
+      allowOther: q.allowOther ?? false,
+      scaleMin: q.scaleMin,
+      scaleMax: q.scaleMax,
+      gridRows: q.gridRows ?? [],
+      gridColumns: q.gridColumns ?? [],
+      options: q.options.map((opt, oi) =>
+        typeof opt === "string"
+          ? { label: opt, code: `opt_${oi + 1}` }
+          : opt
+      ),
+    })),
+  })),
+});

@@ -24,56 +24,78 @@ import type { FormSection, Question, Option } from "@/hooks/useQuestionManagemen
  *   ]
  * }
  */
-function mapBackendToSections(backendData: any[]): FormSection[] {
-  return backendData.map((qnr: any) => ({
-    id: String(qnr.id),
-    title: qnr.title ?? "Kuesioner",
-    description: qnr.description ?? undefined,
-    questions: mergeGroupedQuestions(
-      (qnr.questions ?? []).map((q: any) => {
-        const meta = q.metadata ?? {};
+/** Map a single backend question object to the frontend Question shape. */
+function mapSingleQuestion(q: any): Question {
+  const meta = q.metadata ?? {};
 
-        // Smart type detection: 'number' with scale metadata → linear_scale
-        let feType = mapQuestionType(q.question_type);
-        if (q.question_type === "number" && meta.scale_min != null && meta.scale_max != null) {
-          feType = "linear_scale";
-        }
+  // Smart type detection: 'number' with scale metadata → linear_scale
+  let feType = mapQuestionType(q.question_type);
+  if (q.question_type === "number" && meta.scale_min != null && meta.scale_max != null) {
+    feType = "linear_scale";
+  }
 
-        // Boolean questions without group → multiple_choice with Ya/Tidak
-        let options: Option[] = (q.options ?? []).map((o: any) => ({
-          id: o.value ?? String(o.id),
-          label: o.label ?? "",
-        }));
-
-        if (q.question_type === "boolean" && !meta.group_code) {
-          feType = "multiple_choice";
-          options = [
-            { id: "1", label: "Ya" },
-            { id: "0", label: "Tidak" },
-          ];
-        }
-
-        const question: Question = {
-          id: q.question_code ?? String(q.id),
-          type: feType,
-          question: q.question_text ?? "",
-          description: meta.description ?? undefined,
-          options,
-          required: !!q.is_required,
-          scaleMin: meta.scale_min ?? 1,
-          scaleMax: meta.scale_max ?? 5,
-          scaleMinLabel: meta.scale_min_label ?? "",
-          scaleMaxLabel: meta.scale_max_label ?? "",
-          showIf: meta.show_if ?? undefined,
-          groupCode: meta.group_code ?? undefined,
-          groupTitle: meta.group_title ?? undefined,
-          groupLabel: meta.group_label ?? undefined,
-        };
-
-        return question;
-      })
-    ),
+  // Boolean questions without group → multiple_choice with Ya/Tidak
+  let options: Option[] = (q.options ?? []).map((o: any) => ({
+    id: o.value ?? String(o.id),
+    label: o.label ?? "",
   }));
+
+  if (q.question_type === "boolean" && !meta.group_code) {
+    feType = "multiple_choice";
+    options = [
+      { id: "1", label: "Ya" },
+      { id: "0", label: "Tidak" },
+    ];
+  }
+
+  return {
+    id: q.question_code ?? String(q.id),
+    type: feType,
+    question: q.question_text ?? "",
+    description: meta.description ?? undefined,
+    options,
+    required: !!q.is_required,
+    scaleMin: meta.scale_min ?? 1,
+    scaleMax: meta.scale_max ?? 5,
+    scaleMinLabel: meta.scale_min_label ?? "",
+    scaleMaxLabel: meta.scale_max_label ?? "",
+    showIf: meta.show_if ?? undefined,
+    groupCode: meta.group_code ?? undefined,
+    groupTitle: meta.group_title ?? undefined,
+    groupLabel: meta.group_label ?? undefined,
+  };
+}
+
+function mapBackendToSections(backendData: any[]): FormSection[] {
+  const allSections: FormSection[] = [];
+
+  for (const qnr of backendData) {
+    const backendSections = qnr.sections ?? [];
+
+    if (backendSections.length > 0) {
+      // Use backend sections as individual form steps
+      for (const sec of backendSections) {
+        const rawQuestions = (sec.questions ?? []).map(mapSingleQuestion);
+        allSections.push({
+          id: String(sec.id),
+          title: sec.title ?? "Bagian",
+          description: sec.description ?? undefined,
+          questions: mergeGroupedQuestions(rawQuestions),
+        });
+      }
+    } else {
+      // Fallback: treat whole questionnaire as single section (backward compat)
+      const rawQuestions = (qnr.questions ?? []).map(mapSingleQuestion);
+      allSections.push({
+        id: String(qnr.id),
+        title: qnr.title ?? "Kuesioner",
+        description: qnr.description ?? undefined,
+        questions: mergeGroupedQuestions(rawQuestions),
+      });
+    }
+  }
+
+  return allSections;
 }
 
 /**
@@ -85,10 +107,16 @@ function mergeGroupedQuestions(questions: Question[]): Question[] {
   const result: Question[] = [];
   const seenGroups = new Set<string>();
 
+  // Track which individual question code was merged into which group code
+  const mergedCodeToGroup: Record<string, string> = {};
+
   for (const q of questions) {
     if (q.groupCode) {
       if (!grouped[q.groupCode]) grouped[q.groupCode] = [];
       grouped[q.groupCode].push(q);
+
+      // Track: individual code → group code (e.g. f415 → q16_cara_cari_kerja)
+      mergedCodeToGroup[q.id] = q.groupCode;
 
       if (!seenGroups.has(q.groupCode)) {
         seenGroups.add(q.groupCode);
@@ -100,28 +128,50 @@ function mergeGroupedQuestions(questions: Question[]): Question[] {
     }
   }
 
-  // Replace placeholders with merged checkbox questions
+  // Replace placeholders with merged checkbox questions, and fix show_if references
   return result.map((q) => {
-    if (!q.groupCode || !grouped[q.groupCode]) return q;
+    // If this is a grouped question placeholder, merge it
+    if (q.groupCode && grouped[q.groupCode]) {
+      const items = grouped[q.groupCode];
+      if (items.length <= 1) return q; // Don't merge single items
 
-    const items = grouped[q.groupCode];
-    if (items.length <= 1) return q; // Don't merge single items
+      // Find group_title from first item that has it
+      const titleItem = items.find((i) => i.groupTitle);
 
-    // Find group_title from first item that has it
-    const titleItem = items.find((i) => i.groupTitle);
+      return {
+        id: q.groupCode,
+        type: "checkbox" as Question["type"],
+        question: titleItem?.groupTitle ?? q.question,
+        description: q.description,
+        options: items.map((item) => ({
+          id: item.id,
+          label: item.groupLabel ?? item.question,
+        })),
+        required: false,
+        showIf: q.showIf,
+      };
+    }
 
-    return {
-      id: q.groupCode,
-      type: "checkbox" as Question["type"],
-      question: titleItem?.groupTitle ?? q.question,
-      description: q.description,
-      options: items.map((item) => ({
-        id: item.id,
-        label: item.groupLabel ?? item.question,
-      })),
-      required: false,
-      showIf: q.showIf,
-    };
+    // For non-grouped questions: rewrite show_if that references a merged code
+    if (q.showIf) {
+      let rewritten = false;
+      const newShowIf: Record<string, (string | number)[]> = {};
+      for (const [depCode, values] of Object.entries(q.showIf)) {
+        const groupCode = mergedCodeToGroup[depCode];
+        if (groupCode) {
+          // Rewrite: show when the grouped checkbox answer includes this individual code
+          newShowIf[groupCode] = [depCode];
+          rewritten = true;
+        } else {
+          newShowIf[depCode] = values;
+        }
+      }
+      if (rewritten) {
+        return { ...q, showIf: newShowIf };
+      }
+    }
+
+    return q;
   });
 }
 
