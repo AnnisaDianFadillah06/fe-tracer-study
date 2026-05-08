@@ -19,7 +19,7 @@ export const apiClient: AxiosInstance = axios.create({
 
 // Request interceptor
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem("sanctum_token");
+  const token = localStorage.getItem("auth_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -32,7 +32,7 @@ apiClient.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       // Token expired, redirect to login
-      localStorage.removeItem("sanctum_token");
+      localStorage.removeItem("auth_token");
       window.location.href = "/login";
     }
     return Promise.reject(error);
@@ -45,14 +45,14 @@ export const apiService = {
   login: async (email: string, password: string) => {
     const response = await apiClient.post("/auth/login", { email, password });
     if (response.data.token) {
-      localStorage.setItem("sanctum_token", response.data.token);
+      localStorage.setItem("auth_token", response.data.token);
     }
     return response.data;
   },
 
   logout: async () => {
     await apiClient.post("/auth/logout");
-    localStorage.removeItem("sanctum_token");
+    localStorage.removeItem("auth_token");
   },
 
   getMe: async () => {
