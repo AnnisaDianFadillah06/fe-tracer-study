@@ -63,6 +63,7 @@ const DaftarKuisionerPage = () => {
   const { toast } = useToast();
 
   const [forms, setForms] = useState<BackendQuestionnaire[]>([]);
+  const [programMap, setProgramMap] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -90,6 +91,17 @@ const DaftarKuisionerPage = () => {
       }
     };
     fetchForms();
+  }, []);
+
+  useEffect(() => {
+    api.get("/programs").then(({ data }) => {
+      const programs = data.data ?? data;
+      if (Array.isArray(programs)) {
+        const map: Record<number, string> = {};
+        programs.forEach((p: any) => { map[p.id] = p.name; });
+        setProgramMap(map);
+      }
+    }).catch(() => {});
   }, []);
 
   const stats = useMemo(() => {
@@ -270,16 +282,17 @@ const DaftarKuisionerPage = () => {
                   <TableRow>
                     <TableHead className="w-16">No</TableHead>
                     <TableHead>Judul</TableHead>
+                    <TableHead>Sasaran</TableHead>
                     <TableHead>Responden</TableHead>
+                    <TableHead>Prodi</TableHead>
                     <TableHead className="w-36">Status</TableHead>
-                    <TableHead>Jenis</TableHead>
                     <TableHead className="w-[420px] text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading && (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
                         <div className="flex items-center justify-center gap-2">
                           <Loader2 className="w-5 h-5 animate-spin" />
                           Memuat kuisioner dari server...
@@ -289,7 +302,7 @@ const DaftarKuisionerPage = () => {
                   )}
                   {!isLoading && filtered.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
                         {searchQuery || statusFilter !== "all"
                           ? "Tidak ada kuisioner yang sesuai dengan pencarian."
                           : "Belum ada kuisioner di database."}
@@ -309,9 +322,20 @@ const DaftarKuisionerPage = () => {
                           </div>
                         </TableCell>
                         <TableCell>
+                          <span className="text-sm">{form.target || "—"}</span>
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-2">
                             <Users className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">{form.response_count ?? 0} responden</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {form.is_global
+                              ? <Badge variant="secondary" className="text-xs">Semua Prodi</Badge>
+                              : <Badge variant="outline" className="text-xs">{programMap[form.program_id!] ?? `Prodi #${form.program_id}`}</Badge>
+                            }
                           </div>
                         </TableCell>
                         <TableCell>
@@ -325,18 +349,6 @@ const DaftarKuisionerPage = () => {
                               <XCircle className="mr-1 h-3.5 w-3.5" />
                             )}
                             {statusLabel[form.status] ?? form.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={
-                              form.is_global
-                                ? "border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300"
-                                : "border-purple-500/20 bg-purple-500/10 text-purple-700 dark:text-purple-300"
-                            }
-                          >
-                            {form.is_global ? "Kementerian" : "Prodi"}
                           </Badge>
                         </TableCell>
                         <TableCell>

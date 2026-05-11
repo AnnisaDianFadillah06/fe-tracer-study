@@ -113,6 +113,7 @@ export interface FormListItem {
   description?: string;
   status: FormStatus;
   target: string[];
+  targetProdi: string[];
   respondents: string[];
   sections: BuilderSection[];
   responses: FormResponseMock[];
@@ -207,6 +208,7 @@ export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
     description: bq.description ?? undefined,
     status: bq.status === "published" ? "aktif" : "nonaktif",
     target: bq.target ? [bq.target] : [],
+    targetProdi: (bq as any).target_prodi ?? [],
     respondents: bq.respondents ?? [],
     sections,
     responses: [],
@@ -220,6 +222,7 @@ const initialForms: FormListItem[] = [
     description: "Isi dengan jujur",
     status: "aktif",
     target: ["Semua Alumni"],
+    targetProdi: ["Teknik Informatika"],
     respondents: ["Ayu", "Budi", "Citra"],
     sections: [
       {
@@ -259,6 +262,7 @@ const initialForms: FormListItem[] = [
     description: "Isi dengan jujur dan lengkap.",
     status: "aktif",
     target: ["Lulusan Angkatan 2026"],
+    targetProdi: ["Teknik Informatika", "Teknik Komputer"],
     respondents: ["Ayu Pratama", "Dimas Saputra", "Nabila Rahma", "Rizky Hidayat"],
     sections: [
       {
@@ -355,6 +359,7 @@ const initialForms: FormListItem[] = [
     description: "Masukan alumni terhadap proses pendidikan.",
     status: "nonaktif",
     target: ["Lulusan Angkatan 2025"],
+    targetProdi: [],
     respondents: ["Nabila Rahma", "Fahri Maulana"],
     sections: [
       {
@@ -426,6 +431,7 @@ export const formListItemToApiPayload = (form: FormListItem) => ({
   title: form.title,
   description: form.description ?? null,
   target: Array.isArray(form.target) ? form.target.join(", ") : (form.target ?? null),
+  target_prodi: form.targetProdi ?? [],
   respondents: form.respondents ?? [],
   status: form.status === "aktif" ? "published" : "draft",
   sections: form.sections.map((s, si) => ({

@@ -77,6 +77,7 @@ export const createBlankFormDraft = (): FormListItem => ({
   description: "",
   status: "aktif",
   target: [],
+  targetProdi: [],
   respondents: [],
   sections: [
     {
@@ -143,6 +144,7 @@ export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListIt
     description: questionnaire?.description ? String(questionnaire.description) : "",
     status: questionnaire?.status === "published" ? "aktif" : "nonaktif",
     target: normalizeArray(questionnaire?.target),
+    targetProdi: normalizeArray(questionnaire?.target_prodi),
     respondents: normalizeArray(questionnaire?.respondents ?? questionnaire?.sample_respondents),
     sections,
     responses: [],

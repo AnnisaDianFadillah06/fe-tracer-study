@@ -90,13 +90,13 @@ const FormCreationChoicePage = () => {
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <h2 className="text-2xl font-bold">Gunakan Template Kuesioner Kementrian </h2>
+                    <h2 className="text-2xl font-bold">Gunakan Standar Kuesioner </h2>
                     <p className="max-w-md text-sm text-muted-foreground">
                       <span className="font-medium text-foreground">
-                        Kuesioner wajib dari Kementerian Pendidikan untuk seluruh lulusan perguruan tinggi.
+                        Kuesioner Standar untuk seluruh lulusan perguruan tinggi.
                       </span>
                       <span className="mt-1 block">
-                        Template kuisioner ini berasal dari Kementerian Pendidikan.
+                        Standar kuisioner ini berasal dari Kementerian Pendidikan.
                       </span>
                     </p>
                   </div>

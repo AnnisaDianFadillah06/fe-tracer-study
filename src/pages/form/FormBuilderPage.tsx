@@ -215,6 +215,25 @@ const FormBuilderPage = () => {
     left: 0,
   });
   const [targetPickerValue, setTargetPickerValue] = useState<string | undefined>(undefined);
+  const [prodiPickerValue, setProdiPickerValue] = useState<string | undefined>(undefined);
+  const [prodiOptions, setProdiOptions] = useState<Array<{ id: number; name: string; code: string }>>([]);
+  const [isProdiLoading, setIsProdiLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchProdi = async () => {
+      setIsProdiLoading(true);
+      try {
+        const { data } = await api.get("/programs");
+        const programs = data.data ?? data;
+        setProdiOptions(Array.isArray(programs) ? programs.map((p: any) => ({ id: p.id, name: p.name, code: p.code })) : []);
+      } catch {
+        setProdiOptions([]);
+      } finally {
+        setIsProdiLoading(false);
+      }
+    };
+    fetchProdi();
+  }, []);
 
   const angkatanOptions = useMemo(() => {
     const counts = new Map<number, number>();
@@ -532,6 +551,11 @@ const FormBuilderPage = () => {
       return;
     }
 
+    if (form.target.length === 0) {
+      toast({ title: "Sasaran wajib dipilih", description: "Pilih minimal satu sasaran angkatan.", variant: "destructive" });
+      return;
+    }
+
     try {
       const payload = formListItemToApiPayload(form);
       const isNumericId = /^\d+$/.test(form.id);
@@ -646,7 +670,7 @@ const FormBuilderPage = () => {
           <Card className="shadow-sm">
             <CardContent className="grid gap-4 p-5 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="form-target">Sasaran</Label>
+                <Label htmlFor="form-target">Sasaran <span className="text-destructive">*</span></Label>
                 <Select
                   value={targetPickerValue}
                   onValueChange={addTarget}
@@ -693,25 +717,69 @@ const FormBuilderPage = () => {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Tambahkan lebih dari satu sasaran jika diperlukan.
+                  Wajib. Tambahkan lebih dari satu sasaran jika diperlukan.
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="form-respondents">Contoh responden (opsional)</Label>
-                <Input
-                  id="form-respondents"
-                  value={form.respondents.join(", ")}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      respondents: event.target.value
-                        .split(",")
-                        .map((value) => value.trim())
-                        .filter(Boolean),
-                    }))
-                  }
-                  placeholder="Ayu Pratama, Dimas Saputra"
-                />
+                <Label htmlFor="form-prodi">Target Prodi</Label>
+                <Select
+                  value={prodiPickerValue}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    setForm((prev) => {
+                      if (prev.targetProdi.includes(value)) return prev;
+                      return { ...prev, targetProdi: [...prev.targetProdi, value] };
+                    });
+                    setProdiPickerValue(undefined);
+                  }}
+                >
+                  <SelectTrigger id="form-prodi">
+                    <SelectValue
+                      placeholder={isProdiLoading ? "Memuat data prodi..." : "Pilih program studi"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {prodiOptions.length === 0 ? (
+                      <SelectItem value="no-data" disabled>
+                        Belum ada data prodi tersedia
+                      </SelectItem>
+                    ) : (
+                      prodiOptions.map((p) => (
+                        <SelectItem key={p.id} value={p.name}>
+                          {p.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {form.targetProdi.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {form.targetProdi.map((prodi) => (
+                      <div
+                        key={prodi}
+                        className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1 text-xs"
+                      >
+                        <span>{prodi}</span>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              targetProdi: prev.targetProdi.filter((item) => item !== prodi),
+                            }))
+                          }
+                          aria-label={`Hapus prodi ${prodi}`}
+                        >
+                          x
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Opsional. Jika tidak dipilih, kuesioner dikirim ke semua prodi.
+                </p>
               </div>
             </CardContent>
           </Card>
