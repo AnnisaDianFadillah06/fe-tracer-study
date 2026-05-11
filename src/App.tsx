@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { RoleProvider } from "@/contexts/RoleContext";
 import Landing from "./pages/Landing";
-import Login from "./pages/Login";
+import Login from "./pages/auth/Login";
 
 // Router pages (role-agnostic, delegates to role-specific components)
 import OverviewPage from "./pages/dashboard/overview/OverviewPage";
@@ -14,19 +14,19 @@ import EducationPage from "./pages/dashboard/education/EducationPage";
 import AnalyticsPage from "./pages/dashboard/analytics/AnalyticsPage";
 
 // Shared pages
-import ComparePage from "./pages/ComparePage";
-import ProfilePage from "./pages/ProfilePage";
-import ChangePasswordPage from "./pages/ChangePasswordPage";
-import TeamManagementPage from "./pages/TeamManagementPage";
-import StudentManagementPage from "./pages/StudentManagementPage";
-import DaftarKuisionerPage from "./pages/FormManagementPage";
-import FormCreationChoicePage from "./pages/FormCreationChoicePage";
-import FormBuilderPage from "./pages/FormBuilderPage";
-import FormPreviewPage from "./pages/FormPreviewPage";
+import ComparePage from "./pages/dashboard/ComparePage";
+import ProfilePage from "./pages/dashboard/ProfilePage";
+import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
+import TeamManagementPage from "./pages/team/TeamManagementPage";
+import StudentManagementPage from "./pages/student/StudentManagementPage";
+import DaftarKuisionerPage from "./pages/form/FormManagementPage";
+import FormCreationChoicePage from "./pages/form/FormCreationChoicePage";
+import FormBuilderPage from "./pages/form/FormBuilderPage";
+import FormPreviewPage from "./pages/form/FormPreviewPage";
 import NotFound from "./pages/NotFound";
 
-import StudentFormListPage from "./pages/StudentFormListPage";
-import FormPage from "./pages/FormPage";
+import StudentFormListPage from "./pages/student/StudentFormListPage";
+import FormPage from "./pages/form/FormPage";
 
 const queryClient = new QueryClient();
 
