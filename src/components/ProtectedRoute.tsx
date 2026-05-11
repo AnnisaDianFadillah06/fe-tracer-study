@@ -1,17 +1,19 @@
 import { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useRole } from "@/contexts/RoleContext";
+import { type Permission } from "@/lib/rbac";
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRole?: string;
+  permission?: Permission;
+  allowedRoles?: string[];
 }
 
-export const ProtectedRoute = ({
-  children,
-  requiredRole,
-}: ProtectedRouteProps) => {
-  const { isAuthenticated, isLoading, user } = useAuth();
+export const ProtectedRoute = ({ children, permission, allowedRoles }: ProtectedRouteProps) => {
+  const { isAuthenticated, isLoading } = useAuth();
+  const { currentRole, can } = useRole();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -22,11 +24,15 @@ export const ProtectedRoute = ({
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requiredRole && user?.role !== requiredRole) {
-    return <Navigate to="/" replace />;
+  if (allowedRoles && !allowedRoles.includes(currentRole)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  if (permission && !can(permission)) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
   return <>{children}</>;

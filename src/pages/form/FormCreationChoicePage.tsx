@@ -112,7 +112,7 @@ const FormCreationChoicePage = () => {
                 ) : (
                   <ArrowRight className="mr-2 h-4 w-4" />
                 )}
-                Gunakan Template Kuesioner 
+                Gunakan Standar Kuesioner 
               </Button>
             </CardContent>
           </Card>

@@ -7,14 +7,12 @@ const AnalyticsPage = () => {
   const { currentRole } = useRole();
 
   switch (currentRole) {
-    case "p2mpp":
-      return <P2mppAnalytics />;
     case "kaprodi":
       return <KaprodiAnalytics />;
-    case "kotc":
+    case "tracer_team":
       return <KotcAnalytics />;
     default:
-      return null;
+      return <P2mppAnalytics />;
   }
 };
 

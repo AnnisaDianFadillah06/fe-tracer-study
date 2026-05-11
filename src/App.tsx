@@ -4,29 +4,41 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { RoleProvider } from "@/contexts/RoleContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+
 import Landing from "./pages/Landing";
 import Login from "./pages/auth/Login";
+import Unauthorized from "./pages/Unauthorized";
 
-// Router pages (role-agnostic, delegates to role-specific components)
+// Dashboard pages
 import OverviewPage from "./pages/dashboard/overview/OverviewPage";
 import EmploymentPage from "./pages/dashboard/employment/EmploymentPage";
 import EducationPage from "./pages/dashboard/education/EducationPage";
 import AnalyticsPage from "./pages/dashboard/analytics/AnalyticsPage";
-
-// Shared pages
 import ComparePage from "./pages/dashboard/ComparePage";
 import ProfilePage from "./pages/dashboard/ProfilePage";
+import AlumniDataPage from "./pages/dashboard/AlumniDataPage";
+import QuestionnaireResultsPage from "./pages/dashboard/QuestionnaireResultsPage";
+import StatisticsPage from "./pages/dashboard/StatisticsPage";
+import ReportsPage from "./pages/dashboard/ReportsPage";
+
+// Auth
 import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
+
+// Admin pages
 import TeamManagementPage from "./pages/team/TeamManagementPage";
+import StaffManagementPage from "./pages/staff/StaffManagementPage";
 import StudentManagementPage from "./pages/student/StudentManagementPage";
 import DaftarKuisionerPage from "./pages/form/FormManagementPage";
 import FormCreationChoicePage from "./pages/form/FormCreationChoicePage";
 import FormBuilderPage from "./pages/form/FormBuilderPage";
 import FormPreviewPage from "./pages/form/FormPreviewPage";
-import NotFound from "./pages/NotFound";
 
+// Student/Alumni form
 import StudentFormListPage from "./pages/student/StudentFormListPage";
 import FormPage from "./pages/form/FormPage";
+
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -38,44 +50,56 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            {/* Public */}
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
-            
+            <Route path="/unauthorized" element={<Unauthorized />} />
+
             {/* Default redirect */}
             <Route path="/dashboard" element={<Navigate to="/dashboard/overview" replace />} />
-            
-            {/* Dashboard pages — role determined by RoleContext, not URL */}
-            <Route path="/dashboard/overview" element={<OverviewPage />} />
-            <Route path="/dashboard/employment" element={<EmploymentPage />} />
-            <Route path="/dashboard/education" element={<EducationPage />} />
-            <Route path="/dashboard/analytics" element={<AnalyticsPage />} />
-            
-            {/* Shared Routes */}
-            <Route path="/dashboard/compare" element={<ComparePage />} />
-            <Route path="/dashboard/profile" element={<ProfilePage />} />
-            <Route path="/dashboard/change-password" element={<ChangePasswordPage />} />
-            <Route path="/dashboard/team-management" element={<TeamManagementPage />} />
-            <Route path="/dashboard/student-management" element={<StudentManagementPage />} />
-            <Route path="/dashboard/form-management" element={<DaftarKuisionerPage />} />
-            <Route path="/dashboard/form-management/new" element={<FormCreationChoicePage />} />
-            <Route path="/dashboard/form-management/new/builder" element={<FormBuilderPage />} />
-            <Route path="/dashboard/form-management/:formId/edit" element={<FormBuilderPage />} />
-            <Route path="/dashboard/form-management/new/preview" element={<FormPreviewPage />} />
-            <Route path="/dashboard/form-management/:formId/preview" element={<FormPreviewPage />} />
 
-            {/* Student-facing form routes */}
-            <Route path="/form/login" element={<Navigate to="/login" replace />} />
+            {/* Dashboard — permission-protected */}
+            <Route path="/dashboard/overview" element={<ProtectedRoute permission="dashboard.overview"><OverviewPage /></ProtectedRoute>} />
+            <Route path="/dashboard/employment" element={<ProtectedRoute permission="dashboard.employment"><EmploymentPage /></ProtectedRoute>} />
+            <Route path="/dashboard/education" element={<ProtectedRoute permission="dashboard.education"><EducationPage /></ProtectedRoute>} />
+            <Route path="/dashboard/analytics" element={<ProtectedRoute permission="dashboard.analytics"><AnalyticsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/compare" element={<ProtectedRoute permission="dashboard.overview"><ComparePage /></ProtectedRoute>} />
+
+            {/* Administration */}
+            <Route path="/dashboard/team-management" element={<ProtectedRoute permission="admin.team"><TeamManagementPage /></ProtectedRoute>} />
+            <Route path="/dashboard/staff-management" element={<ProtectedRoute permission="admin.staff"><StaffManagementPage /></ProtectedRoute>} />
+            <Route path="/dashboard/student-management" element={<ProtectedRoute permission="admin.students"><StudentManagementPage /></ProtectedRoute>} />
+            <Route path="/dashboard/form-management" element={<ProtectedRoute permission="admin.questionnaire"><DaftarKuisionerPage /></ProtectedRoute>} />
+            <Route path="/dashboard/form-management/new" element={<ProtectedRoute permission="admin.questionnaire"><FormCreationChoicePage /></ProtectedRoute>} />
+            <Route path="/dashboard/form-management/new/builder" element={<ProtectedRoute permission="admin.questionnaire"><FormBuilderPage /></ProtectedRoute>} />
+            <Route path="/dashboard/form-management/:formId/edit" element={<ProtectedRoute permission="admin.questionnaire"><FormBuilderPage /></ProtectedRoute>} />
+            <Route path="/dashboard/form-management/new/preview" element={<ProtectedRoute permission="admin.questionnaire"><FormPreviewPage /></ProtectedRoute>} />
+            <Route path="/dashboard/form-management/:formId/preview" element={<ProtectedRoute permission="admin.questionnaire"><FormPreviewPage /></ProtectedRoute>} />
+
+            {/* Academic (Kaprodi) */}
+            <Route path="/dashboard/alumni-data" element={<ProtectedRoute permission="academic.alumni_data"><AlumniDataPage /></ProtectedRoute>} />
+            <Route path="/dashboard/questionnaire-results" element={<ProtectedRoute permission="academic.questionnaire_results"><QuestionnaireResultsPage /></ProtectedRoute>} />
+
+            {/* Reports (Wadir) */}
+            <Route path="/dashboard/statistics" element={<ProtectedRoute permission="reports.statistics"><StatisticsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/reports" element={<ProtectedRoute permission="reports.tracer"><ReportsPage /></ProtectedRoute>} />
+
+            {/* Profile & settings (any authenticated) */}
+            <Route path="/dashboard/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            <Route path="/dashboard/change-password" element={<ProtectedRoute><ChangePasswordPage /></ProtectedRoute>} />
+
+            {/* Alumni / Student form routes */}
             <Route path="/form" element={<StudentFormListPage />} />
             <Route path="/form/:formId" element={<FormPreviewPage />} />
             <Route path="/form/fill" element={<FormPage />} />
-            
+
             {/* Legacy redirects */}
             <Route path="/dashboard/summary" element={<Navigate to="/dashboard/overview" replace />} />
             <Route path="/dashboard/responden" element={<Navigate to="/dashboard/overview" replace />} />
             <Route path="/dashboard/p2mpp/*" element={<Navigate to="/dashboard/overview" replace />} />
             <Route path="/dashboard/kaprodi/*" element={<Navigate to="/dashboard/overview" replace />} />
             <Route path="/dashboard/kotc/*" element={<Navigate to="/dashboard/overview" replace />} />
-            
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
