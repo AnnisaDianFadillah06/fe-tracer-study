@@ -191,6 +191,10 @@ const DaftarKuisionerPage = () => {
   const handleEdit = (form: BackendQuestionnaire) => {
     // Bridge: store backend data as FormListItem in localStorage for the FormBuilder
     const formListItem = backendToFormListItem(form);
+    // Resolve program_id to prodi name
+    if (form.program_id && programMap[form.program_id]) {
+      formListItem.targetProdi = [programMap[form.program_id]];
+    }
     const allForms = getInitialForms();
     const existsIndex = allForms.findIndex((f) => f.id === formListItem.id);
     if (existsIndex >= 0) {
@@ -322,7 +326,7 @@ const DaftarKuisionerPage = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm">{form.target || "—"}</span>
+                          <span className="text-sm">{form.target || `Lulusan ${form.period_year}`}</span>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">

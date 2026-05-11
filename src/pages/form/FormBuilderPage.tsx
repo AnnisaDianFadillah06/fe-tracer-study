@@ -86,6 +86,7 @@ const normalizeTargets = (data: FormListItem): FormListItem => {
   return {
     ...data,
     target: targets,
+    targetProdi: Array.isArray(data.targetProdi) ? data.targetProdi : [],
   };
 };
 
@@ -189,6 +190,15 @@ const FormBuilderPage = () => {
         const { data } = await api.get(`/questionnaires/${formId}`);
         if (data.success && data.data) {
           const converted = backendToFormListItem(data.data);
+          // Resolve program_id to prodi name
+          if (data.data.program_id && converted.targetProdi.length === 0) {
+            try {
+              const progRes = await api.get("/programs");
+              const programs = progRes.data.data ?? progRes.data;
+              const match = (programs as any[]).find((p: any) => p.id === data.data.program_id);
+              if (match) converted.targetProdi = [match.name];
+            } catch { /* ignore */ }
+          }
           setForm(ensureFirstQuestionRequired(ensureQuestionLogic(normalizeTargets(converted))));
         }
       } catch (err) {
@@ -557,7 +567,9 @@ const FormBuilderPage = () => {
     }
 
     try {
-      const payload = formListItemToApiPayload(form);
+      const prodiNameToId: Record<string, number> = {};
+      prodiOptions.forEach((p) => { prodiNameToId[p.name] = p.id; });
+      const payload = formListItemToApiPayload(form, prodiNameToId);
       const isNumericId = /^\d+$/.test(form.id);
 
       if (isEditMode && isNumericId) {
