@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -13,6 +14,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useDashboardData } from "@/hooks/useDashboardData";
@@ -34,6 +45,8 @@ import api from "@/lib/api";
 import { BUILDER_DRAFT_STORAGE_KEY, createBlankFormDraft } from "@/lib/questionnaireDrafts";
 import {
   ArrowLeft,
+  Check,
+  ChevronsUpDown,
   Copy,
   Eye,
   FileImage,
@@ -75,6 +88,25 @@ const normalizeTargets = (data: FormListItem): FormListItem => {
     target: targets,
   };
 };
+
+const ensureQuestionLogic = (data: FormListItem): FormListItem => ({
+  ...data,
+  sections: data.sections.map((section) => ({
+    ...section,
+    questions: section.questions.map((question) =>
+      question.logic
+        ? question
+        : {
+            ...question,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
+          },
+    ),
+  })),
+});
 
 const ensureFirstQuestionRequired = (data: FormListItem): FormListItem => {
   const firstSection = data.sections[0];
@@ -133,14 +165,14 @@ const FormBuilderPage = () => {
 
   const [form, setForm] = useState<FormListItem>(() => {
     if (builderDraft) {
-      return ensureFirstQuestionRequired(normalizeTargets(builderDraft));
+      return ensureFirstQuestionRequired(ensureQuestionLogic(normalizeTargets(builderDraft)));
     }
     if (sourceForm) {
       const cloned = JSON.parse(JSON.stringify(sourceForm)) as FormListItem;
-      return ensureFirstQuestionRequired(normalizeTargets(cloned));
+      return ensureFirstQuestionRequired(ensureQuestionLogic(normalizeTargets(cloned)));
     }
 
-    return ensureFirstQuestionRequired(createBlankFormDraft());
+    return ensureFirstQuestionRequired(ensureQuestionLogic(createBlankFormDraft()));
   });
 
   const [isLoadingForm, setIsLoadingForm] = useState(false);
@@ -157,7 +189,7 @@ const FormBuilderPage = () => {
         const { data } = await api.get(`/questionnaires/${formId}`);
         if (data.success && data.data) {
           const converted = backendToFormListItem(data.data);
-          setForm(ensureFirstQuestionRequired(normalizeTargets(converted)));
+          setForm(ensureFirstQuestionRequired(ensureQuestionLogic(normalizeTargets(converted))));
         }
       } catch (err) {
         console.error("[FormBuilder] Failed to fetch questionnaire from API:", err);
@@ -222,6 +254,38 @@ const FormBuilderPage = () => {
 
     return options;
   }, [angkatanOptions, form.target]);
+
+  const flatQuestions = useMemo(() => {
+    const list: Array<{
+      id: string;
+      label: string;
+      type: BuilderQuestionType;
+      options: string[];
+      order: number;
+    }> = [];
+    let order = 0;
+
+    form.sections.forEach((section) => {
+      section.questions.forEach((question) => {
+        list.push({
+          id: question.id,
+          label: question.question?.trim() || `Pertanyaan ${order + 1}`,
+          type: question.type,
+          options: question.options ?? [],
+          order,
+        });
+        order += 1;
+      });
+    });
+
+    return list;
+  }, [form.sections]);
+
+  const questionOrderMap = useMemo(() => {
+    const map = new Map<string, number>();
+    flatQuestions.forEach((item) => map.set(item.id, item.order));
+    return map;
+  }, [flatQuestions]);
 
   const addTarget = (value: string) => {
     if (!value) return;
@@ -678,6 +742,16 @@ const FormBuilderPage = () => {
                       dragTarget?.sectionId === section.id &&
                       dragTarget?.questionId === question.id &&
                       !dragTarget.atEnd;
+                    const currentOrder = questionOrderMap.get(question.id) ?? 0;
+                    const triggerCandidates = flatQuestions.filter(
+                      (item) => item.order < currentOrder && isOptionQuestionType(item.type),
+                    );
+                    const hasTriggers = triggerCandidates.length > 0;
+                    const isConditional = question.logic.type === "in_array";
+                    const selectedTrigger = triggerCandidates.find(
+                      (item) => item.id === question.logic.dependsOn,
+                    );
+                    const triggerOptions = selectedTrigger?.options ?? [];
 
                     return (
                       <Card
@@ -771,6 +845,140 @@ const FormBuilderPage = () => {
                             question={question}
                             onChange={(patch) => updateQuestion(section.id, question.id, patch)}
                           />
+
+                          <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="space-y-1">
+                                <p className="text-sm font-medium">Pertanyaan Bersyarat</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Tampilkan pertanyaan ini jika jawaban pada pertanyaan pemicu cocok.
+                                </p>
+                              </div>
+                              <Switch
+                                checked={isConditional}
+                                disabled={!hasTriggers}
+                                onCheckedChange={(checked) => {
+                                  if (!checked) {
+                                    updateQuestion(section.id, question.id, {
+                                      logic: { type: "always", dependsOn: "", values: [] },
+                                    });
+                                    return;
+                                  }
+
+                                  const defaultTrigger = triggerCandidates[0];
+                                  updateQuestion(section.id, question.id, {
+                                    logic: {
+                                      type: "in_array",
+                                      dependsOn: defaultTrigger?.id ?? "",
+                                      values: [],
+                                    },
+                                  });
+                                }}
+                              />
+                            </div>
+
+                            {!hasTriggers && (
+                              <p className="text-xs text-muted-foreground">
+                                Buat pertanyaan pilihan ganda sebelumnya agar bisa digunakan sebagai pemicu.
+                              </p>
+                            )}
+
+                            {isConditional && hasTriggers && (
+                              <div className="space-y-3">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Pertanyaan pemicu</Label>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        className="w-full justify-between font-normal"
+                                      >
+                                        {question.logic.dependsOn
+                                          ? triggerCandidates.find((item) => item.id === question.logic.dependsOn)?.label ?? "Pilih pertanyaan"
+                                          : "Pilih pertanyaan"}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                      <Command>
+                                        <CommandInput placeholder="Cari pertanyaan..." />
+                                        <CommandList>
+                                          <CommandEmpty>Tidak ditemukan.</CommandEmpty>
+                                          <CommandGroup>
+                                            {triggerCandidates.map((item) => (
+                                              <CommandItem
+                                                key={item.id}
+                                                value={item.label}
+                                                onSelect={() => {
+                                                  updateQuestion(section.id, question.id, {
+                                                    logic: {
+                                                      ...question.logic,
+                                                      dependsOn: item.id,
+                                                      values: [],
+                                                    },
+                                                  });
+                                                }}
+                                              >
+                                                <Check
+                                                  className={cn(
+                                                    "mr-2 h-4 w-4",
+                                                    question.logic.dependsOn === item.id ? "opacity-100" : "opacity-0"
+                                                  )}
+                                                />
+                                                {item.label}
+                                              </CommandItem>
+                                            ))}
+                                          </CommandGroup>
+                                        </CommandList>
+                                      </Command>
+                                    </PopoverContent>
+                                  </Popover>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label className="text-xs">Jawaban pemicu</Label>
+                                  {triggerOptions.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground">
+                                      Pertanyaan pemicu belum memiliki opsi jawaban.
+                                    </p>
+                                  ) : (
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                      {triggerOptions.map((option) => {
+                                        const checked = question.logic.values.includes(option);
+                                        return (
+                                          <label
+                                            key={`${question.id}-logic-${option}`}
+                                            className="flex items-center gap-2 rounded-md border border-border/70 bg-background px-3 py-2 text-sm"
+                                          >
+                                            <Checkbox
+                                              checked={checked}
+                                              onCheckedChange={(value) => {
+                                                const isChecked = value === true;
+                                                const nextValues = isChecked
+                                                  ? [...question.logic.values, option]
+                                                  : question.logic.values.filter((item) => item !== option);
+                                                updateQuestion(section.id, question.id, {
+                                                  logic: {
+                                                    ...question.logic,
+                                                    values: nextValues,
+                                                  },
+                                                });
+                                              }}
+                                            />
+                                            <span>{option}</span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  <p className="text-xs text-muted-foreground">
+                                    Pertanyaan ini tampil jika salah satu jawaban di atas dipilih.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
 
                           <Separator />
 
@@ -1081,11 +1289,7 @@ const QuestionEditor = ({ question, onChange }: QuestionEditorProps) => {
     );
   }
 
-  return (
-    <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-      Konfigurasi tambahan untuk tipe ini akan mengikuti backend schema pada tahap integrasi.
-    </div>
-  );
+  return null;
 };
 
 interface GridOptionEditorProps {

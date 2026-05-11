@@ -84,11 +84,11 @@ const Login = () => {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="identifier">Email atau NIM</Label>
+              <Label htmlFor="identifier">Email</Label>
               <Input
                 id="identifier"
                 type="text"
-                placeholder="nama@polban.ac.id atau 211511001"
+                placeholder="nama@polban.ac.id"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="bg-secondary/50 border-border/50 focus:border-primary/50 h-12"

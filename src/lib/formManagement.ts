@@ -64,6 +64,14 @@ export type BuilderQuestionType =
   | "date"
   | "time";
 
+export type QuestionLogicType = "always" | "in_array";
+
+export interface QuestionLogic {
+  type: QuestionLogicType;
+  dependsOn: string;
+  values: string[];
+}
+
 export interface FormResponseMock {
   respondent: string;
   submittedAt: string;
@@ -83,6 +91,7 @@ export interface BuilderQuestion {
   scaleMin?: number;
   scaleMax?: number;
   scaleLabels?: string[];
+  logic: QuestionLogic;
 }
 
 export const isOptionQuestionType = (type: BuilderQuestionType) =>
@@ -129,6 +138,11 @@ export const createDefaultQuestion = (
   scaleMin: 1,
   scaleMax: 5,
   scaleLabels: ["", "", "", "", ""],
+  logic: {
+    type: "always",
+    dependsOn: "",
+    values: [],
+  },
 });
 
 /**
@@ -170,6 +184,11 @@ export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
       scaleMax: q.scaleMax ?? 5,
       gridRows: q.gridRows ?? [],
       gridColumns: q.gridColumns ?? [],
+      logic: {
+        type: "always",
+        dependsOn: "",
+        values: [],
+      },
     })),
   }));
 
@@ -215,6 +234,11 @@ const initialForms: FormListItem[] = [
             options: ["Sangat puas", "Puas", "Tidak puas"],
             required: true,
             allowOther: false,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
           },
         ],
       },
@@ -248,6 +272,11 @@ const initialForms: FormListItem[] = [
             question: "Nama lengkap",
             options: [],
             required: true,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
           },
           {
             id: "q-2",
@@ -255,6 +284,11 @@ const initialForms: FormListItem[] = [
             question: "Status pekerjaan saat ini",
             options: ["Bekerja", "Wiraswasta", "Studi lanjut", "Mencari kerja"],
             required: true,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
           },
         ],
       },
@@ -271,6 +305,11 @@ const initialForms: FormListItem[] = [
             required: true,
             scaleMin: 1,
             scaleMax: 5,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
           },
           {
             id: "q-4",
@@ -278,6 +317,11 @@ const initialForms: FormListItem[] = [
             question: "Ceritakan masukan Anda untuk program studi",
             options: [],
             required: false,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
           },
         ],
       },
@@ -323,6 +367,11 @@ const initialForms: FormListItem[] = [
             question: "Bagaimana Anda menilai layanan akademik?",
             options: ["Sangat baik", "Baik", "Cukup", "Perlu perbaikan"],
             required: true,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
           },
         ],
       },

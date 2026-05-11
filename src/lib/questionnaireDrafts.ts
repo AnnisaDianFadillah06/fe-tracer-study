@@ -4,6 +4,8 @@ import {
   type BuilderQuestion,
   type BuilderQuestionType,
   type FormListItem,
+  type QuestionLogic,
+  type QuestionLogicType,
 } from "@/lib/formManagement";
 
 export const BUILDER_DRAFT_STORAGE_KEY = "tracer_form_builder_draft";
@@ -55,6 +57,20 @@ const normalizeScaleLabels = (minValue: number, maxValue: number, labels?: unkno
   return Array.from({ length: count }, (_, index) => values[index] ?? "");
 };
 
+const normalizeLogic = (value: unknown): QuestionLogic => {
+  if (!value || typeof value !== "object") {
+    return { type: "always", dependsOn: "", values: [] };
+  }
+
+  const record = value as Record<string, unknown>;
+  const rawType = String(record.type ?? "always") as QuestionLogicType;
+  const type: QuestionLogicType = rawType === "in_array" ? "in_array" : "always";
+  const dependsOn = record.dependsOn ? String(record.dependsOn) : "";
+  const values = normalizeArray(record.values);
+
+  return { type, dependsOn, values };
+};
+
 export const createBlankFormDraft = (): FormListItem => ({
   id: `form-${createId("new")}`,
   title: "Untitled Form",
@@ -101,6 +117,7 @@ export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListIt
               scaleLabels: normalizeScaleLabels(scaleMin, scaleMax, question?.scaleLabels ?? question?.scale_labels),
               gridRows: normalizeArray(question?.gridRows ?? question?.grid_rows),
               gridColumns: normalizeArray(question?.gridColumns ?? question?.grid_columns),
+              logic: normalizeLogic(question?.logic),
             };
 
             if (type !== "linear_scale" && type !== "rating") {

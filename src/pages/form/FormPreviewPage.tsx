@@ -78,6 +78,25 @@ const getScaleLabels = (min: number, max: number, customLabels?: string[]) => {
   });
 };
 
+const isQuestionVisible = (
+  question: BuilderQuestion,
+  answers: Record<string, string | number | string[] | Record<string, string> | Record<string, string[]>>,
+) => {
+  const logic = question.logic;
+  if (!logic || logic.type === "always") return true;
+  if (logic.type !== "in_array") return true;
+  if (!logic.dependsOn || logic.values.length === 0) return false;
+
+  const currentAnswer = answers[logic.dependsOn];
+  if (currentAnswer === undefined || currentAnswer === null || currentAnswer === "") return false;
+
+  if (Array.isArray(currentAnswer)) {
+    return logic.values.some((value) => currentAnswer.map(String).includes(String(value)));
+  }
+
+  return logic.values.some((value) => String(value) === String(currentAnswer));
+};
+
 const FormPreviewPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -157,6 +176,7 @@ const FormPreviewPage = () => {
     section?.questions.forEach((question) => {
       if (!question.required) return;
       if (!SUPPORTED_DEMO_TYPES.has(question.type)) return;
+      if (!isQuestionVisible(question, answers)) return;
 
       const value = answers[question.id];
       const isEmpty =
@@ -262,24 +282,26 @@ const FormPreviewPage = () => {
                   )}
                 </div>
 
-                {section.questions.map((question) => (
-                  <div key={question.id} className="space-y-3 rounded-lg border p-4">
-                    <Label className="text-sm font-medium leading-snug">
-                      {question.question || "Pertanyaan belum diisi"}
-                      {question.required && <span className="ml-1 text-destructive">*</span>}
-                    </Label>
-                    <InteractiveQuestionPreview
-                      question={question}
-                      value={answers[question.id]}
-                      onChange={(value) =>
-                        setAnswers((prev) => ({ ...prev, [question.id]: value }))
-                      }
-                    />
-                    {errors[question.id] && (
-                      <p className="text-xs text-destructive">{errors[question.id]}</p>
-                    )}
-                  </div>
-                ))}
+                {section.questions
+                  .filter((question) => isQuestionVisible(question, answers))
+                  .map((question) => (
+                    <div key={question.id} className="space-y-3 rounded-lg border p-4">
+                      <Label className="text-sm font-medium leading-snug">
+                        {question.question || "Pertanyaan belum diisi"}
+                        {question.required && <span className="ml-1 text-destructive">*</span>}
+                      </Label>
+                      <InteractiveQuestionPreview
+                        question={question}
+                        value={answers[question.id]}
+                        onChange={(value) =>
+                          setAnswers((prev) => ({ ...prev, [question.id]: value }))
+                        }
+                      />
+                      {errors[question.id] && (
+                        <p className="text-xs text-destructive">{errors[question.id]}</p>
+                      )}
+                    </div>
+                  ))}
               </CardContent>
             </Card>
 
