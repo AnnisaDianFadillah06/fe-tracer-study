@@ -15,6 +15,7 @@ import {
 // ── Role definitions ─────────────────────────────────────────────────────────
 export type AppRole =
   | "admin"
+  | "p2mpp"
   | "head_tracer"
   | "tracer_team"
   | "kaprodi"
@@ -23,6 +24,7 @@ export type AppRole =
 
 export const roleLabels: Record<AppRole, string> = {
   admin: "Admin",
+  p2mpp: "P2MPP",
   head_tracer: "Kepala Tracer Study",
   tracer_team: "Tim Tracer",
   kaprodi: "Kaprodi",
@@ -32,6 +34,7 @@ export const roleLabels: Record<AppRole, string> = {
 
 export const roleDescriptions: Record<AppRole, string> = {
   admin: "Full system administrator",
+  p2mpp: "Pusat Pengembangan Mutu Pendidikan & Pembelajaran — monitoring dashboard OLAP",
   head_tracer: "Kepala unit Tracer Study",
   tracer_team: "Anggota tim pelaksana Tracer Study",
   kaprodi: "Kepala Program Studi",
@@ -65,6 +68,13 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "admin.students",
     "admin.staff",
     "admin.questionnaire",
+  ],
+  p2mpp: [
+    // Read-only ke 4 dashboard OLAP — tanpa Administrasi / Akademik / Laporan.
+    "dashboard.overview",
+    "dashboard.employment",
+    "dashboard.education",
+    "dashboard.analytics",
   ],
   head_tracer: [
     "dashboard.overview",
@@ -164,7 +174,9 @@ export const routePermissionMap: Record<string, Permission> = {
   "/dashboard/employment": "dashboard.employment",
   "/dashboard/education": "dashboard.education",
   "/dashboard/analytics": "dashboard.analytics",
+  "/dashboard/compare": "dashboard.overview",
   "/dashboard/team-management": "admin.team",
+  "/dashboard/staff-management": "admin.staff",
   "/dashboard/student-management": "admin.students",
   "/dashboard/form-management": "admin.questionnaire",
   "/dashboard/alumni-data": "academic.alumni_data",
@@ -181,12 +193,15 @@ export function getDefaultRoute(role: AppRole): string {
 export function mapBackendRole(backendRole?: string): AppRole {
   const map: Record<string, AppRole> = {
     admin: "admin",
+    p2mpp: "p2mpp",
     head_tracer: "head_tracer",
     tracer_team: "tracer_team",
     kaprodi: "kaprodi",
     wadir: "wadir",
     alumni: "alumni",
+    // Legacy BE role string — compat mapping
     kotc: "tracer_team",
+    prodi: "kaprodi",
   };
   return map[backendRole ?? ""] ?? "alumni";
 }
