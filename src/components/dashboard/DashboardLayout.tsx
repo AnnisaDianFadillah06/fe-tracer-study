@@ -17,6 +17,8 @@ import {
   UserCog,
   ClipboardList,
   FileText,
+  Gauge,
+  Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,6 +62,12 @@ const navItems = [
     icon: BarChart3,
     href: "/dashboard/analytics",
     description: "Clustering & Survival",
+  },
+  {
+    title: "Ringkasan KPI",
+    icon: Gauge,
+    href: "/dashboard/kpi",
+    description: "Gabungan 13 KPI tracer",
   },
 ];
 
@@ -153,6 +161,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             { href: "/dashboard/student-management", icon: UserCog, title: "Akun Mahasiswa", desc: "CRUD akun kuesioner" },
             { href: "/dashboard/question-management", icon: ClipboardList, title: "Pertanyaan", desc: "Manajemen kuesioner" },
             { href: "/dashboard/form-preview", icon: FileText, title: "Preview Form", desc: "Lihat tampilan form" },
+            { href: "/dashboard/threshold-management", icon: Target, title: "Threshold", desc: "Nilai LAM/BAN-PT" },
           ].map((item) => {
             const isActive = location.pathname === item.href;
             return (
