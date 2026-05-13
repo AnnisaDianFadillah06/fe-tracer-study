@@ -12,6 +12,7 @@ import OverviewPage from "./pages/dashboard/overview/OverviewPage";
 import EmploymentPage from "./pages/dashboard/employment/EmploymentPage";
 import EducationPage from "./pages/dashboard/education/EducationPage";
 import AnalyticsPage from "./pages/dashboard/analytics/AnalyticsPage";
+import KpiOverviewPage from "./pages/dashboard/kpi/KpiOverviewPage";
 
 // Shared pages
 import ComparePage from "./pages/ComparePage";
@@ -21,6 +22,7 @@ import TeamManagementPage from "./pages/TeamManagementPage";
 import StudentManagementPage from "./pages/StudentManagementPage";
 import QuestionManagementPage from "./pages/QuestionManagementPage";
 import FormPreviewPage from "./pages/FormPreviewPage";
+import ThresholdManagementPage from "./pages/ThresholdManagementPage";
 import NotFound from "./pages/NotFound";
 
 // Student-facing pages
@@ -48,6 +50,7 @@ const App = () => (
             <Route path="/dashboard/employment" element={<EmploymentPage />} />
             <Route path="/dashboard/education" element={<EducationPage />} />
             <Route path="/dashboard/analytics" element={<AnalyticsPage />} />
+            <Route path="/dashboard/kpi" element={<KpiOverviewPage />} />
             
             {/* Shared Routes */}
             <Route path="/dashboard/compare" element={<ComparePage />} />
@@ -57,6 +60,7 @@ const App = () => (
             <Route path="/dashboard/student-management" element={<StudentManagementPage />} />
             <Route path="/dashboard/question-management" element={<QuestionManagementPage />} />
             <Route path="/dashboard/form-preview" element={<FormPreviewPage />} />
+            <Route path="/dashboard/threshold-management" element={<ThresholdManagementPage />} />
 
             {/* Student-facing form routes */}
             <Route path="/form/login" element={<StudentLoginPage />} />
