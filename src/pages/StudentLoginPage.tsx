@@ -4,11 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useStudentAuth } from "@/hooks/useStudentAuth";
 import { useStudentManagement } from "@/hooks/useStudentManagement";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import PolbanLogo from "@/components/PolbanLogo";
 
 const StudentLoginPage = () => {
   const navigate = useNavigate();
@@ -41,7 +42,7 @@ const StudentLoginPage = () => {
       } else {
         toast({
           title: "Login Gagal",
-          description: "NIM/email atau password salah, atau akun tidak aktif",
+          description: "NIM/email atau password salah, atau akun Nonaktif",
           variant: "destructive",
         });
       }
@@ -53,12 +54,7 @@ const StudentLoginPage = () => {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="h-14 border-b border-border flex items-center justify-between px-6">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-orange-400 flex items-center justify-center">
-            <GraduationCap className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-heading font-semibold">Tracer Study Polban</span>
-        </div>
+        <PolbanLogo compact title="Tracer Study" subtitle="POLBAN" textClassName="hidden sm:block" />
         <ThemeToggle />
       </header>
 
@@ -66,8 +62,8 @@ const StudentLoginPage = () => {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-sm space-y-6">
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-orange-400 flex items-center justify-center mx-auto">
-              <GraduationCap className="w-8 h-8 text-white" />
+            <div className="mx-auto h-16 w-16 overflow-hidden rounded-2xl border border-border/40 bg-white shadow-sm">
+              <img src="/icon/android-chrome-192x192.png" alt="Logo POLBAN" className="h-full w-full object-contain p-1.5" />
             </div>
             <h1 className="font-heading text-2xl font-bold">Masuk</h1>
             <p className="text-sm text-muted-foreground">

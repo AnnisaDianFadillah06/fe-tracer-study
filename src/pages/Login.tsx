@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, GraduationCap, ArrowLeft, Loader2 } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import PolbanLogo from "@/components/PolbanLogo";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -50,15 +51,7 @@ const Login = () => {
           </Link>
 
           {/* Logo */}
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-orange-light flex items-center justify-center">
-              <GraduationCap className="w-7 h-7 text-primary-foreground" />
-            </div>
-            <div>
-              <span className="font-heading font-bold text-xl">Tracer Study</span>
-              <span className="text-sm text-muted-foreground block -mt-1">POLBAN</span>
-            </div>
-          </div>
+          <PolbanLogo className="mb-8" markClassName="h-12 w-12" title="Tracer Study" subtitle="POLBAN" />
 
           {/* Header */}
           <div className="mb-8">

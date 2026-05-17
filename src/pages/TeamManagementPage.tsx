@@ -201,7 +201,7 @@ const TeamManagementPage = () => {
             <p className="text-muted-foreground">Kelola tim koordinator yang tampil di landing page</p>
           </div>
           <Button onClick={handleOpenAdd}>
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Tambah Koordinator
           </Button>
         </div>
@@ -236,11 +236,13 @@ const TeamManagementPage = () => {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="icon" onClick={() => handleOpenEdit(leadMember)}>
-                    <Edit className="w-4 h-4" />
+                  <Button variant="outline" size="sm" onClick={() => handleOpenEdit(leadMember)}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit
                   </Button>
-                  <Button variant="outline" size="icon" onClick={() => confirmDelete(leadMember.id)}>
-                    <Trash2 className="w-4 h-4 text-destructive" />
+                  <Button variant="destructive" size="sm" onClick={() => confirmDelete(leadMember.id)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Hapus
                   </Button>
                 </div>
               </div>
@@ -271,12 +273,12 @@ const TeamManagementPage = () => {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4 justify-end">
-                  <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(member)}>
-                    <Edit className="w-3 h-3 mr-1" />
+                  <Button variant="outline" size="sm" onClick={() => handleOpenEdit(member)}>
+                    <Edit className="mr-2 h-4 w-4" />
                     Edit
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => confirmDelete(member.id)}>
-                    <Trash2 className="w-3 h-3 mr-1 text-destructive" />
+                  <Button variant="destructive" size="sm" onClick={() => confirmDelete(member.id)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
                     Hapus
                   </Button>
                 </div>
