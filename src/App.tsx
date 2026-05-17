@@ -52,6 +52,7 @@ const App = () => (
             <Route path="/dashboard/education" element={<EducationPage />} />
             <Route path="/dashboard/analytics" element={<AnalyticsPage />} />
             <Route path="/dashboard/kpi" element={<KpiOverviewPage />} />
+            <Route path="/dashboard/threshold-management" element={<ThresholdManagementPage />} />
             
             {/* Shared Routes */}
             <Route path="/dashboard/compare" element={<ComparePage />} />
