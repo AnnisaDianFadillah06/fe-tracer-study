@@ -39,7 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Search, Target, X, Building2, FileBadge } from "lucide-react";
+import { Plus, Edit, Trash2, Search, X, Building2, FileBadge } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -48,7 +48,6 @@ import {
 } from "@/hooks/useThresholdManagement";
 
 const ThresholdManagementPage = () => {
-  const t = useThresholdManagement();
   const {
     lams,
     standars,
@@ -74,7 +73,7 @@ const ThresholdManagementPage = () => {
     submittingLam,
     prodiSearch,
     setProdiSearch,
-    filteredProdiOptions,
+    filteredProdiOptions,   // sekarang { id, label }[]
     openAddLam,
     openEditLam,
     submitLam,
@@ -103,11 +102,12 @@ const ThresholdManagementPage = () => {
     isStdDeleteOpen,
     setIsStdDeleteOpen,
     toggleStandarStatus,
-  } = t;
+  } = useThresholdManagement();
 
+  // ── karena filteredProdiOptions sekarang { id, label }[], ambil label-nya
+  const visibleLabels = filteredProdiOptions.map((p) => p.label);
   const allVisibleSelected =
-    filteredProdiOptions.length > 0 &&
-    filteredProdiOptions.every((p) => lamForm.programs.includes(p));
+    visibleLabels.length > 0 && visibleLabels.every((l) => lamForm.programs.includes(l));
 
   const totalAktif = standars.filter((s) => s.is_active).length;
   const totalNonaktif = standars.length - totalAktif;
@@ -164,7 +164,7 @@ const ThresholdManagementPage = () => {
           </Card>
         </div>
 
-        {/* Tabs: Daftar LAM / Daftar Standar Penilaian */}
+        {/* Tabs */}
         <Tabs defaultValue="lam" className="w-full">
           <TabsList>
             <TabsTrigger value="lam">
@@ -184,78 +184,73 @@ const ThresholdManagementPage = () => {
                   <p className="text-xs text-muted-foreground mt-1">{lams.length} LAM terdaftar</p>
                 </div>
                 <Button onClick={openAddLam} disabled={disableAdd}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Tambah LAM
+                  <Plus className="w-4 h-4 mr-2" /> Tambah LAM
                 </Button>
               </CardHeader>
               <CardContent>
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[200px]">Nama LAM</TableHead>
-                    <TableHead className="w-[120px]">Kode</TableHead>
-                    <TableHead className="min-w-[260px]">Prodi Terpetakan</TableHead>
-                    <TableHead className="w-[100px]">Standar</TableHead>
-                    <TableHead className="w-[110px] text-right">Aksi</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    Array.from({ length: 2 }).map((_, i) => (
-                      <TableRow key={`lsk-${i}`}>
-                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-10" /></TableCell>
-                        <TableCell className="text-right"><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[200px]">Nama LAM</TableHead>
+                        <TableHead className="w-[120px]">Kode</TableHead>
+                        <TableHead className="min-w-[260px]">Prodi Terpetakan</TableHead>
+                        <TableHead className="w-[100px]">Standar</TableHead>
+                        <TableHead className="w-[110px] text-right">Aksi</TableHead>
                       </TableRow>
-                    ))
-                  ) : lams.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        Belum ada LAM. Klik "Tambah LAM" untuk membuat.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    lams.map((l) => {
-                      const count = standars.filter((s) => s.lam_id === l.id).length;
-                      return (
-                        <TableRow key={l.id}>
-                          <TableCell className="font-medium">{l.name}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{l.code}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {l.programs.slice(0, 3).map((p) => (
-                                <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>
-                              ))}
-                              {l.programs.length > 3 && (
-                                <Badge variant="outline" className="text-[10px]">+{l.programs.length - 3}</Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{count}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="icon" onClick={() => openEditLam(l)}>
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => confirmDeleteLam(l.id)}>
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
-                            </div>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        Array.from({ length: 2 }).map((_, i) => (
+                          <TableRow key={`lsk-${i}`}>
+                            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-10" /></TableCell>
+                            <TableCell className="text-right"><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
+                          </TableRow>
+                        ))
+                      ) : lams.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                            Belum ada LAM. Klik "Tambah LAM" untuk membuat.
                           </TableCell>
                         </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                      ) : (
+                        lams.map((l) => {
+                          const count = standars.filter((s) => s.lam_id === l.id).length;
+                          return (
+                            <TableRow key={l.id}>
+                              <TableCell className="font-medium">{l.name}</TableCell>
+                              <TableCell><Badge variant="outline">{l.code}</Badge></TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {l.programs.slice(0, 3).map((p) => (
+                                    <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>
+                                  ))}
+                                  {l.programs.length > 3 && (
+                                    <Badge variant="outline" className="text-[10px]">+{l.programs.length - 3}</Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell><Badge variant="secondary">{count}</Badge></TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-1">
+                                  <Button variant="ghost" size="icon" onClick={() => openEditLam(l)}>
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => confirmDeleteLam(l.id)}>
+                                    <Trash2 className="w-4 h-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -269,130 +264,129 @@ const ThresholdManagementPage = () => {
                   <p className="text-xs text-muted-foreground mt-1">{standars.length} standar terdaftar</p>
                 </div>
                 <Button onClick={openAddStandar} disabled={disableAdd || lams.length === 0}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Tambah Standar Penilaian
+                  <Plus className="w-4 h-4 mr-2" /> Tambah Standar Penilaian
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Cari standar, LAM, tahun, atau prodi..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                  disabled={disableAdd}
-                />
-              </div>
-              <Select value={filterLam} onValueChange={setFilterLam} disabled={disableAdd}>
-                <SelectTrigger className="md:w-[200px]">
-                  <SelectValue placeholder="LAM" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua LAM</SelectItem>
-                  {lams.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={filterStatus} onValueChange={setFilterStatus} disabled={disableAdd}>
-                <SelectTrigger className="md:w-[160px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Status</SelectItem>
-                  <SelectItem value="aktif">Aktif</SelectItem>
-                  <SelectItem value="nonaktif">Tidak Aktif</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="flex flex-col md:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Cari standar, LAM, tahun, atau prodi..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9"
+                      disabled={disableAdd}
+                    />
+                  </div>
+                  <Select value={filterLam} onValueChange={setFilterLam} disabled={disableAdd}>
+                    <SelectTrigger className="md:w-[200px]">
+                      <SelectValue placeholder="LAM" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua LAM</SelectItem>
+                      {lams.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterStatus} onValueChange={setFilterStatus} disabled={disableAdd}>
+                    <SelectTrigger className="md:w-[160px]">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Status</SelectItem>
+                      <SelectItem value="aktif">Aktif</SelectItem>
+                      <SelectItem value="nonaktif">Tidak Aktif</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[200px]">LAM</TableHead>
-                    <TableHead className="min-w-[180px]">Standar</TableHead>
-                    <TableHead className="min-w-[420px]">Indikator Threshold</TableHead>
-                    <TableHead className="w-[120px]">Status</TableHead>
-                    <TableHead className="w-[110px] text-right">Aksi</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    Array.from({ length: 3 }).map((_, i) => (
-                      <TableRow key={`sk-${i}`}>
-                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                        <TableCell>
-                          <div className="space-y-1.5">
-                            <Skeleton className="h-3 w-72" />
-                            <Skeleton className="h-3 w-64" />
-                            <Skeleton className="h-3 w-60" />
-                          </div>
-                        </TableCell>
-                        <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                        <TableCell className="text-right"><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[200px]">LAM</TableHead>
+                        <TableHead className="min-w-[180px]">Standar</TableHead>
+                        <TableHead className="min-w-[420px]">Indikator Threshold</TableHead>
+                        <TableHead className="w-[120px]">Status</TableHead>
+                        <TableHead className="w-[110px] text-right">Aksi</TableHead>
                       </TableRow>
-                    ))
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-destructive py-8">{error}</TableCell>
-                    </TableRow>
-                  ) : filteredStandar.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        Tidak ada standar penilaian
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredStandar.map((s) => {
-                      const lam = lamById[s.lam_id];
-                      return (
-                        <TableRow key={s.id}>
-                          <TableCell>
-                            <div className="font-medium">{lam?.name ?? "—"}</div>
-                            <div className="text-[11px] text-muted-foreground">{lam?.code}</div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium">{s.version_name}</div>
-                            <div className="text-[11px] text-muted-foreground">Tahun {s.year}</div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-1.5">
-                              {s.thresholds.map((ind) => (
-                                <div key={ind.indicator_id} className="flex items-center gap-2 text-xs">
-                                  <span className="min-w-[180px] text-muted-foreground truncate">{ind.indicator_name}</span>
-                                  <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-0 text-[10px] px-2">Baik {ind.baik}</Badge>
-                                  <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100 border-0 text-[10px] px-2">Unggul {ind.unggul}</Badge>
-                                </div>
-                              ))}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Switch checked={s.is_active} onCheckedChange={() => toggleStandarStatus(s.id)} />
-                              <span className="text-xs text-muted-foreground">{s.is_active ? "Aktif" : "Nonaktif"}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="icon" onClick={() => openEditStandar(s)}>
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => confirmDeleteStandar(s.id)}>
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
-                            </div>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        Array.from({ length: 3 }).map((_, i) => (
+                          <TableRow key={`sk-${i}`}>
+                            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                            <TableCell>
+                              <div className="space-y-1.5">
+                                <Skeleton className="h-3 w-72" />
+                                <Skeleton className="h-3 w-64" />
+                                <Skeleton className="h-3 w-60" />
+                              </div>
+                            </TableCell>
+                            <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                            <TableCell className="text-right"><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
+                          </TableRow>
+                        ))
+                      ) : error ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-destructive py-8">{error}</TableCell>
+                        </TableRow>
+                      ) : filteredStandar.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                            Tidak ada standar penilaian
                           </TableCell>
                         </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                      ) : (
+                        filteredStandar.map((s) => {
+                          const lam = lamById[s.lam_id];
+                          return (
+                            <TableRow key={s.id}>
+                              <TableCell>
+                                <div className="font-medium">{lam?.name ?? "—"}</div>
+                                <div className="text-[11px] text-muted-foreground">{lam?.code}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium">{s.version_name}</div>
+                                <div className="text-[11px] text-muted-foreground">Tahun {s.year}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-col gap-1.5">
+                                  {s.thresholds.map((ind) => (
+                                    <div key={ind.indicator_id} className="flex items-center gap-2 text-xs">
+                                      <span className="min-w-[180px] text-muted-foreground truncate">{ind.indicator_name}</span>
+                                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-0 text-[10px] px-2">Baik {ind.baik}</Badge>
+                                      <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100 border-0 text-[10px] px-2">Unggul {ind.unggul}</Badge>
+                                    </div>
+                                  ))}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Switch checked={s.is_active} onCheckedChange={() => toggleStandarStatus(s.id)} />
+                                  <span className="text-xs text-muted-foreground">{s.is_active ? "Aktif" : "Nonaktif"}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-1">
+                                  <Button variant="ghost" size="icon" onClick={() => openEditStandar(s)}>
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => confirmDeleteStandar(s.id)}>
+                                    <Trash2 className="w-4 h-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -442,10 +436,10 @@ const ThresholdManagementPage = () => {
 
               {lamForm.programs.length > 0 && (
                 <div className="flex flex-wrap gap-1 p-2 border rounded-md bg-muted/30 max-h-24 overflow-y-auto">
-                  {lamForm.programs.map((p) => (
-                    <Badge key={p} variant="secondary" className="gap-1">
-                      {p}
-                      <button type="button" onClick={() => toggleProdi(p)} className="hover:text-destructive">
+                  {lamForm.programs.map((label) => (
+                    <Badge key={label} variant="secondary" className="gap-1">
+                      {label}
+                      <button type="button" onClick={() => toggleProdi(label)} className="hover:text-destructive">
                         <X className="w-3 h-3" />
                       </button>
                     </Badge>
@@ -474,16 +468,17 @@ const ThresholdManagementPage = () => {
                 </Label>
               </div>
 
+              {/* ── daftar prodi — satu-satunya bagian yang berubah dari page lama ── */}
               <div className="border rounded-md max-h-56 overflow-y-auto p-2 grid grid-cols-1 md:grid-cols-2 gap-1">
                 {filteredProdiOptions.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4 col-span-2">Tidak ada prodi yang cocok</p>
                 ) : (
                   filteredProdiOptions.map((p) => {
-                    const checked = lamForm.programs.includes(p);
+                    const checked = lamForm.programs.includes(p.label);
                     return (
-                      <label key={p} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
-                        <Checkbox checked={checked} onCheckedChange={() => toggleProdi(p)} />
-                        <span>{p}</span>
+                      <label key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                        <Checkbox checked={checked} onCheckedChange={() => toggleProdi(p.label)} />
+                        <span>{p.label}</span>
                       </label>
                     );
                   })
@@ -547,9 +542,7 @@ const ThresholdManagementPage = () => {
               <div className="space-y-2">
                 <Label>Tahun *</Label>
                 <Input
-                  type="number"
-                  min={2000}
-                  max={2100}
+                  type="number" min={2000} max={2100}
                   value={stdForm.year}
                   onChange={(e) => setStdForm({ ...stdForm, year: Number(e.target.value) })}
                   aria-invalid={!!stdFormErrors.year}
@@ -613,7 +606,10 @@ const ThresholdManagementPage = () => {
                 <p className="text-xs text-muted-foreground">Hanya standar aktif yang dipakai pada visualisasi dashboard</p>
               </div>
               <div className="flex items-center gap-2">
-                <Switch checked={stdForm.is_active} onCheckedChange={(c) => setStdForm({ ...stdForm, is_active: c })} />
+                <Switch
+                  checked={stdForm.is_active}
+                  onCheckedChange={(c) => setStdForm({ ...stdForm, is_active: c })}
+                />
                 <Badge variant={stdForm.is_active ? "default" : "outline"}>
                   {stdForm.is_active ? "Aktif" : "Tidak Aktif"}
                 </Badge>
@@ -636,12 +632,14 @@ const ThresholdManagementPage = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus LAM?</AlertDialogTitle>
             <AlertDialogDescription>
-              LAM hanya dapat dihapus jika tidak memiliki standar penilaian. Tindakan ini tidak dapat dibatalkan.
+              LAM beserta seluruh standar penilaian dan threshold-nya akan dihapus permanen.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteLam} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Hapus</AlertDialogAction>
+            <AlertDialogAction onClick={deleteLam} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Hapus
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -657,7 +655,9 @@ const ThresholdManagementPage = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteStandar} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Hapus</AlertDialogAction>
+            <AlertDialogAction onClick={deleteStandar} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Hapus
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
