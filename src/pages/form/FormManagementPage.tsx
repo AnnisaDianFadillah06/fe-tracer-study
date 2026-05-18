@@ -23,6 +23,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
   Table,
   TableBody,
   TableCell,
@@ -31,6 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/common/use-toast";
+import { useRole } from "@/contexts/RoleContext";
 import type { BackendQuestionnaire } from "@/lib/formManagement";
 import { backendToFormListItem, saveForms, getInitialForms } from "@/lib/formManagement";
 import api from "@/lib/api";
@@ -61,11 +71,15 @@ const statusLabel: Record<string, string> = {
 const DaftarKuisionerPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { currentRole } = useRole();
+  const isHeadTracer = currentRole === "head_tracer";
 
   const [forms, setForms] = useState<BackendQuestionnaire[]>([]);
   const [programMap, setProgramMap] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteRequestDialogId, setDeleteRequestDialogId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
   const [exportingId, setExportingId] = useState<number | null>(null);
@@ -230,7 +244,7 @@ const DaftarKuisionerPage = () => {
           <div className="flex flex-col gap-3 sm:items-end">
             <Button onClick={() => navigate("/dashboard/form-management/new")} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
-              Tambah Kuisioner
+              {isHeadTracer ? "Tambah Kuisioner" : "Ajukan Kuisioner Baru"}
             </Button>
             <div className="grid grid-cols-3 gap-3 sm:max-w-xl">
               <Card>
@@ -409,12 +423,19 @@ const DaftarKuisionerPage = () => {
                               title={
                                 (form.response_count ?? 0) > 0
                                   ? `Tidak bisa dihapus: ${form.response_count} responden`
-                                  : "Hapus kuisioner"
+                                  : isHeadTracer ? "Hapus kuisioner" : "Ajukan penghapusan"
                               }
-                              onClick={() => setDeleteTargetId(form.id)}
+                              onClick={() => {
+                                if (isHeadTracer) {
+                                  setDeleteTargetId(form.id);
+                                } else {
+                                  setDeleteRequestDialogId(form.id);
+                                  setDeleteReason("");
+                                }
+                              }}
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
-                              Hapus
+                              {isHeadTracer ? "Hapus" : "Ajukan Hapus"}
                             </Button>
                           </div>
                         </TableCell>
@@ -448,6 +469,52 @@ const DaftarKuisionerPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog pengajuan hapus (tracer_team) */}
+      <Dialog open={deleteRequestDialogId !== null} onOpenChange={(open) => { if (!open) setDeleteRequestDialogId(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Ajukan Penghapusan Kuesioner</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Kuesioner: <strong>{forms.find((f) => f.id === deleteRequestDialogId)?.title}</strong>
+            </p>
+            <div>
+              <Label>Alasan Penghapusan *</Label>
+              <Textarea
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                placeholder="Jelaskan alasan mengapa kuesioner ini perlu dihapus..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteRequestDialogId(null)}>Batal</Button>
+            <Button
+              variant="destructive"
+              disabled={!deleteReason.trim()}
+              onClick={async () => {
+                const form = forms.find((f) => f.id === deleteRequestDialogId);
+                if (!form) return;
+                try {
+                  await api.post("/approvals/request-delete", {
+                    questionnaire_id: form.id,
+                    title: form.title,
+                    note: deleteReason,
+                  });
+                  toast({ title: "Request Terkirim", description: `Permintaan hapus "${form.title}" telah dikirim ke Super Admin.` });
+                } catch {
+                  toast({ title: "Gagal", description: "Gagal mengirim request.", variant: "destructive" });
+                }
+                setDeleteRequestDialogId(null);
+                setDeleteReason("");
+              }}
+            >
+              Ajukan Penghapusan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

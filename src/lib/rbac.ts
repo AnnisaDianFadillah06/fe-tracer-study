@@ -66,8 +66,11 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
   tracer_team: [
     "dashboard.overview",
     "dashboard.employment",
+    "dashboard.education",
+    "dashboard.analytics",
     "admin.questionnaire",
     "admin.questionnaire.request",
+    "admin.approval",
   ],
   wadir: [
     "dashboard.overview",
@@ -127,7 +130,7 @@ const adminItems: MenuItem[] = [
   { title: "Kelola Staff", href: "/dashboard/user-management", icon: Users, description: "CRUD semua akun user", permission: "admin.user" },
   { title: "Kelola Mahasiswa", href: "/dashboard/student-management", icon: Users, description: "CRUD akun mahasiswa/alumni", permission: "admin.user" },
   { title: "Manajemen Kuesioner", href: "/dashboard/form-management", icon: ClipboardList, description: "Kelola kuesioner", permission: "admin.questionnaire" },
-  { title: "Approval Request", href: "/dashboard/approvals", icon: ShieldCheck, description: "Approve/reject permintaan", permission: "admin.approval" },
+  { title: "Approval Request", href: "/dashboard/approvals", icon: ShieldCheck, description: "Riwayat & approval pengajuan", permission: "admin.approval" },
   { title: "Master Data", href: "/dashboard/master-data", icon: Building2, description: "Prodi, provinsi, kota", permission: "admin.master" },
 ];
 

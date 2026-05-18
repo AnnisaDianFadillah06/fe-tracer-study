@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,8 +14,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { type BuilderQuestion, type FormListItem, getInitialForms } from "@/lib/formManagement";
-import { ArrowLeft } from "lucide-react";
+import { type BuilderQuestion, type FormListItem, getInitialForms, backendToFormListItem } from "@/lib/formManagement";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import api from "@/lib/api";
 
 interface PreviewLocationState {
   form?: FormListItem;
@@ -122,7 +123,22 @@ const FormPreviewPage = () => {
     return getInitialForms().find((item) => item.id === formId) ?? null;
   }, [formId]);
 
-  const form = state.form ?? draftForm ?? fallbackForm;
+  const [apiForm, setApiForm] = useState<FormListItem | null>(null);
+  const [apiLoading, setApiLoading] = useState(false);
+
+  useEffect(() => {
+    const localForm = state.form ?? draftForm ?? fallbackForm;
+    if (!localForm && formId && !apiLoading) {
+      setApiLoading(true);
+      api.get(`/questionnaires/${formId}`).then(({ data }) => {
+        if (data.success && data.data) {
+          setApiForm(backendToFormListItem(data.data));
+        }
+      }).catch(() => {}).finally(() => setApiLoading(false));
+    }
+  }, [formId, state.form, draftForm, fallbackForm]);
+
+  const form = state.form ?? draftForm ?? fallbackForm ?? apiForm;
 
   const [answers, setAnswers] = useState<
     Record<string, string | number | string[] | Record<string, string> | Record<string, string[]>>
@@ -130,6 +146,14 @@ const FormPreviewPage = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [currentSection, setCurrentSection] = useState(0);
+
+  if (apiLoading || !form) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   const section = form.sections[currentSection];
   const isLastSection = currentSection === form.sections.length - 1;
