@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { CheckCircle2, GraduationCap, Loader2, Search, XCircle } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
-import { useKaprodiAlumni } from "@/hooks/useKaprodiAlumni";
+import { useKaprodiAlumni } from "@/hooks/dashboard/kaprodi/useKaprodiAlumni";
 
 const AlumniDataPage = () => {
   const { selectedProdi } = useRole();

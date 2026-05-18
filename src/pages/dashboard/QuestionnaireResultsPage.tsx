@@ -15,7 +15,7 @@ import {
 import { useRole } from "@/contexts/RoleContext";
 import {
   useKaprodiQuestionnaires,
-} from "@/hooks/useKaprodiQuestionnaires";
+} from "@/hooks/dashboard/kaprodi/useKaprodiQuestionnaires";
 import {
   CheckCircle2,
   Clock,

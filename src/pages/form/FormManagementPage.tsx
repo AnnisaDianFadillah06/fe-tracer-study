@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/common/use-toast";
 import type { BackendQuestionnaire } from "@/lib/formManagement";
 import { backendToFormListItem, saveForms, getInitialForms } from "@/lib/formManagement";
 import api from "@/lib/api";

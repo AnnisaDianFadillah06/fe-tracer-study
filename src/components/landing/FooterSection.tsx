@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Mail, Phone, MapPin } from "lucide-react";
-import PolbanLogo from "@/components/PolbanLogo";
+import PolbanLogo from "@/components/common/PolbanLogo";
 
 const FooterSection = () => {
   return (

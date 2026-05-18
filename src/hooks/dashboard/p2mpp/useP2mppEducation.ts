@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { BookOpen, GraduationCap, Target, Award, LucideIcon } from "lucide-react";
-import { useDashboardData } from "@/hooks/useDashboardData";
+import { useDashboardData } from "@/hooks/dashboard/useDashboardData";
 
 export interface EducationMetric {
   title: string;

@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import PolbanLogo from "@/components/PolbanLogo";
+import { ThemeToggle } from "@/components/common/ThemeToggle";
+import PolbanLogo from "@/components/common/PolbanLogo";
 
 const LandingNav = () => {
   const [isOpen, setIsOpen] = useState(false);

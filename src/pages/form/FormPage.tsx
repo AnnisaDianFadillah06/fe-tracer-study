@@ -15,11 +15,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LogOut, Star, CheckCircle2, User } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import PolbanLogo from "@/components/PolbanLogo";
-import { useStudentAuth } from "@/hooks/useStudentAuth";
-import { useTracerForm, isQuestionVisible } from "@/hooks/useTracerForm";
-import type { Question } from "@/hooks/useQuestionManagement";
+import { ThemeToggle } from "@/components/common/ThemeToggle";
+import PolbanLogo from "@/components/common/PolbanLogo";
+import { useStudentAuth } from "@/hooks/auth/useStudentAuth";
+import { useTracerForm, isQuestionVisible } from "@/hooks/form/useTracerForm";
+import type { Question } from "@/hooks/form/useQuestionManagement";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 

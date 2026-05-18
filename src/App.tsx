@@ -5,11 +5,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { RoleProvider } from "@/contexts/RoleContext";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ProtectedRoute } from "@/components/common/ProtectedRoute";
 
-import Landing from "./pages/Landing";
+import Landing from "./pages/landing/Landing";
 import Login from "./pages/auth/Login";
-import Unauthorized from "./pages/Unauthorized";
+import Unauthorized from "./pages/common/Unauthorized";
 
 // Dashboard pages
 import OverviewPage from "./pages/dashboard/overview/OverviewPage";
@@ -40,7 +40,7 @@ import FormRespondentsPage from "./pages/form/FormRespondentsPage";
 import StudentFormListPage from "./pages/student/StudentFormListPage";
 import FormPage from "./pages/form/FormPage";
 
-import NotFound from "./pages/NotFound";
+import NotFound from "./pages/common/NotFound";
 
 const queryClient = new QueryClient();
 

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import ExcelJS from "exceljs";
-import { useStudentManagement } from "@/hooks/useStudentManagement";
-import { useToast } from "@/hooks/use-toast";
+import { useStudentManagement } from "@/hooks/admin/useStudentManagement";
+import { useToast } from "@/hooks/common/use-toast";
 import api from "@/lib/api";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -5,10 +5,10 @@ import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
-import { useStudentAuth } from "@/hooks/useStudentAuth";
-import PolbanLogo from "@/components/PolbanLogo";
+import { useToast } from "@/hooks/common/use-toast";
+import { useAuth } from "@/hooks/auth/useAuth";
+import { useStudentAuth } from "@/hooks/auth/useStudentAuth";
+import PolbanLogo from "@/components/common/PolbanLogo";
 
 const Login = () => {
   const [identifier, setIdentifier] = useState("");

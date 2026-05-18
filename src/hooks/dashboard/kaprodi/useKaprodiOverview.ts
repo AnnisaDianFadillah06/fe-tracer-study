@@ -1,6 +1,6 @@
 import { Users, Briefcase, Clock, GraduationCap } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
-import { useDashboardData } from "@/hooks/useDashboardData";
+import { useDashboardData } from "@/hooks/dashboard/useDashboardData";
 import type { StatCardData } from "../p2mpp/useP2mppOverview";
 
 export interface TahunRow {

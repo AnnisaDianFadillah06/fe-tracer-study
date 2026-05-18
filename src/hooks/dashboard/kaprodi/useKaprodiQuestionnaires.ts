@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
-import type { KaprodiAlumniStats } from "@/hooks/useKaprodiAlumni";
+import type { KaprodiAlumniStats } from "@/hooks/dashboard/kaprodi/useKaprodiAlumni";
 
 // ── Types matching backend response ──────────────────────────────────────
 export interface KaprodiQuestionnaire {

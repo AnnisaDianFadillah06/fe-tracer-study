@@ -17,12 +17,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "@/components/common/ThemeToggle";
 
 import { useRole, roleLabels } from "@/contexts/RoleContext";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/auth/useAuth";
 import { Badge } from "@/components/ui/badge";
-import PolbanLogo from "@/components/PolbanLogo";
+import PolbanLogo from "@/components/common/PolbanLogo";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
