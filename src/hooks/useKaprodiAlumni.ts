@@ -35,8 +35,8 @@ interface AlumniPaginator {
  * Fetch stats + paginated alumni untuk halaman Kaprodi `Data Alumni Prodi`.
  *
  * Backend endpoint:
- *   GET /api/admin/alumni/stats        → { total, answered, unanswered, response_rate }
- *   GET /api/admin/alumni?search=&per_page= → Laravel paginator dengan has_responded flag per item
+ *   GET /api/alumni/stats        → { total, answered, unanswered, response_rate }
+ *   GET /api/alumni?search=&per_page= → Laravel paginator dengan has_responded flag per item
  *
  * Filter role: backend auto-scope ke prodi kaprodi (AdminAlumniService::applyRoleScope).
  * Admin dapat aggregate semua prodi.
@@ -47,7 +47,7 @@ export const useKaprodiAlumni = (perPage = 100) => {
   const statsQuery = useQuery<KaprodiAlumniStats>({
     queryKey: ["kaprodi-alumni-stats"],
     queryFn: async () => {
-      const { data } = await api.get("/admin/alumni/stats");
+      const { data } = await api.get("/alumni/stats");
       return data.data;
     },
   });
@@ -55,7 +55,7 @@ export const useKaprodiAlumni = (perPage = 100) => {
   const alumniQuery = useQuery<AlumniPaginator>({
     queryKey: ["kaprodi-alumni-list", search, perPage],
     queryFn: async () => {
-      const { data } = await api.get("/admin/alumni", {
+      const { data } = await api.get("/alumni", {
         params: { search, per_page: perPage },
       });
       return data.data;

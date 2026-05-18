@@ -145,7 +145,7 @@ const DaftarKuisionerPage = () => {
   const handleExport = async (form: BackendQuestionnaire) => {
     setExportingId(form.id);
     try {
-      const response = await api.get("/admin/reports/export-alumni", {
+      const response = await api.get("/reports/export-alumni", {
         params: { questionnaire_id: form.id },
         responseType: "blob",
       });

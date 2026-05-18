@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, ReactNode } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   type AppRole,
@@ -17,7 +17,6 @@ export { roleLabels, roleDescriptions };
 
 interface RoleContextType {
   currentRole: AppRole;
-  setCurrentRole: (role: AppRole) => void;
   selectedProdi: string | null;
   can: (permission: Permission) => boolean;
   canAny: (permissions: Permission[]) => boolean;
@@ -29,11 +28,7 @@ const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
 export function RoleProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [currentRole, setCurrentRole] = useState<AppRole>(mapBackendRole(user?.role));
-
-  useEffect(() => {
-    if (user?.role) setCurrentRole(mapBackendRole(user.role));
-  }, [user?.role]);
+  const currentRole: AppRole = mapBackendRole(user?.role);
 
   const selectedProdi =
     currentRole === "kaprodi" ? (user?.program_name ?? "Teknik Informatika") : null;
@@ -45,7 +40,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
   return (
     <RoleContext.Provider
-      value={{ currentRole, setCurrentRole, selectedProdi, can, canAny, menu, defaultRoute }}
+      value={{ currentRole, selectedProdi, can, canAny, menu, defaultRoute }}
     >
       {children}
     </RoleContext.Provider>

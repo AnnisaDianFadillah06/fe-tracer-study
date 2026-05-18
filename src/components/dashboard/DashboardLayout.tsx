@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import RoleSwitcher from "@/components/dashboard/RoleSwitcher";
+
 import { useRole, roleLabels } from "@/contexts/RoleContext";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -134,7 +134,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Top Bar */}
         <header className="sticky top-0 z-30 h-16 bg-background/80 backdrop-blur-lg border-b border-border flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
-            <RoleSwitcher />
             <div className="hidden md:block">
               <h1 className="font-heading font-semibold text-lg">
                 {currentItem?.title || "Dashboard"}

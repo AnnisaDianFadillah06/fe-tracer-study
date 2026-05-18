@@ -159,7 +159,7 @@ const StudentManagementPage = () => {
   const handleDownloadTemplate = async () => {
     setIsDownloadingTemplate(true);
     try {
-      const response = await api.get("/admin/alumni/template", {
+      const response = await api.get("/alumni/template", {
         responseType: "blob",
       });
       const url = URL.createObjectURL(response.data);
@@ -184,7 +184,7 @@ const StudentManagementPage = () => {
       const formData = new FormData();
       formData.append("file", file);
 
-      const { data } = await api.post("/admin/alumni/import", formData, {
+      const { data } = await api.post("/alumni/import", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 

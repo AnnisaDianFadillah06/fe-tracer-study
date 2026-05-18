@@ -61,7 +61,7 @@ export interface ProdiSummary {
  * Fetches all alumni data from the backend and computes dashboard summaries.
  * This is the single source of truth for all dashboard pages.
  *
- * Uses /api/admin/alumni with a large per_page to get all records.
+ * Uses /api/alumni with a large per_page to get all records.
  * Falls back to empty data if the backend is unavailable.
  */
 export function useDashboardData() {
@@ -69,7 +69,7 @@ export function useDashboardData() {
     queryKey: ["dashboard-alumni-all"],
     queryFn: async (): Promise<AlumniWithResponses[]> => {
       // Fetch all alumni (paginated, get all pages)
-      const { data } = await api.get("/admin/alumni", {
+      const { data } = await api.get("/alumni", {
         params: { per_page: 1000 },
       });
 
@@ -215,7 +215,7 @@ function computeSummary(alumni: AlumniWithResponses[]): DashboardSummary {
 
 // ── Export report ────────────────────────────────────────────────────────
 export async function exportAlumniReport() {
-  const response = await api.get("/admin/reports/export-alumni", {
+  const response = await api.get("/reports/export-alumni", {
     responseType: "blob",
   });
   const url = window.URL.createObjectURL(new Blob([response.data]));
