@@ -18,6 +18,7 @@ export { roleLabels, roleDescriptions };
 interface RoleContextType {
   currentRole: AppRole;
   selectedProdi: string | null;
+  selectedJurusan: string | null;
   can: (permission: Permission) => boolean;
   canAny: (permissions: Permission[]) => boolean;
   menu: ReturnType<typeof getMenuForRole>;
@@ -31,7 +32,10 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const currentRole: AppRole = mapBackendRole(user?.role);
 
   const selectedProdi =
-    currentRole === "kaprodi" ? (user?.program_name ?? "Teknik Informatika") : null;
+    currentRole === "kaprodi" ? (user?.program_name ?? null) : null;
+
+  const selectedJurusan =
+    currentRole === "kajur" ? ((user as any)?.jurusan ?? null) : null;
 
   const can = (permission: Permission) => hasPermission(currentRole, permission);
   const canAny = (permissions: Permission[]) => hasAnyPermission(currentRole, permissions);
@@ -40,7 +44,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
   return (
     <RoleContext.Provider
-      value={{ currentRole, selectedProdi, can, canAny, menu, defaultRoute }}
+      value={{ currentRole, selectedProdi, selectedJurusan, can, canAny, menu, defaultRoute }}
     >
       {children}
     </RoleContext.Provider>

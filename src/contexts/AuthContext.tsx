@@ -12,11 +12,12 @@ export interface AuthUser {
   id: number;
   name: string;
   email: string;
-  role: string; // BE role: "admin" | "p2mpp" | "kaprodi" | "head_tracer" | "tracer_team" | "wadir"
+  role: string; // BE role: "head_tracer" | "tracer_team" | "wadir" | "kajur" | "kaprodi"
   program_id: number | null;
   program_name: string | null;
   program_code: string | null;
   program_degree: string | null;
+  jurusan: string | null;
 }
 
 interface AuthState {

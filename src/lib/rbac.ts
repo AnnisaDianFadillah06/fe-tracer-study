@@ -4,42 +4,39 @@ import {
   BookOpen,
   BarChart3,
   Users,
-  UserCog,
+  ShieldCheck,
   ClipboardList,
   GraduationCap,
   FileText,
   Building2,
-  ShieldCheck,
+  Download,
 } from "lucide-react";
 
 // ── Role definitions ─────────────────────────────────────────────────────────
 export type AppRole =
-  | "admin"
-  | "p2mpp"
   | "head_tracer"
   | "tracer_team"
-  | "kaprodi"
   | "wadir"
+  | "kajur"
+  | "kaprodi"
   | "alumni";
 
 export const roleLabels: Record<AppRole, string> = {
-  admin: "Admin",
-  p2mpp: "P2MPP",
-  head_tracer: "Kepala Tracer Study",
-  tracer_team: "Tim Tracer",
-  kaprodi: "Kaprodi",
-  wadir: "Wakil Direktur",
+  head_tracer: "Super Admin (Ketua Tracer)",
+  tracer_team: "Admin (Tim Tracer)",
+  wadir: "Pimpinan (Direktur/Wadir/P2MPP)",
+  kajur: "Ketua Jurusan",
+  kaprodi: "Ketua Program Studi",
   alumni: "Alumni",
 };
 
 export const roleDescriptions: Record<AppRole, string> = {
-  admin: "Full system administrator",
-  p2mpp: "Pusat Pengembangan Mutu Pendidikan & Pembelajaran — monitoring dashboard OLAP",
-  head_tracer: "Kepala unit Tracer Study",
-  tracer_team: "Anggota tim pelaksana Tracer Study",
-  kaprodi: "Kepala Program Studi",
-  wadir: "Wakil Direktur — monitoring & analytics",
-  alumni: "Lulusan — pengisi kuesioner",
+  head_tracer: "Full system access — kelola user, kuesioner, approval, master data",
+  tracer_team: "Kelola & edit kuesioner, ajukan perubahan via approval",
+  wadir: "Viewer seluruh data institusi & download",
+  kajur: "Viewer data jurusan & download",
+  kaprodi: "Viewer data program studi & download",
+  alumni: "Pengisi kuesioner tracer study",
 };
 
 // ── Permissions ──────────────────────────────────────────────────────────────
@@ -48,60 +45,57 @@ export type Permission =
   | "dashboard.employment"
   | "dashboard.education"
   | "dashboard.analytics"
-  | "admin.team"
-  | "admin.students"
-  | "admin.staff"
+  | "admin.user"
   | "admin.questionnaire"
-  | "academic.alumni_data"
-  | "academic.questionnaire_results"
-  | "reports.statistics"
-  | "reports.tracer"
+  | "admin.questionnaire.request"
+  | "admin.approval"
+  | "admin.master"
+  | "data.view_all"
+  | "data.view_jurusan"
+  | "data.view_prodi"
+  | "data.download"
   | "questionnaire.fill";
 
 export const rolePermissions: Record<AppRole, Permission[]> = {
-  admin: [
-    "dashboard.overview",
-    "dashboard.employment",
-    "dashboard.education",
-    "dashboard.analytics",
-    "admin.team",
-    "admin.students",
-    "admin.staff",
-    "admin.questionnaire",
-  ],
-  p2mpp: [
-    // Read-only ke 4 dashboard OLAP — tanpa Administrasi / Akademik / Laporan.
-    "dashboard.overview",
-    "dashboard.employment",
-    "dashboard.education",
-    "dashboard.analytics",
-  ],
   head_tracer: [
     "dashboard.overview",
     "dashboard.employment",
     "dashboard.education",
     "dashboard.analytics",
-    "admin.team",
-    "admin.staff",
+    "admin.user",
     "admin.questionnaire",
+    "admin.approval",
+    "admin.master",
+    "data.view_all",
+    "data.download",
   ],
   tracer_team: [
     "dashboard.overview",
     "dashboard.employment",
     "admin.questionnaire",
+    "admin.questionnaire.request",
+  ],
+  wadir: [
+    "dashboard.overview",
+    "dashboard.employment",
+    "dashboard.education",
+    "dashboard.analytics",
+    "data.view_all",
+    "data.download",
+  ],
+  kajur: [
+    "dashboard.overview",
+    "dashboard.employment",
+    "dashboard.education",
+    "data.view_jurusan",
+    "data.download",
   ],
   kaprodi: [
     "dashboard.overview",
     "dashboard.employment",
     "dashboard.education",
-    "academic.alumni_data",
-    "academic.questionnaire_results",
-  ],
-  wadir: [
-    "dashboard.overview",
-    "dashboard.analytics",
-    "reports.statistics",
-    "reports.tracer",
+    "data.view_prodi",
+    "data.download",
   ],
   alumni: ["questionnaire.fill"],
 };
@@ -136,26 +130,27 @@ const dashboardItems: MenuItem[] = [
 ];
 
 const adminItems: MenuItem[] = [
-  { title: "Tim Koordinator", href: "/dashboard/team-management", icon: Users, description: "Kelola tim tracer", permission: "admin.team" },
-  { title: "Akun Staff", href: "/dashboard/staff-management", icon: ShieldCheck, description: "Kelola akun & role staff", permission: "admin.staff" },
-  { title: "Akun Mahasiswa", href: "/dashboard/student-management", icon: UserCog, description: "CRUD akun kuesioner", permission: "admin.students" },
-  { title: "Manajemen Kuisioner", href: "/dashboard/form-management", icon: ClipboardList, description: "Kelola kuisioner", permission: "admin.questionnaire" },
+  { title: "Kelola User", href: "/dashboard/user-management", icon: Users, description: "CRUD semua akun user", permission: "admin.user" },
+  { title: "Manajemen Kuesioner", href: "/dashboard/form-management", icon: ClipboardList, description: "Kelola kuesioner", permission: "admin.questionnaire" },
+  { title: "Approval Request", href: "/dashboard/approvals", icon: ShieldCheck, description: "Approve/reject permintaan", permission: "admin.approval" },
+  { title: "Master Data", href: "/dashboard/master-data", icon: Building2, description: "Prodi, provinsi, kota", permission: "admin.master" },
 ];
 
-const academicItems: MenuItem[] = [
-  { title: "Data Alumni Prodi", href: "/dashboard/alumni-data", icon: GraduationCap, description: "Data alumni program studi", permission: "academic.alumni_data" },
-  { title: "Hasil Kuesioner Prodi", href: "/dashboard/questionnaire-results", icon: ClipboardList, description: "Hasil respon kuesioner", permission: "academic.questionnaire_results" },
+const dataItems: MenuItem[] = [
+  { title: "Data Institusi", href: "/dashboard/data-institusi", icon: GraduationCap, description: "Data seluruh institusi", permission: "data.view_all" },
+  { title: "Data Jurusan", href: "/dashboard/data-jurusan", icon: GraduationCap, description: "Data per jurusan", permission: "data.view_jurusan" },
+  { title: "Data Prodi", href: "/dashboard/data-prodi", icon: GraduationCap, description: "Data program studi", permission: "data.view_prodi" },
+  { title: "Download Data", href: "/dashboard/download", icon: Download, description: "Export & download laporan", permission: "data.download" },
 ];
 
 const reportItems: MenuItem[] = [
-  { title: "Statistik Institusi", href: "/dashboard/statistics", icon: Building2, description: "Statistik lintas prodi", permission: "reports.statistics" },
-  { title: "Laporan Tracer Study", href: "/dashboard/reports", icon: FileText, description: "Laporan tracer study", permission: "reports.tracer" },
+  { title: "Laporan Tracer Study", href: "/dashboard/reports", icon: FileText, description: "Laporan tracer study", permission: "data.view_all" },
 ];
 
 const allGroups: MenuGroup[] = [
   { label: "Dashboard", items: dashboardItems },
   { label: "Administrasi", items: adminItems },
-  { label: "Akademik", items: academicItems },
+  { label: "Data & Laporan", items: dataItems },
   { label: "Laporan", items: reportItems },
 ];
 
@@ -174,15 +169,15 @@ export const routePermissionMap: Record<string, Permission> = {
   "/dashboard/employment": "dashboard.employment",
   "/dashboard/education": "dashboard.education",
   "/dashboard/analytics": "dashboard.analytics",
-  "/dashboard/compare": "dashboard.overview",
-  "/dashboard/team-management": "admin.team",
-  "/dashboard/staff-management": "admin.staff",
-  "/dashboard/student-management": "admin.students",
+  "/dashboard/user-management": "admin.user",
   "/dashboard/form-management": "admin.questionnaire",
-  "/dashboard/alumni-data": "academic.alumni_data",
-  "/dashboard/questionnaire-results": "academic.questionnaire_results",
-  "/dashboard/statistics": "reports.statistics",
-  "/dashboard/reports": "reports.tracer",
+  "/dashboard/approvals": "admin.approval",
+  "/dashboard/master-data": "admin.master",
+  "/dashboard/data-institusi": "data.view_all",
+  "/dashboard/data-jurusan": "data.view_jurusan",
+  "/dashboard/data-prodi": "data.view_prodi",
+  "/dashboard/download": "data.download",
+  "/dashboard/reports": "data.view_all",
 };
 
 export function getDefaultRoute(role: AppRole): string {
@@ -192,15 +187,15 @@ export function getDefaultRoute(role: AppRole): string {
 
 export function mapBackendRole(backendRole?: string): AppRole {
   const map: Record<string, AppRole> = {
-    admin: "admin",
-    p2mpp: "p2mpp",
     head_tracer: "head_tracer",
     tracer_team: "tracer_team",
-    kaprodi: "kaprodi",
     wadir: "wadir",
+    kajur: "kajur",
+    kaprodi: "kaprodi",
     alumni: "alumni",
-    // Legacy BE role string — compat mapping
-    kotc: "tracer_team",
+    // Legacy compat
+    admin: "head_tracer",
+    p2mpp: "wadir",
     prodi: "kaprodi",
   };
   return map[backendRole ?? ""] ?? "alumni";

@@ -280,7 +280,7 @@ export const useStudentManagement = () => {
 
     if (formData.programId) {
       payload.program_id = Number(formData.programId);
-    } else if (userRole === "admin") {
+    } else if (userRole === "head_tracer") {
       toast({
         title: "Error",
         description: "Program studi wajib dipilih untuk akun baru.",

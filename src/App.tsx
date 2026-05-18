@@ -69,9 +69,9 @@ const App = () => (
             <Route path="/dashboard/compare" element={<ProtectedRoute permission="dashboard.overview"><ComparePage /></ProtectedRoute>} />
 
             {/* Administration */}
-            <Route path="/dashboard/team-management" element={<ProtectedRoute permission="admin.team"><TeamManagementPage /></ProtectedRoute>} />
-            <Route path="/dashboard/staff-management" element={<ProtectedRoute permission="admin.staff"><StaffManagementPage /></ProtectedRoute>} />
-            <Route path="/dashboard/student-management" element={<ProtectedRoute permission="admin.students"><StudentManagementPage /></ProtectedRoute>} />
+            <Route path="/dashboard/team-management" element={<ProtectedRoute permission="admin.user"><TeamManagementPage /></ProtectedRoute>} />
+            <Route path="/dashboard/staff-management" element={<ProtectedRoute permission="admin.user"><StaffManagementPage /></ProtectedRoute>} />
+            <Route path="/dashboard/student-management" element={<ProtectedRoute permission="admin.user"><StudentManagementPage /></ProtectedRoute>} />
             <Route path="/dashboard/form-management" element={<ProtectedRoute permission="admin.questionnaire"><DaftarKuisionerPage /></ProtectedRoute>} />
             <Route path="/dashboard/form-management/new" element={<ProtectedRoute permission="admin.questionnaire"><FormCreationChoicePage /></ProtectedRoute>} />
             <Route path="/dashboard/form-management/new/builder" element={<ProtectedRoute permission="admin.questionnaire"><FormBuilderPage /></ProtectedRoute>} />
@@ -80,14 +80,14 @@ const App = () => (
             <Route path="/dashboard/form-management/:formId/preview" element={<ProtectedRoute permission="admin.questionnaire"><FormPreviewPage /></ProtectedRoute>} />
             <Route path="/dashboard/form-management/:formId/respondents" element={<ProtectedRoute permission="admin.questionnaire"><FormRespondentsPage /></ProtectedRoute>} />
 
-            {/* Academic (Kaprodi) */}
-            <Route path="/dashboard/alumni-data" element={<ProtectedRoute permission="academic.alumni_data"><AlumniDataPage /></ProtectedRoute>} />
-            <Route path="/dashboard/questionnaire-results" element={<ProtectedRoute permission="academic.questionnaire_results"><QuestionnaireResultsPage /></ProtectedRoute>} />
-            <Route path="/dashboard/questionnaire-results/:formId" element={<ProtectedRoute permission="academic.questionnaire_results"><FormRespondentsPage /></ProtectedRoute>} />
+            {/* Data viewers */}
+            <Route path="/dashboard/alumni-data" element={<ProtectedRoute permission="data.view_prodi"><AlumniDataPage /></ProtectedRoute>} />
+            <Route path="/dashboard/questionnaire-results" element={<ProtectedRoute permission="data.view_prodi"><QuestionnaireResultsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/questionnaire-results/:formId" element={<ProtectedRoute permission="data.view_prodi"><FormRespondentsPage /></ProtectedRoute>} />
 
-            {/* Reports (Wadir) */}
-            <Route path="/dashboard/statistics" element={<ProtectedRoute permission="reports.statistics"><StatisticsPage /></ProtectedRoute>} />
-            <Route path="/dashboard/reports" element={<ProtectedRoute permission="reports.tracer"><ReportsPage /></ProtectedRoute>} />
+            {/* Reports (Pimpinan) */}
+            <Route path="/dashboard/statistics" element={<ProtectedRoute permission="data.view_all"><StatisticsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/reports" element={<ProtectedRoute permission="data.view_all"><ReportsPage /></ProtectedRoute>} />
 
             {/* Profile & settings (any authenticated) */}
             <Route path="/dashboard/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
