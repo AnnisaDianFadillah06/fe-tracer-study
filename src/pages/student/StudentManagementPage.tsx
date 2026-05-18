@@ -1,6 +1,8 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import ExcelJS from "exceljs";
 import { useStudentManagement } from "@/hooks/useStudentManagement";
 import { useToast } from "@/hooks/use-toast";
+import api from "@/lib/api";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,11 +42,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle, FileSpreadsheet, Loader2 } from "lucide-react";
 
 const StudentManagementPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
   const {
     students,
     filtered,
@@ -73,30 +77,102 @@ const StudentManagementPage = () => {
     isLoading,
   } = useStudentManagement();
 
+  /**
+   * Export data mahasiswa ke file .xlsx proper — tiap field jadi kolom terpisah.
+   *
+   * Sebelumnya pakai CSV dengan separator `,` — di Excel locale Indonesia
+   * (expected `;`) semua field menempel ke kolom A. Fix: pakai exceljs
+   * untuk generate binary .xlsx yang tidak bergantung locale.
+   */
   const handleExport = async () => {
+    if (students.length === 0) {
+      toast({ title: "Tidak ada data", description: "Belum ada data mahasiswa untuk diekspor.", variant: "destructive" });
+      return;
+    }
+    setIsExporting(true);
     try {
-      // Prepare CSV data
-      const headers = ["NIM", "Username", "Email", "Program Studi", "Jurusan", "Angkatan", "Status"];
-      const rows = students.map((s) => [s.nim, s.username, s.email, s.prodi, s.jurusan, s.angkatan, s.status]);
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "Tracer Study Polban";
+      workbook.created = new Date();
 
-      // Escape CSV values
-      const escapeCsv = (value: string) => `"${String(value).replace(/"/g, '""')}"`;
-      const headerRow = headers.map(escapeCsv).join(",");
-      const dataRows = rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
-      const csv = `${headerRow}\n${dataRows}`;
+      const sheet = workbook.addWorksheet("Data Mahasiswa");
+      sheet.columns = [
+        { header: "NIM",           key: "nim",      width: 20 },
+        { header: "Nama",          key: "username", width: 32 },
+        { header: "Email",         key: "email",    width: 32 },
+        { header: "Program Studi", key: "prodi",    width: 32 },
+        { header: "Jurusan",       key: "jurusan",  width: 28 },
+        { header: "Tahun Lulus",   key: "angkatan", width: 14 },
+        { header: "Status",        key: "status",   width: 12 },
+      ];
 
-      // Create blob and download
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      // Styling header
+      const headerRow = sheet.getRow(1);
+      headerRow.font = { bold: true, color: { argb: "FF1F2937" } };
+      headerRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFDBEAFE" },
+      };
+      headerRow.alignment = { horizontal: "center", vertical: "middle" };
+      headerRow.height = 24;
+      sheet.views = [{ state: "frozen", ySplit: 1 }];
+
+      // Data rows
+      students.forEach((s) => {
+        sheet.addRow({
+          nim:      s.nim,
+          username: s.username,
+          email:    s.email,
+          prodi:    s.prodi,
+          jurusan:  s.jurusan,
+          angkatan: s.angkatan,
+          status:   s.status,
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Data_Mahasiswa_${new Date().toISOString().slice(0, 10)}.csv`;
+      link.download = `Data_Mahasiswa_${new Date().toISOString().slice(0, 10)}.xlsx`;
       link.click();
       URL.revokeObjectURL(url);
 
-      toast({ title: "Berhasil", description: "Data mahasiswa berhasil diunduh" });
+      toast({ title: "Berhasil", description: `${students.length} data mahasiswa terunduh (.xlsx).` });
+    } catch (err) {
+      console.error("[StudentManagement] export failed:", err);
+      toast({ title: "Gagal", description: "Gagal mengunduh data mahasiswa.", variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  /**
+   * Download template Excel kosong (header saja) dari backend.
+   * Admin & kepala tracer bisa mengisi sesuai kolom, lalu (di versi berikutnya)
+   * upload kembali untuk bulk import.
+   */
+  const handleDownloadTemplate = async () => {
+    setIsDownloadingTemplate(true);
+    try {
+      const response = await api.get("/admin/alumni/template", {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "Template_Import_Alumni.xlsx";
+      link.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Template terunduh", description: "Silakan isi kolom sesuai format, lalu upload kembali via fitur Import (akan aktif di versi berikutnya)." });
     } catch {
-      toast({ title: "Gagal", description: "Gagal mengunduh data", variant: "destructive" });
+      toast({ title: "Gagal", description: "Gagal mengunduh template. Pastikan Anda login sebagai admin atau kepala tracer.", variant: "destructive" });
+    } finally {
+      setIsDownloadingTemplate(false);
     }
   };
 
@@ -142,20 +218,44 @@ const StudentManagementPage = () => {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx"
               onChange={handleImportCSV}
               className="hidden"
             />
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadTemplate}
+              disabled={isDownloadingTemplate}
+              title="Unduh template Excel kosong sebagai acuan import"
+            >
+              {isDownloadingTemplate ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+              )}
+              Template
+            </Button>
+            <Button
+              variant="outline"
               size="sm"
               onClick={() => fileInputRef.current?.click()}
+              title="Import data dari file CSV/Excel (coming soon)"
             >
               <Download className="mr-2 h-4 w-4" />
               Import
             </Button>
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Upload className="w-4 h-4 mr-2" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={isExporting || students.length === 0}
+            >
+              {isExporting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4 mr-2" />
+              )}
               Export
             </Button>
             <Button onClick={handleOpenAdd}>
