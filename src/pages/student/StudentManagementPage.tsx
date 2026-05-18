@@ -181,22 +181,31 @@ const StudentManagementPage = () => {
     if (!file) return;
 
     try {
-      const text = await file.text();
-      const lines = text.split("\n").filter((line) => line.trim());
-      
-      if (lines.length < 2) {
-        toast({ title: "Error", description: "File CSV kosong atau tidak valid", variant: "destructive" });
-        return;
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const { data } = await api.post("/admin/alumni/import", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      toast({
+        title: "Berhasil",
+        description: data.message || `${data.data?.imported ?? 0} data alumni berhasil diimpor.`,
+      });
+
+      if (data.data?.errors?.length > 0) {
+        toast({
+          title: "Peringatan",
+          description: `${data.data.errors.length} baris gagal diimpor. Periksa format data.`,
+          variant: "destructive",
+        });
       }
 
-      // Skip header row and process data
-      const importedCount = lines.slice(1).length;
-      toast({ 
-        title: "Berhasil", 
-        description: `${importedCount} data mahasiswa siap untuk diimpor. Fitur impor lengkap akan diaktifkan di versi berikutnya.` 
-      });
-    } catch (error) {
-      toast({ title: "Error", description: "Gagal membaca file CSV", variant: "destructive" });
+      // Refresh data
+      window.location.reload();
+    } catch (error: any) {
+      const msg = error.response?.data?.message || "Gagal mengimpor file";
+      toast({ title: "Error", description: msg, variant: "destructive" });
     }
 
     // Reset input
@@ -367,7 +376,7 @@ const StudentManagementPage = () => {
                     <TableHead>Email</TableHead>
                     <TableHead>Program Studi</TableHead>
                     <TableHead>Jurusan</TableHead>
-                    <TableHead>Angkatan</TableHead>
+                    <TableHead>Tahun Lulusan</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
@@ -450,11 +459,11 @@ const StudentManagementPage = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="angkatan">Angkatan *</Label>
+                <Label htmlFor="angkatan">Tahun Lulusan *</Label>
                 <Select value={formData.angkatan} onValueChange={(v) => setFormData({ ...formData, angkatan: v })}>
-                  <SelectTrigger><SelectValue placeholder="Pilih Angkatan" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Pilih Tahun Lulusan" /></SelectTrigger>
                   <SelectContent>
-                    {["2019", "2020", "2021", "2022", "2023", "2024"].map((y) => (
+                    {Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() + 2 - i)).map((y) => (
                       <SelectItem key={y} value={y}>{y}</SelectItem>
                     ))}
                   </SelectContent>

@@ -187,7 +187,9 @@ const QuestionnaireResultsPage = () => {
                         </TableCell>
                         <TableCell>
                           <span className="text-sm">
-                            {form.target || `Lulusan ${form.period_year}`}
+                            {(form as any).target_graduation_years?.length > 0
+                              ? `Lulusan ${(form as any).target_graduation_years.join(", ")}`
+                              : form.target || `Lulusan ${form.period_year}`}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -201,11 +203,11 @@ const QuestionnaireResultsPage = () => {
                         <TableCell>
                           {form.is_global ? (
                             <Badge variant="secondary" className="text-xs">
-                              Kementrian
+                              Wajib
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="text-xs">
-                              {selectedProdi ?? `Prodi #${form.program_id}`}
+                              Opsional • {selectedProdi ?? `Prodi #${form.program_id}`}
                             </Badge>
                           )}
                         </TableCell>

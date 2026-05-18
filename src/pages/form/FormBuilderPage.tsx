@@ -177,6 +177,7 @@ const FormBuilderPage = () => {
   });
 
   const [isLoadingForm, setIsLoadingForm] = useState(false);
+  const [targetGraduationYears, setTargetGraduationYears] = useState<number[]>([]);
 
   // Fetch from API when editing a backend questionnaire not in localStorage
   useEffect(() => {
@@ -200,6 +201,9 @@ const FormBuilderPage = () => {
             } catch { /* ignore */ }
           }
           setForm(ensureFirstQuestionRequired(ensureQuestionLogic(normalizeTargets(converted))));
+          if (data.data.target_graduation_years) {
+            setTargetGraduationYears(data.data.target_graduation_years);
+          }
         }
       } catch (err) {
         console.error("[FormBuilder] Failed to fetch questionnaire from API:", err);
@@ -250,9 +254,9 @@ const FormBuilderPage = () => {
 
     alumni.forEach((item) => {
       if (!item.graduation_year) return;
-      const angkatan = item.graduation_year - 3;
-      if (!Number.isFinite(angkatan)) return;
-      counts.set(angkatan, (counts.get(angkatan) ?? 0) + 1);
+      const year = item.graduation_year;
+      if (!Number.isFinite(year)) return;
+      counts.set(year, (counts.get(year) ?? 0) + 1);
     });
 
     return Array.from(counts.entries())
@@ -272,7 +276,7 @@ const FormBuilderPage = () => {
 
     addOption("Semua Alumni", "Semua Alumni");
     angkatanOptions.forEach(({ year, count }) => {
-      addOption(`Lulusan Angkatan ${year}`, `Lulusan Angkatan ${year} (${count} alumni)`);
+      addOption(`Lulusan ${year}`, `Lulusan ${year} (${count} alumni)`);
     });
 
     form.target.forEach((target) => {
@@ -322,6 +326,12 @@ const FormBuilderPage = () => {
       if (prev.target.includes(value)) return prev;
       return { ...prev, target: [...prev.target, value] };
     });
+    // Extract year from "Lulusan YYYY" pattern
+    const yearMatch = value.match(/^Lulusan\s+(\d{4})$/);
+    if (yearMatch) {
+      const year = parseInt(yearMatch[1]);
+      setTargetGraduationYears((prev) => prev.includes(year) ? prev : [...prev, year]);
+    }
     setTargetPickerValue(undefined);
   };
 
@@ -330,6 +340,12 @@ const FormBuilderPage = () => {
       ...prev,
       target: prev.target.filter((item) => item !== value),
     }));
+    // Remove year from targetGraduationYears
+    const yearMatch = value.match(/^Lulusan\s+(\d{4})$/);
+    if (yearMatch) {
+      const year = parseInt(yearMatch[1]);
+      setTargetGraduationYears((prev) => prev.filter((y) => y !== year));
+    }
   };
 
   const updateFloatingPanelPosition = () => {
@@ -569,7 +585,7 @@ const FormBuilderPage = () => {
     try {
       const prodiNameToId: Record<string, number> = {};
       prodiOptions.forEach((p) => { prodiNameToId[p.name] = p.id; });
-      const payload = formListItemToApiPayload(form, prodiNameToId);
+      const payload = formListItemToApiPayload({ ...form, targetGraduationYears }, prodiNameToId);
       const isNumericId = /^\d+$/.test(form.id);
 
       if (isEditMode && isNumericId) {

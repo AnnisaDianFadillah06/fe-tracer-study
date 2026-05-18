@@ -326,7 +326,11 @@ const DaftarKuisionerPage = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm">{form.target || `Lulusan ${form.period_year}`}</span>
+                          <span className="text-sm">
+                            {(form as any).target_graduation_years?.length > 0
+                              ? `Lulusan ${(form as any).target_graduation_years.join(", ")}`
+                              : (form.target || `Lulusan ${form.period_year}`)}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">

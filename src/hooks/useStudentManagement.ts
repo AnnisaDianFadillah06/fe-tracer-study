@@ -66,7 +66,7 @@ function alumniToStudent(a: AlumniRecord): Student {
     prodi: a.program_name ?? "",
     jurusan: a.jurusan_name ?? "",
     programId: a.program_id ? String(a.program_id) : "",
-    angkatan: a.graduation_year ? String(a.graduation_year - 3) : "", // estimasi angkatan
+    angkatan: a.graduation_year ? String(a.graduation_year) : "", // tahun lulusan
     status: "aktif",
   };
 }
@@ -154,7 +154,7 @@ export const useStudentManagement = () => {
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (searchQuery) params.search = searchQuery;
-      params.per_page = "100"; // fetch more for client-side filtering
+      params.per_page = "500"; // 26 prodi × 5 alumni = 130, headroom untuk pertumbuhan data
       const { data } = await api.get("/admin/alumni", { params });
       return data;
     },
@@ -275,10 +275,7 @@ export const useStudentManagement = () => {
       nim: formData.nim,
       name: formData.username,
       email: formData.email,
-      entry_year: formData.angkatan ? parseInt(formData.angkatan) : null,
-      graduation_year: formData.angkatan
-        ? parseInt(formData.angkatan) + 3
-        : null,
+      graduation_year: formData.angkatan ? parseInt(formData.angkatan) : null,
     };
 
     if (formData.programId) {

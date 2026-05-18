@@ -29,6 +29,7 @@ const FormPage = () => {
 
   // Pass kode_prodi dari session agar backend bisa filter kuesioner yang relevan
   const kodeProdi = session?.kodeProdi ?? undefined;
+  const graduationYear = session?.graduationYear ?? (session?.angkatan ? parseInt(session.angkatan) + 3 : undefined);
   const {
     sections,
     answers,
@@ -46,7 +47,7 @@ const FormPage = () => {
     handleBack,
     handleSubmit: submitToBackend,
     handleReset,
-  } = useTracerForm(kodeProdi);
+  } = useTracerForm(kodeProdi, graduationYear);
 
   // Wrap submit to include identity data from session
   // Only include fields genuinely known from session — nik/npwp/kode_pt come from form answers
@@ -73,6 +74,11 @@ const FormPage = () => {
 
   if (!isLoggedIn) return null;
 
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
   // Loading state saat fetch kuesioner dari backend
   if (isLoadingForms) {
     return (
@@ -85,10 +91,25 @@ const FormPage = () => {
     );
   }
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
+  // Empty state — tidak ada kuesioner aktif untuk tahun lulusan alumni
+  if (!isLoadingForms && sections.length === 0 && !submitted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <Card className="max-w-md w-full text-center glass-card">
+          <CardContent className="pt-10 pb-10 space-y-4">
+            <h2 className="font-heading text-xl font-bold">Tidak Ada Kuesioner</h2>
+            <p className="text-muted-foreground">
+              Saat ini belum ada kuesioner aktif untuk tahun lulusan Anda. Silakan hubungi admin atau coba lagi nanti.
+            </p>
+            <Button variant="outline" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Keluar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (

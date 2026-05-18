@@ -13,6 +13,7 @@ export interface BackendQuestionnaire {
   program_id: number | null;
   is_global: boolean;
   response_count: number;
+  target_graduation_years: number[] | null;
   sections: BackendSection[];
 }
 
@@ -430,7 +431,7 @@ export const saveForms = (forms: FormListItem[]) => {
 
 
 /** Convert FormListItem → backend API payload for POST/PUT /api/questionnaires */
-export const formListItemToApiPayload = (form: FormListItem, prodiNameToId?: Record<string, number>) => ({
+export const formListItemToApiPayload = (form: FormListItem & { targetGraduationYears?: number[] }, prodiNameToId?: Record<string, number>) => ({
   title: form.title,
   description: form.description ?? null,
   target: Array.isArray(form.target) ? form.target.join(", ") : (form.target ?? null),
@@ -438,6 +439,7 @@ export const formListItemToApiPayload = (form: FormListItem, prodiNameToId?: Rec
     ? prodiNameToId[form.targetProdi[0]] ?? null
     : null,
   target_prodi: form.targetProdi ?? [],
+  target_graduation_years: form.targetGraduationYears ?? null,
   respondents: form.respondents ?? [],
   status: form.status === "aktif" ? "published" : "draft",
   sections: form.sections.map((s, si) => ({

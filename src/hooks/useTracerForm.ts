@@ -266,7 +266,7 @@ const fallbackSections: FormSection[] = [
  *
  * Jika backend belum bisa diakses, akan fallback ke soal hardcoded.
  */
-export const useTracerForm = (kodeProdi?: string) => {
+export const useTracerForm = (kodeProdi?: string, graduationYear?: number) => {
   const { toast } = useToast();
   const [sections, setSections] = useState<FormSection[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
@@ -279,43 +279,45 @@ export const useTracerForm = (kodeProdi?: string) => {
   // ── Fetch forms dari backend ──────────────────────────────────────────────
   useEffect(() => {
     const fetchForms = async () => {
-      // Jika tidak ada kodeProdi, langsung gunakan fallback
+      // Jika tidak ada kodeProdi, tidak bisa fetch — tampilkan empty
       if (!kodeProdi) {
-        setSections(fallbackSections);
+        setSections([]);
         setIsLoadingForms(false);
+        toast({ title: "Info", description: "Kode prodi tidak tersedia. Silakan login ulang." });
         return;
       }
 
       try {
         const { data } = await api.get("/tracer-study/forms", {
-          params: { kode_prodi: kodeProdi },
+          params: { kode_prodi: kodeProdi, ...(graduationYear ? { graduation_year: graduationYear } : {}) },
         });
 
         if (data.success && data.data && data.data.length > 0) {
           const mapped = mapBackendToSections(data.data);
           setSections(mapped);
         } else {
-          // Tidak ada kuesioner aktif
-          setSections(fallbackSections);
+          // Tidak ada kuesioner aktif untuk tahun lulus ini
+          setSections([]);
           toast({
             title: "Info",
-            description:
-              data.message || "Tidak ada kuesioner aktif, menampilkan default.",
+            description: "Tidak ada kuesioner aktif untuk tahun lulusan Anda.",
           });
         }
       } catch (err: any) {
-        console.warn(
-          "[useTracerForm] Backend tidak tersedia, menggunakan fallback:",
-          err.message
-        );
-        setSections(fallbackSections);
+        console.warn("[useTracerForm] Backend error:", err.message);
+        setSections([]);
+        toast({
+          title: "Gagal",
+          description: "Tidak dapat memuat kuesioner. Coba lagi nanti.",
+          variant: "destructive",
+        });
       } finally {
         setIsLoadingForms(false);
       }
     };
 
     fetchForms();
-  }, [kodeProdi]);
+  }, [kodeProdi, graduationYear]);
 
   // ── Answer management ─────────────────────────────────────────────────────
   const setAnswer = (questionId: string, value: unknown) => {
