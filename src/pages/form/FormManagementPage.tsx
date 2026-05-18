@@ -188,6 +188,10 @@ const DaftarKuisionerPage = () => {
     );
   };
 
+  const handleOpenRespondents = (formId: number) => {
+    navigate(`/dashboard/form-management/${formId}/respondents`);
+  };
+
   const handleEdit = (form: BackendQuestionnaire) => {
     // Bridge: store backend data as FormListItem in localStorage for the FormBuilder
     const formListItem = backendToFormListItem(form);
@@ -335,7 +339,14 @@ const DaftarKuisionerPage = () => {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Users className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{form.response_count ?? 0} responden</span>
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="h-auto p-0 font-medium"
+                              onClick={() => handleOpenRespondents(form.id)}
+                            >
+                              {form.response_count ?? 0} responden
+                            </Button>
                           </div>
                         </TableCell>
                         <TableCell>

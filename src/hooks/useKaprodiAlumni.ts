@@ -5,6 +5,9 @@ import api from "@/lib/api";
 // ── Types matching backend response ──────────────────────────────────────
 export interface KaprodiAlumniStats {
   total: number;
+  finish: number;
+  ongoing: number;
+  belum_mengisi: number;
   answered: number;
   unanswered: number;
   response_rate: number; // 0 — 100
@@ -20,7 +23,7 @@ export interface KaprodiAlumniItem {
   jurusan_name: string | null;
   graduation_year: number | null;
   is_active: boolean;
-  has_responded: 0 | 1;
+  response_status: "finish" | "ongoing" | "belum_mengisi";
 }
 
 interface AlumniPaginator {
@@ -36,7 +39,7 @@ interface AlumniPaginator {
  *
  * Backend endpoint:
  *   GET /api/alumni/stats        → { total, answered, unanswered, response_rate }
- *   GET /api/alumni?search=&per_page= → Laravel paginator dengan has_responded flag per item
+ *   GET /api/alumni?search=&per_page= → Laravel paginator dengan response_status per item
  *
  * Filter role: backend auto-scope ke prodi kaprodi (AdminAlumniService::applyRoleScope).
  * Admin dapat aggregate semua prodi.

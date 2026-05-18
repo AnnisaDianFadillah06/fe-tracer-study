@@ -34,6 +34,7 @@ import DaftarKuisionerPage from "./pages/form/FormManagementPage";
 import FormCreationChoicePage from "./pages/form/FormCreationChoicePage";
 import FormBuilderPage from "./pages/form/FormBuilderPage";
 import FormPreviewPage from "./pages/form/FormPreviewPage";
+import FormRespondentsPage from "./pages/form/FormRespondentsPage";
 
 // Student/Alumni form
 import StudentFormListPage from "./pages/student/StudentFormListPage";
@@ -77,10 +78,12 @@ const App = () => (
             <Route path="/dashboard/form-management/:formId/edit" element={<ProtectedRoute permission="admin.questionnaire"><FormBuilderPage /></ProtectedRoute>} />
             <Route path="/dashboard/form-management/new/preview" element={<ProtectedRoute permission="admin.questionnaire"><FormPreviewPage /></ProtectedRoute>} />
             <Route path="/dashboard/form-management/:formId/preview" element={<ProtectedRoute permission="admin.questionnaire"><FormPreviewPage /></ProtectedRoute>} />
+            <Route path="/dashboard/form-management/:formId/respondents" element={<ProtectedRoute permission="admin.questionnaire"><FormRespondentsPage /></ProtectedRoute>} />
 
             {/* Academic (Kaprodi) */}
             <Route path="/dashboard/alumni-data" element={<ProtectedRoute permission="academic.alumni_data"><AlumniDataPage /></ProtectedRoute>} />
             <Route path="/dashboard/questionnaire-results" element={<ProtectedRoute permission="academic.questionnaire_results"><QuestionnaireResultsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/questionnaire-results/:formId" element={<ProtectedRoute permission="academic.questionnaire_results"><FormRespondentsPage /></ProtectedRoute>} />
 
             {/* Reports (Wadir) */}
             <Route path="/dashboard/statistics" element={<ProtectedRoute permission="reports.statistics"><StatisticsPage /></ProtectedRoute>} />

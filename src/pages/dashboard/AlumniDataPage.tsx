@@ -158,13 +158,21 @@ const AlumniDataPage = () => {
                         <TableCell className="text-sm">{a.jurusan_name ?? "—"}</TableCell>
                         <TableCell>{a.graduation_year ?? "—"}</TableCell>
                         <TableCell>
-                          {a.has_responded === 1 ? (
+                          {a.response_status === "finish" ? (
                             <Badge
                               variant="outline"
                               className="border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                             >
                               <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                              Sudah Mengisi
+                              Finish
+                            </Badge>
+                          ) : a.response_status === "ongoing" ? (
+                            <Badge
+                              variant="outline"
+                              className="border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                            >
+                              <Loader2 className="mr-1 h-3.5 w-3.5" />
+                              Ongoing
                             </Badge>
                           ) : (
                             <Badge

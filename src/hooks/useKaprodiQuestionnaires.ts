@@ -60,6 +60,7 @@ export const useKaprodiQuestionnaires = () => {
   });
 
   return {
+    stats: statsQuery.data ?? null,
     responseRate: statsQuery.data?.response_rate ?? 0,
     questionnaires,
     isLoading: statsQuery.isLoading || qnrQuery.isLoading,
