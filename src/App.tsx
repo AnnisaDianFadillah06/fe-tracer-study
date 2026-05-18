@@ -20,8 +20,6 @@ import ComparePage from "./pages/dashboard/ComparePage";
 import ProfilePage from "./pages/dashboard/ProfilePage";
 import AlumniDataPage from "./pages/dashboard/AlumniDataPage";
 import QuestionnaireResultsPage from "./pages/dashboard/QuestionnaireResultsPage";
-import StatisticsPage from "./pages/dashboard/StatisticsPage";
-import ReportsPage from "./pages/dashboard/ReportsPage";
 
 // Auth
 import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
@@ -30,6 +28,9 @@ import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
 import TeamManagementPage from "./pages/team/TeamManagementPage";
 import StaffManagementPage from "./pages/staff/StaffManagementPage";
 import StudentManagementPage from "./pages/student/StudentManagementPage";
+import UserManagementPage from "./pages/admin/UserManagementPage";
+import ApprovalsPage from "./pages/admin/ApprovalsPage";
+import MasterDataPage from "./pages/admin/MasterDataPage";
 import DaftarKuisionerPage from "./pages/form/FormManagementPage";
 import FormCreationChoicePage from "./pages/form/FormCreationChoicePage";
 import FormBuilderPage from "./pages/form/FormBuilderPage";
@@ -69,6 +70,9 @@ const App = () => (
             <Route path="/dashboard/compare" element={<ProtectedRoute permission="dashboard.overview"><ComparePage /></ProtectedRoute>} />
 
             {/* Administration */}
+            <Route path="/dashboard/user-management" element={<ProtectedRoute permission="admin.user"><UserManagementPage /></ProtectedRoute>} />
+            <Route path="/dashboard/approvals" element={<ProtectedRoute permission="admin.approval"><ApprovalsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/master-data" element={<ProtectedRoute permission="admin.master"><MasterDataPage /></ProtectedRoute>} />
             <Route path="/dashboard/team-management" element={<ProtectedRoute permission="admin.user"><TeamManagementPage /></ProtectedRoute>} />
             <Route path="/dashboard/staff-management" element={<ProtectedRoute permission="admin.user"><StaffManagementPage /></ProtectedRoute>} />
             <Route path="/dashboard/student-management" element={<ProtectedRoute permission="admin.user"><StudentManagementPage /></ProtectedRoute>} />
@@ -80,14 +84,10 @@ const App = () => (
             <Route path="/dashboard/form-management/:formId/preview" element={<ProtectedRoute permission="admin.questionnaire"><FormPreviewPage /></ProtectedRoute>} />
             <Route path="/dashboard/form-management/:formId/respondents" element={<ProtectedRoute permission="admin.questionnaire"><FormRespondentsPage /></ProtectedRoute>} />
 
-            {/* Data viewers */}
-            <Route path="/dashboard/alumni-data" element={<ProtectedRoute permission="data.view_prodi"><AlumniDataPage /></ProtectedRoute>} />
-            <Route path="/dashboard/questionnaire-results" element={<ProtectedRoute permission="data.view_prodi"><QuestionnaireResultsPage /></ProtectedRoute>} />
-            <Route path="/dashboard/questionnaire-results/:formId" element={<ProtectedRoute permission="data.view_prodi"><FormRespondentsPage /></ProtectedRoute>} />
-
-            {/* Reports (Pimpinan) */}
-            <Route path="/dashboard/statistics" element={<ProtectedRoute permission="data.view_all"><StatisticsPage /></ProtectedRoute>} />
-            <Route path="/dashboard/reports" element={<ProtectedRoute permission="data.view_all"><ReportsPage /></ProtectedRoute>} />
+            {/* Akademik (Kaprodi / Kajur / Head Tracer) */}
+            <Route path="/dashboard/alumni-data" element={<ProtectedRoute permission="academic.alumni_data"><AlumniDataPage /></ProtectedRoute>} />
+            <Route path="/dashboard/questionnaire-results" element={<ProtectedRoute permission="academic.questionnaire_results"><QuestionnaireResultsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/questionnaire-results/:formId" element={<ProtectedRoute permission="academic.questionnaire_results"><FormRespondentsPage /></ProtectedRoute>} />
 
             {/* Profile & settings (any authenticated) */}
             <Route path="/dashboard/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />

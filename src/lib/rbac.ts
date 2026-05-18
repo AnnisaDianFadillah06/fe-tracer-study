@@ -7,9 +7,7 @@ import {
   ShieldCheck,
   ClipboardList,
   GraduationCap,
-  FileText,
   Building2,
-  Download,
 } from "lucide-react";
 
 // ── Role definitions ─────────────────────────────────────────────────────────
@@ -50,10 +48,8 @@ export type Permission =
   | "admin.questionnaire.request"
   | "admin.approval"
   | "admin.master"
-  | "data.view_all"
-  | "data.view_jurusan"
-  | "data.view_prodi"
-  | "data.download"
+  | "academic.alumni_data"
+  | "academic.questionnaire_results"
   | "questionnaire.fill";
 
 export const rolePermissions: Record<AppRole, Permission[]> = {
@@ -66,8 +62,6 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "admin.questionnaire",
     "admin.approval",
     "admin.master",
-    "data.view_all",
-    "data.download",
   ],
   tracer_team: [
     "dashboard.overview",
@@ -80,22 +74,22 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.employment",
     "dashboard.education",
     "dashboard.analytics",
-    "data.view_all",
-    "data.download",
+    "academic.alumni_data",
+    "academic.questionnaire_results",
   ],
   kajur: [
     "dashboard.overview",
     "dashboard.employment",
     "dashboard.education",
-    "data.view_jurusan",
-    "data.download",
+    "academic.alumni_data",
+    "academic.questionnaire_results",
   ],
   kaprodi: [
     "dashboard.overview",
     "dashboard.employment",
     "dashboard.education",
-    "data.view_prodi",
-    "data.download",
+    "academic.alumni_data",
+    "academic.questionnaire_results",
   ],
   alumni: ["questionnaire.fill"],
 };
@@ -130,28 +124,22 @@ const dashboardItems: MenuItem[] = [
 ];
 
 const adminItems: MenuItem[] = [
-  { title: "Kelola User", href: "/dashboard/user-management", icon: Users, description: "CRUD semua akun user", permission: "admin.user" },
+  { title: "Kelola Staff", href: "/dashboard/user-management", icon: Users, description: "CRUD semua akun user", permission: "admin.user" },
+  { title: "Kelola Mahasiswa", href: "/dashboard/student-management", icon: Users, description: "CRUD akun mahasiswa/alumni", permission: "admin.user" },
   { title: "Manajemen Kuesioner", href: "/dashboard/form-management", icon: ClipboardList, description: "Kelola kuesioner", permission: "admin.questionnaire" },
   { title: "Approval Request", href: "/dashboard/approvals", icon: ShieldCheck, description: "Approve/reject permintaan", permission: "admin.approval" },
   { title: "Master Data", href: "/dashboard/master-data", icon: Building2, description: "Prodi, provinsi, kota", permission: "admin.master" },
 ];
 
-const dataItems: MenuItem[] = [
-  { title: "Data Institusi", href: "/dashboard/data-institusi", icon: GraduationCap, description: "Data seluruh institusi", permission: "data.view_all" },
-  { title: "Data Jurusan", href: "/dashboard/data-jurusan", icon: GraduationCap, description: "Data per jurusan", permission: "data.view_jurusan" },
-  { title: "Data Prodi", href: "/dashboard/data-prodi", icon: GraduationCap, description: "Data program studi", permission: "data.view_prodi" },
-  { title: "Download Data", href: "/dashboard/download", icon: Download, description: "Export & download laporan", permission: "data.download" },
-];
-
-const reportItems: MenuItem[] = [
-  { title: "Laporan Tracer Study", href: "/dashboard/reports", icon: FileText, description: "Laporan tracer study", permission: "data.view_all" },
+const academicItems: MenuItem[] = [
+  { title: "Data Alumni", href: "/dashboard/alumni-data", icon: GraduationCap, description: "Data alumni per prodi/jurusan", permission: "academic.alumni_data" },
+  { title: "Hasil Kuesioner", href: "/dashboard/questionnaire-results", icon: ClipboardList, description: "Hasil respon kuesioner", permission: "academic.questionnaire_results" },
 ];
 
 const allGroups: MenuGroup[] = [
   { label: "Dashboard", items: dashboardItems },
   { label: "Administrasi", items: adminItems },
-  { label: "Data & Laporan", items: dataItems },
-  { label: "Laporan", items: reportItems },
+  { label: "Akademik", items: academicItems },
 ];
 
 export function getMenuForRole(role: AppRole): MenuGroup[] {
@@ -173,11 +161,8 @@ export const routePermissionMap: Record<string, Permission> = {
   "/dashboard/form-management": "admin.questionnaire",
   "/dashboard/approvals": "admin.approval",
   "/dashboard/master-data": "admin.master",
-  "/dashboard/data-institusi": "data.view_all",
-  "/dashboard/data-jurusan": "data.view_jurusan",
-  "/dashboard/data-prodi": "data.view_prodi",
-  "/dashboard/download": "data.download",
-  "/dashboard/reports": "data.view_all",
+  "/dashboard/alumni-data": "academic.alumni_data",
+  "/dashboard/questionnaire-results": "academic.questionnaire_results",
 };
 
 export function getDefaultRoute(role: AppRole): string {
