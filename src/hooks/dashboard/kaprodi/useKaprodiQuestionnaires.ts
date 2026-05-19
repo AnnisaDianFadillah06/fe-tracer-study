@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
-import type { KaprodiAlumniStats } from "@/hooks/useKaprodiAlumni";
+import type { KaprodiAlumniStats } from "@/hooks/dashboard/kaprodi/useKaprodiAlumni";
 
 // ── Types matching backend response ──────────────────────────────────────
 export interface KaprodiQuestionnaire {
@@ -25,7 +25,7 @@ export interface KaprodiQuestionnaire {
  *
  * Backend endpoint:
  *   GET /api/questionnaires            → list kuesioner (sudah kaprodi-scoped di BE)
- *   GET /api/admin/alumni/stats        → { ..., response_rate }
+ *   GET /api/alumni/stats        → { ..., response_rate }
  *
  * Query key `kaprodi-alumni-stats` di-share dengan useKaprodiAlumni agar
  * fetch stats terjadi 1× saja kalau user pindah-pindah antar 2 halaman.
@@ -36,7 +36,7 @@ export const useKaprodiQuestionnaires = () => {
   const statsQuery = useQuery<KaprodiAlumniStats>({
     queryKey: ["kaprodi-alumni-stats"],
     queryFn: async () => {
-      const { data } = await api.get("/admin/alumni/stats");
+      const { data } = await api.get("/alumni/stats");
       return data.data;
     },
   });
@@ -60,6 +60,7 @@ export const useKaprodiQuestionnaires = () => {
   });
 
   return {
+    stats: statsQuery.data ?? null,
     responseRate: statsQuery.data?.response_rate ?? 0,
     questionnaires,
     isLoading: statsQuery.isLoading || qnrQuery.isLoading,

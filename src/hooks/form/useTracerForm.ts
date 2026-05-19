@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/common/use-toast";
 import api from "@/lib/api";
-import type { FormSection, Question, Option } from "@/hooks/useQuestionManagement";
+import type { FormSection, Question, Option } from "@/hooks/form/useQuestionManagement";
 
 /**
  * Maps the backend questionnaire JSON (from QuestionnaireFetchController)

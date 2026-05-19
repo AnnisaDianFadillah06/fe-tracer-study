@@ -1,5 +1,5 @@
 import { ClipboardCheck, MailCheck, Users, Clock, AlertTriangle } from "lucide-react";
-import { useDashboardData } from "@/hooks/useDashboardData";
+import { useDashboardData } from "@/hooks/dashboard/useDashboardData";
 import type { StatCardData } from "../p2mpp/useP2mppOverview";
 
 export interface PengumpulanRow {

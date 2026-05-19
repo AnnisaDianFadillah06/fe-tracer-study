@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/common/use-toast";
 import {
   Select,
   SelectContent,
@@ -43,23 +43,22 @@ interface StaffAccount {
   isActive: boolean;
 }
 
-const staffRoles: AppRole[] = ["admin", "head_tracer", "tracer_team", "kaprodi", "wadir"];
+const staffRoles: AppRole[] = ["head_tracer", "tracer_team", "wadir", "kajur", "kaprodi"];
 
 const initialStaff: StaffAccount[] = [
-  { id: "1", name: "Super Admin", email: "admin@polban.ac.id", role: "admin", isActive: true },
-  { id: "2", name: "Dr. Rina Maulida, M.T.", email: "rina.maulida@polban.ac.id", role: "head_tracer", isActive: true },
-  { id: "3", name: "Rony Pasonang Sihombing, S.T., M.Eng.", email: "rony.sihombing@polban.ac.id", role: "tracer_team", isActive: true },
-  { id: "4", name: "Hanny Madiawati, S.S.T., M.T.", email: "hanny.madiawati@polban.ac.id", role: "tracer_team", isActive: true },
-  { id: "5", name: "Dr. Ahmad Fauzi, M.Kom.", email: "ahmad.fauzi@polban.ac.id", role: "kaprodi", program: "Teknik Informatika", isActive: true },
-  { id: "6", name: "Ir. Siti Nurhasanah, M.T.", email: "siti.nurhasanah@polban.ac.id", role: "kaprodi", program: "Teknik Sipil", isActive: true },
-  { id: "7", name: "Prof. Dr. Budi Santoso, M.Sc.", email: "budi.santoso@polban.ac.id", role: "wadir", isActive: true },
-  { id: "8", name: "Yeti Nugraheni, S.T., M.T.", email: "yeti.nugraheni@polban.ac.id", role: "tracer_team", isActive: false },
+  { id: "1", name: "Dr. Rina Maulida, M.T.", email: "rina.maulida@polban.ac.id", role: "head_tracer", isActive: true },
+  { id: "2", name: "Rony Pasonang Sihombing, S.T., M.Eng.", email: "rony.sihombing@polban.ac.id", role: "tracer_team", isActive: true },
+  { id: "3", name: "Hanny Madiawati, S.S.T., M.T.", email: "hanny.madiawati@polban.ac.id", role: "tracer_team", isActive: true },
+  { id: "4", name: "Dr. Ahmad Fauzi, M.Kom.", email: "ahmad.fauzi@polban.ac.id", role: "kaprodi", program: "Teknik Informatika", isActive: true },
+  { id: "5", name: "Ir. Siti Nurhasanah, M.T.", email: "siti.nurhasanah@polban.ac.id", role: "kajur", program: "Teknik Sipil", isActive: true },
+  { id: "6", name: "Prof. Dr. Budi Santoso, M.Sc.", email: "budi.santoso@polban.ac.id", role: "wadir", isActive: true },
+  { id: "7", name: "Yeti Nugraheni, S.T., M.T.", email: "yeti.nugraheni@polban.ac.id", role: "tracer_team", isActive: false },
 ];
 
 const roleBadgeVariant = (role: AppRole) => {
   switch (role) {
-    case "admin": return "destructive" as const;
-    case "head_tracer": return "default" as const;
+    case "head_tracer": return "destructive" as const;
+    case "tracer_team": return "default" as const;
     case "wadir": return "secondary" as const;
     default: return "outline" as const;
   }

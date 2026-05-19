@@ -11,9 +11,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import PolbanLogo from "@/components/PolbanLogo";
-import { useStudentAuth } from "@/hooks/useStudentAuth";
+import { ThemeToggle } from "@/components/common/ThemeToggle";
+import PolbanLogo from "@/components/common/PolbanLogo";
+import { useStudentAuth } from "@/hooks/auth/useStudentAuth";
 import { ArrowRight, LogOut, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 

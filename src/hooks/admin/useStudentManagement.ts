@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/common/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 
@@ -85,11 +85,11 @@ const defaultForm = {
  * Hook manajemen alumni — terintegrasi dengan backend API.
  *
  * Endpoints:
- *   GET    /api/admin/alumni         → index (paginated, filterable)
- *   POST   /api/admin/alumni         → store
- *   GET    /api/admin/alumni/{id}    → show
- *   PUT    /api/admin/alumni/{id}    → update
- *   DELETE /api/admin/alumni/{id}    → destroy
+ *   GET            → index (paginated, filterable)
+ *   POST   /api/alumni         → store
+ *   GET    /api/alumni/{id}    → show
+ *   PUT    /api/alumni/{id}    → update
+ *   DELETE /api/alumni/{id}    → destroy
  *
  * Fallback ke local state jika backend belum tersedia.
  */
@@ -155,7 +155,7 @@ export const useStudentManagement = () => {
       const params: Record<string, string> = {};
       if (searchQuery) params.search = searchQuery;
       params.per_page = "500"; // 26 prodi × 5 alumni = 130, headroom untuk pertumbuhan data
-      const { data } = await api.get("/admin/alumni", { params });
+      const { data } = await api.get("/alumni", { params });
       return data;
     },
     retry: 1,
@@ -184,7 +184,7 @@ export const useStudentManagement = () => {
   // ── Mutations ───────────────────────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
-      const { data } = await api.post("/admin/alumni", payload);
+      const { data } = await api.post("/alumni", payload);
       return data;
     },
     onSuccess: () => {
@@ -201,7 +201,7 @@ export const useStudentManagement = () => {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: Record<string, unknown> }) => {
-      const { data } = await api.put(`/admin/alumni/${id}`, payload);
+      const { data } = await api.put(`/alumni/${id}`, payload);
       return data;
     },
     onSuccess: () => {
@@ -218,7 +218,7 @@ export const useStudentManagement = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { data } = await api.delete(`/admin/alumni/${id}`);
+      const { data } = await api.delete(`/alumni/${id}`);
       return data;
     },
     onSuccess: () => {
@@ -280,7 +280,7 @@ export const useStudentManagement = () => {
 
     if (formData.programId) {
       payload.program_id = Number(formData.programId);
-    } else if (userRole === "admin") {
+    } else if (userRole === "head_tracer") {
       toast({
         title: "Error",
         description: "Program studi wajib dipilih untuk akun baru.",

@@ -25,8 +25,8 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
-import { useDashboardData } from "@/hooks/useDashboardData";
+import { useToast } from "@/hooks/common/use-toast";
+import { useDashboardData } from "@/hooks/dashboard/useDashboardData";
 import {
   createDefaultQuestion,
   createId,

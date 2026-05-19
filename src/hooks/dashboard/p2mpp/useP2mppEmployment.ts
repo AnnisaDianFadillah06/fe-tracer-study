@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Briefcase, LucideIcon } from "lucide-react";
-import { useDashboardData } from "@/hooks/useDashboardData";
+import { useDashboardData } from "@/hooks/dashboard/useDashboardData";
 
 // ── Types ──
 export interface StatCardData {

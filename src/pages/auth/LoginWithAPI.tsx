@@ -5,8 +5,8 @@ import { Eye, EyeOff, GraduationCap, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/common/use-toast";
+import { useAuth } from "@/hooks/auth/useAuth";
 
 const LoginWithAPI = () => {
   const [email, setEmail] = useState("");

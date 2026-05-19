@@ -1,5 +1,5 @@
 import { Users, Briefcase, Clock, Target, LucideIcon } from "lucide-react";
-import { useDashboardData, type DashboardSummary } from "@/hooks/useDashboardData";
+import { useDashboardData, type DashboardSummary } from "@/hooks/dashboard/useDashboardData";
 
 export interface StatCardData {
   title: string;
