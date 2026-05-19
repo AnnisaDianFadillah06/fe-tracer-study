@@ -12,7 +12,7 @@ import {
 } from "@/lib/questionnaireDrafts";
 import { ArrowRight, FileText, Loader2, PenLine } from "lucide-react";
 
-const TEMPLATE_CODE = "DIKTI_2026";
+const TEMPLATE_CODE = "DIKTI_2026_v1";
 
 const FormCreationChoicePage = () => {
   const navigate = useNavigate();

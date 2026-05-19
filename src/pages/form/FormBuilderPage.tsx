@@ -179,9 +179,9 @@ const FormBuilderPage = () => {
   const [isLoadingForm, setIsLoadingForm] = useState(false);
   const [targetGraduationYears, setTargetGraduationYears] = useState<number[]>([]);
 
-  // Fetch from API when editing a backend questionnaire not in localStorage
+  // Fetch from API when editing a backend questionnaire
   useEffect(() => {
-    if (!formId || sourceForm || builderDraft) return;
+    if (!formId) return;
     // Only fetch if formId looks like a numeric backend ID
     if (!/^\d+$/.test(formId)) return;
 

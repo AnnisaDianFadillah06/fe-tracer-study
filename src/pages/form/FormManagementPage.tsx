@@ -189,20 +189,6 @@ const DaftarKuisionerPage = () => {
   };
 
   const handleEdit = (form: BackendQuestionnaire) => {
-    // Bridge: store backend data as FormListItem in localStorage for the FormBuilder
-    const formListItem = backendToFormListItem(form);
-    // Resolve program_id to prodi name
-    if (form.program_id && programMap[form.program_id]) {
-      formListItem.targetProdi = [programMap[form.program_id]];
-    }
-    const allForms = getInitialForms();
-    const existsIndex = allForms.findIndex((f) => f.id === formListItem.id);
-    if (existsIndex >= 0) {
-      allForms[existsIndex] = formListItem;
-    } else {
-      allForms.unshift(formListItem);
-    }
-    saveForms(allForms);
     navigate(`/dashboard/form-management/${form.id}/edit`);
   };
 

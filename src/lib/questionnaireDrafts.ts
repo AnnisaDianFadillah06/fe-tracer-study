@@ -92,6 +92,56 @@ export const createBlankFormDraft = (): FormListItem => ({
 
 export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListItem => {
   const rawSections = Array.isArray(questionnaire?.sections) ? questionnaire.sections : [];
+
+  // Build lookup: question_code → { option_code → option_label }
+  // Dipakai untuk translate show_if values (option_code) ke label yang dipakai builder.
+  const optionLabelMap: Record<string, Record<string, string>> = {};
+  for (const sec of rawSections) {
+    for (const q of (sec?.questions ?? [])) {
+      const code = String(q?.code ?? q?.question_code ?? q?.id ?? "");
+      const opts = Array.isArray(q?.options) ? q.options : [];
+      if (code && opts.length > 0) {
+        const map: Record<string, string> = {};
+        for (const o of opts) {
+          const optCode = String(o?.code ?? o?.value ?? o?.id ?? "");
+          const optLabel = String(o?.label ?? "");
+          if (optCode && optLabel) map[optCode] = optLabel;
+        }
+        optionLabelMap[code] = map;
+      }
+    }
+  }
+
+  /** Resolve show_if from metadata into QuestionLogic format. */
+  const resolveLogicFromMetadata = (question: any): QuestionLogic => {
+    // First try explicit logic field (from user-created questionnaires)
+    if (question?.logic && typeof question.logic === "object" && question.logic.type === "in_array") {
+      return normalizeLogic(question.logic);
+    }
+
+    // Then try metadata.show_if (from seeder / backend-stored)
+    const meta = question?.metadata;
+    const showIf = meta?.show_if;
+    if (showIf && typeof showIf === "object") {
+      const entries = Object.entries(showIf);
+      if (entries.length > 0) {
+        const [depCode, vals] = entries[0] as [string, unknown];
+        if (depCode && Array.isArray(vals)) {
+          const triggerOptions = optionLabelMap[depCode] ?? {};
+          const allLabels = Object.values(triggerOptions);
+          const resolvedValues = (vals as unknown[]).map((v) => {
+            const strVal = String(v);
+            if (allLabels.includes(strVal)) return strVal;
+            return triggerOptions[strVal] ?? strVal;
+          });
+          return { type: "in_array", dependsOn: depCode, values: resolvedValues };
+        }
+      }
+    }
+
+    return { type: "always", dependsOn: "", values: [] };
+  };
+
   const sections = rawSections.length > 0
     ? rawSections.map((section: any, sectionIndex: number) => {
         const rawQuestions = Array.isArray(section?.questions) ? section.questions : [];
@@ -118,7 +168,7 @@ export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListIt
               scaleLabels: normalizeScaleLabels(scaleMin, scaleMax, question?.scaleLabels ?? question?.scale_labels),
               gridRows: normalizeArray(question?.gridRows ?? question?.grid_rows),
               gridColumns: normalizeArray(question?.gridColumns ?? question?.grid_columns),
-              logic: normalizeLogic(question?.logic),
+              logic: resolveLogicFromMetadata(question),
             };
 
             if (type !== "linear_scale" && type !== "rating") {

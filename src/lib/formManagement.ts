@@ -38,6 +38,8 @@ export interface BackendQuestion {
   scaleMax: number;
   gridRows: string[];
   gridColumns: string[];
+  metadata?: Record<string, unknown> | null;
+  show_if?: Record<string, unknown> | null;
 }
 
 export interface BackendOption {
@@ -170,6 +172,22 @@ export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
     return typeMap[t] ?? "short";
   };
 
+  // Build lookup: question_code → { option_code → option_label }
+  // Dipakai untuk translate show_if values (option_code) ke label yang dipakai builder.
+  const optionLabelMap: Record<string, Record<string, string>> = {};
+  for (const sec of bq.sections ?? []) {
+    for (const q of sec.questions ?? []) {
+      const code = q.code || String(q.id);
+      if (q.options && q.options.length > 0) {
+        const map: Record<string, string> = {};
+        for (const o of q.options) {
+          map[String(o.code ?? o.value ?? o.id)] = o.label;
+        }
+        optionLabelMap[code] = map;
+      }
+    }
+  }
+
   const sections: BuilderSection[] = (bq.sections ?? []).map((sec) => ({
     id: String(sec.id),
     title: sec.title ?? "Bagian",
@@ -186,11 +204,33 @@ export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
       scaleMax: q.scaleMax ?? 5,
       gridRows: q.gridRows ?? [],
       gridColumns: q.gridColumns ?? [],
-      logic: {
-        type: "always",
-        dependsOn: "",
-        values: [],
-      },
+      logic: (() => {
+        const showIf = (q as any).metadata?.show_if ?? (q as any).show_if;
+        if (showIf && typeof showIf === "object") {
+          const entries = Object.entries(showIf);
+          if (entries.length > 0) {
+            const [depCode, vals] = entries[0];
+            if (depCode && Array.isArray(vals)) {
+              // Translate option_code → option_label menggunakan lookup map.
+              // Builder menyimpan values sebagai label (string yang tampil di UI).
+              // Seeder menyimpan sebagai option_code (integer/string).
+              // Handle kedua format: cek apakah value sudah label, kalau bukan translate.
+              const triggerOptions = optionLabelMap[depCode] ?? {};
+              const allLabels = Object.values(triggerOptions);
+              const resolvedValues = vals.map((v) => {
+                const strVal = String(v);
+                // Kalau value sudah merupakan label yang valid, pakai langsung
+                if (allLabels.includes(strVal)) return strVal;
+                // Kalau value adalah option_code, translate ke label
+                const label = triggerOptions[strVal];
+                return label ?? strVal;
+              });
+              return { type: "in_array" as QuestionLogicType, dependsOn: depCode, values: resolvedValues };
+            }
+          }
+        }
+        return { type: "always" as QuestionLogicType, dependsOn: "", values: [] };
+      })(),
     })),
   }));
 
@@ -457,6 +497,9 @@ export const formListItemToApiPayload = (form: FormListItem & { targetGraduation
       scaleMax: q.scaleMax,
       gridRows: q.gridRows ?? [],
       gridColumns: q.gridColumns ?? [],
+      logic: q.logic && q.logic.type === "in_array" && q.logic.dependsOn
+        ? { type: "in_array", dependsOn: q.logic.dependsOn, values: q.logic.values }
+        : null,
       options: q.options.map((opt, oi) =>
         typeof opt === "string"
           ? { label: opt, code: `opt_${oi + 1}` }
