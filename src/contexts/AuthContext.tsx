@@ -29,37 +29,72 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
+    // useEffect(() => {
+    // const checkAuth = async () => {
+    //     const payload = await apiService.getMe();
+    //     console.log("[Auth] getMe payload:", payload); // cek shape
+        
+    //     if (!payload) {
+    //     setIsLoading(false);
+    //     return;
+    //     }
+
+    //     try {
+    //     const response = await apiService.getMe();
+    //     console.log("[Auth] getMe response:", response); // ✅ cek shape response
+        
+    //     const userData: AuthUser = response.data ?? response;
+    //     console.log("[Auth] userData:", userData); // ✅ cek hasil parse
+        
+    //     setUser(userData);
+    //     } catch (error: any) {
+    //     console.error("[Auth] checkAuth error:", error.response?.status, error); // ✅ cek error
+    //     if (error.response?.status === 401) {
+    //         localStorage.removeItem("auth_token");
+    //     }
+    //     setUser(null);
+    //     } finally {
+    //     setIsLoading(false);
+    //     }
+    // };
+
     useEffect(() => {
     const checkAuth = async () => {
-        const payload = await apiService.getMe();
-        console.log("[Auth] getMe payload:", payload); // cek shape
-        
-        if (!payload) {
+      const token = localStorage.getItem("auth_token");
+
+      // kalau belum login, jangan hit API
+      if (!token) {
         setIsLoading(false);
         return;
+      }
+
+      try {
+        const response = await apiService.getMe();
+
+        console.log("[Auth] getMe response:", response);
+
+        const userData: AuthUser = response.data ?? response;
+
+        setUser(userData);
+      } catch (error: any) {
+        console.error(
+          "[Auth] checkAuth error:",
+          error.response?.status,
+          error
+        );
+
+        if (error.response?.status === 401) {
+          localStorage.removeItem("auth_token");
         }
 
-        try {
-        const response = await apiService.getMe();
-        console.log("[Auth] getMe response:", response); // ✅ cek shape response
-        
-        const userData: AuthUser = response.data ?? response;
-        console.log("[Auth] userData:", userData); // ✅ cek hasil parse
-        
-        setUser(userData);
-        } catch (error: any) {
-        console.error("[Auth] checkAuth error:", error.response?.status, error); // ✅ cek error
-        if (error.response?.status === 401) {
-            localStorage.removeItem("auth_token");
-        }
         setUser(null);
-        } finally {
+      } finally {
         setIsLoading(false);
-        }
+      }
     };
 
     checkAuth();
-    }, []);
+  }, []);
 
   const login = useCallback(
     async (email: string, password: string): Promise<void> => {
