@@ -95,6 +95,10 @@ export interface BuilderQuestion {
   scaleMax?: number;
   scaleLabels?: string[];
   logic: QuestionLogic;
+  // Group metadata for grouped boolean questions (preserved from template)
+  group_code?: string;
+  group_label?: string;
+  group_title?: string;
 }
 
 export const isOptionQuestionType = (type: BuilderQuestionType) =>
@@ -154,22 +158,24 @@ export const createDefaultQuestion = (
  * so the FormBuilder can edit seeded/backend questionnaires.
  */
 export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
+  const VALID_BUILDER_TYPES = new Set([
+    "short", "paragraph", "multiple_choice", "checkbox", "dropdown",
+    "file_upload", "linear_scale", "rating", "multiple_choice_grid",
+    "checkbox_grid", "date", "time",
+  ]);
   const mapType = (t: string): BuilderQuestionType => {
-    const typeMap: Record<string, BuilderQuestionType> = {
+    // If already a valid builder type, pass through
+    if (VALID_BUILDER_TYPES.has(t)) return t as BuilderQuestionType;
+    // Otherwise map from DB type
+    const dbMap: Record<string, BuilderQuestionType> = {
       short_text: "short",
       long_text: "paragraph",
       single_choice: "multiple_choice",
-      multiple_choice: "checkbox",
-      dropdown: "dropdown",
       number: "linear_scale",
       boolean: "multiple_choice",
-      date: "date",
-      time: "time",
       file: "file_upload",
-      rating: "rating",
-      linear_scale: "linear_scale",
     };
-    return typeMap[t] ?? "short";
+    return dbMap[t] ?? "short";
   };
 
   // Build lookup: question_code → { option_code → option_label }
@@ -204,6 +210,9 @@ export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
       scaleMax: q.scaleMax ?? 5,
       gridRows: q.gridRows ?? [],
       gridColumns: q.gridColumns ?? [],
+      group_code: (q as any).metadata?.group_code ?? undefined,
+      group_label: (q as any).metadata?.group_label ?? undefined,
+      group_title: (q as any).metadata?.group_title ?? undefined,
       logic: (() => {
         const showIf = (q as any).metadata?.show_if ?? (q as any).show_if;
         if (showIf && typeof showIf === "object") {
@@ -497,6 +506,9 @@ export const formListItemToApiPayload = (form: FormListItem & { targetGraduation
       scaleMax: q.scaleMax,
       gridRows: q.gridRows ?? [],
       gridColumns: q.gridColumns ?? [],
+      group_code: q.group_code ?? undefined,
+      group_label: q.group_label ?? undefined,
+      group_title: q.group_title ?? undefined,
       logic: q.logic && q.logic.type === "in_array" && q.logic.dependsOn
         ? { type: "in_array", dependsOn: q.logic.dependsOn, values: q.logic.values }
         : null,

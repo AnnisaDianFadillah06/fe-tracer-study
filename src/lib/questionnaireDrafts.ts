@@ -31,7 +31,17 @@ const normalizeArray = (value: unknown): string[] => {
 };
 
 const normalizeQuestionType = (value: unknown): BuilderQuestionType => {
-  const type = String(value ?? "short") as BuilderQuestionType;
+  const raw = String(value ?? "short");
+  // Map backend DB types → builder types
+  const backendToBuilder: Record<string, BuilderQuestionType> = {
+    short_text: "short",
+    long_text: "paragraph",
+    single_choice: "multiple_choice",
+    multiple_choice: "checkbox",
+    number: "linear_scale",
+    boolean: "multiple_choice",
+  };
+  const type = (backendToBuilder[raw] ?? raw) as BuilderQuestionType;
   return BUILDER_QUESTION_TYPES.has(type) ? type : "short";
 };
 
@@ -169,6 +179,9 @@ export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListIt
               gridRows: normalizeArray(question?.gridRows ?? question?.grid_rows),
               gridColumns: normalizeArray(question?.gridColumns ?? question?.grid_columns),
               logic: resolveLogicFromMetadata(question),
+              group_code: question?.metadata?.group_code ?? undefined,
+              group_label: question?.metadata?.group_label ?? undefined,
+              group_title: question?.metadata?.group_title ?? undefined,
             };
 
             if (type !== "linear_scale" && type !== "rating") {

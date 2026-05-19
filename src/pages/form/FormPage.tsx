@@ -207,7 +207,7 @@ const FormPage = () => {
         >
           <div className="space-y-4">
             {section.questions
-              .filter((q) => isQuestionVisible(q, answers))
+              .filter((q) => isQuestionVisible(q, answers, section.questions))
               .map((q) => (
               <Card
                 key={q.id}

@@ -82,6 +82,7 @@ const getScaleLabels = (min: number, max: number, customLabels?: string[]) => {
 const isQuestionVisible = (
   question: BuilderQuestion,
   answers: Record<string, string | number | string[] | Record<string, string> | Record<string, string[]>>,
+  _allQuestions?: BuilderQuestion[],
 ) => {
   const logic = question.logic;
   if (!logic || logic.type === "always") return true;
@@ -200,7 +201,7 @@ const FormPreviewPage = () => {
     section?.questions.forEach((question) => {
       if (!question.required) return;
       if (!SUPPORTED_DEMO_TYPES.has(question.type)) return;
-      if (!isQuestionVisible(question, answers)) return;
+      if (!isQuestionVisible(question, answers, section.questions)) return;
 
       const value = answers[question.id];
       const isEmpty =
@@ -307,7 +308,7 @@ const FormPreviewPage = () => {
                 </div>
 
                 {section.questions
-                  .filter((question) => isQuestionVisible(question, answers))
+                  .filter((question) => isQuestionVisible(question, answers, section.questions))
                   .map((question) => (
                     <div key={question.id} className="space-y-3 rounded-lg border p-4">
                       <Label className="text-sm font-medium leading-snug">

@@ -26,17 +26,23 @@ import type { FormSection, Question, Option } from "@/hooks/form/useQuestionMana
  */
 /** Map a single backend question object to the frontend Question shape. */
 function mapSingleQuestion(q: any): Question {
-  const meta = q.metadata ?? {};
+  // Defensive: metadata bisa object, string JSON, atau null
+  let meta: Record<string, any> = {};
+  if (q.metadata && typeof q.metadata === "object") {
+    meta = q.metadata;
+  } else if (typeof q.metadata === "string") {
+    try { meta = JSON.parse(q.metadata); } catch { meta = {}; }
+  }
 
   // Smart type detection: 'number' with scale metadata → linear_scale
   let feType = mapQuestionType(q.question_type);
-  if (q.question_type === "number" && meta.scale_min != null && meta.scale_max != null) {
+  if (q.question_type === "number" && (meta.scale_min != null || meta.scale_max != null)) {
     feType = "linear_scale";
   }
 
   // Boolean questions without group → multiple_choice with Ya/Tidak
   let options: Option[] = (q.options ?? []).map((o: any) => ({
-    id: o.value ?? String(o.id),
+    id: o.value ?? o.code ?? String(o.id),
     label: o.label ?? "",
   }));
 
@@ -49,29 +55,51 @@ function mapSingleQuestion(q: any): Question {
   }
 
   return {
-    id: q.question_code ?? String(q.id),
+    id: q.question_code ?? q.code ?? String(q.id),
     type: feType,
     question: q.question_text ?? "",
     description: meta.description ?? undefined,
     options,
     required: !!q.is_required,
-    scaleMin: meta.scale_min ?? 1,
-    scaleMax: meta.scale_max ?? 5,
-    scaleMinLabel: meta.scale_min_label ?? "",
-    scaleMaxLabel: meta.scale_max_label ?? "",
-    showIf: meta.show_if ?? undefined,
-    groupCode: meta.group_code ?? undefined,
-    groupTitle: meta.group_title ?? undefined,
-    groupLabel: meta.group_label ?? undefined,
+    scaleMin: meta.scale_min ?? meta.scaleMin ?? 1,
+    scaleMax: meta.scale_max ?? meta.scaleMax ?? 5,
+    scaleMinLabel: meta.scale_min_label ?? meta.scaleMinLabel ?? "",
+    scaleMaxLabel: meta.scale_max_label ?? meta.scaleMaxLabel ?? "",
+    showIf: meta.show_if ?? meta.showIf ?? undefined,
+    groupCode: meta.group_code ?? meta.groupCode ?? undefined,
+    groupTitle: meta.group_title ?? meta.groupTitle ?? undefined,
+    groupLabel: meta.group_label ?? meta.groupLabel ?? undefined,
   };
 }
+
+/** Separator used to namespace question IDs per questionnaire. */
+const QID_SEP = "___";
 
 function mapBackendToSections(backendData: any[]): FormSection[] {
   const allSections: FormSection[] = [];
 
   for (const qnr of backendData) {
-    // 1 questionnaire = 1 page. Flatten all backend sections' questions.
-    const rawQuestions = (qnr.questions ?? []).map(mapSingleQuestion);
+    const prefix = String(qnr.id) + QID_SEP;
+    // 1 questionnaire = 1 page. Prefix question IDs to avoid collision
+    // when multiple questionnaires share the same question_code.
+    const rawQuestions = (qnr.questions ?? []).map((q: any) => {
+      const mapped = mapSingleQuestion(q);
+      // Prefix the question id
+      mapped.id = prefix + mapped.id;
+      // Prefix showIf dependency keys
+      if (mapped.showIf) {
+        const prefixed: Record<string, (string | number)[]> = {};
+        for (const [depCode, vals] of Object.entries(mapped.showIf)) {
+          prefixed[prefix + depCode] = vals;
+        }
+        mapped.showIf = prefixed;
+      }
+      // Prefix groupCode so merging stays within same questionnaire
+      if (mapped.groupCode) {
+        mapped.groupCode = prefix + mapped.groupCode;
+      }
+      return mapped;
+    });
     allSections.push({
       id: String(qnr.id),
       title: qnr.title ?? "Kuesioner",
@@ -166,7 +194,8 @@ function mergeGroupedQuestions(questions: Question[]): Question[] {
  */
 export function isQuestionVisible(
   q: Question,
-  answers: Record<string, unknown>
+  answers: Record<string, unknown>,
+  allQuestions?: Question[],
 ): boolean {
   if (!q.showIf) return true;
 
@@ -174,14 +203,35 @@ export function isQuestionVisible(
     const currentAnswer = answers[depCode];
     if (currentAnswer === undefined || currentAnswer === null || currentAnswer === "") return false;
 
-    // For grouped checkbox answers (arrays), check if ANY selected value matches
-    if (Array.isArray(currentAnswer)) {
-      return allowedValues.some((v) =>
-        currentAnswer.includes(String(v))
-      );
+    // Build lookup: option code → label (untuk match show_if yang simpan label)
+    let optionCodeToLabel: Record<string, string> = {};
+    if (allQuestions) {
+      const trigger = allQuestions.find((tq) => tq.id === depCode);
+      if (trigger?.options) {
+        for (const opt of trigger.options) {
+          optionCodeToLabel[opt.id] = opt.label;
+        }
+      }
     }
 
-    return allowedValues.some((v) => String(v) === String(currentAnswer));
+    // For grouped checkbox answers (arrays), check if ANY selected value matches
+    if (Array.isArray(currentAnswer)) {
+      return allowedValues.some((v) => {
+        const strV = String(v);
+        return currentAnswer.some((ans) => {
+          const strAns = String(ans);
+          // Match by: direct equality, or answer's label matches value
+          return strAns === strV || optionCodeToLabel[strAns] === strV;
+        });
+      });
+    }
+
+    const strAnswer = String(currentAnswer);
+    return allowedValues.some((v) => {
+      const strV = String(v);
+      // Match by: direct equality (code===code), or answer's label matches value
+      return strV === strAnswer || optionCodeToLabel[strAnswer] === strV;
+    });
   });
 }
 
@@ -350,7 +400,7 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number) => {
     let valid = true;
     sec.questions.forEach((q) => {
       if (!q.required) return;
-      if (q.showIf && !isQuestionVisible(q, answers)) return; // Skip hidden questions
+      if (q.showIf && !isQuestionVisible(q, answers, sec.questions)) return; // Skip hidden questions
       
       const ans = answers[q.id];
       const isEmpty =
@@ -389,9 +439,20 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number) => {
 
     setIsSubmitting(true);
     try {
+      // Strip questionnaire prefix from answer keys before sending
+      const strippedAnswers: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(answers)) {
+        const rawKey = key.includes(QID_SEP) ? key.split(QID_SEP)[1] : key;
+        // Strip prefix from checkbox array values too
+        const rawValue = Array.isArray(value)
+          ? value.map((v) => (typeof v === "string" && v.includes(QID_SEP) ? v.split(QID_SEP)[1] : v))
+          : value;
+        strippedAnswers[rawKey] = rawValue;
+      }
+
       // Gabungkan jawaban kuesioner + identity data (identity wins for overlapping keys)
       const payload = {
-        ...answers,
+        ...strippedAnswers,
         ...identityData,
       };
 
