@@ -447,7 +447,11 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number) => {
         const rawValue = Array.isArray(value)
           ? value.map((v) => (typeof v === "string" && v.includes(QID_SEP) ? v.split(QID_SEP)[1] : v))
           : value;
-        strippedAnswers[rawKey] = rawValue;
+        // Don't overwrite a filled answer with an empty one (handles duplicate question_codes across questionnaires)
+        const isEmpty = rawValue === undefined || rawValue === null || rawValue === "" || (Array.isArray(rawValue) && rawValue.length === 0);
+        if (!isEmpty || !(rawKey in strippedAnswers)) {
+          strippedAnswers[rawKey] = rawValue;
+        }
       }
 
       // Gabungkan jawaban kuesioner + identity data (identity wins for overlapping keys)

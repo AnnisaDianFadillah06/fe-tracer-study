@@ -99,6 +99,10 @@ export interface BuilderQuestion {
   group_code?: string;
   group_label?: string;
   group_title?: string;
+  // Original individual question codes for grouped booleans (used to expand on save)
+  _individual_codes?: string[];
+  // Original option objects with codes (preserved from backend for roundtrip)
+  _original_options?: Array<{ label: string; code: string }>;
 }
 
 export const isOptionQuestionType = (type: BuilderQuestionType) =>
@@ -154,6 +158,65 @@ export const createDefaultQuestion = (
 });
 
 /**
+ * Merge grouped boolean questions into a single checkbox for the builder.
+ */
+const mergeGroupedForBuilder = (questions: BuilderQuestion[]): BuilderQuestion[] => {
+  const grouped: Record<string, BuilderQuestion[]> = {};
+  const result: BuilderQuestion[] = [];
+  const seenGroups = new Set<string>();
+  // Map individual code → { groupCode, optionLabel }
+  const individualToGroup: Record<string, { groupCode: string; label: string }> = {};
+
+  for (const q of questions) {
+    if (q.group_code) {
+      if (!grouped[q.group_code]) grouped[q.group_code] = [];
+      grouped[q.group_code].push(q);
+      individualToGroup[q.id] = { groupCode: q.group_code, label: q.group_label ?? q.question };
+      if (!seenGroups.has(q.group_code)) {
+        seenGroups.add(q.group_code);
+        result.push(q);
+      }
+    } else {
+      result.push(q);
+    }
+  }
+
+  const merged = result.map((q) => {
+    if (q.group_code && grouped[q.group_code] && grouped[q.group_code].length > 1) {
+      const items = grouped[q.group_code];
+      const titleItem = items.find((i) => i.group_title);
+      return {
+        id: q.group_code,
+        type: "checkbox" as BuilderQuestionType,
+        question: titleItem?.group_title ?? q.question,
+        description: "",
+        options: items.map((item) => item.group_label ?? item.question),
+        required: false,
+        allowOther: false,
+        logic: { type: "always" as QuestionLogicType, dependsOn: "", values: [] },
+        group_code: q.group_code,
+        group_title: titleItem?.group_title,
+        _individual_codes: items.map((item) => item.id),
+        _original_options: items.map((item) => ({ label: item.group_label ?? item.question, code: item.id })),
+      } as BuilderQuestion;
+    }
+    return q;
+  });
+
+  // Rewrite logic.dependsOn that references a merged individual code
+  return merged.map((q) => {
+    if (q.logic && q.logic.type === "in_array" && q.logic.dependsOn) {
+      const ref = individualToGroup[q.logic.dependsOn];
+      if (ref) {
+        // e.g. dependsOn "f415" → dependsOn "q16_cara_cari_kerja", values → ["Lainnya"]
+        return { ...q, logic: { ...q.logic, dependsOn: ref.groupCode, values: [ref.label] } };
+      }
+    }
+    return q;
+  });
+};
+
+/**
  * Convert a backend questionnaire (GET /api/questionnaires/:id) to a FormListItem
  * so the FormBuilder can edit seeded/backend questionnaires.
  */
@@ -194,11 +257,8 @@ export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
     }
   }
 
-  const sections: BuilderSection[] = (bq.sections ?? []).map((sec) => ({
-    id: String(sec.id),
-    title: sec.title ?? "Bagian",
-    description: sec.description ?? undefined,
-    questions: (sec.questions ?? []).map((q): BuilderQuestion => ({
+  const sections: BuilderSection[] = (bq.sections ?? []).map((sec) => {
+    const mapped = (sec.questions ?? []).map((q): BuilderQuestion => ({
       id: q.code || String(q.id),
       type: mapType(q.type),
       question: q.question_text || q.question || "",
@@ -213,6 +273,7 @@ export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
       group_code: (q as any).metadata?.group_code ?? undefined,
       group_label: (q as any).metadata?.group_label ?? undefined,
       group_title: (q as any).metadata?.group_title ?? undefined,
+      _original_options: (q.options ?? []).map((o) => ({ label: o.label, code: o.code ?? o.value ?? "" })),
       logic: (() => {
         const showIf = (q as any).metadata?.show_if ?? (q as any).show_if;
         if (showIf && typeof showIf === "object") {
@@ -220,17 +281,11 @@ export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
           if (entries.length > 0) {
             const [depCode, vals] = entries[0];
             if (depCode && Array.isArray(vals)) {
-              // Translate option_code → option_label menggunakan lookup map.
-              // Builder menyimpan values sebagai label (string yang tampil di UI).
-              // Seeder menyimpan sebagai option_code (integer/string).
-              // Handle kedua format: cek apakah value sudah label, kalau bukan translate.
               const triggerOptions = optionLabelMap[depCode] ?? {};
               const allLabels = Object.values(triggerOptions);
               const resolvedValues = vals.map((v) => {
                 const strVal = String(v);
-                // Kalau value sudah merupakan label yang valid, pakai langsung
                 if (allLabels.includes(strVal)) return strVal;
-                // Kalau value adalah option_code, translate ke label
                 const label = triggerOptions[strVal];
                 return label ?? strVal;
               });
@@ -240,8 +295,14 @@ export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
         }
         return { type: "always" as QuestionLogicType, dependsOn: "", values: [] };
       })(),
-    })),
-  }));
+    }));
+    return {
+      id: String(sec.id),
+      title: sec.title ?? "Bagian",
+      description: sec.description ?? undefined,
+      questions: mergeGroupedForBuilder(mapped),
+    };
+  });
 
   // If no sections returned, create a default empty one
   if (sections.length === 0) {
@@ -495,28 +556,52 @@ export const formListItemToApiPayload = (form: FormListItem & { targetGraduation
     title: s.title,
     description: s.description ?? null,
     order_no: si + 1,
-    questions: s.questions.map((q, qi) => ({
-      code: q.id,
-      question: q.question,
-      type: q.type,
-      required: q.required,
-      order_no: qi + 1,
-      allowOther: q.allowOther ?? false,
-      scaleMin: q.scaleMin,
-      scaleMax: q.scaleMax,
-      gridRows: q.gridRows ?? [],
-      gridColumns: q.gridColumns ?? [],
-      group_code: q.group_code ?? undefined,
-      group_label: q.group_label ?? undefined,
-      group_title: q.group_title ?? undefined,
-      logic: q.logic && q.logic.type === "in_array" && q.logic.dependsOn
-        ? { type: "in_array", dependsOn: q.logic.dependsOn, values: q.logic.values }
-        : null,
-      options: q.options.map((opt, oi) =>
-        typeof opt === "string"
-          ? { label: opt, code: `opt_${oi + 1}` }
-          : opt
-      ),
-    })),
+    questions: s.questions.flatMap((q, qi) => {
+      // Expand merged grouped checkbox back to individual boolean questions
+      if (q.group_code && q._individual_codes && q._individual_codes.length > 1) {
+        return q._individual_codes.map((code, i) => ({
+          code,
+          question: `${q.question} — ${q.options[i] ?? ""}`,
+          type: "multiple_choice",
+          required: false,
+          order_no: qi + i + 1,
+          allowOther: false,
+          scaleMin: undefined,
+          scaleMax: undefined,
+          gridRows: [],
+          gridColumns: [],
+          group_code: q.group_code,
+          group_label: q.options[i] ?? "",
+          group_title: q.group_title ?? q.question,
+          logic: null,
+          options: [],
+        }));
+      }
+      return [{
+        code: q.id,
+        question: q.question,
+        type: q.type,
+        required: q.required,
+        order_no: qi + 1,
+        allowOther: q.allowOther ?? false,
+        scaleMin: q.scaleMin,
+        scaleMax: q.scaleMax,
+        gridRows: q.gridRows ?? [],
+        gridColumns: q.gridColumns ?? [],
+        group_code: q.group_code ?? undefined,
+        group_label: q.group_label ?? undefined,
+        group_title: q.group_title ?? undefined,
+        logic: q.logic && q.logic.type === "in_array" && q.logic.dependsOn
+          ? { type: "in_array", dependsOn: q.logic.dependsOn, values: q.logic.values }
+          : null,
+        options: q._original_options && q._original_options.length === q.options.length
+          ? q._original_options.map((o) => ({ label: o.label, code: o.code }))
+          : q.options.map((opt, oi) =>
+              typeof opt === "string"
+                ? { label: opt, code: `opt_${oi + 1}` }
+                : opt
+            ),
+      }];
+    }),
   })),
 });

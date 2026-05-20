@@ -100,6 +100,64 @@ export const createBlankFormDraft = (): FormListItem => ({
   responses: [],
 });
 
+/**
+ * Merge grouped boolean questions into a single checkbox question for the builder.
+ * 15 individual booleans with same group_code → 1 checkbox with 15 options.
+ */
+const mergeGroupedForBuilder = (questions: BuilderQuestion[]): BuilderQuestion[] => {
+  const grouped: Record<string, BuilderQuestion[]> = {};
+  const result: BuilderQuestion[] = [];
+  const seenGroups = new Set<string>();
+  const individualToGroup: Record<string, { groupCode: string; label: string }> = {};
+
+  for (const q of questions) {
+    if (q.group_code) {
+      if (!grouped[q.group_code]) grouped[q.group_code] = [];
+      grouped[q.group_code].push(q);
+      individualToGroup[q.id] = { groupCode: q.group_code, label: q.group_label ?? q.question };
+      if (!seenGroups.has(q.group_code)) {
+        seenGroups.add(q.group_code);
+        result.push(q);
+      }
+    } else {
+      result.push(q);
+    }
+  }
+
+  const merged = result.map((q) => {
+    if (q.group_code && grouped[q.group_code] && grouped[q.group_code].length > 1) {
+      const items = grouped[q.group_code];
+      const titleItem = items.find((i) => i.group_title);
+      return {
+        id: q.group_code,
+        type: "checkbox" as BuilderQuestionType,
+        question: titleItem?.group_title ?? q.question,
+        description: "",
+        options: items.map((item) => item.group_label ?? item.question),
+        required: false,
+        allowOther: false,
+        logic: { type: "always" as any, dependsOn: "", values: [] },
+        group_code: q.group_code,
+        group_title: titleItem?.group_title,
+        _individual_codes: items.map((item) => item.id),
+        _original_options: items.map((item) => ({ label: item.group_label ?? item.question, code: item.id })),
+      } as BuilderQuestion;
+    }
+    return q;
+  });
+
+  // Rewrite logic.dependsOn that references a merged individual code
+  return merged.map((q) => {
+    if (q.logic && q.logic.type === "in_array" && q.logic.dependsOn) {
+      const ref = individualToGroup[q.logic.dependsOn];
+      if (ref) {
+        return { ...q, logic: { ...q.logic, dependsOn: ref.groupCode, values: [ref.label] } };
+      }
+    }
+    return q;
+  });
+};
+
 export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListItem => {
   const rawSections = Array.isArray(questionnaire?.sections) ? questionnaire.sections : [];
 
@@ -156,11 +214,7 @@ export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListIt
     ? rawSections.map((section: any, sectionIndex: number) => {
         const rawQuestions = Array.isArray(section?.questions) ? section.questions : [];
 
-        return {
-          id: String(section?.id ?? createId("section")),
-          title: String(section?.title ?? `Bagian ${sectionIndex + 1}`),
-          description: section?.description ? String(section.description) : "",
-          questions: rawQuestions.map((question: any) => {
+        const mappedQuestions = rawQuestions.map((question: any) => {
             const type = normalizeQuestionType(question?.type ?? question?.question_type);
             const scaleMin = Number(question?.scaleMin ?? question?.scale_min ?? 1) || 1;
             const scaleMax = Number(question?.scaleMax ?? question?.scale_max ?? 5) || 5;
@@ -178,6 +232,9 @@ export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListIt
               scaleLabels: normalizeScaleLabels(scaleMin, scaleMax, question?.scaleLabels ?? question?.scale_labels),
               gridRows: normalizeArray(question?.gridRows ?? question?.grid_rows),
               gridColumns: normalizeArray(question?.gridColumns ?? question?.grid_columns),
+              _original_options: Array.isArray(question?.options)
+                ? question.options.map((o: any) => ({ label: String(o?.label ?? o ?? ""), code: String(o?.code ?? o?.value ?? "") })).filter((o: any) => o.label)
+                : undefined,
               logic: resolveLogicFromMetadata(question),
               group_code: question?.metadata?.group_code ?? undefined,
               group_label: question?.metadata?.group_label ?? undefined,
@@ -189,7 +246,13 @@ export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListIt
             }
 
             return draftQuestion;
-          }),
+        });
+
+        return {
+          id: String(section?.id ?? createId("section")),
+          title: String(section?.title ?? `Bagian ${sectionIndex + 1}`),
+          description: section?.description ? String(section.description) : "",
+          questions: mergeGroupedForBuilder(mappedQuestions),
         };
       })
     : [

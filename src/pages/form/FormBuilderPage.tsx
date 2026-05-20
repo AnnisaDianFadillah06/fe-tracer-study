@@ -176,7 +176,7 @@ const FormBuilderPage = () => {
     return ensureFirstQuestionRequired(ensureQuestionLogic(createBlankFormDraft()));
   });
 
-  const [isLoadingForm, setIsLoadingForm] = useState(false);
+  const [isLoadingForm, setIsLoadingForm] = useState(() => Boolean(formId && /^\d+$/.test(formId)));
   const [targetGraduationYears, setTargetGraduationYears] = useState<number[]>([]);
 
   // Fetch from API when editing a backend questionnaire
@@ -628,7 +628,18 @@ const FormBuilderPage = () => {
     }
   };
 
-  if (isEditMode && !sourceForm) {
+  if (isLoadingForm) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Memuat kuesioner...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isEditMode && !sourceForm && !isLoadingForm && !builderDraft) {
     return (
       <div className="grid min-h-screen place-items-center bg-background px-6">
         <Card className="w-full max-w-md">
