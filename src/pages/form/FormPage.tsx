@@ -41,13 +41,14 @@ const FormPage = () => {
     progressPercent,
     isLoadingForms,
     isSubmitting,
+    hasResponded,
     setAnswer,
     setCheckboxAnswer,
     handleNext,
     handleBack,
     handleSubmit: submitToBackend,
     handleReset,
-  } = useTracerForm(kodeProdi, graduationYear);
+  } = useTracerForm(kodeProdi, graduationYear, session?.nim);
 
   // Wrap submit to include identity data from session
   // Only include fields genuinely known from session — nik/npwp/kode_pt come from form answers
@@ -87,6 +88,36 @@ const FormPage = () => {
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
           <p className="text-muted-foreground">Memuat kuisioner...</p>
         </div>
+      </div>
+    );
+  }
+
+  // Already responded state
+  if (!isLoadingForms && hasResponded && !submitted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <Card className="max-w-md w-full text-center glass-card">
+          <CardContent className="pt-10 pb-10 space-y-4">
+            <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h2 className="font-heading text-xl font-bold">Anda Sudah Mengisi</h2>
+            <p className="text-muted-foreground">
+              Terima kasih! Anda sudah mengisi kuesioner Tracer Study. Data Anda telah tersimpan.
+            </p>
+            {session && (
+              <p className="text-sm text-muted-foreground">
+                — {session.username} ({session.nim})
+              </p>
+            )}
+            <div className="flex gap-2 justify-center pt-2">
+              <Button variant="outline" onClick={handleLogout}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Keluar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

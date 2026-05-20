@@ -316,7 +316,7 @@ const fallbackSections: FormSection[] = [
  *
  * Jika backend belum bisa diakses, akan fallback ke soal hardcoded.
  */
-export const useTracerForm = (kodeProdi?: string, graduationYear?: number) => {
+export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?: string) => {
   const { toast } = useToast();
   const [sections, setSections] = useState<FormSection[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
@@ -325,6 +325,7 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number) => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoadingForms, setIsLoadingForms] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasResponded, setHasResponded] = useState(false);
 
   // ── Fetch forms dari backend ──────────────────────────────────────────────
   useEffect(() => {
@@ -339,12 +340,13 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number) => {
 
       try {
         const { data } = await api.get("/tracer-study/forms", {
-          params: { kode_prodi: kodeProdi, ...(graduationYear ? { graduation_year: graduationYear } : {}) },
+          params: { kode_prodi: kodeProdi, ...(graduationYear ? { graduation_year: graduationYear } : {}), ...(nim ? { nim } : {}) },
         });
 
         if (data.success && data.data && data.data.length > 0) {
           const mapped = mapBackendToSections(data.data);
           setSections(mapped);
+          setHasResponded(!!data.has_responded);
         } else {
           // Tidak ada kuesioner aktif untuk tahun lulus ini
           setSections([]);
@@ -518,6 +520,7 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number) => {
     progressPercent,
     isLoadingForms,
     isSubmitting,
+    hasResponded,
     setAnswer,
     setCheckboxAnswer,
     handleNext,

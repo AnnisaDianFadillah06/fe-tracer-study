@@ -94,7 +94,7 @@ const App = () => (
             <Route path="/dashboard/change-password" element={<ProtectedRoute><ChangePasswordPage /></ProtectedRoute>} />
 
             {/* Alumni / Student form routes */}
-            <Route path="/form" element={<StudentFormListPage />} />
+            <Route path="/form" element={<Navigate to="/form/fill" replace />} />
             <Route path="/form/:formId" element={<FormPreviewPage />} />
             <Route path="/form/fill" element={<FormPage />} />
 

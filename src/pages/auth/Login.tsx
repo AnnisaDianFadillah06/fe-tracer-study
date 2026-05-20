@@ -40,7 +40,7 @@ const Login = () => {
           title: "Login Berhasil",
           description: "Selamat datang, silakan isi kuisioner",
         });
-        navigate("/form");
+        navigate("/form/fill");
       }
     } catch (err: any) {
       toast({
