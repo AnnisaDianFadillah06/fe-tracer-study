@@ -21,60 +21,65 @@ import {
 } from "@/components/ui/table";
 import { Plus, Edit, Trash2, Search, Users } from "lucide-react";
 import { type AppRole, roleLabels } from "@/lib/rbac";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "@/lib/api";
 
-interface UserAccount {
-  id: string;
+interface StaffUser {
+  id: number;
   name: string;
   email: string;
-  role: AppRole;
-  jurusan?: string;
-  program?: string;
-  isActive: boolean;
+  role: string;
+  scope: string;
+  program_id: number | null;
+  program_name: string | null;
+  jurusan: string | null;
+  created_at: string;
 }
 
 const allRoles: AppRole[] = ["head_tracer", "tracer_team", "wadir", "kajur", "kaprodi"];
 
-const jurusanList = [
-  "Teknik Sipil", "Teknik Mesin", "Teknik Refrigerasi & Tata Udara",
-  "Teknik Konversi Energi", "Teknik Elektro", "Teknik Kimia",
-  "Teknik Komputer & Informatika", "Akuntansi", "Administrasi Niaga", "Bahasa Inggris",
-];
-
-const prodiList = [
-  "D3 Teknik Konstruksi Gedung", "D4 Teknik Perancangan Jalan & Jembatan",
-  "D3 Teknik Mesin", "D4 Teknik Informatika", "D3 Teknik Informatika",
-  "D3 Akuntansi", "D4 Keuangan Syariah", "D3 Administrasi Bisnis",
-];
-
-const initialUsers: UserAccount[] = [
-  { id: "1", name: "Kepala Tracer Study", email: "head.tracer@test.com", role: "head_tracer", isActive: true },
-  { id: "2", name: "Tim Tracer 1", email: "tracer1@test.com", role: "tracer_team", isActive: true },
-  { id: "3", name: "Tim Tracer 2", email: "tracer2@test.com", role: "tracer_team", isActive: true },
-  { id: "4", name: "Direktur", email: "direktur@test.com", role: "wadir", isActive: true },
-  { id: "5", name: "Wakil Direktur 1", email: "wakil.direktur.1@test.com", role: "wadir", isActive: true },
-  { id: "6", name: "Kajur Teknik Informatika", email: "kajur.teknik-komputer-informatika@test.com", role: "kajur", jurusan: "Teknik Komputer & Informatika", isActive: true },
-  { id: "7", name: "Kaprodi D4 Teknik Informatika", email: "prodi.ti@test.com", role: "kaprodi", program: "D4 Teknik Informatika", isActive: true },
-];
-
-const roleBadgeVariant = (role: AppRole) => {
+const roleBadgeVariant = (role: string) => {
   switch (role) {
     case "head_tracer": return "destructive" as const;
     case "tracer_team": return "default" as const;
     case "wadir": return "secondary" as const;
-    case "kajur": return "outline" as const;
     default: return "outline" as const;
   }
 };
 
 const UserManagementPage = () => {
   const { toast } = useToast();
-  const [users, setUsers] = useState<UserAccount[]>(initialUsers);
+  const queryClient = useQueryClient();
+
+  const { data: users = [], isLoading } = useQuery<StaffUser[]>({
+    queryKey: ["users"],
+    queryFn: async () => {
+      const { data } = await api.get("/users");
+      return data.data;
+    },
+  });
+
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
-  const [formData, setFormData] = useState({ name: "", email: "", role: "tracer_team" as AppRole, jurusan: "", program: "", password: "" });
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [editingUser, setEditingUser] = useState<StaffUser | null>(null);
+  const [formData, setFormData] = useState({ name: "", email: "", role: "tracer_team" as string, jurusan: "", program_id: "", password: "" });
+
+  const createMutation = useMutation({
+    mutationFn: (payload: any) => api.post("/users", payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...payload }: any) => api.put(`/users/${id}`, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/users/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
 
   const filtered = users.filter((u) => {
     const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
@@ -82,16 +87,16 @@ const UserManagementPage = () => {
     return matchSearch && matchRole;
   });
 
-  const resetForm = () => setFormData({ name: "", email: "", role: "tracer_team", jurusan: "", program: "", password: "" });
+  const resetForm = () => setFormData({ name: "", email: "", role: "tracer_team", jurusan: "", program_id: "", password: "" });
 
   const openCreate = () => { resetForm(); setEditingUser(null); setDialogOpen(true); };
-  const openEdit = (user: UserAccount) => {
+  const openEdit = (user: StaffUser) => {
     setEditingUser(user);
-    setFormData({ name: user.name, email: user.email, role: user.role, jurusan: user.jurusan || "", program: user.program || "", password: "" });
+    setFormData({ name: user.name, email: user.email, role: user.role, jurusan: user.jurusan || "", program_id: user.program_id?.toString() || "", password: "" });
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.email) {
       toast({ title: "Error", description: "Nama dan email wajib diisi.", variant: "destructive" });
       return;
@@ -100,31 +105,39 @@ const UserManagementPage = () => {
       toast({ title: "Error", description: "Password wajib diisi untuk user baru.", variant: "destructive" });
       return;
     }
-    if (formData.role === "kajur" && !formData.jurusan) {
-      toast({ title: "Error", description: "Jurusan wajib dipilih untuk role Kajur.", variant: "destructive" });
-      return;
-    }
-    if (formData.role === "kaprodi" && !formData.program) {
-      toast({ title: "Error", description: "Program studi wajib dipilih untuk role Kaprodi.", variant: "destructive" });
-      return;
-    }
 
-    if (editingUser) {
-      setUsers(users.map((u) => u.id === editingUser.id ? { ...u, ...formData } : u));
-      toast({ title: "Berhasil", description: "User berhasil diperbarui." });
-    } else {
-      const newUser: UserAccount = { id: Date.now().toString(), ...formData, isActive: true };
-      setUsers([...users, newUser]);
-      toast({ title: "Berhasil", description: "User baru berhasil ditambahkan." });
+    try {
+      const payload: any = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        program_id: formData.program_id ? parseInt(formData.program_id) : null,
+        jurusan: formData.jurusan || null,
+      };
+      if (formData.password) payload.password = formData.password;
+
+      if (editingUser) {
+        await updateMutation.mutateAsync({ id: editingUser.id, ...payload });
+        toast({ title: "Berhasil", description: "User berhasil diperbarui." });
+      } else {
+        await createMutation.mutateAsync(payload);
+        toast({ title: "Berhasil", description: "User baru berhasil ditambahkan." });
+      }
+      setDialogOpen(false);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.response?.data?.message || "Terjadi kesalahan.", variant: "destructive" });
     }
-    setDialogOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteId) return;
-    setUsers(users.filter((u) => u.id !== deleteId));
+    try {
+      await deleteMutation.mutateAsync(deleteId);
+      toast({ title: "Berhasil", description: "User berhasil dihapus." });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.response?.data?.message || "Gagal menghapus.", variant: "destructive" });
+    }
     setDeleteId(null);
-    toast({ title: "Berhasil", description: "User berhasil dihapus." });
   };
 
   return (
@@ -170,36 +183,40 @@ const UserManagementPage = () => {
         {/* Table */}
         <Card>
           <CardContent className="pt-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Scope</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell><Badge variant={roleBadgeVariant(user.role)}>{roleLabels[user.role]}</Badge></TableCell>
-                    <TableCell className="text-muted-foreground">{user.jurusan || user.program || "—"}</TableCell>
-                    <TableCell><Badge variant={user.isActive ? "default" : "secondary"}>{user.isActive ? "Aktif" : "Nonaktif"}</Badge></TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(user)}><Edit className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(user.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </TableCell>
+            {isLoading ? (
+              <p className="text-center text-muted-foreground py-8">Memuat data...</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nama</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Scope</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                ))}
-                {filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Tidak ada user ditemukan.</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.name}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell><Badge variant={roleBadgeVariant(user.role)}>{roleLabels[user.role as AppRole] ?? user.role}</Badge></TableCell>
+                      <TableCell className="text-muted-foreground">{user.scope || "—"}</TableCell>
+                      <TableCell><Badge variant="default">Aktif</Badge></TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(user)}><Edit className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(user.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filtered.length === 0 && (
+                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Tidak ada user ditemukan.</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -211,36 +228,24 @@ const UserManagementPage = () => {
           <div className="space-y-4">
             <div><Label>Nama</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} /></div>
             <div><Label>Email</Label><Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} /></div>
-            {!editingUser && <div><Label>Password</Label><Input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} /></div>}
+            <div><Label>Password {editingUser && "(kosongkan jika tidak diubah)"}</Label><Input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} /></div>
             <div>
               <Label>Role</Label>
-              <Select value={formData.role} onValueChange={(v) => setFormData({ ...formData, role: v as AppRole, jurusan: "", program: "" })}>
+              <Select value={formData.role} onValueChange={(v) => setFormData({ ...formData, role: v, jurusan: "", program_id: "" })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{allRoles.map((r) => <SelectItem key={r} value={r}>{roleLabels[r]}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             {formData.role === "kajur" && (
-              <div>
-                <Label>Jurusan</Label>
-                <Select value={formData.jurusan} onValueChange={(v) => setFormData({ ...formData, jurusan: v })}>
-                  <SelectTrigger><SelectValue placeholder="Pilih jurusan" /></SelectTrigger>
-                  <SelectContent>{jurusanList.map((j) => <SelectItem key={j} value={j}>{j}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
+              <div><Label>Jurusan</Label><Input value={formData.jurusan} onChange={(e) => setFormData({ ...formData, jurusan: e.target.value })} placeholder="Nama jurusan" /></div>
             )}
             {formData.role === "kaprodi" && (
-              <div>
-                <Label>Program Studi</Label>
-                <Select value={formData.program} onValueChange={(v) => setFormData({ ...formData, program: v })}>
-                  <SelectTrigger><SelectValue placeholder="Pilih prodi" /></SelectTrigger>
-                  <SelectContent>{prodiList.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
+              <div><Label>Program ID</Label><Input value={formData.program_id} onChange={(e) => setFormData({ ...formData, program_id: e.target.value })} placeholder="ID program studi" /></div>
             )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button>
-            <Button onClick={handleSave}>{editingUser ? "Simpan" : "Tambah"}</Button>
+            <Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>{editingUser ? "Simpan" : "Tambah"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

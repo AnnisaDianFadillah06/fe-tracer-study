@@ -32,30 +32,31 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash2, User, Mail, Search, Shield } from "lucide-react";
-import { type AppRole, roleLabels } from "@/lib/rbac";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "@/lib/api";
+import { useRoles } from "@/hooks/admin/useRoles";
 
-interface StaffAccount {
-  id: string;
+interface StaffUser {
+  id: number;
   name: string;
   email: string;
-  role: AppRole;
-  program?: string;
-  isActive: boolean;
+  role: string;
+  scope: string;
+  program_id: number | null;
+  program_name: string | null;
+  jurusan: string | null;
+  created_at: string;
 }
 
-const staffRoles: AppRole[] = ["head_tracer", "tracer_team", "wadir", "kajur", "kaprodi"];
+const roleLabelsMap: Record<string, string> = {
+  head_tracer: "Super Admin",
+  tracer_team: "Admin",
+  wadir: "Pimpinan",
+  kajur: "Ketua Jurusan",
+  kaprodi: "Ketua Prodi",
+};
 
-const initialStaff: StaffAccount[] = [
-  { id: "1", name: "Dr. Rina Maulida, M.T.", email: "rina.maulida@polban.ac.id", role: "head_tracer", isActive: true },
-  { id: "2", name: "Rony Pasonang Sihombing, S.T., M.Eng.", email: "rony.sihombing@polban.ac.id", role: "tracer_team", isActive: true },
-  { id: "3", name: "Hanny Madiawati, S.S.T., M.T.", email: "hanny.madiawati@polban.ac.id", role: "tracer_team", isActive: true },
-  { id: "4", name: "Dr. Ahmad Fauzi, M.Kom.", email: "ahmad.fauzi@polban.ac.id", role: "kaprodi", program: "Teknik Informatika", isActive: true },
-  { id: "5", name: "Ir. Siti Nurhasanah, M.T.", email: "siti.nurhasanah@polban.ac.id", role: "kajur", program: "Teknik Sipil", isActive: true },
-  { id: "6", name: "Prof. Dr. Budi Santoso, M.Sc.", email: "budi.santoso@polban.ac.id", role: "wadir", isActive: true },
-  { id: "7", name: "Yeti Nugraheni, S.T., M.T.", email: "yeti.nugraheni@polban.ac.id", role: "tracer_team", isActive: false },
-];
-
-const roleBadgeVariant = (role: AppRole) => {
+const roleBadgeVariant = (role: string) => {
   switch (role) {
     case "head_tracer": return "destructive" as const;
     case "tracer_team": return "default" as const;
@@ -66,14 +67,39 @@ const roleBadgeVariant = (role: AppRole) => {
 
 const StaffManagementPage = () => {
   const { toast } = useToast();
-  const [staff, setStaff] = useState<StaffAccount[]>(initialStaff);
+  const queryClient = useQueryClient();
+  const { roles } = useRoles();
+
+  const { data: staff = [], isLoading } = useQuery<StaffUser[]>({
+    queryKey: ["users"],
+    queryFn: async () => {
+      const { data } = await api.get("/users");
+      return data.data;
+    },
+  });
+
   const [search, setSearch] = useState("");
-  const [filterRole, setFilterRole] = useState<string>("all");
+  const [filterRole, setFilterRole] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [editingStaff, setEditingStaff] = useState<StaffAccount | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: "", email: "", role: "tracer_team" as AppRole, program: "" });
+  const [editingStaff, setEditingStaff] = useState<StaffUser | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({ name: "", email: "", password: "", role: "tracer_team", program_id: "", jurusan: "" });
+
+  const createMutation = useMutation({
+    mutationFn: (payload: any) => api.post("/users", payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...payload }: any) => api.put(`/users/${id}`, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/users/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
 
   const filtered = staff.filter((s) => {
     const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.email.toLowerCase().includes(search.toLowerCase());
@@ -82,46 +108,73 @@ const StaffManagementPage = () => {
   });
 
   const resetForm = () => {
-    setFormData({ name: "", email: "", role: "tracer_team", program: "" });
+    setFormData({ name: "", email: "", password: "", role: "tracer_team", program_id: "", jurusan: "" });
     setEditingStaff(null);
   };
 
   const handleOpenAdd = () => { resetForm(); setIsDialogOpen(true); };
 
-  const handleOpenEdit = (account: StaffAccount) => {
-    setEditingStaff(account);
-    setFormData({ name: account.name, email: account.email, role: account.role, program: account.program ?? "" });
+  const handleOpenEdit = (user: StaffUser) => {
+    setEditingStaff(user);
+    setFormData({
+      name: user.name,
+      email: user.email,
+      password: "",
+      role: user.role,
+      program_id: user.program_id?.toString() ?? "",
+      jurusan: user.jurusan ?? "",
+    });
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email) {
       toast({ title: "Error", description: "Nama dan email harus diisi", variant: "destructive" });
       return;
     }
-    if (editingStaff) {
-      setStaff((prev) => prev.map((s) => s.id === editingStaff.id ? { ...s, ...formData } : s));
-      toast({ title: "Berhasil", description: "Akun staff berhasil diperbarui" });
-    } else {
-      setStaff((prev) => [...prev, { id: Date.now().toString(), ...formData, isActive: true }]);
-      toast({ title: "Berhasil", description: "Akun staff baru berhasil ditambahkan" });
+    try {
+      const payload: any = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        program_id: formData.program_id ? parseInt(formData.program_id) : null,
+        jurusan: formData.jurusan || null,
+      };
+      if (formData.password) payload.password = formData.password;
+
+      if (editingStaff) {
+        await updateMutation.mutateAsync({ id: editingStaff.id, ...payload });
+        toast({ title: "Berhasil", description: "Staff berhasil diperbarui" });
+      } else {
+        if (!formData.password) {
+          toast({ title: "Error", description: "Password harus diisi untuk user baru", variant: "destructive" });
+          return;
+        }
+        await createMutation.mutateAsync(payload);
+        toast({ title: "Berhasil", description: "Staff baru berhasil ditambahkan" });
+      }
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (err: any) {
+      const msg = err.response?.data?.message || "Terjadi kesalahan";
+      toast({ title: "Error", description: msg, variant: "destructive" });
     }
-    setIsDialogOpen(false);
-    resetForm();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deletingId) return;
-    setStaff((prev) => prev.filter((s) => s.id !== deletingId));
-    toast({ title: "Berhasil", description: "Akun staff berhasil dihapus" });
+    try {
+      await deleteMutation.mutateAsync(deletingId);
+      toast({ title: "Berhasil", description: "Staff berhasil dihapus" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.response?.data?.message || "Gagal menghapus", variant: "destructive" });
+    }
     setIsDeleteDialogOpen(false);
     setDeletingId(null);
   };
 
-  const toggleActive = (id: string) => {
-    setStaff((prev) => prev.map((s) => s.id === id ? { ...s, isActive: !s.isActive } : s));
-  };
+  const staffRoles = roles.length > 0 ? roles.map((r) => r.name) : ["head_tracer", "tracer_team", "wadir", "kajur", "kaprodi"];
 
   return (
     <DashboardLayout>
@@ -150,64 +203,62 @@ const StaffManagementPage = () => {
             <SelectContent>
               <SelectItem value="all">Semua Role</SelectItem>
               {staffRoles.map((r) => (
-                <SelectItem key={r} value={r}>{roleLabels[r]}</SelectItem>
+                <SelectItem key={r} value={r}>{roleLabelsMap[r] ?? r}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
         {/* Staff list */}
-        <div className="grid gap-3">
-          {filtered.map((account) => (
-            <Card key={account.id} className={`glass-card transition-all ${!account.isActive ? "opacity-60" : ""}`}>
-              <CardContent className="flex items-center justify-between py-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-orange-light/20 flex items-center justify-center border border-border">
-                    <User className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-medium text-sm">{account.name}</h4>
-                      <Badge variant={roleBadgeVariant(account.role)}>{roleLabels[account.role]}</Badge>
-                      {!account.isActive && <Badge variant="secondary">Nonaktif</Badge>}
+        {isLoading ? (
+          <p className="text-center text-muted-foreground py-8">Memuat data...</p>
+        ) : (
+          <div className="grid gap-3">
+            {filtered.map((account) => (
+              <Card key={account.id} className="glass-card">
+                <CardContent className="flex items-center justify-between py-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-orange-light/20 flex items-center justify-center border border-border">
+                      <User className="w-5 h-5 text-muted-foreground" />
                     </div>
-                    <div className="flex items-center gap-3 mt-0.5">
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Mail className="w-3 h-3" />{account.email}
-                      </span>
-                      {account.program && (
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-sm">{account.name}</h4>
+                        <Badge variant={roleBadgeVariant(account.role)}>{roleLabelsMap[account.role] ?? account.role}</Badge>
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5">
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Shield className="w-3 h-3" />{account.program}
+                          <Mail className="w-3 h-3" />{account.email}
                         </span>
-                      )}
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Shield className="w-3 h-3" />{account.scope}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => toggleActive(account.id)}>
-                    {account.isActive ? "Nonaktifkan" : "Aktifkan"}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenEdit(account)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={() => { setDeletingId(account.id); setIsDeleteDialogOpen(true); }}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          {filtered.length === 0 && (
-            <p className="text-center text-muted-foreground py-8">Tidak ada data staff ditemukan.</p>
-          )}
-        </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleOpenEdit(account)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={() => { setDeletingId(account.id); setIsDeleteDialogOpen(true); }}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {filtered.length === 0 && (
+              <p className="text-center text-muted-foreground py-8">Tidak ada data staff ditemukan.</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingStaff ? "Edit Akun Staff" : "Tambah Akun Staff"}</DialogTitle>
+            <DialogTitle>{editingStaff ? "Edit Staff" : "Tambah Staff"}</DialogTitle>
             <DialogDescription>
               {editingStaff ? "Perbarui informasi akun staff." : "Tambahkan akun staff baru ke sistem."}
             </DialogDescription>
@@ -215,32 +266,44 @@ const StaffManagementPage = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>Nama Lengkap</Label>
-              <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Dr. Nama Lengkap, M.T." />
+              <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Nama Lengkap" />
             </div>
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="email@polban.ac.id" />
+              <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="email@test.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>Password {editingStaff && "(kosongkan jika tidak diubah)"}</Label>
+              <Input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder="••••••" />
             </div>
             <div className="space-y-2">
               <Label>Role</Label>
-              <Select value={formData.role} onValueChange={(v) => setFormData({ ...formData, role: v as AppRole })}>
+              <Select value={formData.role} onValueChange={(v) => setFormData({ ...formData, role: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {staffRoles.map((r) => (
-                    <SelectItem key={r} value={r}>{roleLabels[r]}</SelectItem>
+                    <SelectItem key={r} value={r}>{roleLabelsMap[r] ?? r}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+            {formData.role === "kajur" && (
+              <div className="space-y-2">
+                <Label>Jurusan</Label>
+                <Input value={formData.jurusan} onChange={(e) => setFormData({ ...formData, jurusan: e.target.value })} placeholder="Teknik Komputer & Informatika" />
+              </div>
+            )}
             {formData.role === "kaprodi" && (
               <div className="space-y-2">
-                <Label>Program Studi</Label>
-                <Input value={formData.program} onChange={(e) => setFormData({ ...formData, program: e.target.value })} placeholder="Teknik Informatika" />
+                <Label>Program ID</Label>
+                <Input value={formData.program_id} onChange={(e) => setFormData({ ...formData, program_id: e.target.value })} placeholder="ID program studi" />
               </div>
             )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Batal</Button>
-              <Button type="submit">{editingStaff ? "Simpan" : "Tambah"}</Button>
+              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                {editingStaff ? "Simpan" : "Tambah"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
