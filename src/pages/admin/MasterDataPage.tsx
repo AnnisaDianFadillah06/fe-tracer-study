@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,39 +23,16 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Plus, Edit, Trash2, Search, Building2 } from "lucide-react";
+import api from "@/lib/api";
 
 // ── Prodi Tab ────────────────────────────────────────────────
-interface Prodi { id: string; name: string; code: string; degree: string; jurusan: string; isActive: boolean; }
-
-const initialProdi: Prodi[] = [
-  { id: "1", name: "Teknik Konstruksi Gedung", code: "TKG", degree: "D3", jurusan: "Teknik Sipil", isActive: true },
-  { id: "2", name: "Teknik Perancangan Jalan & Jembatan", code: "TPJJ", degree: "D4", jurusan: "Teknik Sipil", isActive: true },
-  { id: "3", name: "Teknik Informatika", code: "TI", degree: "D4", jurusan: "Teknik Komputer & Informatika", isActive: true },
-  { id: "4", name: "Teknik Informatika", code: "TI3", degree: "D3", jurusan: "Teknik Komputer & Informatika", isActive: true },
-  { id: "5", name: "Akuntansi", code: "AKT3", degree: "D3", jurusan: "Akuntansi", isActive: true },
-];
+interface Prodi { id: string; name: string; code: string; dikti_code?: string; degree: string; jurusan: string; isActive: boolean; }
 
 // ── Provinsi Tab ─────────────────────────────────────────────
 interface Provinsi { id: string; name: string; code: string; }
 
-const initialProvinsi: Provinsi[] = [
-  { id: "1", name: "Jawa Barat", code: "32" },
-  { id: "2", name: "DKI Jakarta", code: "31" },
-  { id: "3", name: "Jawa Tengah", code: "33" },
-  { id: "4", name: "Jawa Timur", code: "35" },
-  { id: "5", name: "Banten", code: "36" },
-];
-
 // ── Kota Tab ─────────────────────────────────────────────────
 interface Kota { id: string; name: string; provinsiId: string; code: string; }
-
-const initialKota: Kota[] = [
-  { id: "1", name: "Kota Bandung", provinsiId: "1", code: "3273" },
-  { id: "2", name: "Kab. Bandung", provinsiId: "1", code: "3204" },
-  { id: "3", name: "Kota Jakarta Selatan", provinsiId: "2", code: "3174" },
-  { id: "4", name: "Kota Semarang", provinsiId: "3", code: "3374" },
-  { id: "5", name: "Kota Surabaya", provinsiId: "4", code: "3578" },
-];
 
 const jurusanOptions = [
   "Teknik Sipil", "Teknik Mesin", "Teknik Refrigerasi & Tata Udara",
@@ -67,7 +44,7 @@ const MasterDataPage = () => {
   const { toast } = useToast();
 
   // Prodi state
-  const [prodiList, setProdiList] = useState<Prodi[]>(initialProdi);
+  const [prodiList, setProdiList] = useState<Prodi[]>([]);
   const [prodiDialog, setProdiDialog] = useState(false);
   const [editProdi, setEditProdi] = useState<Prodi | null>(null);
   const [prodiForm, setProdiForm] = useState({ name: "", code: "", degree: "D3", jurusan: "" });
@@ -75,14 +52,31 @@ const MasterDataPage = () => {
   const [prodiSearch, setProdiSearch] = useState("");
 
   // Provinsi state
-  const [provList, setProvList] = useState<Provinsi[]>(initialProvinsi);
+  const [provList, setProvList] = useState<Provinsi[]>([]);
   const [provDialog, setProvDialog] = useState(false);
   const [editProv, setEditProv] = useState<Provinsi | null>(null);
   const [provForm, setProvForm] = useState({ name: "", code: "" });
   const [deleteProvId, setDeleteProvId] = useState<string | null>(null);
 
   // Kota state
-  const [kotaList, setKotaList] = useState<Kota[]>(initialKota);
+  const [kotaList, setKotaList] = useState<Kota[]>([]);
+
+  // Fetch data from API
+  useEffect(() => {
+    api.get("/programs").then(({ data }) => {
+      const programs = data.data ?? data;
+      setProdiList((programs as any[]).map((p: any) => ({
+        id: String(p.id), name: p.name, code: p.code, dikti_code: p.dikti_code ?? "",
+        degree: p.degree, jurusan: p.jurusan, isActive: p.is_active !== false,
+      })));
+    }).catch(() => {});
+    api.get("/provinces").then(({ data }) => {
+      setProvList((data.data as any[]).map((p: any) => ({ id: String(p.id), name: p.name, code: p.code })));
+    }).catch(() => {});
+    api.get("/cities").then(({ data }) => {
+      setKotaList((data.data as any[]).map((c: any) => ({ id: String(c.id), name: c.name, provinsiId: c.province_code, code: c.code })));
+    }).catch(() => {});
+  }, []);
   const [kotaDialog, setKotaDialog] = useState(false);
   const [editKota, setEditKota] = useState<Kota | null>(null);
   const [kotaForm, setKotaForm] = useState({ name: "", provinsiId: "", code: "" });
@@ -91,48 +85,76 @@ const MasterDataPage = () => {
   // ── Prodi handlers ─────────────────────────────────────────
   const openProdiCreate = () => { setEditProdi(null); setProdiForm({ name: "", code: "", degree: "D3", jurusan: "" }); setProdiDialog(true); };
   const openProdiEdit = (p: Prodi) => { setEditProdi(p); setProdiForm({ name: p.name, code: p.code, degree: p.degree, jurusan: p.jurusan }); setProdiDialog(true); };
-  const saveProdi = () => {
+  const saveProdi = async () => {
     if (!prodiForm.name || !prodiForm.code || !prodiForm.jurusan) { toast({ title: "Error", description: "Semua field wajib diisi.", variant: "destructive" }); return; }
-    if (editProdi) {
-      setProdiList(prodiList.map((p) => p.id === editProdi.id ? { ...p, ...prodiForm, isActive: true } : p));
-      toast({ title: "Berhasil", description: "Prodi diperbarui." });
-    } else {
-      setProdiList([...prodiList, { id: Date.now().toString(), ...prodiForm, isActive: true }]);
-      toast({ title: "Berhasil", description: "Prodi ditambahkan." });
-    }
-    setProdiDialog(false);
+    try {
+      if (editProdi) {
+        await api.put(`/programs/${editProdi.id}`, prodiForm);
+        setProdiList(prodiList.map((p) => p.id === editProdi.id ? { ...p, ...prodiForm, isActive: true } : p));
+        toast({ title: "Berhasil", description: "Prodi diperbarui." });
+      } else {
+        const { data } = await api.post("/programs", prodiForm);
+        const created = data.data ?? data;
+        setProdiList([...prodiList, { id: String(created.id), ...prodiForm, isActive: true }]);
+        toast({ title: "Berhasil", description: "Prodi ditambahkan." });
+      }
+      setProdiDialog(false);
+    } catch (e: any) { toast({ title: "Gagal", description: e.response?.data?.message ?? "Terjadi kesalahan", variant: "destructive" }); }
   };
-  const deleteProdi = () => { setProdiList(prodiList.filter((p) => p.id !== deleteProdiId)); setDeleteProdiId(null); toast({ title: "Dihapus" }); };
+  const deleteProdi = async () => {
+    try { await api.delete(`/programs/${deleteProdiId}`); setProdiList(prodiList.filter((p) => p.id !== deleteProdiId)); toast({ title: "Dihapus" }); }
+    catch (e: any) { toast({ title: "Gagal", description: e.response?.data?.message ?? "Gagal menghapus", variant: "destructive" }); }
+    setDeleteProdiId(null);
+  };
 
   // ── Provinsi handlers ──────────────────────────────────────
   const openProvCreate = () => { setEditProv(null); setProvForm({ name: "", code: "" }); setProvDialog(true); };
   const openProvEdit = (p: Provinsi) => { setEditProv(p); setProvForm({ name: p.name, code: p.code }); setProvDialog(true); };
-  const saveProv = () => {
+  const saveProv = async () => {
     if (!provForm.name || !provForm.code) { toast({ title: "Error", description: "Semua field wajib diisi.", variant: "destructive" }); return; }
-    if (editProv) {
-      setProvList(provList.map((p) => p.id === editProv.id ? { ...p, ...provForm } : p));
-    } else {
-      setProvList([...provList, { id: Date.now().toString(), ...provForm }]);
-    }
-    setProvDialog(false);
-    toast({ title: "Berhasil" });
+    try {
+      if (editProv) {
+        await api.put(`/provinces/${editProv.id}`, provForm);
+        setProvList(provList.map((p) => p.id === editProv.id ? { ...p, ...provForm } : p));
+      } else {
+        const { data } = await api.post("/provinces", provForm);
+        const created = data.data ?? data;
+        setProvList([...provList, { id: String(created.id), ...provForm }]);
+      }
+      setProvDialog(false);
+      toast({ title: "Berhasil" });
+    } catch (e: any) { toast({ title: "Gagal", description: e.response?.data?.message ?? "Terjadi kesalahan", variant: "destructive" }); }
   };
-  const deleteProv = () => { setProvList(provList.filter((p) => p.id !== deleteProvId)); setDeleteProvId(null); toast({ title: "Dihapus" }); };
+  const deleteProv = async () => {
+    try { await api.delete(`/provinces/${deleteProvId}`); setProvList(provList.filter((p) => p.id !== deleteProvId)); toast({ title: "Dihapus" }); }
+    catch (e: any) { toast({ title: "Gagal", description: e.response?.data?.message ?? "Gagal menghapus", variant: "destructive" }); }
+    setDeleteProvId(null);
+  };
 
   // ── Kota handlers ──────────────────────────────────────────
   const openKotaCreate = () => { setEditKota(null); setKotaForm({ name: "", provinsiId: "", code: "" }); setKotaDialog(true); };
   const openKotaEdit = (k: Kota) => { setEditKota(k); setKotaForm({ name: k.name, provinsiId: k.provinsiId, code: k.code }); setKotaDialog(true); };
-  const saveKota = () => {
+  const saveKota = async () => {
     if (!kotaForm.name || !kotaForm.provinsiId || !kotaForm.code) { toast({ title: "Error", description: "Semua field wajib diisi.", variant: "destructive" }); return; }
-    if (editKota) {
-      setKotaList(kotaList.map((k) => k.id === editKota.id ? { ...k, ...kotaForm } : k));
-    } else {
-      setKotaList([...kotaList, { id: Date.now().toString(), ...kotaForm }]);
-    }
-    setKotaDialog(false);
-    toast({ title: "Berhasil" });
+    try {
+      const payload = { name: kotaForm.name, province_code: kotaForm.provinsiId, code: kotaForm.code };
+      if (editKota) {
+        await api.put(`/cities/${editKota.id}`, payload);
+        setKotaList(kotaList.map((k) => k.id === editKota.id ? { ...k, ...kotaForm } : k));
+      } else {
+        const { data } = await api.post("/cities", payload);
+        const created = data.data ?? data;
+        setKotaList([...kotaList, { id: String(created.id), ...kotaForm }]);
+      }
+      setKotaDialog(false);
+      toast({ title: "Berhasil" });
+    } catch (e: any) { toast({ title: "Gagal", description: e.response?.data?.message ?? "Terjadi kesalahan", variant: "destructive" }); }
   };
-  const deleteKota = () => { setKotaList(kotaList.filter((k) => k.id !== deleteKotaId)); setDeleteKotaId(null); toast({ title: "Dihapus" }); };
+  const deleteKota = async () => {
+    try { await api.delete(`/cities/${deleteKotaId}`); setKotaList(kotaList.filter((k) => k.id !== deleteKotaId)); toast({ title: "Dihapus" }); }
+    catch (e: any) { toast({ title: "Gagal", description: e.response?.data?.message ?? "Gagal menghapus", variant: "destructive" }); }
+    setDeleteKotaId(null);
+  };
 
   return (
     <DashboardLayout>

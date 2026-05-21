@@ -206,6 +206,14 @@ const FormPage = () => {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-4">
+        {currentSection === 0 && (
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="text-muted-foreground self-center">Unduh referensi:</span>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => window.open(`${import.meta.env.VITE_API_URL ?? "/api"}/provinces/download`, "_blank")}>Kode Provinsi</Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => window.open(`${import.meta.env.VITE_API_URL ?? "/api"}/cities/download`, "_blank")}>Kode Kab/Kota</Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => window.open(`${import.meta.env.VITE_API_URL ?? "/api"}/programs/download`, "_blank")}>Kode Prodi</Button>
+          </div>
+        )}
         {sections.length > 1 && (
           <div className="text-right text-xs text-muted-foreground">
             Bagian {currentSection + 1} dari {sections.length}
