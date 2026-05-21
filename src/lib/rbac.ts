@@ -127,7 +127,7 @@ const dashboardItems: MenuItem[] = [
 ];
 
 const adminItems: MenuItem[] = [
-  { title: "Kelola Staff", href: "/dashboard/user-management", icon: Users, description: "CRUD semua akun user", permission: "admin.user" },
+  { title: "Kelola Staff", href: "/dashboard/staff-management", icon: Users, description: "CRUD semua akun user", permission: "admin.user" },
   { title: "Kelola Mahasiswa", href: "/dashboard/student-management", icon: Users, description: "CRUD akun mahasiswa/alumni", permission: "admin.user" },
   { title: "Manajemen Kuesioner", href: "/dashboard/form-management", icon: ClipboardList, description: "Kelola kuesioner", permission: "admin.questionnaire" },
   { title: "Approval Request", href: "/dashboard/approvals", icon: ShieldCheck, description: "Riwayat & approval pengajuan", permission: "admin.approval" },
@@ -160,7 +160,7 @@ export const routePermissionMap: Record<string, Permission> = {
   "/dashboard/employment": "dashboard.employment",
   "/dashboard/education": "dashboard.education",
   "/dashboard/analytics": "dashboard.analytics",
-  "/dashboard/user-management": "admin.user",
+  "/dashboard/staff-management": "admin.user",
   "/dashboard/form-management": "admin.questionnaire",
   "/dashboard/approvals": "admin.approval",
   "/dashboard/master-data": "admin.master",

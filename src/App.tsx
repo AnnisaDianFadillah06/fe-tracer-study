@@ -28,7 +28,6 @@ import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
 import TeamManagementPage from "./pages/team/TeamManagementPage";
 import StaffManagementPage from "./pages/staff/StaffManagementPage";
 import StudentManagementPage from "./pages/student/StudentManagementPage";
-import UserManagementPage from "./pages/admin/UserManagementPage";
 import ApprovalsPage from "./pages/admin/ApprovalsPage";
 import MasterDataPage from "./pages/admin/MasterDataPage";
 import DaftarKuisionerPage from "./pages/form/FormManagementPage";
@@ -70,7 +69,6 @@ const App = () => (
             <Route path="/dashboard/compare" element={<ProtectedRoute permission="dashboard.overview"><ComparePage /></ProtectedRoute>} />
 
             {/* Administration */}
-            <Route path="/dashboard/user-management" element={<ProtectedRoute permission="admin.user"><UserManagementPage /></ProtectedRoute>} />
             <Route path="/dashboard/approvals" element={<ProtectedRoute permission="admin.approval"><ApprovalsPage /></ProtectedRoute>} />
             <Route path="/dashboard/master-data" element={<ProtectedRoute permission="admin.master"><MasterDataPage /></ProtectedRoute>} />
             <Route path="/dashboard/team-management" element={<ProtectedRoute permission="admin.user"><TeamManagementPage /></ProtectedRoute>} />

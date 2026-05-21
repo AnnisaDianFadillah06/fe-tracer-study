@@ -32,21 +32,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash2, User, Mail, Search, Shield } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useRoles } from "@/hooks/admin/useRoles";
-
-interface StaffUser {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-  scope: string;
-  program_id: number | null;
-  program_name: string | null;
-  jurusan: string | null;
-  created_at: string;
-}
+import { useStaff, StaffUser } from "@/hooks/admin/useStaff";
+import { Switch } from "@/components/ui/switch";
 
 const roleLabelsMap: Record<string, string> = {
   head_tracer: "Super Admin",
@@ -67,16 +57,22 @@ const roleBadgeVariant = (role: string) => {
 
 const StaffManagementPage = () => {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const { roles } = useRoles();
+  const {
+    staff, isLoading,
+    createStaff, updateStaff, deleteStaff, toggleStatus,
+    isCreating, isUpdating,
+  } = useStaff();
 
-  const { data: staff = [], isLoading } = useQuery<StaffUser[]>({
-    queryKey: ["users"],
+  const { data: programs = [] } = useQuery<{ id: number; name: string; jurusan: string | null }[]>({
+    queryKey: ["programs"],
     queryFn: async () => {
-      const { data } = await api.get("/users");
+      const { data } = await api.get("/programs");
       return data.data;
     },
   });
+
+  const jurusanList = [...new Set(programs.map((p) => p.jurusan).filter(Boolean))] as string[];
 
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("all");
@@ -85,21 +81,6 @@ const StaffManagementPage = () => {
   const [editingStaff, setEditingStaff] = useState<StaffUser | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ name: "", email: "", password: "", role: "tracer_team", program_id: "", jurusan: "" });
-
-  const createMutation = useMutation({
-    mutationFn: (payload: any) => api.post("/users", payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, ...payload }: any) => api.put(`/users/${id}`, payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/users/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
-  });
 
   const filtered = staff.filter((s) => {
     const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.email.toLowerCase().includes(search.toLowerCase());
@@ -134,38 +115,42 @@ const StaffManagementPage = () => {
       return;
     }
     try {
-      const payload: any = {
+      const payload = {
         name: formData.name,
         email: formData.email,
         role: formData.role,
         program_id: formData.program_id ? parseInt(formData.program_id) : null,
         jurusan: formData.jurusan || null,
+        ...(formData.password ? { password: formData.password } : {}),
       };
-      if (formData.password) payload.password = formData.password;
 
       if (editingStaff) {
-        await updateMutation.mutateAsync({ id: editingStaff.id, ...payload });
+        await updateStaff({ id: editingStaff.id, ...payload });
         toast({ title: "Berhasil", description: "Staff berhasil diperbarui" });
       } else {
         if (!formData.password) {
           toast({ title: "Error", description: "Password harus diisi untuk user baru", variant: "destructive" });
           return;
         }
-        await createMutation.mutateAsync(payload);
+        await createStaff(payload);
         toast({ title: "Berhasil", description: "Staff baru berhasil ditambahkan" });
       }
       setIsDialogOpen(false);
       resetForm();
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Terjadi kesalahan";
-      toast({ title: "Error", description: msg, variant: "destructive" });
+      const data = err.response?.data;
+      const errors = data?.errors;
+      const detail = errors
+        ? Object.values(errors).flat().join(", ")
+        : data?.message || "Terjadi kesalahan";
+      toast({ title: "Error", description: detail, variant: "destructive" });
     }
   };
 
   const handleDelete = async () => {
     if (!deletingId) return;
     try {
-      await deleteMutation.mutateAsync(deletingId);
+      await deleteStaff(deletingId);
       toast({ title: "Berhasil", description: "Staff berhasil dihapus" });
     } catch (err: any) {
       toast({ title: "Error", description: err.response?.data?.message || "Gagal menghapus", variant: "destructive" });
@@ -225,6 +210,7 @@ const StaffManagementPage = () => {
                       <div className="flex items-center gap-2">
                         <h4 className="font-medium text-sm">{account.name}</h4>
                         <Badge variant={roleBadgeVariant(account.role)}>{roleLabelsMap[account.role] ?? account.role}</Badge>
+                        <Badge variant={account.status ? "default" : "secondary"}>{account.status ? "Aktif" : "Nonaktif"}</Badge>
                       </div>
                       <div className="flex items-center gap-3 mt-0.5">
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -237,6 +223,11 @@ const StaffManagementPage = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    <Switch
+                      checked={account.status}
+                      onCheckedChange={() => toggleStatus(account.id)}
+                      aria-label="Toggle status"
+                    />
                     <Button variant="outline" size="sm" onClick={() => handleOpenEdit(account)}>
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -290,18 +281,32 @@ const StaffManagementPage = () => {
             {formData.role === "kajur" && (
               <div className="space-y-2">
                 <Label>Jurusan</Label>
-                <Input value={formData.jurusan} onChange={(e) => setFormData({ ...formData, jurusan: e.target.value })} placeholder="Teknik Komputer & Informatika" />
+                <Select value={formData.jurusan} onValueChange={(v) => setFormData({ ...formData, jurusan: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih jurusan" /></SelectTrigger>
+                  <SelectContent>
+                    {jurusanList.map((j) => (
+                      <SelectItem key={j} value={j}>{j}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
             {formData.role === "kaprodi" && (
               <div className="space-y-2">
-                <Label>Program ID</Label>
-                <Input value={formData.program_id} onChange={(e) => setFormData({ ...formData, program_id: e.target.value })} placeholder="ID program studi" />
+                <Label>Program Studi</Label>
+                <Select value={formData.program_id} onValueChange={(v) => setFormData({ ...formData, program_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih program studi" /></SelectTrigger>
+                  <SelectContent>
+                    {programs.map((p) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Batal</Button>
-              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+              <Button type="submit" disabled={isCreating || isUpdating}>
                 {editingStaff ? "Simpan" : "Tambah"}
               </Button>
             </DialogFooter>
