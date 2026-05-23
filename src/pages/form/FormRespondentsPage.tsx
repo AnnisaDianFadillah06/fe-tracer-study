@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,15 +21,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import api from "@/lib/api";
+import { useAuthContext } from "@/contexts/AuthContext";
 import {
   ArrowLeft,
   CheckCircle2,
   Clock,
   Loader2,
+  RotateCcw,
   Search,
   Users,
-  XCircle,
 } from "lucide-react";
 
 interface QuestionnaireDetail {
@@ -53,8 +64,8 @@ interface RespondentItem {
   program_name: string | null;
   jurusan_name: string | null;
   graduation_year: number | null;
-  response_id: number;
-  response_status: string | null;
+  response_id: number | null;
+  response_status: string;
   response_submitted_at: string | null;
   response_created_at: string | null;
   response_updated_at: string | null;
@@ -71,7 +82,7 @@ interface Program {
   jurusan: string | null;
 }
 
-type StatusFilter = "all" | "finish" | "ongoing" | "belum_mengisi";
+type StatusFilter = "all" | "ongoing" | "finished";
 
 const formatDateTime = (value: string | null) => {
   if (!value) return "-";
@@ -80,21 +91,20 @@ const formatDateTime = (value: string | null) => {
   return date.toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
 };
 
-/** Map raw response_status from BE to our display status */
-const mapStatus = (raw: string | null): "finish" | "ongoing" | "belum_mengisi" => {
-  if (raw === "submitted" || raw === "verified") return "finish";
-  if (raw === "started") return "ongoing";
-  return "belum_mengisi";
-};
-
 const FormRespondentsPage = () => {
   const navigate = useNavigate();
   const { formId } = useParams();
+  const { user } = useAuthContext();
+  const queryClient = useQueryClient();
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [jurusanFilter, setJurusanFilter] = useState("");
   const [prodiFilter, setProdiFilter] = useState("");
   const [yearFilter, setYearFilter] = useState("");
+  const [resetTarget, setResetTarget] = useState<RespondentItem | null>(null);
+
+  const canReset = user?.role === "head_tracer" || user?.role === "tracer_team";
 
   const questionnaireQuery = useQuery({
     queryKey: ["questionnaire-detail", formId],
@@ -116,6 +126,18 @@ const FormRespondentsPage = () => {
     enabled: !!formId,
   });
 
+  const resetMutation = useMutation({
+    mutationFn: async (alumniId: number) => {
+      await api.post(`/alumni/${alumniId}/reset-response`, {
+        questionnaire_id: Number(formId),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["questionnaire-respondents", formId] });
+      setResetTarget(null);
+    },
+  });
+
   const programsQuery = useQuery<Program[]>({
     queryKey: ["programs-list"],
     queryFn: async () => {
@@ -127,11 +149,10 @@ const FormRespondentsPage = () => {
   const programs = programsQuery.data ?? [];
   const jurusanList = [...new Set(programs.map((p) => p.jurusan).filter(Boolean))] as string[];
 
-  // Apply client-side filters
   const respondents = useMemo(() => {
     const rows = respondentsQuery.data?.data ?? [];
     return rows.filter((item) => {
-      if (statusFilter !== "all" && mapStatus(item.response_status) !== statusFilter) return false;
+      if (statusFilter !== "all" && item.response_status !== statusFilter) return false;
       if (jurusanFilter && jurusanFilter !== "all" && item.jurusan_name !== jurusanFilter) return false;
       if (prodiFilter && prodiFilter !== "all" && String(item.program_id) !== prodiFilter) return false;
       if (yearFilter && yearFilter !== "all" && String(item.graduation_year) !== yearFilter) return false;
@@ -139,16 +160,13 @@ const FormRespondentsPage = () => {
     });
   }, [respondentsQuery.data?.data, statusFilter, jurusanFilter, prodiFilter, yearFilter]);
 
-  // Stats from full dataset (before client filters)
   const stats = useMemo(() => {
     const rows = respondentsQuery.data?.data ?? [];
-    const finish = rows.filter((r) => mapStatus(r.response_status) === "finish").length;
-    const ongoing = rows.filter((r) => mapStatus(r.response_status) === "ongoing").length;
-    const belumMengisi = rows.filter((r) => mapStatus(r.response_status) === "belum_mengisi").length;
-    return { finish, ongoing, belumMengisi };
+    const finished = rows.filter((r) => r.response_status === "finished").length;
+    const ongoing = rows.length - finished;
+    return { finished, ongoing };
   }, [respondentsQuery.data?.data]);
 
-  // Derive year list from data
   const yearList = useMemo(() => {
     const rows = respondentsQuery.data?.data ?? [];
     return [...new Set(rows.map((r) => r.graduation_year).filter(Boolean))].sort((a, b) => b! - a!) as number[];
@@ -181,20 +199,7 @@ const FormRespondentsPage = () => {
         </div>
 
         {/* Status Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Finish</p>
-                  <p className="text-2xl font-bold">{isLoading ? "…" : stats.finish}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center gap-3">
@@ -211,19 +216,19 @@ const FormRespondentsPage = () => {
           <Card>
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                  <XCircle className="w-5 h-5 text-orange-600" />
+                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Belum Mengisi</p>
-                  <p className="text-2xl font-bold">{isLoading ? "…" : stats.belumMengisi}</p>
+                  <p className="text-xs text-muted-foreground">Finished</p>
+                  <p className="text-2xl font-bold">{isLoading ? "…" : stats.finished}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Advanced Filters */}
+        {/* Filters */}
         <Card>
           <CardContent className="pt-4 pb-4">
             <div className="flex flex-wrap gap-3">
@@ -275,9 +280,8 @@ const FormRespondentsPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Semua Status</SelectItem>
-                  <SelectItem value="finish">Finish</SelectItem>
                   <SelectItem value="ongoing">Ongoing</SelectItem>
-                  <SelectItem value="belum_mengisi">Belum Mengisi</SelectItem>
+                  <SelectItem value="finished">Finished</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -305,12 +309,13 @@ const FormRespondentsPage = () => {
                     <TableHead>Tahun Lulus</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Waktu Submit</TableHead>
+                    {canReset && <TableHead className="w-20">Aksi</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading && (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                      <TableCell colSpan={canReset ? 9 : 8} className="py-10 text-center text-muted-foreground">
                         <div className="flex items-center justify-center gap-2">
                           <Loader2 className="w-5 h-5 animate-spin" />
                           Memuat responden...
@@ -320,63 +325,98 @@ const FormRespondentsPage = () => {
                   )}
                   {!isLoading && isError && (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-10 text-center text-destructive">
+                      <TableCell colSpan={canReset ? 9 : 8} className="py-10 text-center text-destructive">
                         Gagal memuat responden.
                       </TableCell>
                     </TableRow>
                   )}
                   {!isLoading && !isError && respondents.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                      <TableCell colSpan={canReset ? 9 : 8} className="py-10 text-center text-muted-foreground">
                         Tidak ada responden yang cocok dengan filter.
                       </TableCell>
                     </TableRow>
                   )}
                   {!isLoading &&
                     !isError &&
-                    respondents.map((item, index) => {
-                      const status = mapStatus(item.response_status);
-                      return (
-                        <TableRow key={`${item.response_id}-${item.id}`}>
-                          <TableCell className="font-medium">{index + 1}</TableCell>
-                          <TableCell className="font-mono text-sm">{item.nim}</TableCell>
+                    respondents.map((item, index) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
+                        <TableCell className="font-mono text-sm">{item.nim}</TableCell>
+                        <TableCell>
+                          <div className="space-y-0.5">
+                            <p className="font-medium leading-snug">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">{item.email ?? "-"}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">{item.jurusan_name ?? "-"}</TableCell>
+                        <TableCell className="text-sm">{item.program_name ?? "-"}</TableCell>
+                        <TableCell>{item.graduation_year ?? "-"}</TableCell>
+                        <TableCell>
+                          {item.response_status === "finished" ? (
+                            <Badge variant="outline" className="border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                              <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                              Finished
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                              <Clock className="mr-1 h-3.5 w-3.5" />
+                              Ongoing
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">{formatDateTime(item.response_submitted_at)}</TableCell>
+                        {canReset && (
                           <TableCell>
-                            <div className="space-y-0.5">
-                              <p className="font-medium leading-snug">{item.name}</p>
-                              <p className="text-xs text-muted-foreground">{item.email ?? "-"}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-sm">{item.jurusan_name ?? "-"}</TableCell>
-                          <TableCell className="text-sm">{item.program_name ?? "-"}</TableCell>
-                          <TableCell>{item.graduation_year ?? "-"}</TableCell>
-                          <TableCell>
-                            {status === "finish" ? (
-                              <Badge variant="outline" className="border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                                <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                                Finish
-                              </Badge>
-                            ) : status === "ongoing" ? (
-                              <Badge variant="outline" className="border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300">
-                                <Clock className="mr-1 h-3.5 w-3.5" />
-                                Ongoing
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="border-orange-500/20 bg-orange-500/10 text-orange-700 dark:text-orange-300">
-                                <XCircle className="mr-1 h-3.5 w-3.5" />
-                                Belum Mengisi
-                              </Badge>
+                            {item.response_status === "finished" && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setResetTarget(item)}
+                              >
+                                <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                                Reset
+                              </Button>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm">{formatDateTime(item.response_submitted_at)}</TableCell>
-                        </TableRow>
-                      );
-                    })}
+                        )}
+                      </TableRow>
+                    ))}
                 </TableBody>
               </Table>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Reset Confirmation Dialog */}
+      <AlertDialog open={!!resetTarget} onOpenChange={(open) => !open && setResetTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Status Responden</AlertDialogTitle>
+            <AlertDialogDescription>
+              Anda akan mereset status <strong>{resetTarget?.name}</strong> ({resetTarget?.nim}) dari{" "}
+              <strong>Finished</strong> ke <strong>Ongoing</strong>. Jawaban yang sudah disubmit akan dihapus dan alumni
+              harus mengisi ulang kuesioner.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetMutation.isPending}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={resetMutation.isPending}
+              onClick={() => resetTarget && resetMutation.mutate(resetTarget.id)}
+            >
+              {resetMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="mr-2 h-4 w-4" />
+              )}
+              Reset
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };
