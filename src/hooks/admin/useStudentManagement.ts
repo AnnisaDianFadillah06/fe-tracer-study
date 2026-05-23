@@ -57,16 +57,17 @@ export interface ProgramOption {
 
 // ── Map backend alumni → frontend Student ─────────────────────────────────
 function alumniToStudent(a: AlumniRecord): Student {
+  const degree = (a as any).program_degree;
   return {
     id: String(a.id),
     nim: a.nim ?? "",
     username: a.name ?? "",
     email: a.email ?? "",
-    password: "", // Backend doesn't return passwords
-    prodi: a.program_name ?? "",
+    password: "",
+    prodi: a.program_name ? `${a.program_name}${degree ? ` (${degree})` : ""}` : "",
     jurusan: a.jurusan_name ?? "",
     programId: a.program_id ? String(a.program_id) : "",
-    angkatan: a.graduation_year ? String(a.graduation_year) : "", // tahun lulusan
+    angkatan: a.graduation_year ? String(a.graduation_year) : "",
     status: "aktif",
   };
 }
@@ -101,6 +102,8 @@ export const useStudentManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterProdi, setFilterProdi] = useState("all");
   const [filterJurusan, setFilterJurusan] = useState("all");
+  const [filterGraduationYear, setFilterGraduationYear] = useState("all");
+  const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -150,17 +153,25 @@ export const useStudentManagement = () => {
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ["alumni", searchQuery],
+    queryKey: ["alumni", searchQuery, filterProdi, filterJurusan, filterGraduationYear, page],
     queryFn: async () => {
-      const params: Record<string, string> = {};
+      const params: Record<string, string> = { per_page: "100", page: String(page), sort: "-graduation_year" };
       if (searchQuery) params.search = searchQuery;
-      params.per_page = "500"; // 26 prodi × 5 alumni = 130, headroom untuk pertumbuhan data
+      if (filterProdi !== "all") params.program_id = filterProdi;
+      if (filterJurusan !== "all") params.jurusan = filterJurusan;
+      if (filterGraduationYear !== "all") params.graduation_year = filterGraduationYear;
       const { data } = await api.get("/alumni", { params });
       return data;
     },
     retry: 1,
-    staleTime: 30_000, // 30 seconds
+    staleTime: 30_000,
   });
+
+  // Pagination metadata
+  const paginationMeta = useMemo(() => {
+    const d = apiResponse?.data;
+    return { currentPage: d?.current_page ?? 1, lastPage: d?.last_page ?? 1, total: d?.total ?? 0 };
+  }, [apiResponse]);
 
   // Map backend data to Student format
   const students: Student[] = (() => {
@@ -170,12 +181,8 @@ export const useStudentManagement = () => {
     return [];
   })();
 
-  // Client-side filter
-  const filtered = students.filter((s) => {
-    const matchProdi = filterProdi === "all" || s.programId === filterProdi;
-    const matchJurusan = filterJurusan === "all" || s.jurusan === filterJurusan;
-    return matchProdi && matchJurusan;
-  });
+  // No more client-side filter — all done server-side
+  const filtered = students;
 
   const jurusanOptions = useMemo(() => {
     return Array.from(new Set(students.map((s) => s.jurusan).filter(Boolean))).sort();
@@ -329,6 +336,11 @@ export const useStudentManagement = () => {
     setFilterProdi,
     filterJurusan,
     setFilterJurusan,
+    filterGraduationYear,
+    setFilterGraduationYear,
+    page,
+    setPage,
+    paginationMeta,
     jurusanOptions,
     programs,
     isDialogOpen,

@@ -58,6 +58,11 @@ const StudentManagementPage = () => {
     setFilterProdi,
     filterJurusan,
     setFilterJurusan,
+    filterGraduationYear,
+    setFilterGraduationYear,
+    page,
+    setPage,
+    paginationMeta,
     jurusanOptions,
     programs,
     isDialogOpen,
@@ -283,7 +288,7 @@ const StudentManagementPage = () => {
                   <GraduationCap className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{students.length}</p>
+                  <p className="text-2xl font-bold">{paginationMeta.total}</p>
                   <p className="text-xs text-muted-foreground">Total Mahasiswa</p>
                 </div>
               </div>
@@ -296,7 +301,7 @@ const StudentManagementPage = () => {
                   <GraduationCap className="w-5 h-5 text-green-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{students.filter((s) => s.status === "aktif").length}</p>
+                  <p className="text-2xl font-bold">{paginationMeta.total}</p>
                   <p className="text-xs text-muted-foreground">Akun Aktif</p>
                 </div>
               </div>
@@ -327,7 +332,7 @@ const StudentManagementPage = () => {
                   className="pl-9"
                   placeholder="Cari NIM, username, atau email..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
                 />
               </div>
               <Select value={filterProdi} onValueChange={setFilterProdi}>
@@ -338,12 +343,12 @@ const StudentManagementPage = () => {
                   <SelectItem value="all">Semua Program Studi</SelectItem>
                   {programs.map((program) => (
                     <SelectItem key={program.id} value={String(program.id)}>
-                      {program.name}
+                      {program.name}{program.degree ? ` (${program.degree})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={filterJurusan} onValueChange={setFilterJurusan}>
+              <Select value={filterJurusan} onValueChange={(v) => { setFilterJurusan(v); setPage(1); }}>
                 <SelectTrigger className="w-56">
                   <SelectValue placeholder="Filter Jurusan" />
                 </SelectTrigger>
@@ -356,6 +361,17 @@ const StudentManagementPage = () => {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={filterGraduationYear} onValueChange={(v) => { setFilterGraduationYear(v); setPage(1); }}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Tahun Lulusan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Tahun</SelectItem>
+                  {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() + 1 - i).map((y) => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -363,7 +379,7 @@ const StudentManagementPage = () => {
         {/* Table */}
         <Card className="overflow-hidden">
           <CardHeader className="border-b border-border/60 pb-3">
-            <CardTitle className="text-base">Daftar Mahasiswa ({filtered.length})</CardTitle>
+            <CardTitle className="text-base">Daftar Mahasiswa ({paginationMeta.total})</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -433,6 +449,15 @@ const StudentManagementPage = () => {
                 </TableBody>
               </Table>
             </div>
+            {paginationMeta.lastPage > 1 && (
+              <div className="flex items-center justify-between pt-4">
+                <p className="text-sm text-muted-foreground">Halaman {paginationMeta.currentPage} dari {paginationMeta.lastPage}</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Sebelumnya</Button>
+                  <Button variant="outline" size="sm" disabled={page >= paginationMeta.lastPage} onClick={() => setPage(page + 1)}>Berikutnya</Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -479,7 +504,7 @@ const StudentManagementPage = () => {
                   <SelectContent>
                     {programs.map((program) => (
                       <SelectItem key={program.id} value={String(program.id)}>
-                        {program.name}
+                        {program.name}{program.degree ? ` (${program.degree})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>

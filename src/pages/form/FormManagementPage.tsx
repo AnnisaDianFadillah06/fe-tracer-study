@@ -83,15 +83,30 @@ const DaftarKuisionerPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
   const [exportingId, setExportingId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const [graduationYearFilter, setGraduationYearFilter] = useState("all");
+  const [paginationMeta, setPaginationMeta] = useState({ currentPage: 1, lastPage: 1, total: 0 });
 
-  // Fetch questionnaires from backend
+  // Fetch questionnaires from backend (paginated)
   useEffect(() => {
     const fetchForms = async () => {
       setIsLoading(true);
       try {
-        const { data } = await api.get("/questionnaires");
+        const params: Record<string, string> = { page: String(page), per_page: "100" };
+        if (graduationYearFilter !== "all") params.graduation_year = graduationYearFilter;
+        if (searchQuery) params.search = searchQuery;
+        const { data } = await api.get("/questionnaires", { params });
         if (data.success && data.data) {
-          setForms(data.data);
+          // Paginated response has data.data.data (nested)
+          const payload = data.data;
+          if (payload.data && payload.current_page) {
+            setForms(payload.data);
+            setPaginationMeta({ currentPage: payload.current_page, lastPage: payload.last_page, total: payload.total });
+          } else {
+            // Fallback: non-paginated response (backward compat)
+            setForms(Array.isArray(payload) ? payload : []);
+            setPaginationMeta({ currentPage: 1, lastPage: 1, total: Array.isArray(payload) ? payload.length : 0 });
+          }
         }
       } catch (err) {
         console.error("[FormManagementPage] Failed to fetch questionnaires:", err);
@@ -105,26 +120,26 @@ const DaftarKuisionerPage = () => {
       }
     };
     fetchForms();
-  }, []);
+  }, [page, graduationYearFilter, searchQuery]);
 
   useEffect(() => {
     api.get("/programs").then(({ data }) => {
       const programs = data.data ?? data;
       if (Array.isArray(programs)) {
         const map: Record<number, string> = {};
-        programs.forEach((p: any) => { map[p.id] = p.name; });
+        programs.forEach((p: any) => { map[p.id] = `${p.name}${p.degree ? ` (${p.degree})` : ""}`; });
         setProgramMap(map);
       }
     }).catch(() => {});
   }, []);
 
   const stats = useMemo(() => {
-    const totalForms = forms.length;
+    const totalForms = paginationMeta.total;
     const activeForms = forms.filter((form) => form.status === "published").length;
     const totalRespondents = forms.reduce((acc, form) => acc + (form.response_count ?? 0), 0);
 
     return { totalForms, activeForms, totalRespondents };
-  }, [forms]);
+  }, [forms, paginationMeta]);
 
   const filtered = useMemo(() => {
     return forms.filter((form) => {
@@ -276,6 +291,17 @@ const DaftarKuisionerPage = () => {
                   <SelectItem value="all">Semua Status</SelectItem>
                   <SelectItem value="published">Published</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={graduationYearFilter} onValueChange={(v) => { setGraduationYearFilter(v); setPage(1); }}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Tahun Lulusan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Tahun</SelectItem>
+                  {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() + 1 - i).map((y) => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -430,6 +456,15 @@ const DaftarKuisionerPage = () => {
                 </TableBody>
               </Table>
             </div>
+            {paginationMeta.lastPage > 1 && (
+              <div className="flex items-center justify-between pt-4">
+                <p className="text-sm text-muted-foreground">Halaman {paginationMeta.currentPage} dari {paginationMeta.lastPage} ({paginationMeta.total} kuesioner)</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Sebelumnya</Button>
+                  <Button variant="outline" size="sm" disabled={page >= paginationMeta.lastPage} onClick={() => setPage(page + 1)}>Berikutnya</Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

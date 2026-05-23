@@ -239,7 +239,7 @@ const FormBuilderPage = () => {
       try {
         const { data } = await api.get("/programs");
         const programs = data.data ?? data;
-        setProdiOptions(Array.isArray(programs) ? programs.map((p: any) => ({ id: p.id, name: p.name, code: p.code })) : []);
+        setProdiOptions(Array.isArray(programs) ? programs.map((p: any) => ({ id: p.id, name: `${p.name}${p.degree ? ` (${p.degree})` : ""}`, code: p.code })) : []);
       } catch {
         setProdiOptions([]);
       } finally {
