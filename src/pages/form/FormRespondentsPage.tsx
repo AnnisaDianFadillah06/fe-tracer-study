@@ -199,7 +199,7 @@ const FormRespondentsPage = () => {
         </div>
 
         {/* Status Cards */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center gap-3">
@@ -222,6 +222,19 @@ const FormRespondentsPage = () => {
                 <div>
                   <p className="text-xs text-muted-foreground">Finished</p>
                   <p className="text-2xl font-bold">{isLoading ? "…" : stats.finished}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Response Rate</p>
+                  <p className="text-2xl font-bold">{isLoading ? "…" : `${stats.ongoing + stats.finished > 0 ? ((stats.finished / (stats.ongoing + stats.finished)) * 100).toFixed(1) : 0}%`}</p>
                 </div>
               </div>
             </CardContent>

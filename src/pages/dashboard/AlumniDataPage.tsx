@@ -154,7 +154,7 @@ const AlumniDataPage = () => {
                         <TableCell className="text-muted-foreground text-sm">
                           {a.email ?? "—"}
                         </TableCell>
-                        <TableCell className="text-sm">{a.program_name ?? "—"}</TableCell>
+                        <TableCell className="text-sm">{a.program_name ? `${a.program_name}${a.program_degree ? ` (${a.program_degree})` : ""}` : "—"}</TableCell>
                         <TableCell className="text-sm">{a.jurusan_name ?? "—"}</TableCell>
                         <TableCell>{a.graduation_year ?? "—"}</TableCell>
                         <TableCell>

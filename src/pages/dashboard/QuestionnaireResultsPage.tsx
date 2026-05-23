@@ -38,6 +38,7 @@ const QuestionnaireResultsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [search, setSearch] = useState("");
+  const [alumniTotal, setAlumniTotal] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -66,6 +67,9 @@ const QuestionnaireResultsPage = () => {
         setProgramMap(nameMap);
         setProgramJurusanMap(jurMap);
       }
+    }).catch(() => {});
+    api.get("/alumni/stats").then(({ data }) => {
+      if (data.success) setAlumniTotal(data.data?.total ?? 0);
     }).catch(() => {});
   }, []);
 
@@ -102,7 +106,7 @@ const QuestionnaireResultsPage = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center gap-3">
@@ -125,6 +129,19 @@ const QuestionnaireResultsPage = () => {
                 <div>
                   <p className="text-xs text-muted-foreground">Total Responden</p>
                   <p className="text-2xl font-bold">{stats.totalResponden}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Response Rate</p>
+                  <p className="text-2xl font-bold">{alumniTotal > 0 ? ((stats.totalResponden / alumniTotal) * 100).toFixed(1) : 0}%</p>
                 </div>
               </div>
             </CardContent>

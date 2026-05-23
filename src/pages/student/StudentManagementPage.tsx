@@ -450,11 +450,31 @@ const StudentManagementPage = () => {
               </Table>
             </div>
             {paginationMeta.lastPage > 1 && (
-              <div className="flex items-center justify-between pt-4">
-                <p className="text-sm text-muted-foreground">Halaman {paginationMeta.currentPage} dari {paginationMeta.lastPage}</p>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Sebelumnya</Button>
-                  <Button variant="outline" size="sm" disabled={page >= paginationMeta.lastPage} onClick={() => setPage(page + 1)}>Berikutnya</Button>
+              <div className="flex items-center justify-between pt-4 border-t">
+                <p className="text-sm text-muted-foreground">Menampilkan halaman {paginationMeta.currentPage} dari {paginationMeta.lastPage} ({paginationMeta.total} data)</p>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(1)}>
+                    <span className="sr-only">First</span>«
+                  </Button>
+                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                    <span className="sr-only">Prev</span>‹
+                  </Button>
+                  {Array.from({ length: Math.min(5, paginationMeta.lastPage) }, (_, i) => {
+                    const start = Math.max(1, Math.min(page - 2, paginationMeta.lastPage - 4));
+                    const p = start + i;
+                    if (p > paginationMeta.lastPage) return null;
+                    return (
+                      <Button key={p} variant={p === page ? "default" : "outline"} size="icon" className="h-8 w-8" onClick={() => setPage(p)}>
+                        {p}
+                      </Button>
+                    );
+                  })}
+                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= paginationMeta.lastPage} onClick={() => setPage(page + 1)}>
+                    <span className="sr-only">Next</span>›
+                  </Button>
+                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= paginationMeta.lastPage} onClick={() => setPage(paginationMeta.lastPage)}>
+                    <span className="sr-only">Last</span>»
+                  </Button>
                 </div>
               </div>
             )}
