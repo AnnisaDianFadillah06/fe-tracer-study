@@ -1,8 +1,6 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 
-// ── Types matching backend response ──────────────────────────────────────
 export interface KaprodiAlumniStats {
   total: number;
   finish: number;
@@ -10,7 +8,8 @@ export interface KaprodiAlumniStats {
   belum_mengisi: number;
   answered: number;
   unanswered: number;
-  response_rate: number; // 0 — 100
+  response_rate: number;
+  graduation_years: number[];
 }
 
 export interface KaprodiAlumniItem {
@@ -20,6 +19,7 @@ export interface KaprodiAlumniItem {
   email: string | null;
   program_id: number | null;
   program_name: string | null;
+  program_degree: string | null;
   jurusan_name: string | null;
   graduation_year: number | null;
   is_active: boolean;
@@ -34,51 +34,56 @@ interface AlumniPaginator {
   total: number;
 }
 
-/**
- * Fetch stats + paginated alumni untuk halaman Kaprodi `Data Alumni Prodi`.
- *
- * Backend endpoint:
- *   GET /api/alumni/stats        → { total, answered, unanswered, response_rate }
- *   GET /api/alumni?search=&per_page= → Laravel paginator dengan response_status per item
- *
- * Filter role: backend auto-scope ke prodi kaprodi (AdminAlumniService::applyRoleScope).
- * Admin dapat aggregate semua prodi.
- */
-export const useKaprodiAlumni = (perPage = 100) => {
-  const [search, setSearch] = useState("");
+interface Params {
+  search: string;
+  page: number;
+  graduationYear: number | null | undefined; // undefined = not yet initialized
+  perPage?: number;
+}
 
-  const statsQuery = useQuery<KaprodiAlumniStats>({
-    queryKey: ["kaprodi-alumni-stats"],
+export const useKaprodiAlumni = ({ search, page, graduationYear, perPage = 100 }: Params) => {
+  // Always fetch unfiltered stats first to get graduation_years list
+  const yearsQuery = useQuery<KaprodiAlumniStats>({
+    queryKey: ["kaprodi-alumni-years"],
     queryFn: async () => {
       const { data } = await api.get("/alumni/stats");
       return data.data;
     },
+    staleTime: 60000,
+  });
+
+  const isReady = graduationYear !== undefined;
+
+  const statsQuery = useQuery<KaprodiAlumniStats>({
+    queryKey: ["kaprodi-alumni-stats", graduationYear ?? "all"],
+    queryFn: async () => {
+      const params: Record<string, unknown> = {};
+      if (graduationYear) params.graduation_year = graduationYear;
+      const { data } = await api.get("/alumni/stats", { params });
+      return data.data;
+    },
+    enabled: isReady,
   });
 
   const alumniQuery = useQuery<AlumniPaginator>({
-    queryKey: ["kaprodi-alumni-list", search, perPage],
+    queryKey: ["kaprodi-alumni-list", search, perPage, page, graduationYear ?? "all"],
     queryFn: async () => {
-      const { data } = await api.get("/alumni", {
-        params: { search, per_page: perPage },
-      });
+      const params: Record<string, unknown> = { search, per_page: perPage, page };
+      if (graduationYear) params.graduation_year = graduationYear;
+      const { data } = await api.get("/alumni", { params });
       return data.data;
     },
+    enabled: isReady,
   });
 
   return {
     stats: statsQuery.data,
     alumni: alumniQuery.data?.data ?? [],
     pagination: alumniQuery.data
-      ? {
-          current_page: alumniQuery.data.current_page,
-          last_page: alumniQuery.data.last_page,
-          per_page: alumniQuery.data.per_page,
-          total: alumniQuery.data.total,
-        }
-      : null,
-    isLoading: statsQuery.isLoading || alumniQuery.isLoading,
+      ? { currentPage: alumniQuery.data.current_page, lastPage: alumniQuery.data.last_page, total: alumniQuery.data.total }
+      : { currentPage: 1, lastPage: 1, total: 0 },
+    isLoading: !isReady || statsQuery.isLoading || alumniQuery.isLoading,
     isError: statsQuery.isError || alumniQuery.isError,
-    search,
-    setSearch,
+    graduationYears: yearsQuery.data?.graduation_years ?? [],
   };
 };

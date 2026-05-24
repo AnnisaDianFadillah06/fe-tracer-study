@@ -62,6 +62,7 @@ interface RespondentItem {
   email: string | null;
   program_id: number | null;
   program_name: string | null;
+  program_degree: string | null;
   jurusan_name: string | null;
   graduation_year: number | null;
   response_id: number | null;
@@ -363,7 +364,7 @@ const FormRespondentsPage = () => {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm">{item.jurusan_name ?? "-"}</TableCell>
-                        <TableCell className="text-sm">{item.program_name ?? "-"}</TableCell>
+                        <TableCell className="text-sm">{item.program_name ? `${item.program_name}${item.program_degree ? ` (${item.program_degree})` : ""}` : "-"}</TableCell>
                         <TableCell>{item.graduation_year ?? "-"}</TableCell>
                         <TableCell>
                           {item.response_status === "finished" ? (

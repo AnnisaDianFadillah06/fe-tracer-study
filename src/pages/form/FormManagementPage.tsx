@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +70,7 @@ const statusLabel: Record<string, string> = {
 
 const DaftarKuisionerPage = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { currentRole } = useRole();
   const isHeadTracer = currentRole === "head_tracer";
@@ -81,11 +82,26 @@ const DaftarKuisionerPage = () => {
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteRequestDialogId, setDeleteRequestDialogId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">((searchParams.get("status") as any) || "all");
   const [exportingId, setExportingId] = useState<number | null>(null);
-  const [page, setPage] = useState(1);
-  const [graduationYearFilter, setGraduationYearFilter] = useState("all");
+  const [page, setPageRaw] = useState(Number(searchParams.get("page")) || 1);
+  const [graduationYearFilter, setGraduationYearFilterRaw] = useState(searchParams.get("year") || "all");
   const [paginationMeta, setPaginationMeta] = useState({ currentPage: 1, lastPage: 1, total: 0 });
+
+  const setPage = (p: number) => {
+    setPageRaw(p);
+    const params = new URLSearchParams(searchParams);
+    params.set("page", String(p));
+    setSearchParams(params, { replace: true });
+  };
+  const setGraduationYearFilter = (v: string) => {
+    setGraduationYearFilterRaw(v);
+    setPageRaw(1);
+    const params = new URLSearchParams(searchParams);
+    params.set("year", v);
+    params.set("page", "1");
+    setSearchParams(params, { replace: true });
+  };
 
   // Fetch questionnaires from backend (paginated)
   useEffect(() => {
