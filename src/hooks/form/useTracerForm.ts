@@ -63,8 +63,8 @@ function mapSingleQuestion(q: any): Question {
     required: !!q.is_required,
     scaleMin: meta.scale_min ?? meta.scaleMin ?? 1,
     scaleMax: meta.scale_max ?? meta.scaleMax ?? 5,
-    scaleMinLabel: meta.scale_min_label ?? meta.scaleMinLabel ?? "",
-    scaleMaxLabel: meta.scale_max_label ?? meta.scaleMaxLabel ?? "",
+    scaleMinLabel: meta.scale_labels?.[0] ?? meta.scaleLabels?.[0] ?? meta.scale_min_label ?? meta.scaleMinLabel ?? "",
+    scaleMaxLabel: (() => { const labels = meta.scale_labels ?? meta.scaleLabels; return labels?.length ? labels[labels.length - 1] : (meta.scale_max_label ?? meta.scaleMaxLabel ?? ""); })(),
     showIf: meta.show_if ?? meta.showIf ?? undefined,
     groupCode: meta.group_code ?? meta.groupCode ?? undefined,
     groupTitle: meta.group_title ?? meta.groupTitle ?? undefined,
@@ -460,6 +460,7 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
       const payload = {
         ...strippedAnswers,
         ...identityData,
+        questionnaire_ids: sections.map((s) => Number(s.id)),
       };
 
       await api.post("/tracer-study/submit", payload);

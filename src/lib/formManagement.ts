@@ -586,6 +586,7 @@ export const formListItemToApiPayload = (form: FormListItem & { targetGraduation
         allowOther: q.allowOther ?? false,
         scaleMin: q.scaleMin,
         scaleMax: q.scaleMax,
+        scaleLabels: q.scaleLabels ?? undefined,
         gridRows: q.gridRows ?? [],
         gridColumns: q.gridColumns ?? [],
         group_code: q.group_code ?? undefined,
