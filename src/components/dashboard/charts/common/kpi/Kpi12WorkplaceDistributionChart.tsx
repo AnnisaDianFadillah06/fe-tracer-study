@@ -43,7 +43,7 @@ const Kpi12WorkplaceDistributionChart = ({
   return (
   <>
   <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard loading={loading} error={error} title="Distribusi Level Instansi Tempat Kerja" subtitle="Periode terakhir" compareType="jenisInstansi">
+    <KpiCard loading={loading} error={error} title="Sebaran Level Perusahaan" subtitle="Distribusi level perusahaan tempat kerja lulusan — periode terakhir" compareType="jenisInstansi">
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -59,7 +59,7 @@ const Kpi12WorkplaceDistributionChart = ({
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} title="Perubahan Sebaran Antar Periode" subtitle="Grouped bar chart" compareType="jenisInstansi">
+    <KpiCard loading={loading} error={error} title="Perubahan Sebaran Level Perusahaan Antar Periode" subtitle="Sumbu Y: persentase lulusan • Sumbu X: tahun kelulusan" compareType="jenisInstansi">
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={groupedData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
