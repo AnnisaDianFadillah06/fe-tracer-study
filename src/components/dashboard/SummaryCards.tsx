@@ -20,21 +20,21 @@ const SummaryCards = ({ items }: { items: SummaryCardItem[] }) => {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.04 }}
-          className="glass-card p-4 flex flex-col gap-1.5"
+          className="glass-card p-4 flex flex-col gap-2"
         >
           <div className="flex items-center justify-between">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${it.color ?? "bg-primary/10 text-primary"}`}>
-              <it.icon className="w-4 h-4" />
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${it.color ?? "bg-primary/10 text-primary"}`}>
+              <it.icon className="w-5 h-5" />
             </div>
             {it.trend && (
-              <span className={`text-[10px] font-semibold ${it.trendUp ? "text-emerald-500" : "text-destructive"}`}>
+              <span className={`text-xs font-semibold ${it.trendUp ? "text-emerald-500" : "text-destructive"}`}>
                 {it.trend}
               </span>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground">{it.title}</p>
-          <p className="font-heading text-xl font-bold leading-tight">{it.value}</p>
-          {it.hint && <p className="text-[10px] text-muted-foreground">{it.hint}</p>}
+          <p className="text-sm font-medium text-muted-foreground">{it.title}</p>
+          <p className="font-heading text-2xl font-bold leading-tight">{it.value}</p>
+          {it.hint && <p className="text-xs text-muted-foreground">{it.hint}</p>}
         </motion.div>
       ))}
     </div>

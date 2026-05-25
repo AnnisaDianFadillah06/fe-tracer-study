@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Loader2, AlertCircle, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { useKpiUI } from "@/contexts/GlobalFiltersContext";
 
 /* ============================================================
    COLOR TOKENS — sesuai psikologi warna pada spesifikasi KPI
@@ -78,16 +79,17 @@ export const KpiCard = ({
   headerExtra?: React.ReactNode;
 }) => {
   const navigate = useNavigate();
+  const { hideCompare } = useKpiUI();
   return (
   <div className={`glass-card p-5 ${className}`}>
     <div className="mb-4 flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <h3 className="font-heading font-semibold text-sm">{title}</h3>
-        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        <h3 className="font-heading font-semibold text-base">{title}</h3>
+        {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {headerExtra}
-        {compareType && (
+        {compareType && !hideCompare && (
           <Button
             size="sm"
             variant="outline"
