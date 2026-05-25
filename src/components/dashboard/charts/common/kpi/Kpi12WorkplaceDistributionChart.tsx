@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ResponsiveContainer,
   PieChart,
@@ -10,8 +11,11 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  LabelList,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
+import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 
 const defaultPie = [
   { name: "Lokal", value: 38, color: C.greenLight },
@@ -27,18 +31,24 @@ const defaultGrouped = [
 interface Props {
   pieData?: typeof defaultPie;
   groupedData?: typeof defaultGrouped;
+  loading?: boolean;
+  error?: string | null;
 }
 
 const Kpi12WorkplaceDistributionChart = ({
   pieData = defaultPie,
-  groupedData = defaultGrouped,
-}: Props) => (
+  groupedData = defaultGrouped, loading, error }: Props) => {
+  const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
+  const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, Math.max(n, 5)) });
+  return (
+  <>
   <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard title="Distribusi Level Instansi Tempat Kerja" subtitle="Periode terakhir">
+    <KpiCard loading={loading} error={error} title="Distribusi Level Instansi Tempat Kerja" subtitle="Periode terakhir" compareType="jenisInstansi">
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label={(e: any) => `${e.name}: ${e.value}%`}>
+            <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label={(e: any) => `${e.name}: ${e.value}%`}
+              cursor="pointer" onClick={(d: any) => openModal(`${d.name} (${d.value}%)`, d.value)}>
               {pieData.map((d, i) => (
                 <Cell key={i} fill={d.color} />
               ))}
@@ -49,7 +59,7 @@ const Kpi12WorkplaceDistributionChart = ({
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard title="Perubahan Sebaran Antar Periode" subtitle="Grouped bar chart">
+    <KpiCard loading={loading} error={error} title="Perubahan Sebaran Antar Periode" subtitle="Grouped bar chart" compareType="jenisInstansi">
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={groupedData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
@@ -58,14 +68,23 @@ const Kpi12WorkplaceDistributionChart = ({
             <YAxis tickFormatter={(v) => `${v}%`} fontSize={12} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="lokal" name="Lokal" fill={C.greenLight} radius={[3, 3, 0, 0]} />
-            <Bar dataKey="nasional" name="Nasional" fill={C.blue} radius={[3, 3, 0, 0]} />
-            <Bar dataKey="multi" name="Multinasional" fill={C.navy} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="lokal" name="Lokal" fill={C.greenLight} radius={[3, 3, 0, 0]} cursor="pointer" onClick={(d: any) => openModal(`Lokal — ${d.year} (${d.lokal}%)`, d.lokal)}>
+              <LabelList dataKey="lokal" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
+            </Bar>
+            <Bar dataKey="nasional" name="Nasional" fill={C.blue} radius={[3, 3, 0, 0]} cursor="pointer" onClick={(d: any) => openModal(`Nasional — ${d.year} (${d.nasional}%)`, d.nasional)}>
+              <LabelList dataKey="nasional" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
+            </Bar>
+            <Bar dataKey="multi" name="Multinasional" fill={C.navy} radius={[3, 3, 0, 0]} cursor="pointer" onClick={(d: any) => openModal(`Multinasional — ${d.year} (${d.multi}%)`, d.multi)}>
+              <LabelList dataKey="multi" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
     </KpiCard>
   </div>
-);
+  <StudentDataModal isOpen={modal.open} onClose={() => setModal((m) => ({ ...m, open: false }))} title={modal.title} students={modal.students} columns={[]} />
+  </>
+  );
+};
 
 export default Kpi12WorkplaceDistributionChart;
