@@ -1,4 +1,7 @@
 import { motion } from "framer-motion";
+import { Loader2, AlertCircle, ArrowRightLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 /* ============================================================
    COLOR TOKENS — sesuai psikologi warna pada spesifikasi KPI
@@ -58,17 +61,59 @@ export const KpiCard = ({
   subtitle,
   children,
   className = "",
+  loading = false,
+  error = null,
+  compareType,
+  headerExtra,
 }: {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   className?: string;
-}) => (
+  loading?: boolean;
+  error?: string | null;
+  /** Compare type key passed to /dashboard/compare?type=... — omit to hide button */
+  compareType?: string;
+  /** Extra header controls (filters etc.) */
+  headerExtra?: React.ReactNode;
+}) => {
+  const navigate = useNavigate();
+  return (
   <div className={`glass-card p-5 ${className}`}>
-    <div className="mb-4">
-      <h3 className="font-heading font-semibold text-sm">{title}</h3>
-      {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h3 className="font-heading font-semibold text-sm">{title}</h3>
+        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {headerExtra}
+        {compareType && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs gap-1"
+            onClick={() => navigate(`/dashboard/compare?type=${encodeURIComponent(compareType)}`)}
+          >
+            <ArrowRightLeft className="w-3 h-3" />
+            Bandingkan
+          </Button>
+        )}
+      </div>
     </div>
-    {children}
+    {loading ? (
+      <div className="flex flex-col items-center justify-center h-72 text-muted-foreground gap-2">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        <p className="text-xs">Memuat data...</p>
+      </div>
+    ) : error ? (
+      <div className="flex flex-col items-center justify-center h-72 text-destructive gap-2 px-4 text-center">
+        <AlertCircle className="w-6 h-6" />
+        <p className="text-xs font-medium">Gagal memuat data</p>
+        <p className="text-[11px] text-muted-foreground">{error}</p>
+      </div>
+    ) : (
+      children
+    )}
   </div>
-);
+  );
+};

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -15,6 +16,9 @@ import {
   LabelList,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
+import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MOCK_STUDENTS, Student } from "@/lib/mockData";
+import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 
 const defaultCombo = [
   { year: "2021", value: 4 },
@@ -32,11 +36,19 @@ const defaultPie = [
 interface Props {
   comboData?: typeof defaultCombo;
   pieData?: typeof defaultPie;
+  loading?: boolean;
+  error?: string | null;
 }
 
-const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = defaultPie }: Props) => (
+const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = defaultPie, loading, error }: Props) => {
+  const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
+  const lam = useLamFilter("entrepreneurship");
+  const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, Math.max(n, 5)) });
+  return (
+  <>
   <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard title="Tren Persentase Wirausaha" subtitle="Combo chart">
+    <KpiCard loading={loading} error={error} title="Tren Persentase Wirausaha" subtitle={lamSubtitle(lam)}
+      compareType="entrepreneurship" headerExtra={<LamFilterControls lam={lam} />}>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={comboData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
@@ -44,20 +56,26 @@ const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = default
             <XAxis dataKey="year" fontSize={12} />
             <YAxis domain={[0, 20]} tickFormatter={(v) => `${v}%`} fontSize={12} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
-            <Bar dataKey="value" name="Wirausaha" fill={C.green} radius={[6, 6, 0, 0]} maxBarSize={50}>
+            <Bar dataKey="value" name="Wirausaha" radius={[6, 6, 0, 0]} maxBarSize={50}
+              cursor="pointer" onClick={(d: any) => openModal(`Wirausaha ${d.year} (${d.value}%)`, d.value * 3)}>
+              {comboData.map((d) => (
+                <Cell key={d.year} fill={d.value >= lam.threshold ? C.green : C.orange} />
+              ))}
               <LabelList dataKey="value" position="center" fill="#fff" fontSize={11} formatter={(v: number) => `${v}%`} />
             </Bar>
             <Line type="monotone" dataKey="value" stroke={C.greenDark} strokeWidth={2.5} dot={{ r: 4 }} />
-            <ReferenceLine y={5} stroke={C.red} strokeDasharray="6 3" label={{ value: "LAM/BAN-PT 5%", fill: C.red, fontSize: 11, position: "insideTopRight" }} />
+            <ReferenceLine y={lam.threshold} stroke={C.red} strokeDasharray="6 3"
+              label={{ value: `${lam.level === "baik" ? "Baik" : "Unggul"} ${lam.threshold}%`, fill: C.red, fontSize: 11, position: "insideTopRight" }} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard title="Distribusi Posisi Wirausaha" subtitle="Periode terakhir">
+    <KpiCard loading={loading} error={error} title="Distribusi Posisi Wirausaha" subtitle="Periode terakhir" compareType="entrepreneurship">
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label={(e: any) => `${e.name}: ${e.value}%`}>
+            <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label={(e: any) => `${e.name}: ${e.value}%`}
+              cursor="pointer" onClick={(d: any) => openModal(`${d.name} (${d.value}%)`, d.value)}>
               {pieData.map((d, i) => (
                 <Cell key={i} fill={d.color} />
               ))}
@@ -69,6 +87,9 @@ const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = default
       </div>
     </KpiCard>
   </div>
-);
+  <StudentDataModal isOpen={modal.open} onClose={() => setModal((m) => ({ ...m, open: false }))} title={modal.title} students={modal.students} columns={[]} />
+  </>
+  );
+};
 
 export default Kpi7EntrepreneurshipChart;
