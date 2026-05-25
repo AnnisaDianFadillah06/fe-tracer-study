@@ -23,8 +23,8 @@ const RoleSwitcher = () => {
   };
 
   return (
-    <Tabs value={currentRole} onValueChange={(value) => handleRoleChange(value as UserRole)}>
-      <TabsList className="bg-secondary/50 border border-border/50">
+    <Tabs value={currentRole} onValueChange={(value) => handleRoleChange(value as UserRole)} className="w-full">
+      <TabsList className="bg-secondary/50 border border-border/50 w-full grid grid-cols-3 h-auto p-1">
         {(Object.keys(roleLabels) as UserRole[]).map((role) => {
           const Icon = roleIcons[role];
           return (
@@ -32,10 +32,10 @@ const RoleSwitcher = () => {
               <TooltipTrigger asChild>
                 <TabsTrigger
                   value={role}
-                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-2"
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5 flex-col py-2 text-[11px]"
                 >
                   <Icon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{roleLabels[role]}</span>
+                  <span>{roleLabels[role]}</span>
                 </TabsTrigger>
               </TooltipTrigger>
               <TooltipContent>

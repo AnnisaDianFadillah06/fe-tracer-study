@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { useLocation } from "react-router-dom";
+import { Download, Radio, Calendar, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,6 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PRODI_LIST, MOCK_STUDENTS, TAHUN_LULUS, Student } from "@/lib/mockData";
+import { useGlobalFilters, ALL, WEEK_OPTIONS } from "@/contexts/GlobalFiltersContext";
+import { Badge } from "@/components/ui/badge";
 
 /** Jurusan grouping — mapping prodi → jurusan */
 const JURUSAN_MAP: Record<string, string[]> = {
@@ -29,19 +32,6 @@ const JURUSAN_MAP: Record<string, string[]> = {
 };
 const ALL_JURUSAN = Object.keys(JURUSAN_MAP);
 const ALL_DEGREE = ["D3", "D4", "S2"];
-
-/** Week options — mock examples representing OLAP snapshot weeks */
-const WEEK_OPTIONS = [
-  "2026 Mei - Minggu 3",
-  "2026 Mei - Minggu 2",
-  "2026 Mei - Minggu 1",
-  "2026 Apr - Minggu 4",
-  "2026 Apr - Minggu 3",
-  "2026 Feb - Minggu 3",
-  "2025 Des - Minggu 4",
-];
-
-const ALL = "__all__";
 
 function findProdiByName(name: string) {
   return PRODI_LIST.find((p) => p.name === name);
@@ -86,11 +76,26 @@ function downloadCSV(students: Student[], year: number | "all") {
   URL.revokeObjectURL(url);
 }
 
-const GlobalFilters = () => {
-  const [degree, setDegree] = useState<string>(ALL);
-  const [jurusan, setJurusan] = useState<string>(ALL);
-  const [prodi, setProdi] = useState<string>(ALL);
-  const [week, setWeek] = useState<string>(WEEK_OPTIONS[0]);
+interface Props {
+  /** "kaprodi" hides degree/jurusan/prodi filters (single-prodi view). */
+  mode?: "full" | "kaprodi";
+  /** Whether this page uses realtime data (overview) vs snapshot (employment/education) */
+  dataMode?: "realtime" | "snapshot";
+  /** Prodi name shown for kaprodi badge */
+  kaprodiName?: string;
+}
+
+const todayId = () =>
+  new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+
+const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
+  const location = useLocation();
+  const inferredDataMode: "realtime" | "snapshot" =
+    dataMode ?? (location.pathname.includes("/overview") ? "realtime" : "snapshot");
+  const {
+    degree, jurusan, prodi, tahunLulus, week,
+    setDegree, setJurusan, setProdi, setTahunLulus, setWeek, reset,
+  } = useGlobalFilters();
   const [dlOpen, setDlOpen] = useState(false);
   const [dlYear, setDlYear] = useState<string>("all");
 
@@ -156,51 +161,88 @@ const GlobalFilters = () => {
   };
 
   return (
-    <div className="glass-card p-3 mb-4 flex flex-wrap items-end gap-3 sticky top-16 z-20 backdrop-blur-md bg-card/95">
+    <div className="w-full flex flex-wrap items-end gap-3 px-6 py-3 border-b border-border bg-background/95 backdrop-blur-md">
+      {mode === "full" ? (
+        <>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Jenjang</label>
+            <Select value={degree} onValueChange={handleDegree}>
+              <SelectTrigger className="h-9 w-[110px] text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua</SelectItem>
+                {ALL_DEGREE.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Jurusan</label>
+            <Select value={jurusan} onValueChange={handleJurusan}>
+              <SelectTrigger className="h-9 w-[200px] text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua Jurusan</SelectItem>
+                {availableJurusan.map((j) => <SelectItem key={j} value={j}>{j}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Prodi</label>
+            <Select value={prodi} onValueChange={handleProdi}>
+              <SelectTrigger className="h-9 w-[220px] text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua Prodi</SelectItem>
+                {availableProdi.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </>
+      ) : (
+        <Badge variant="secondary" className="text-sm py-1.5 px-3">
+          Prodi: <span className="font-semibold ml-1">{kaprodiName ?? "—"}</span>
+        </Badge>
+      )}
+
       <div className="flex flex-col gap-1">
-        <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Degree</label>
-        <Select value={degree} onValueChange={handleDegree}>
-          <SelectTrigger className="h-9 w-[120px] text-xs"><SelectValue /></SelectTrigger>
+        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tahun Lulus</label>
+        <Select value={tahunLulus} onValueChange={setTahunLulus}>
+          <SelectTrigger className="h-9 w-[140px] text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>Semua</SelectItem>
-            {ALL_DEGREE.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Jurusan</label>
-        <Select value={jurusan} onValueChange={handleJurusan}>
-          <SelectTrigger className="h-9 w-[220px] text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Semua Jurusan</SelectItem>
-            {availableJurusan.map((j) => <SelectItem key={j} value={j}>{j}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Prodi</label>
-        <Select value={prodi} onValueChange={handleProdi}>
-          <SelectTrigger className="h-9 w-[240px] text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Semua Prodi</SelectItem>
-            {availableProdi.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Snapshot Minggu</label>
-        <Select value={week} onValueChange={setWeek}>
-          <SelectTrigger className="h-9 w-[200px] text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {WEEK_OPTIONS.map((w) => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+            <SelectItem value="all">Semua Tahun</SelectItem>
+            {TAHUN_LULUS.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
 
+      {inferredDataMode === "snapshot" ? (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+            <Camera className="w-3 h-3" /> Snapshot Minggu
+          </label>
+          <Select value={week} onValueChange={setWeek}>
+            <SelectTrigger className="h-9 w-[200px] text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {WEEK_OPTIONS.map((w) => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mode</label>
+          <Badge variant="outline" className="h-9 px-3 gap-1.5 flex items-center text-sm border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <Radio className="w-3.5 h-3.5 animate-pulse" /> Realtime — {todayId()}
+          </Badge>
+        </div>
+      )}
+
+      {inferredDataMode === "snapshot" && (
+        <Badge variant="outline" className="self-end h-9 px-3 gap-1.5 flex items-center text-sm border-primary/30 bg-primary/5">
+          <Calendar className="w-3.5 h-3.5" /> {week}
+        </Badge>
+      )}
+
       <div className="ml-auto flex items-end gap-2">
-        <Button size="sm" variant="outline" onClick={() => { setDegree(ALL); setJurusan(ALL); setProdi(ALL); }}>
-          Reset
-        </Button>
+        {mode === "full" && (
+          <Button size="sm" variant="outline" onClick={reset}>Reset</Button>
+        )}
         <Button size="sm" onClick={() => setDlOpen(true)} className="gap-2">
           <Download className="w-4 h-4" /> Unduh Data
         </Button>

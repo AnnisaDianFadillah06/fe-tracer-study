@@ -32,6 +32,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import RoleSwitcher from "@/components/dashboard/RoleSwitcher";
 import { useRole } from "@/contexts/RoleContext";
 import { Badge } from "@/components/ui/badge";
+import GlobalFilters from "@/components/dashboard/GlobalFilters";
+import { GlobalFiltersProvider } from "@/contexts/GlobalFiltersContext";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -76,7 +78,12 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const location = useLocation();
   const { currentRole, selectedProdi, roleLabels } = useRole();
 
+  // Show GlobalFilters on dashboard data pages (overview/employment/education/kpi)
+  const showGlobalFilters = /\/dashboard\/(overview|employment|education|kpi)/.test(location.pathname);
+  const filtersMode = currentRole === "kaprodi" ? "kaprodi" : "full";
+
   return (
+    <GlobalFiltersProvider>
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
       <motion.aside
@@ -184,6 +191,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           })}
         </nav>
 
+        {/* Role Switcher pinned to bottom */}
+        {!collapsed && (
+          <div className="p-3 border-t border-sidebar-border">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pb-2">
+              Beralih Peran (Demo)
+            </p>
+            <RoleSwitcher />
+          </div>
+        )}
+
         {/* Collapse Toggle */}
         <div className="p-4 border-t border-sidebar-border">
           <Button
@@ -212,9 +229,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Top Bar */}
         <header className="sticky top-0 z-30 h-16 bg-background/80 backdrop-blur-lg border-b border-border flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
-            {/* Role Switcher */}
-            <RoleSwitcher />
-            
             {/* Current page info */}
             <div className="hidden md:block">
               <h1 className="font-heading font-semibold text-lg">
@@ -278,12 +292,20 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
         </header>
 
+        {/* Sticky Global Filters under the top bar */}
+        {showGlobalFilters && (
+          <div className="sticky top-16 z-20">
+            <GlobalFilters mode={filtersMode} kaprodiName={selectedProdi ?? undefined} />
+          </div>
+        )}
+
         {/* Page Content */}
         <main className="flex-1 p-6 overflow-auto">
           {children}
         </main>
       </div>
     </div>
+    </GlobalFiltersProvider>
   );
 };
 
