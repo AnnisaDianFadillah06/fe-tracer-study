@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { Menu, X, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import PolbanLogo from "@/components/PolbanLogo";
 
 const LandingNav = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -26,7 +25,17 @@ const LandingNav = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3">
-            <PolbanLogo compact title="Tracer Study" subtitle="POLBAN" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-orange-light flex items-center justify-center">
+              <GraduationCap className="w-6 h-6 text-primary-foreground" />
+            </div>
+            <div className="hidden sm:block">
+              <span className="font-heading font-bold text-lg text-foreground">
+                Tracer Study
+              </span>
+              <span className="text-xs text-muted-foreground block -mt-1">
+                POLBAN
+              </span>
+            </div>
           </Link>
 
           {/* Desktop Nav */}

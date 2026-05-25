@@ -1,107 +1,49 @@
-import { motion } from "framer-motion";
+import { Briefcase, Clock, Target, Rocket, DollarSign, MapPin } from "lucide-react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import StatCard from "@/components/dashboard/StatCard";
+import GlobalFilters from "@/components/dashboard/GlobalFilters";
+import SummaryCards from "@/components/dashboard/SummaryCards";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  KpiComboChart,
-  KpiStackedBarChart,
-  KpiDistributionBarChart,
-  KpiMultiLineChart,
-  JobFindingMethodChart,
+  Kpi4AbsorptionChart,
+  Kpi5WaitingTimeChart,
+  Kpi6FieldRelevanceChart,
+  Kpi7EntrepreneurshipChart,
+  Kpi8IncomeChart,
+  Kpi12WorkplaceDistributionChart,
 } from "@/components/dashboard/charts/common";
-import { useP2mppEmployment } from "@/hooks/dashboard/p2mpp";
+
+const summary = [
+  { title: "Keterserapan", value: "84%", hint: "Lulusan bekerja/usaha", trend: "+3%", trendUp: true, icon: Briefcase, color: "bg-blue-500/10 text-blue-500" },
+  { title: "Masa Tunggu", value: "3,1 bln", hint: "Rata-rata", trend: "-0,5", trendUp: true, icon: Clock, color: "bg-amber-500/10 text-amber-500" },
+  { title: "Kesesuaian Bidang", value: "79%", hint: "Sangat erat + erat", trend: "+3%", trendUp: true, icon: Target, color: "bg-emerald-500/10 text-emerald-500" },
+  { title: "Wirausaha", value: "11%", hint: "Owner/co-founder", trend: "+3%", trendUp: true, icon: Rocket, color: "bg-green-500/10 text-green-500" },
+  { title: "Rata-rata Pendapatan", value: "Rp 9,1 jt", hint: "1,5× UMK", trend: "+8%", trendUp: true, icon: DollarSign, color: "bg-primary/10 text-primary" },
+  { title: "Instansi Nasional", value: "47%", hint: "Sebaran utama", icon: MapPin, color: "bg-purple-500/10 text-purple-500" },
+];
 
 const P2mppEmploymentOutcomePage = () => {
-  const { selectedYear, setSelectedYear, stats, kpiKeterserapan, levelPerusahaan } = useP2mppEmployment();
-
-  const getProdiData = (
-    perProdi: Record<string, { name: string; positive: number; negative: number }[]>,
-    year: string | null
-  ) => perProdi[year ?? "all"];
-
-  const getDistribution = (
-    dist: Record<string, { category: string; value: number; color: string }[]>,
-    year: string | null
-  ) => dist[year ?? "all"];
-
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <h1 className="font-heading text-2xl font-bold">Employment Outcome</h1>
-            <p className="text-muted-foreground">KPI Keterserapan Lulusan — Politeknik Negeri Bandung</p>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-sm font-medium text-emerald-400">Realtime</span>
-          </div>
-        </div>
+      <GlobalFilters />
+      <div className="space-y-6 max-w-[1400px] mx-auto">
+        <SummaryCards items={summary} />
 
-        {/* Stat Cards */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((s) => (
-            <StatCard key={s.title} {...s} />
-          ))}
-        </motion.div>
-
-        {/* ── KPI Tingkat Keterserapan Lulusan ── */}
-        <section className="space-y-2">
-          <h2 className="font-heading text-lg font-semibold text-foreground">
-            KPI Tingkat Keterserapan Lulusan
-          </h2>
-
-          {/* Row 1: Combo chart full width */}
-          <KpiComboChart
-            title="Tren Tingkat Keterserapan Lulusan (3 Tahun)"
-            data={kpiKeterserapan.combo}
-            threshold={kpiKeterserapan.threshold}
-            thresholdLabel="Target"
-            selectedYear={selectedYear}
-            onYearClick={setSelectedYear}
-          />
-
-          {/* Row 2: 3 charts side by side */}
-          <div className="grid lg:grid-cols-3 gap-4">
-            <KpiStackedBarChart
-              title="Keterserapan per Prodi"
-              data={getProdiData(kpiKeterserapan.perProdi, selectedYear)}
-              positiveLabel="Terserap (%)"
-              negativeLabel="Belum Terserap (%)"
-              threshold={kpiKeterserapan.threshold}
-              thresholdLabel="Target"
-              selectedYear={selectedYear}
-              lamThresholds={kpiKeterserapan.lamThresholds}
-            />
-            <KpiDistributionBarChart
-              title="Distribusi Keterserapan Lulusan"
-              data={getDistribution(kpiKeterserapan.distribusiKeterserapan, selectedYear)}
-              selectedYear={selectedYear}
-            />
-            <KpiDistributionBarChart
-              title="Distribusi Jenis Instansi Tempat Bekerja"
-              data={getDistribution(kpiKeterserapan.distribusiInstansi, selectedYear)}
-              selectedYear={selectedYear}
-            />
-          </div>
-
-          {/* Row 3: Multi-line chart */}
-          <KpiMultiLineChart
-            title="Distribusi Level Perusahaan (Tren 3 Tahun)"
-            data={levelPerusahaan}
-            lines={[
-              { dataKey: "nasional", label: "Nasional", color: "#3b82f6" },
-              { dataKey: "multinasional", label: "Multinasional", color: "#f97316" },
-              { dataKey: "lokal", label: "Lokal", color: "#8b5cf6" },
-            ]}
-            selectedYear={selectedYear}
-          />
-        </section>
-
-        {/* Grafik Cara Mendapat Pekerjaan (kept) */}
-        <section>
-          <JobFindingMethodChart showProdiFilter={true} filters={{ prodi: "all", jenjang: "all", tahun: "all" }} />
-        </section>
+        <Tabs defaultValue="k4" className="space-y-4">
+          <TabsList className="flex flex-wrap h-auto">
+            <TabsTrigger value="k4">Tingkat Keterserapan Lulusan</TabsTrigger>
+            <TabsTrigger value="k5">Masa Tunggu Kerja Lulusan</TabsTrigger>
+            <TabsTrigger value="k6">Kesesuaian Bidang Kerja</TabsTrigger>
+            <TabsTrigger value="k7">Lulusan Berwirausaha</TabsTrigger>
+            <TabsTrigger value="k8">Pendapatan Lulusan</TabsTrigger>
+            <TabsTrigger value="k12">Sebaran Instansi & Lokasi Kerja</TabsTrigger>
+          </TabsList>
+          <TabsContent value="k4"><Kpi4AbsorptionChart /></TabsContent>
+          <TabsContent value="k5"><Kpi5WaitingTimeChart /></TabsContent>
+          <TabsContent value="k6"><Kpi6FieldRelevanceChart /></TabsContent>
+          <TabsContent value="k7"><Kpi7EntrepreneurshipChart /></TabsContent>
+          <TabsContent value="k8"><Kpi8IncomeChart /></TabsContent>
+          <TabsContent value="k12"><Kpi12WorkplaceDistributionChart /></TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );

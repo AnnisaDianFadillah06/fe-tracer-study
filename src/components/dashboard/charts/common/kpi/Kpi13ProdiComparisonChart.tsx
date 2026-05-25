@@ -1,121 +1,184 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ResponsiveContainer,
-  ComposedChart,
+  BarChart,
   Bar,
   Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
+  ReferenceLine,
   LabelList,
+  Legend,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
+import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MOCK_STUDENTS, PRODI_LIST, Student } from "@/lib/mockData";
+
+const ALL_PRODI = Array.from(new Set(PRODI_LIST.map((p) => p.name)));
 
 const indicators = [
-  { key: "keterserapan", label: "Keterserapan" },
-  { key: "masaTunggu", label: "Masa Tunggu ≤ 6 bln" },
-  { key: "kesesuaian", label: "Kesesuaian Bidang" },
-  { key: "wirausaha", label: "Wirausaha" },
+  { key: "keterserapan", label: "Keterserapan", thresholdBaik: 70, thresholdUnggul: 85 },
+  { key: "masaTunggu", label: "Masa Tunggu ≤ 6 bln", thresholdBaik: 65, thresholdUnggul: 80 },
+  { key: "kesesuaian", label: "Kesesuaian Bidang", thresholdBaik: 70, thresholdUnggul: 85 },
+  { key: "wirausaha", label: "Wirausaha", thresholdBaik: 5, thresholdUnggul: 10 },
 ] as const;
 
 type IndicatorKey = (typeof indicators)[number]["key"];
-type ProdiRow = { prodi: string; value: number; threshold: number; lembaga: string };
+type SortMode = "name" | "valueDesc" | "valueAsc";
 
-const defaultData: Record<IndicatorKey, ProdiRow[]> = {
-  keterserapan: [
-    { prodi: "T. Elektro", value: 86, threshold: 80, lembaga: "LAM Teknik" },
-    { prodi: "T. Mesin", value: 78, threshold: 80, lembaga: "LAM Teknik" },
-    { prodi: "T. Sipil", value: 82, threshold: 80, lembaga: "LAM Teknik" },
-    { prodi: "T. Kimia", value: 88, threshold: 80, lembaga: "LAM Teknik" },
-    { prodi: "T. Informatika", value: 91, threshold: 80, lembaga: "LAM Infokom" },
-    { prodi: "Akuntansi", value: 74, threshold: 80, lembaga: "BAN-PT" },
-    { prodi: "Adm. Niaga", value: 79, threshold: 80, lembaga: "BAN-PT" },
-  ],
-  masaTunggu: [
-    { prodi: "T. Elektro", value: 76, threshold: 70, lembaga: "LAM Teknik" },
-    { prodi: "T. Mesin", value: 68, threshold: 70, lembaga: "LAM Teknik" },
-    { prodi: "T. Sipil", value: 72, threshold: 70, lembaga: "LAM Teknik" },
-    { prodi: "T. Kimia", value: 80, threshold: 70, lembaga: "LAM Teknik" },
-    { prodi: "T. Informatika", value: 88, threshold: 70, lembaga: "LAM Infokom" },
-    { prodi: "Akuntansi", value: 64, threshold: 70, lembaga: "BAN-PT" },
-    { prodi: "Adm. Niaga", value: 71, threshold: 70, lembaga: "BAN-PT" },
-  ],
-  kesesuaian: [
-    { prodi: "T. Elektro", value: 82, threshold: 80, lembaga: "LAM Teknik" },
-    { prodi: "T. Mesin", value: 76, threshold: 80, lembaga: "LAM Teknik" },
-    { prodi: "T. Sipil", value: 81, threshold: 80, lembaga: "LAM Teknik" },
-    { prodi: "T. Kimia", value: 84, threshold: 80, lembaga: "LAM Teknik" },
-    { prodi: "T. Informatika", value: 86, threshold: 80, lembaga: "LAM Infokom" },
-    { prodi: "Akuntansi", value: 70, threshold: 80, lembaga: "BAN-PT" },
-    { prodi: "Adm. Niaga", value: 73, threshold: 80, lembaga: "BAN-PT" },
-  ],
-  wirausaha: [
-    { prodi: "T. Elektro", value: 6, threshold: 5, lembaga: "LAM Teknik" },
-    { prodi: "T. Mesin", value: 8, threshold: 5, lembaga: "LAM Teknik" },
-    { prodi: "T. Sipil", value: 4, threshold: 5, lembaga: "LAM Teknik" },
-    { prodi: "T. Kimia", value: 7, threshold: 5, lembaga: "LAM Teknik" },
-    { prodi: "T. Informatika", value: 12, threshold: 5, lembaga: "LAM Infokom" },
-    { prodi: "Akuntansi", value: 3, threshold: 5, lembaga: "BAN-PT" },
-    { prodi: "Adm. Niaga", value: 9, threshold: 5, lembaga: "BAN-PT" },
-  ],
+/** Deterministic pseudo-random value per (prodi, indicator) so chart is stable */
+const seededValue = (seed: string, min: number, max: number) => {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  const r = Math.abs(Math.sin(h)) % 1;
+  return Math.round(min + r * (max - min));
 };
 
-interface Props {
-  data?: Record<IndicatorKey, ProdiRow[]>;
-}
+const computeValue = (prodi: string, ind: IndicatorKey): number => {
+  if (ind === "wirausaha") return seededValue(prodi + ind, 2, 14);
+  return seededValue(prodi + ind, 45, 95);
+};
 
-const Kpi13ProdiComparisonChart = ({ data = defaultData }: Props) => {
-  const [selected, setSelected] = useState<IndicatorKey>("keterserapan");
-  const rows = data[selected];
+const Kpi13ProdiComparisonChart = ({ loading, error }: { loading?: boolean; error?: string | null }) => {
+  const [indicator, setIndicator] = useState<IndicatorKey>("keterserapan");
+  const [sortMode, setSortMode] = useState<SortMode>("valueDesc");
+  const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({
+    open: false, title: "", students: [],
+  });
+
+  const indMeta = indicators.find((i) => i.key === indicator)!;
+
+  const rows = useMemo(() => {
+    const base = ALL_PRODI.map((p) => ({
+      name: p,
+      value: computeValue(p, indicator),
+      prodiList: [p],
+    }));
+    if (sortMode === "name") base.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sortMode === "valueAsc") base.sort((a, b) => a.value - b.value);
+    else base.sort((a, b) => b.value - a.value);
+    return base;
+  }, [indicator, sortMode]);
+
+  // Stacked data → value + remainder
+  const stackedRows = rows.map((r) => ({
+    ...r,
+    remainder: Math.max(0, 100 - r.value),
+  }));
+
+  const handleClick = (row: any) => {
+    const names: string[] = row.prodiList || [];
+    const students = MOCK_STUDENTS.filter((s) =>
+      names.some((n) => s.prodi.toLowerCase() === n.toLowerCase())
+    );
+    setModal({
+      open: true,
+      title: `${indMeta.label} — ${row.name}`,
+      students,
+    });
+  };
+
+  const InnerLabel = (props: any) => {
+    const { x, y, width, height, value } = props;
+    if (width < 28) return null;
+    return (
+      <text x={x + width / 2} y={y + height / 2} fill="#fff" fontSize={10} fontWeight={600}
+        textAnchor="middle" dominantBaseline="central">
+        {value}%
+      </text>
+    );
+  };
+
+  const headerControls = (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <label className="text-xs text-muted-foreground">Urutkan:</label>
+      <select
+        value={sortMode}
+        onChange={(e) => setSortMode(e.target.value as SortMode)}
+        className="text-xs px-2 py-1.5 rounded-md border border-border bg-card"
+      >
+        <option value="valueDesc">Nilai tertinggi</option>
+        <option value="valueAsc">Nilai terendah</option>
+        <option value="name">Nama (A-Z)</option>
+      </select>
+    </div>
+  );
+
   return (
-    <KpiCard
-      title="Perbandingan KPI Lintas Program Studi"
-      subtitle="Threshold dinamis per lembaga akreditasi (LAM Teknik / LAM Infokom / BAN-PT)"
-    >
-      <div className="flex flex-wrap gap-2 mb-4">
-        {indicators.map((ind) => (
-          <button
-            key={ind.key}
-            onClick={() => setSelected(ind.key)}
-            className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
-              selected === ind.key
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-card text-foreground border-border hover:bg-muted"
-            }`}
-          >
-            {ind.label}
-          </button>
-        ))}
-      </div>
-      <div style={{ height: rows.length * 44 + 60 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} layout="vertical" margin={{ top: 10, right: 60, left: 10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} horizontal={false} />
-            <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} fontSize={11} />
-            <YAxis type="category" dataKey="prodi" width={120} fontSize={11} />
-            <Tooltip
-              contentStyle={tooltipStyle}
-              formatter={(v: number, _n, p: any) => [`${v}% (target ${p.payload.threshold}% — ${p.payload.lembaga})`, "Capaian"]}
-            />
-            <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={28}>
-              {rows.map((d, i) => (
-                <Cell key={i} fill={d.value >= d.threshold ? C.blue : C.orange} />
-              ))}
-              <LabelList dataKey="value" position="right" fontSize={11} formatter={(v: number) => `${v}%`} />
-            </Bar>
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="flex flex-wrap items-center justify-center gap-4 mt-3 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ background: C.blue }} /> Memenuhi threshold</span>
-        <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ background: C.orange }} /> Belum memenuhi</span>
-        <span className="flex items-center gap-1.5">
-          <div className="w-4 h-0.5" style={{ background: C.red, borderTop: `2px dashed ${C.red}` }} />
-          Threshold LAM/BAN-PT (per prodi)
-        </span>
-      </div>
-    </KpiCard>
+    <>
+      <KpiCard
+        loading={loading}
+        error={error}
+        title="Perbandingan KPI Lintas Program Studi"
+        subtitle="Stacked bar — capaian vs sisa target, threshold Baik & Unggul"
+        headerExtra={headerControls}
+      >
+        <div className="flex flex-wrap gap-2 mb-4">
+          {indicators.map((ind) => (
+            <button
+              key={ind.key}
+              onClick={() => setIndicator(ind.key)}
+              className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
+                indicator === ind.key
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-foreground border-border hover:bg-muted"
+              }`}
+            >
+              {ind.label}
+            </button>
+          ))}
+        </div>
+        <div className="max-h-[520px] overflow-y-auto pr-1">
+        <div style={{ height: Math.max(stackedRows.length * 36 + 80, 240) }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={stackedRows} layout="vertical" margin={{ top: 40, right: 30, left: 10, bottom: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} horizontal={false} />
+              <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} fontSize={11} orientation="top" />
+              <YAxis type="category" dataKey="name" width={170} fontSize={11} interval={0} />
+              <Tooltip contentStyle={tooltipStyle}
+                formatter={(v: number, n: string) => [`${v}%`, n === "value" ? "Capaian" : "Sisa target"]} />
+              <Legend wrapperStyle={{ fontSize: 12 }}
+                payload={[
+                  { value: "Capaian", type: "square", color: C.blue },
+                  { value: "Sisa target", type: "square", color: C.gray },
+                ]} />
+              <Bar dataKey="value" stackId="a" name="value" cursor="pointer"
+                onClick={(d: any) => handleClick(d)}>
+                {stackedRows.map((d, i) => (
+                  <Cell key={i} fill={d.value >= indMeta.thresholdBaik ? C.blue : C.orange} />
+                ))}
+                <LabelList dataKey="value" content={InnerLabel} />
+              </Bar>
+              <Bar dataKey="remainder" stackId="a" name="remainder" fill={C.gray} radius={[0, 4, 4, 0]}
+                cursor="pointer" onClick={(d: any) => handleClick(d)}>
+                <LabelList dataKey="remainder" content={InnerLabel} />
+              </Bar>
+              <ReferenceLine x={indMeta.thresholdBaik} stroke={C.green} strokeDasharray="6 3" strokeWidth={2}
+                ifOverflow="extendDomain"
+                label={{ value: `Baik ${indMeta.thresholdBaik}%`, position: "insideTopLeft", fill: C.green, fontSize: 11, fontWeight: 600, dy: -8 }} />
+              <ReferenceLine x={indMeta.thresholdUnggul} stroke={C.purple} strokeDasharray="6 3" strokeWidth={2}
+                ifOverflow="extendDomain"
+                label={{ value: `Unggul ${indMeta.thresholdUnggul}%`, position: "insideTopRight", fill: C.purple, fontSize: 11, fontWeight: 600, dy: -8 }} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-4 mt-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ background: C.blue }} />Memenuhi threshold Baik</span>
+          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ background: C.orange }} />Belum memenuhi</span>
+          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ background: C.gray }} />Sisa target</span>
+        </div>
+      </KpiCard>
+      <StudentDataModal
+        isOpen={modal.open}
+        onClose={() => setModal((m) => ({ ...m, open: false }))}
+        title={modal.title}
+        students={modal.students}
+        columns={[]}
+      />
+    </>
   );
 };
 

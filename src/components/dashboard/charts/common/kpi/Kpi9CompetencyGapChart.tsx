@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ResponsiveContainer,
   RadarChart,
@@ -17,6 +18,8 @@ import {
   LabelList,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
+import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 
 const defaultRadar = [
   { kompetensi: "Etika", lulus: 4.6, industri: 4.3 },
@@ -30,16 +33,21 @@ const defaultRadar = [
 
 interface Props {
   radarData?: typeof defaultRadar;
+  loading?: boolean;
+  error?: string | null;
 }
 
-const Kpi9CompetencyGapChart = ({ radarData = defaultRadar }: Props) => {
+const Kpi9CompetencyGapChart = ({ radarData = defaultRadar, loading, error }: Props) => {
   const gap = radarData.map((d) => ({
     kompetensi: d.kompetensi,
     gap: +(d.lulus - d.industri).toFixed(2),
   }));
+  const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
+  const openModal = (title: string) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, 30) });
   return (
+    <>
     <div className="grid lg:grid-cols-2 gap-4">
-      <KpiCard title="Profil Kompetensi: Saat Lulus vs Kebutuhan Industri" subtitle="Radar chart">
+      <KpiCard loading={loading} error={error} title="Profil Kompetensi: Saat Lulus vs Kebutuhan Industri" subtitle="Radar chart" compareType="competency">
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={radarData}>
@@ -54,7 +62,7 @@ const Kpi9CompetencyGapChart = ({ radarData = defaultRadar }: Props) => {
           </ResponsiveContainer>
         </div>
       </KpiCard>
-      <KpiCard title="Gap Kompetensi per Indikator" subtitle="Bar horizontal — merah = gap negatif, hijau = aman">
+      <KpiCard loading={loading} error={error} title="Gap Kompetensi per Indikator" subtitle="Bar horizontal — merah = gap negatif, hijau = aman" compareType="competency">
         <div style={{ height: gap.length * 44 + 40 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={gap} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
@@ -63,7 +71,8 @@ const Kpi9CompetencyGapChart = ({ radarData = defaultRadar }: Props) => {
               <YAxis type="category" dataKey="kompetensi" width={150} fontSize={10} />
               <Tooltip contentStyle={tooltipStyle} />
               <ReferenceLine x={0} stroke="hsl(var(--foreground))" />
-              <Bar dataKey="gap" radius={[0, 6, 6, 0]} maxBarSize={24}>
+              <Bar dataKey="gap" radius={[0, 6, 6, 0]} maxBarSize={24}
+                cursor="pointer" onClick={(d: any) => openModal(`Gap ${d.kompetensi} (${d.gap})`)}>
                 {gap.map((d, i) => (
                   <Cell key={i} fill={d.gap < 0 ? C.red : C.green} />
                 ))}
@@ -74,6 +83,8 @@ const Kpi9CompetencyGapChart = ({ radarData = defaultRadar }: Props) => {
         </div>
       </KpiCard>
     </div>
+    <StudentDataModal isOpen={modal.open} onClose={() => setModal((m) => ({ ...m, open: false }))} title={modal.title} students={modal.students} columns={[]} />
+    </>
   );
 };
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Download, Search, ChevronLeft, ChevronRight, FileSpreadsheet } from "lucide-react";
+import { X, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Student } from "@/lib/mockData";
@@ -87,55 +87,6 @@ const StudentDataModal = ({
     currentPage * itemsPerPage
   );
 
-  const handleExportCSV = () => {
-    const headers = allColumns.map(c => c.label).join(",");
-    const rows = filteredStudents.map(s =>
-      allColumns.map(c => {
-        const value = s[c.key as keyof Student];
-        if (c.key === "gaji") return formatCurrency(value as number);
-        return value;
-      }).join(",")
-    ).join("\n");
-    
-    const csv = `${headers}\n${rows}`;
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `data-mahasiswa-${title.toLowerCase().replace(/\s+/g, "-")}.csv`;
-    a.click();
-  };
-
-  const handleExportExcel = () => {
-    const headers = allColumns.map(c => `<Cell><Data ss:Type="String">${c.label}</Data></Cell>`).join("");
-    const rows = filteredStudents.map(s =>
-      `<Row>${allColumns.map(c => {
-        const value = s[c.key as keyof Student];
-        const type = typeof value === "number" ? "Number" : "String";
-        const displayValue = c.key === "gaji" ? value : value;
-        return `<Cell><Data ss:Type="${type}">${displayValue}</Data></Cell>`;
-      }).join("")}</Row>`
-    ).join("");
-    
-    const xml = `<?xml version="1.0"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-<Worksheet ss:Name="Data Mahasiswa">
-<Table>
-<Row>${headers}</Row>
-${rows}
-</Table>
-</Worksheet>
-</Workbook>`;
-    
-    const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `data-mahasiswa-${title.toLowerCase().replace(/\s+/g, "-")}.xls`;
-    a.click();
-  };
-
   if (!isOpen) return null;
 
   const modalContent = (
@@ -167,14 +118,6 @@ ${rows}
               )}
             </div>
             <div className="flex items-center gap-2 md:gap-3">
-              <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2 hidden sm:flex">
-                <Download className="w-4 h-4" />
-                CSV
-              </Button>
-              <Button variant="default" size="sm" onClick={handleExportExcel} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-                <FileSpreadsheet className="w-4 h-4" />
-                <span className="hidden sm:inline">Excel</span>
-              </Button>
               <Button variant="ghost" size="icon" onClick={onClose} className="ml-2">
                 <X className="w-6 h-6" />
               </Button>
