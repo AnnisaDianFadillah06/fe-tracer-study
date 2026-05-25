@@ -18,16 +18,17 @@ import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 
+/** Persentase lulusan yang mendapat kerja dalam ≤ 6 bulan per tahun kelulusan */
 const defaultCombo = [
-  { year: "2021", value: 4.8 },
-  { year: "2022", value: 4.2 },
-  { year: "2023", value: 3.6 },
-  { year: "2024", value: 3.1 },
+  { year: "2021", pct: 62, n: 124, total: 200 },
+  { year: "2022", pct: 70, n: 154, total: 220 },
+  { year: "2023", pct: 78, n: 187, total: 240 },
+  { year: "2024", pct: 85, n: 221, total: 260 },
 ];
 const defaultDist = [
   { cat: "< 3 bulan", value: 58, color: C.green },
-  { cat: "3-6 bulan", value: 28, color: C.orange },
-  { cat: "> 6 bulan", value: 14, color: C.red },
+  { cat: "3-6 bulan", value: 28, color: C.blue },
+  { cat: "> 6 bulan", value: 14, color: C.orange },
 ];
 
 interface Props {
@@ -44,43 +45,49 @@ const Kpi5WaitingTimeChart = ({ comboData = defaultCombo, distData = defaultDist
   return (
   <>
   <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard loading={loading} error={error} title="Tren Rata-rata Masa Tunggu (Bulan)" subtitle={lamSubtitle(lam)}
+    <KpiCard loading={loading} error={error}
+      title="% Lulusan Mendapat Kerja dalam ≤ 6 Bulan"
+      subtitle={lamSubtitle(lam)}
       compareType="waktuTunggu" headerExtra={<LamFilterControls lam={lam} />}>
-      <div className="h-72">
+      <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={comboData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+          <ComposedChart data={comboData} margin={{ top: 30, right: 30, left: 20, bottom: 30 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-            <XAxis dataKey="year" fontSize={12} />
-            <YAxis domain={[0, 8]} fontSize={12} tickFormatter={(v) => `${v} bln`} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v} bulan`} />
-            <Bar dataKey="value" name="Masa Tunggu" radius={[6, 6, 0, 0]} maxBarSize={50}
-              cursor="pointer" onClick={(d: any) => openModal(`Alumni ${d.year} — Rata2 ${d.value} bln`, Math.round(d.value * 20))}>
+            <XAxis dataKey="year" fontSize={13} stroke="hsl(var(--muted-foreground))"
+              label={{ value: "Tahun Kelulusan", position: "insideBottom", offset: -8, fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+            <YAxis domain={[0, 100]} fontSize={13} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${v}%`}
+              label={{ value: "% Lulusan ≤ 6 bln", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+            <Tooltip contentStyle={tooltipStyle}
+              formatter={(v: number, _name, p: any) => [`${v}% (${p.payload.n}/${p.payload.total} lulusan)`, "≤ 6 bulan"]} />
+            <Bar dataKey="pct" name="% ≤ 6 bln" radius={[6, 6, 0, 0]} maxBarSize={60}
+              cursor="pointer" onClick={(d: any) => openModal(`Lulusan ≤ 6 bln — ${d.year} (${d.pct}%)`, d.n)}>
               {comboData.map((d) => (
-                <Cell key={d.year} fill={d.value <= lam.threshold ? C.blue : C.orange} />
+                <Cell key={d.year} fill={d.pct >= lam.threshold ? C.blue : C.orange} />
               ))}
-              <LabelList dataKey="value" position="center" fill="#fff" fontSize={11} formatter={(v: number) => `${v}`} />
+              <LabelList dataKey="pct" position="center" fill="#fff" fontSize={12} fontWeight={600} formatter={(v: number) => `${v}%`} />
             </Bar>
-            <Line type="monotone" dataKey="value" name="Tren" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} />
-            <ReferenceLine y={lam.threshold} stroke={C.red} strokeDasharray="6 3"
-              label={{ value: `${lam.level === "baik" ? "Baik" : "Unggul"} ≤ ${lam.threshold} bln`, fill: C.red, fontSize: 11, position: "insideTopRight" }} />
+            <Line type="monotone" dataKey="pct" name="Tren" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} />
+            <ReferenceLine y={lam.threshold} stroke={C.red} strokeDasharray="6 3" strokeWidth={2}
+              label={{ value: `Target ${lam.level === "baik" ? "Baik" : "Unggul"} ≥ ${lam.threshold}%`, fill: C.red, fontSize: 12, fontWeight: 600, position: "insideTopRight" }} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} title="Distribusi Kategori Masa Tunggu" subtitle="Periode terakhir" compareType="waktuTunggu">
-      <div className="h-72">
+    <KpiCard loading={loading} error={error} title="Distribusi Kategori Masa Tunggu" subtitle="Periode terakhir — sumbu X: % lulusan" compareType="waktuTunggu">
+      <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={distData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+          <BarChart data={distData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 25 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} horizontal={false} />
-            <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} fontSize={11} />
-            <YAxis type="category" dataKey="cat" width={90} fontSize={11} />
+            <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} fontSize={13}
+              label={{ value: "Persentase Lulusan (%)", position: "insideBottom", offset: -8, fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+            <YAxis type="category" dataKey="cat" width={100} fontSize={13} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
-            <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={36}
+            <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={40}
               cursor="pointer" onClick={(d: any) => openModal(`Masa tunggu ${d.cat} (${d.value}%)`, d.value)}>
               {distData.map((d, i) => (
                 <Cell key={i} fill={d.color} />
               ))}
-              <LabelList dataKey="value" position="center" fill="#fff" fontSize={11} formatter={(v: number) => `${v}%`} />
+              <LabelList dataKey="value" position="center" fill="#fff" fontSize={12} fontWeight={600} formatter={(v: number) => `${v}%`} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

@@ -10,10 +10,11 @@ export const LAM_THRESHOLDS: Record<
 > = {
   participation:    { "BAN-PT 2.0": { baik: 30, unggul: 50 }, "BAN-PT 3.0": { baik: 50, unggul: 75 } },
   absorption:       { "BAN-PT 2.0": { baik: 70, unggul: 80 }, "BAN-PT 3.0": { baik: 80, unggul: 90 } },
-  waitingTime:      { "BAN-PT 2.0": { baik: 6, unggul: 3, unit: "bln" }, "BAN-PT 3.0": { baik: 4, unggul: 2, unit: "bln" } },
+  waitingTime:      { "BAN-PT 2.0": { baik: 60, unggul: 75 }, "BAN-PT 3.0": { baik: 70, unggul: 80 } },
   fieldRelevance:   { "BAN-PT 2.0": { baik: 70, unggul: 80 }, "BAN-PT 3.0": { baik: 80, unggul: 90 } },
   entrepreneurship: { "BAN-PT 2.0": { baik: 5,  unggul: 10 }, "BAN-PT 3.0": { baik: 8,  unggul: 15 } },
   income:           { "BAN-PT 2.0": { baik: 4.5, unggul: 6.75, unit: "jt" }, "BAN-PT 3.0": { baik: 6, unggul: 9, unit: "jt" } },
+  incomePct:        { "BAN-PT 2.0": { baik: 50, unggul: 65 }, "BAN-PT 3.0": { baik: 60, unggul: 75 } },
 };
 
 export interface LamFilterState {
