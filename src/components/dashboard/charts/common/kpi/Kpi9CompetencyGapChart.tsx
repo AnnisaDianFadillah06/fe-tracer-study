@@ -35,9 +35,10 @@ interface Props {
   radarData?: typeof defaultRadar;
   loading?: boolean;
   error?: string | null;
+  isEmpty?: boolean;
 }
 
-const Kpi9CompetencyGapChart = ({ radarData = defaultRadar, loading, error }: Props) => {
+const Kpi9CompetencyGapChart = ({ radarData = defaultRadar, loading, error, isEmpty }: Props) => {
   const gap = radarData.map((d) => ({
     kompetensi: d.kompetensi,
     gap: +(d.lulus - d.industri).toFixed(2),
@@ -47,7 +48,7 @@ const Kpi9CompetencyGapChart = ({ radarData = defaultRadar, loading, error }: Pr
   return (
     <>
     <div className="grid lg:grid-cols-2 gap-4">
-      <KpiCard loading={loading} error={error} title="Profil Kompetensi: Saat Lulus vs Kebutuhan Industri" subtitle="Radar chart" compareType="competency">
+      <KpiCard loading={loading} error={error} empty={isEmpty} title="Profil Kompetensi: Saat Lulus vs Kebutuhan Industri" subtitle="Radar chart" compareType="competency">
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={radarData}>
@@ -62,7 +63,7 @@ const Kpi9CompetencyGapChart = ({ radarData = defaultRadar, loading, error }: Pr
           </ResponsiveContainer>
         </div>
       </KpiCard>
-      <KpiCard loading={loading} error={error} title="Gap Kompetensi per Indikator" subtitle="Bar horizontal — merah = gap negatif, hijau = aman" compareType="competency">
+      <KpiCard loading={loading} error={error} empty={isEmpty} title="Gap Kompetensi per Indikator" subtitle="Bar horizontal — merah = gap negatif, hijau = aman" compareType="competency">
         <div style={{ height: gap.length * 44 + 40 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={gap} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
@@ -72,7 +73,8 @@ const Kpi9CompetencyGapChart = ({ radarData = defaultRadar, loading, error }: Pr
               <Tooltip contentStyle={tooltipStyle} />
               <ReferenceLine x={0} stroke="hsl(var(--foreground))" />
               <Bar dataKey="gap" radius={[0, 6, 6, 0]} maxBarSize={24}
-                cursor="pointer" onClick={(d: any) => openModal(`Gap ${d.kompetensi} (${d.gap})`)}>
+                cursor="pointer" onClick={(d: any) => openModal(`Gap ${d.kompetensi} (${d.gap})`)}
+                activeBar={{ stroke: "hsl(var(--foreground))", strokeWidth: 2 } as any}>
                 {gap.map((d, i) => (
                   <Cell key={i} fill={d.gap < 0 ? C.red : C.green} />
                 ))}

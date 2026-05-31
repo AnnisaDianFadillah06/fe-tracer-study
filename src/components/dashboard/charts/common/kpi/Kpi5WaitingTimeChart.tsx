@@ -36,16 +36,17 @@ interface Props {
   distData?: typeof defaultDist;
   loading?: boolean;
   error?: string | null;
+  isEmpty?: boolean;
 }
 
-const Kpi5WaitingTimeChart = ({ comboData = defaultCombo, distData = defaultDist, loading, error }: Props) => {
+const Kpi5WaitingTimeChart = ({ comboData = defaultCombo, distData = defaultDist, loading, error, isEmpty }: Props) => {
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   const lam = useLamFilter("waitingTime");
   const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, n) });
   return (
   <>
   <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard loading={loading} error={error}
+    <KpiCard loading={loading} error={error} empty={isEmpty}
       title="% Lulusan Mendapat Kerja dalam ≤ 6 Bulan"
       subtitle={lamSubtitle(lam)}
       compareType="waktuTunggu" headerExtra={<LamFilterControls lam={lam} />}>
@@ -60,20 +61,21 @@ const Kpi5WaitingTimeChart = ({ comboData = defaultCombo, distData = defaultDist
             <Tooltip contentStyle={tooltipStyle}
               formatter={(v: number, _name, p: any) => [`${v}% (${p.payload.n}/${p.payload.total} lulusan)`, "≤ 6 bulan"]} />
             <Bar dataKey="pct" name="% ≤ 6 bln" radius={[6, 6, 0, 0]} maxBarSize={60}
-              cursor="pointer" onClick={(d: any) => openModal(`Lulusan ≤ 6 bln — ${d.year} (${d.pct}%)`, d.n)}>
+              cursor="pointer" onClick={(d: any) => openModal(`Lulusan ≤ 6 bln — ${d.year} (${d.pct}% • ${d.n}/${d.total})`, d.n)}
+              activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
               {comboData.map((d) => (
                 <Cell key={d.year} fill={d.pct >= lam.threshold ? C.blue : C.orange} />
               ))}
               <LabelList dataKey="pct" position="center" fill="#fff" fontSize={12} fontWeight={600} formatter={(v: number) => `${v}%`} />
             </Bar>
-            <Line type="monotone" dataKey="pct" name="Tren" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} />
+            <Line type="monotone" dataKey="pct" name="Tren" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
             <ReferenceLine y={lam.threshold} stroke={C.red} strokeDasharray="6 3" strokeWidth={2}
               label={{ value: `Target ${lam.level === "baik" ? "Baik" : "Unggul"} ≥ ${lam.threshold}%`, fill: C.red, fontSize: 12, fontWeight: 600, position: "insideTopRight" }} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} title="Distribusi Kategori Masa Tunggu" subtitle="Periode terakhir — sumbu X: % lulusan" compareType="waktuTunggu">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Kategori Masa Tunggu" subtitle="Periode terakhir — sumbu X: % lulusan" compareType="waktuTunggu">
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={distData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 25 }}>
@@ -83,7 +85,8 @@ const Kpi5WaitingTimeChart = ({ comboData = defaultCombo, distData = defaultDist
             <YAxis type="category" dataKey="cat" width={100} fontSize={13} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
             <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={40}
-              cursor="pointer" onClick={(d: any) => openModal(`Masa tunggu ${d.cat} (${d.value}%)`, d.value)}>
+              cursor="pointer" onClick={(d: any) => openModal(`Masa tunggu ${d.cat} (${d.value}%)`, d.value)}
+              activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
               {distData.map((d, i) => (
                 <Cell key={i} fill={d.color} />
               ))}

@@ -38,16 +38,17 @@ interface Props {
   pieData?: typeof defaultPie;
   loading?: boolean;
   error?: string | null;
+  isEmpty?: boolean;
 }
 
-const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = defaultPie, loading, error }: Props) => {
+const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = defaultPie, loading, error, isEmpty }: Props) => {
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   const lam = useLamFilter("entrepreneurship");
   const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, Math.max(n, 5)) });
   return (
   <>
   <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard loading={loading} error={error} title="Tren Persentase Wirausaha" subtitle={lamSubtitle(lam)}
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Tren Persentase Wirausaha" subtitle={lamSubtitle(lam)}
       compareType="entrepreneurship" headerExtra={<LamFilterControls lam={lam} />}>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
@@ -57,7 +58,8 @@ const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = default
             <YAxis domain={[0, 20]} tickFormatter={(v) => `${v}%`} fontSize={12} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
             <Bar dataKey="value" name="Wirausaha" radius={[6, 6, 0, 0]} maxBarSize={50}
-              cursor="pointer" onClick={(d: any) => openModal(`Wirausaha ${d.year} (${d.value}%)`, d.value * 3)}>
+              cursor="pointer" onClick={(d: any) => openModal(`Wirausaha ${d.year} (${d.value}%)`, d.value * 3)}
+              activeBar={{ stroke: C.greenDark, strokeWidth: 2 } as any}>
               {comboData.map((d) => (
                 <Cell key={d.year} fill={d.value >= lam.threshold ? C.green : C.orange} />
               ))}
@@ -70,7 +72,7 @@ const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = default
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} title="Distribusi Posisi Wirausaha" subtitle="Periode terakhir" compareType="entrepreneurship">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Posisi Wirausaha" subtitle="Periode terakhir" compareType="entrepreneurship">
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>

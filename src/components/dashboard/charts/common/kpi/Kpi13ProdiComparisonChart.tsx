@@ -16,7 +16,18 @@ import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MOCK_STUDENTS, PRODI_LIST, Student } from "@/lib/mockData";
 
-const ALL_PRODI = Array.from(new Set(PRODI_LIST.map((p) => p.name)));
+/** Master list of 32 prodi names for realistic comparison demo. */
+const ALL_PRODI = (() => {
+  const base = Array.from(new Set(PRODI_LIST.map((p) => p.name)));
+  const extras = [
+    "Manajemen Pemasaran","Manajemen Aset","Bahasa Inggris","Bahasa Jepang",
+    "Usaha Perjalanan Wisata","Teknik Otomotif","Teknik Aeronautika","Teknik Industri",
+    "Teknik Geodesi","Teknik Pertambangan","Teknik Lingkungan","Manajemen Logistik",
+    "Sistem Informasi","Multimedia","Robotika","Mekatronika",
+    "Teknik Geomatika","Bisnis Digital","Statistika Terapan","Manajemen Energi",
+  ];
+  return [...base, ...extras];
+})();
 
 const indicators = [
   { key: "keterserapan", label: "Keterserapan", thresholdBaik: 70, thresholdUnggul: 85 },
@@ -41,7 +52,7 @@ const computeValue = (prodi: string, ind: IndicatorKey): number => {
   return seededValue(prodi + ind, 45, 95);
 };
 
-const Kpi13ProdiComparisonChart = ({ loading, error }: { loading?: boolean; error?: string | null }) => {
+const Kpi13ProdiComparisonChart = ({ loading, error, isEmpty }: { loading?: boolean; error?: string | null; isEmpty?: boolean }) => {
   const [indicator, setIndicator] = useState<IndicatorKey>("keterserapan");
   const [sortMode, setSortMode] = useState<SortMode>("valueDesc");
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({
@@ -111,6 +122,7 @@ const Kpi13ProdiComparisonChart = ({ loading, error }: { loading?: boolean; erro
       <KpiCard
         loading={loading}
         error={error}
+        empty={isEmpty}
         title="Perbandingan KPI Lintas Program Studi"
         subtitle="Stacked bar — capaian vs sisa target, threshold Baik & Unggul"
         headerExtra={headerControls}
@@ -130,8 +142,8 @@ const Kpi13ProdiComparisonChart = ({ loading, error }: { loading?: boolean; erro
             </button>
           ))}
         </div>
-        <div className="max-h-[520px] overflow-y-auto pr-1">
-        <div style={{ height: Math.max(stackedRows.length * 36 + 80, 240) }}>
+        <div className="max-h-[520px] overflow-y-auto overflow-x-hidden pr-2 scrollbar-thin">
+        <div style={{ height: Math.max(stackedRows.length * 28 + 80, 240) }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={stackedRows} layout="vertical" margin={{ top: 40, right: 30, left: 10, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} horizontal={false} />

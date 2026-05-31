@@ -34,15 +34,16 @@ interface Props {
   groupedData?: typeof defaultGrouped;
   loading?: boolean;
   error?: string | null;
+  isEmpty?: boolean;
 }
 
-const Kpi11FundingSourceChart = ({ pieData = defaultPie, groupedData = defaultGrouped, loading, error }: Props) => {
+const Kpi11FundingSourceChart = ({ pieData = defaultPie, groupedData = defaultGrouped, loading, error, isEmpty }: Props) => {
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, Math.max(n, 5)) });
   return (
   <>
   <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard loading={loading} error={error} title="Distribusi Sumber Pembiayaan" subtitle="Periode terakhir" compareType="sumberBiaya">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Sumber Pembiayaan" subtitle="Periode terakhir" compareType="sumberBiaya">
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -58,7 +59,7 @@ const Kpi11FundingSourceChart = ({ pieData = defaultPie, groupedData = defaultGr
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} title="Perubahan Distribusi Antar Periode" subtitle="Grouped bar chart" compareType="sumberBiaya">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Perubahan Distribusi Antar Periode" subtitle="Grouped bar chart" compareType="sumberBiaya">
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={groupedData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>

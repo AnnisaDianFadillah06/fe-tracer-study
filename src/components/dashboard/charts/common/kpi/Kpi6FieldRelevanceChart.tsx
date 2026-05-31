@@ -48,19 +48,20 @@ interface Props {
   reasonsData?: typeof defaultReasons;
   loading?: boolean;
   error?: string | null;
+  isEmpty?: boolean;
 }
 
 const Kpi6FieldRelevanceChart = ({
   comboData = defaultCombo,
   pieData = defaultPie,
-  reasonsData = defaultReasons, loading, error }: Props) => {
+  reasonsData = defaultReasons, loading, error, isEmpty }: Props) => {
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   const lam = useLamFilter("fieldRelevance");
   const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, Math.max(n, 5)) });
   return (
   <>
   <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard loading={loading} error={error} title="Tren Kesesuaian Bidang Kerja" subtitle={lamSubtitle(lam)}
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Tren Kesesuaian Bidang Kerja" subtitle={lamSubtitle(lam)}
       compareType="kesesuaian" headerExtra={<LamFilterControls lam={lam} />}>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
@@ -70,7 +71,8 @@ const Kpi6FieldRelevanceChart = ({
             <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} fontSize={12} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
             <Bar dataKey="value" name="Kesesuaian" radius={[6, 6, 0, 0]} maxBarSize={50}
-              cursor="pointer" onClick={(d: any) => openModal(`Kesesuaian ${d.year} (${d.value}%)`, d.value)}>
+              cursor="pointer" onClick={(d: any) => openModal(`Kesesuaian ${d.year} (${d.value}%)`, d.value)}
+              activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
               {comboData.map((d) => (
                 <Cell key={d.year} fill={d.value >= lam.threshold ? C.blue : C.orange} />
               ))}
@@ -83,7 +85,7 @@ const Kpi6FieldRelevanceChart = ({
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} title="Distribusi Tingkat Kesesuaian" subtitle="Periode terakhir" compareType="kesesuaian">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Tingkat Kesesuaian" subtitle="Periode terakhir" compareType="kesesuaian">
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -99,7 +101,7 @@ const Kpi6FieldRelevanceChart = ({
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} title="Frekuensi Alasan Ketidaksesuaian" subtitle="Horizontal bar chart" className="lg:col-span-2" compareType="kesesuaian">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Frekuensi Alasan Ketidaksesuaian" subtitle="Horizontal bar chart" className="lg:col-span-2" compareType="kesesuaian">
       <div style={{ height: reasonsData.length * 50 + 40 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={reasonsData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>

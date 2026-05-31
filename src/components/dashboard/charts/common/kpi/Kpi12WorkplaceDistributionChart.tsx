@@ -33,17 +33,18 @@ interface Props {
   groupedData?: typeof defaultGrouped;
   loading?: boolean;
   error?: string | null;
+  isEmpty?: boolean;
 }
 
 const Kpi12WorkplaceDistributionChart = ({
   pieData = defaultPie,
-  groupedData = defaultGrouped, loading, error }: Props) => {
+  groupedData = defaultGrouped, loading, error, isEmpty }: Props) => {
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, Math.max(n, 5)) });
   return (
   <>
   <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard loading={loading} error={error} title="Sebaran Level Perusahaan" subtitle="Distribusi level perusahaan tempat kerja lulusan — periode terakhir" compareType="jenisInstansi">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Sebaran Level Perusahaan" subtitle="Distribusi level perusahaan tempat kerja lulusan — periode terakhir" compareType="jenisInstansi">
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -59,7 +60,7 @@ const Kpi12WorkplaceDistributionChart = ({
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} title="Perubahan Sebaran Level Perusahaan Antar Periode" subtitle="Sumbu Y: persentase lulusan • Sumbu X: tahun kelulusan" compareType="jenisInstansi">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Perubahan Sebaran Level Perusahaan Antar Periode" subtitle="Sumbu Y: persentase lulusan • Sumbu X: tahun kelulusan" compareType="jenisInstansi">
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={groupedData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>

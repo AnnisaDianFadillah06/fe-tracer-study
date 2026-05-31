@@ -13,16 +13,25 @@ import {
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
+import { formatNTotal, formatPctCount } from "./format";
 
-const defaultData = [
-  { prodi: "T. Elektro", responded: 72, notResponded: 28 },
-  { prodi: "T. Mesin", responded: 65, notResponded: 35 },
-  { prodi: "T. Sipil", responded: 58, notResponded: 42 },
-  { prodi: "T. Kimia", responded: 81, notResponded: 19 },
-  { prodi: "T. Informatika", responded: 76, notResponded: 24 },
-  { prodi: "Akuntansi", responded: 49, notResponded: 51 },
-  { prodi: "Adm. Niaga", responded: 55, notResponded: 45 },
-];
+/** Generate 32 mock prodi rows for realistic vertical scroll. */
+const generateMockProdi = () => {
+  const names = [
+    "T. Elektronika","T. Listrik","T. Telekomunikasi","T. Mesin","T. Konversi Energi","T. Pendingin",
+    "T. Sipil","T. Kimia","T. Informatika D3","T. Informatika D4","Akuntansi","Akuntansi Manajemen",
+    "Adm. Niaga","Keuangan Perbankan","Keuangan Syariah","Manajemen Pemasaran","Manajemen Aset",
+    "Bahasa Inggris","Bahasa Jepang","Usaha Perjalanan Wisata","Teknik Otomotif","Teknik Aeronautika",
+    "Teknik Industri","Teknik Geodesi","Teknik Pertambangan","Teknik Lingkungan","Manajemen Logistik",
+    "Sistem Informasi","Multimedia","Robotika","Mekatronika","Magister Manajemen",
+  ];
+  return names.map((p, i) => {
+    const total = 25 + ((i * 7) % 60);
+    const responded = 40 + ((i * 13) % 55);
+    return { prodi: p, responded, notResponded: 100 - responded, total };
+  });
+};
+const defaultData = generateMockProdi();
 
 const InnerLabel = (props: any) => {
   const { x, y, width, height, value } = props;
@@ -41,39 +50,47 @@ interface Props {
   subtitle?: string;
   loading?: boolean;
   error?: string | null;
+  isEmpty?: boolean;
 }
 
 const Kpi1ParticipationChart = ({
   data = defaultData,
   title = "Response Rate per Program Studi",
-  subtitle = "Realtime — periode aktif", loading, error }: Props) => {
+  subtitle, loading, error, isEmpty }: Props) => {
+  const effectiveData = data && data.length > 0 ? data : defaultData;
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({
     open: false, title: "", students: [],
   });
   const [sortMode, setSortMode] = useState<"valueDesc" | "valueAsc" | "name">("valueDesc");
 
   const sortedData = useMemo(() => {
-    const arr = [...data];
+    const arr = [...effectiveData];
     if (sortMode === "name") arr.sort((a, b) => a.prodi.localeCompare(b.prodi));
     else if (sortMode === "valueAsc") arr.sort((a, b) => a.responded - b.responded);
     else arr.sort((a, b) => b.responded - a.responded);
     return arr;
-  }, [data, sortMode]);
+  }, [effectiveData, sortMode]);
 
-  const openModal = (prodi: string, kind: "responded" | "notResponded") => {
+  const isDataEmpty = isEmpty || (data?.length === 0);
+  const subtitleText = subtitle ?? `Realtime — ${effectiveData.length} program studi`;
+
+  const openModal = (row: any, kind: "responded" | "notResponded") => {
+    const prodi = row.prodi;
+    const total = row.total ?? 50;
+    const n = Math.round((kind === "responded" ? row.responded : row.notResponded) / 100 * total);
     const students = MOCK_STUDENTS.filter((s) =>
       s.prodi.toLowerCase().includes(prodi.replace("T. ", "Teknik ").toLowerCase())
-    );
+    ).slice(0, Math.max(n, 5));
     setModal({
       open: true,
-      title: `${kind === "responded" ? "Alumni Sudah Merespons" : "Alumni Belum Merespons"} — ${prodi}`,
+      title: `${kind === "responded" ? "Alumni Sudah Merespons" : "Alumni Belum Merespons"} — ${prodi} • ${formatNTotal(n, total)}`,
       students,
     });
   };
 
   return (
   <>
-  <KpiCard loading={loading} error={error} title={title} subtitle={subtitle}
+  <KpiCard loading={loading} error={error} empty={isDataEmpty} title={title} subtitle={subtitleText}
     headerExtra={
       <div className="flex items-center gap-1.5">
         <label className="text-xs text-muted-foreground">Urutkan:</label>
@@ -85,27 +102,37 @@ const Kpi1ParticipationChart = ({
         </select>
       </div>
     }>
-    <div className="max-h-[520px] overflow-y-auto pr-1">
-    <div style={{ height: Math.max(sortedData.length * 44 + 60, 280) }}>
+    <div className="max-h-[520px] overflow-y-auto overflow-x-hidden pr-2 scrollbar-thin">
+    <div style={{ height: Math.max(sortedData.length * 28 + 60, 280) }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={sortedData} layout="vertical" margin={{ top: 10, right: 30, left: 10, bottom: 5 }}>
+        <BarChart data={sortedData} layout="vertical" margin={{ top: 10, right: 30, left: 10, bottom: 5 }} barCategoryGap={4}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} horizontal={false} />
           <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} fontSize={11} stroke="hsl(var(--muted-foreground))" />
-          <YAxis type="category" dataKey="prodi" width={110} fontSize={11} stroke="hsl(var(--muted-foreground))" />
-          <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n) => [`${v}%`, n === "responded" ? "Sudah Merespons" : "Belum Merespons"]} />
+          <YAxis type="category" dataKey="prodi" width={140} fontSize={11} interval={0} stroke="hsl(var(--muted-foreground))" />
+          <Tooltip contentStyle={tooltipStyle}
+            formatter={(v: number, n, p: any) => {
+              const total = p?.payload?.total ?? 0;
+              const count = Math.round((v / 100) * total);
+              return [formatPctCount(v, count, total), n === "responded" ? "Sudah Merespons" : "Belum Merespons"];
+            }} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Bar dataKey="responded" name="Sudah Merespons" stackId="a" fill={C.blue}
-            cursor="pointer" onClick={(d: any) => openModal(d.prodi, "responded")}>
+            cursor="pointer" onClick={(d: any) => openModal(d, "responded")}
+            activeBar={{ fill: C.blueDark, stroke: C.blueDark, strokeWidth: 2 } as any}>
             <LabelList dataKey="responded" content={InnerLabel} />
           </Bar>
           <Bar dataKey="notResponded" name="Belum Merespons" stackId="a" fill={C.gray} radius={[0, 4, 4, 0]}
-            cursor="pointer" onClick={(d: any) => openModal(d.prodi, "notResponded")}>
+            cursor="pointer" onClick={(d: any) => openModal(d, "notResponded")}
+            activeBar={{ fill: C.grayDark, stroke: C.grayDark, strokeWidth: 2 } as any}>
             <LabelList dataKey="notResponded" content={InnerLabel} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
     </div>
+    <p className="text-[11px] text-muted-foreground mt-2 text-center">
+      Total {sortedData.length} prodi — gunakan scroll untuk melihat semuanya.
+    </p>
   </KpiCard>
   <StudentDataModal
     isOpen={modal.open}

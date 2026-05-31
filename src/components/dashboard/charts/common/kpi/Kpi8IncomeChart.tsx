@@ -37,16 +37,17 @@ interface Props {
   distData?: typeof defaultDist;
   loading?: boolean;
   error?: string | null;
+  isEmpty?: boolean;
 }
 
-const Kpi8IncomeChart = ({ avgData = defaultAvg, distData = defaultDist, loading, error }: Props) => {
+const Kpi8IncomeChart = ({ avgData = defaultAvg, distData = defaultDist, loading, error, isEmpty }: Props) => {
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   const lam = useLamFilter("incomePct");
   const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, Math.max(n, 5)) });
   return (
   <>
   <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard loading={loading} error={error} title="Tren Pendapatan & % Lulusan ≥ 1,2× UMP" subtitle={lamSubtitle(lam)}
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Tren Pendapatan & % Lulusan ≥ 1,2× UMP" subtitle={lamSubtitle(lam)}
       compareType="income" headerExtra={<LamFilterControls lam={lam} />}>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
@@ -62,7 +63,8 @@ const Kpi8IncomeChart = ({ avgData = defaultAvg, distData = defaultDist, loading
               formatter={(v: number, n) => n === "Rata-rata Gaji" ? [`Rp ${v} jt`, n] : [`${v}%`, n]} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar yAxisId="left" dataKey="avg" name="Rata-rata Gaji" fill={C.blue} radius={[6, 6, 0, 0]} maxBarSize={60}
-              cursor="pointer" onClick={(d: any) => openModal(`Pendapatan ${d.year} — Rata2 Rp ${d.avg} jt`, Math.round(d.avg * 10))}>
+              cursor="pointer" onClick={(d: any) => openModal(`Pendapatan ${d.year} — Rata2 Rp ${d.avg} jt`, Math.round(d.avg * 10))}
+              activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
               <LabelList dataKey="avg" position="center" fill="#fff" fontSize={12} fontWeight={600} formatter={(v: number) => `${v}jt`} />
             </Bar>
             <Line yAxisId="right" type="monotone" dataKey="pctAbove" name="% ≥ 1,2× UMP" stroke={C.red} strokeWidth={2.5}
@@ -73,7 +75,7 @@ const Kpi8IncomeChart = ({ avgData = defaultAvg, distData = defaultDist, loading
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} title="Proporsi Lulusan Berdasar UMP" subtitle="Dua kelompok: < 1,2× UMP vs ≥ 1,2× UMP per tahun" compareType="income">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Proporsi Lulusan Berdasar UMP" subtitle="Dua kelompok: < 1,2× UMP vs ≥ 1,2× UMP per tahun" compareType="income">
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={distData} margin={{ top: 30, right: 20, left: 20, bottom: 30 }}>

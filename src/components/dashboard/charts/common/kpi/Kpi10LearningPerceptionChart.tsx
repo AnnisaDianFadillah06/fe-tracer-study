@@ -29,16 +29,17 @@ interface Props {
   subtitle?: string;
   loading?: boolean;
   error?: string | null;
+  isEmpty?: boolean;
 }
 
 const Kpi10LearningPerceptionChart = ({
   data = defaultData,
   title = "Persepsi Alumni terhadap 7 Metode Pembelajaran (Q14)",
-  subtitle = "Radar chart — rata-rata skor Likert 1-5 per metode pembelajaran", loading, error }: Props) => {
+  subtitle = "Radar chart — rata-rata skor Likert 1-5 per metode pembelajaran", loading, error, isEmpty }: Props) => {
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   return (
   <>
-  <KpiCard loading={loading} error={error} title={title} subtitle={subtitle} compareType="learning">
+  <KpiCard loading={loading} error={error} empty={isEmpty} title={title} subtitle={subtitle} compareType="learning">
     <div className="h-80">
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data} onClick={(e: any) => {

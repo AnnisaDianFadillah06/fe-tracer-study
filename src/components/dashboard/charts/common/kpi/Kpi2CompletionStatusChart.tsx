@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, Sector } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
+import { formatPctCount, formatNTotal } from "./format";
 
 const defaultData = [
   { name: "Selesai", value: 612, color: C.green },
@@ -16,41 +17,64 @@ interface Props {
   subtitle?: string;
   loading?: boolean;
   error?: string | null;
+  isEmpty?: boolean;
 }
 
 const Kpi2CompletionStatusChart = ({
   data = defaultData,
   title = "Status Pengisian Survei per Alumni",
-  subtitle = "Total target 1.093 alumni", loading, error }: Props) => {
+  subtitle, loading, error, isEmpty }: Props) => {
+  const effective = data && data.length > 0 ? data : defaultData;
+  const total = effective.reduce((s, d) => s + d.value, 0);
+  const subtitleText = subtitle ?? `Total target ${total.toLocaleString("id-ID")} alumni`;
+  const isDataEmpty = isEmpty || (data?.length === 0);
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({
     open: false, title: "", students: [],
   });
   const handleClick = (entry: any) => {
     const sample = MOCK_STUDENTS.slice(0, entry.value);
-    setModal({ open: true, title: `Alumni — ${entry.name}`, students: sample });
+    setModal({ open: true, title: `Alumni — ${entry.name} • ${formatNTotal(entry.value, total)}`, students: sample });
   };
+  const renderActive = (props: any) => {
+    const RADIAN = Math.PI / 180;
+    const { cx, cy, midAngle, innerRadius, outerRadius, startAngle, endAngle, fill, payload, value } = props;
+    return (
+      <g>
+        <Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 8}
+          startAngle={startAngle} endAngle={endAngle} fill={fill} />
+        <text x={cx} y={cy - 8} textAnchor="middle" fill="hsl(var(--foreground))" fontSize={13} fontWeight={600}>{payload.name}</text>
+        <text x={cx} y={cy + 12} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize={11}>{value} ({Math.round(value/total*100)}%)</text>
+      </g>
+    );
+  };
+  const [activeIdx, setActiveIdx] = useState<number | undefined>();
   return (
   <>
-  <KpiCard loading={loading} error={error} title={title} subtitle={subtitle} compareType="completion">
+  <KpiCard loading={loading} error={error} empty={isDataEmpty} title={title} subtitle={subtitleText} compareType="completion">
     <div className="h-80">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
-            data={data}
+            data={effective}
             dataKey="value"
             nameKey="name"
             innerRadius={60}
             outerRadius={110}
             paddingAngle={3}
             cursor="pointer"
+            activeIndex={activeIdx}
+            activeShape={renderActive}
+            onMouseEnter={(_, i) => setActiveIdx(i)}
+            onMouseLeave={() => setActiveIdx(undefined)}
             onClick={handleClick}
             label={(e: any) => `${e.name}: ${e.value}`}
           >
-            {data.map((d, i) => (
+            {effective.map((d, i) => (
               <Cell key={i} fill={d.color} />
             ))}
           </Pie>
-          <Tooltip contentStyle={tooltipStyle} />
+          <Tooltip contentStyle={tooltipStyle}
+            formatter={(v: number, n) => [formatPctCount(Math.round(v/total*100), v, total), n]} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
         </PieChart>
       </ResponsiveContainer>
