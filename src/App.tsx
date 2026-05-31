@@ -12,7 +12,6 @@ import Login from "./pages/Login";
 import OverviewPage from "./pages/dashboard/overview/OverviewPage";
 import EmploymentPage from "./pages/dashboard/employment/EmploymentPage";
 import EducationPage from "./pages/dashboard/education/EducationPage";
-import AnalyticsPage from "./pages/dashboard/analytics/AnalyticsPage";
 import KpiOverviewPage from "./pages/dashboard/kpi/KpiOverviewPage";
 import ComparePage from "./pages/ComparePage";
 import ProfilePage from "./pages/ProfilePage";
@@ -55,7 +54,6 @@ const App = () => (
               <Route path="/dashboard/overview"             element={<P><OverviewPage /></P>} />
               <Route path="/dashboard/employment"           element={<P><EmploymentPage /></P>} />
               <Route path="/dashboard/education"            element={<P><EducationPage /></P>} />
-              <Route path="/dashboard/analytics"            element={<P><AnalyticsPage /></P>} />
               <Route path="/dashboard/kpi"                  element={<P><KpiOverviewPage /></P>} />
               <Route path="/dashboard/threshold-management" element={<P><ThresholdManagementPage /></P>} />
               <Route path="/dashboard/compare"              element={<P><ComparePage /></P>} />
