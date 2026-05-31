@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import { 
   GraduationCap, 
   LayoutDashboard, 
-  BarChart3, 
   ChevronLeft, 
   ChevronRight,
   LogOut,
@@ -58,12 +57,6 @@ const navItems = [
     icon: BookOpen,
     href: "/dashboard/education",
     description: "Kompetensi & pembelajaran",
-  },
-  {
-    title: "Analitik Lanjutan",
-    icon: BarChart3,
-    href: "/dashboard/analytics",
-    description: "Klastering & survival",
   },
   {
     title: "Ringkasan KPI",

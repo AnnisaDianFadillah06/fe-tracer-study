@@ -1,5 +1,5 @@
-import P2mppOverviewPage from "./P2mppOverview";
+import OverviewPageContent from "@/components/dashboard/pages/OverviewPageContent";
 
-/** KoTC mirrors P2MPP overview entirely. */
-const KotcOverviewPage = () => <P2mppOverviewPage />;
+/** KoTC — full coordinator view, same dataset as P2MPP. */
+const KotcOverviewPage = () => <OverviewPageContent />;
 export default KotcOverviewPage;

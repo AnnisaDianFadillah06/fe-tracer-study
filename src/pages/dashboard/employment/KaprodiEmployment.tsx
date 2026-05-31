@@ -1,9 +1,10 @@
 import { KpiUIProvider } from "@/contexts/GlobalFiltersContext";
-import P2mppEmploymentOutcomePage from "./P2mppEmployment";
+import EmploymentPageContent from "@/components/dashboard/pages/EmploymentPageContent";
 
+/** Kaprodi — single-prodi: hide Compare; demo empty K7 (no wirausaha data this prodi). */
 const KaprodiEmploymentOutcomePage = () => (
   <KpiUIProvider hideCompare>
-    <P2mppEmploymentOutcomePage />
+    <EmploymentPageContent emptyKpis={["k7"]} />
   </KpiUIProvider>
 );
 

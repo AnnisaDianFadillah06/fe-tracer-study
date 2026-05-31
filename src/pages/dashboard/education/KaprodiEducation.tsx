@@ -1,9 +1,9 @@
 import { KpiUIProvider } from "@/contexts/GlobalFiltersContext";
-import P2mppEducationalAssessmentPage from "./P2mppEducation";
+import EducationPageContent from "@/components/dashboard/pages/EducationPageContent";
 
 const KaprodiEducationalAssessmentPage = () => (
   <KpiUIProvider hideCompare>
-    <P2mppEducationalAssessmentPage />
+    <EducationPageContent />
   </KpiUIProvider>
 );
 

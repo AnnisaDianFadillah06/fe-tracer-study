@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Loader2, AlertCircle, ArrowRightLeft } from "lucide-react";
+import { Loader2, AlertCircle, ArrowRightLeft, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useKpiUI } from "@/contexts/GlobalFiltersContext";
@@ -64,6 +64,8 @@ export const KpiCard = ({
   className = "",
   loading = false,
   error = null,
+  empty = false,
+  emptyMessage = "Belum ada data untuk filter ini",
   compareType,
   headerExtra,
 }: {
@@ -73,6 +75,9 @@ export const KpiCard = ({
   className?: string;
   loading?: boolean;
   error?: string | null;
+  /** Render empty-state placeholder instead of children. */
+  empty?: boolean;
+  emptyMessage?: string;
   /** Compare type key passed to /dashboard/compare?type=... — omit to hide button */
   compareType?: string;
   /** Extra header controls (filters etc.) */
@@ -112,6 +117,14 @@ export const KpiCard = ({
         <AlertCircle className="w-6 h-6" />
         <p className="text-xs font-medium">Gagal memuat data</p>
         <p className="text-[11px] text-muted-foreground">{error}</p>
+      </div>
+    ) : empty ? (
+      <div className="flex flex-col items-center justify-center h-72 text-muted-foreground gap-2 px-4 text-center border border-dashed border-border rounded-lg bg-muted/10">
+        <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+          <Inbox className="w-6 h-6" />
+        </div>
+        <p className="text-sm font-medium text-foreground">{emptyMessage}</p>
+        <p className="text-xs">Coba ubah filter atau pilih periode lain.</p>
       </div>
     ) : (
       children

@@ -1,3 +1,3 @@
-import P2mppEmploymentOutcomePage from "./P2mppEmployment";
-const KotcEmploymentOutcomePage = () => <P2mppEmploymentOutcomePage />;
+import EmploymentPageContent from "@/components/dashboard/pages/EmploymentPageContent";
+const KotcEmploymentOutcomePage = () => <EmploymentPageContent />;
 export default KotcEmploymentOutcomePage;

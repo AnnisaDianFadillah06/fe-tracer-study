@@ -1,10 +1,10 @@
 import { KpiUIProvider } from "@/contexts/GlobalFiltersContext";
-import P2mppOverviewPage from "./P2mppOverview";
+import OverviewPageContent from "@/components/dashboard/pages/OverviewPageContent";
 
-/** Kaprodi reuses the P2MPP layout but hides Compare buttons (single-prodi view). */
+/** Kaprodi — single-prodi view: hide Compare, demo empty K13 (no cross-prodi data). */
 const KaprodiOverviewPage = () => (
   <KpiUIProvider hideCompare>
-    <P2mppOverviewPage />
+    <OverviewPageContent emptyKpis={["k13"]} />
   </KpiUIProvider>
 );
 

@@ -1,3 +1,3 @@
-import P2mppEducationalAssessmentPage from "./P2mppEducation";
-const KotcEducationalAssessmentPage = () => <P2mppEducationalAssessmentPage />;
+import EducationPageContent from "@/components/dashboard/pages/EducationPageContent";
+const KotcEducationalAssessmentPage = () => <EducationPageContent />;
 export default KotcEducationalAssessmentPage;
