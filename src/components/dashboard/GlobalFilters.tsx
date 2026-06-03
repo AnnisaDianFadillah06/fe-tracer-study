@@ -49,61 +49,81 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
   const {
     degree, jurusan, prodi, tahunLulus, week,
     setDegree, setJurusan, setProdi, setTahunLulus, setWeek, reset, isApplying, lastUpdatedAt,
+    applyAll,
   } = useGlobalFilters();
-  const [pendingWeek, setPendingWeek] = useState<string>(week);
-  useEffect(() => { setPendingWeek(week); }, [week]);
-  const weekDirty = pendingWeek !== week;
+  // Local pending state — only committed to context on "Terapkan" click.
+  const [pDegree, setPDegree] = useState(degree);
+  const [pJurusan, setPJurusan] = useState(jurusan);
+  const [pProdi, setPProdi] = useState(prodi);
+  const [pTahun, setPTahun] = useState(tahunLulus);
+  const [pWeek, setPWeek] = useState(week);
+  useEffect(() => { setPDegree(degree); }, [degree]);
+  useEffect(() => { setPJurusan(jurusan); }, [jurusan]);
+  useEffect(() => { setPProdi(prodi); }, [prodi]);
+  useEffect(() => { setPTahun(tahunLulus); }, [tahunLulus]);
+  useEffect(() => { setPWeek(week); }, [week]);
+  const dirty =
+    pDegree !== degree || pJurusan !== jurusan || pProdi !== prodi ||
+    pTahun !== tahunLulus || pWeek !== week;
 
   // Cascading options
   const availableJurusan = useMemo(() => {
-    if (degree === ALL) return ALL_JURUSAN;
+    if (pDegree === ALL) return ALL_JURUSAN;
     return ALL_JURUSAN.filter((j) =>
-      JURUSAN_MAP[j].some((p) => findProdiByName(p)?.jenjang === degree)
+      JURUSAN_MAP[j].some((p) => findProdiByName(p)?.jenjang === pDegree)
     );
-  }, [degree]);
+  }, [pDegree]);
 
   const availableProdi = useMemo(() => {
     let list = PRODI_LIST.map((p) => p.name);
     list = Array.from(new Set(list));
-    if (degree !== ALL) {
+    if (pDegree !== ALL) {
       list = list.filter((n) => {
         const ps = PRODI_LIST.filter((p) => p.name === n);
-        return ps.some((p) => p.jenjang === degree);
+        return ps.some((p) => p.jenjang === pDegree);
       });
     }
-    if (jurusan !== ALL) {
-      list = list.filter((n) => JURUSAN_MAP[jurusan]?.includes(n));
+    if (pJurusan !== ALL) {
+      list = list.filter((n) => JURUSAN_MAP[pJurusan]?.includes(n));
     }
     return list;
-  }, [degree, jurusan]);
+  }, [pDegree, pJurusan]);
 
   const handleDegree = (v: string) => {
-    setDegree(v);
-    if (jurusan !== ALL && v !== ALL) {
-      const ok = JURUSAN_MAP[jurusan]?.some((p) => findProdiByName(p)?.jenjang === v);
-      if (!ok) setJurusan(ALL);
+    setPDegree(v);
+    if (pJurusan !== ALL && v !== ALL) {
+      const ok = JURUSAN_MAP[pJurusan]?.some((p) => findProdiByName(p)?.jenjang === v);
+      if (!ok) setPJurusan(ALL);
     }
-    if (prodi !== ALL && v !== ALL) {
-      const ps = PRODI_LIST.filter((p) => p.name === prodi);
-      if (!ps.some((p) => p.jenjang === v)) setProdi(ALL);
+    if (pProdi !== ALL && v !== ALL) {
+      const ps = PRODI_LIST.filter((p) => p.name === pProdi);
+      if (!ps.some((p) => p.jenjang === v)) setPProdi(ALL);
     }
   };
 
   const handleJurusan = (v: string) => {
-    setJurusan(v);
-    if (v !== ALL && prodi !== ALL && !JURUSAN_MAP[v]?.includes(prodi)) {
-      setProdi(ALL);
+    setPJurusan(v);
+    if (v !== ALL && pProdi !== ALL && !JURUSAN_MAP[v]?.includes(pProdi)) {
+      setPProdi(ALL);
     }
   };
 
   const handleProdi = (v: string) => {
-    setProdi(v);
+    setPProdi(v);
     if (v !== ALL) {
       const ps = PRODI_LIST.find((p) => p.name === v);
-      if (ps && (degree === ALL || ps.jenjang !== degree)) setDegree(ps.jenjang);
+      if (ps && (pDegree === ALL || ps.jenjang !== pDegree)) setPDegree(ps.jenjang);
       const j = findJurusanOfProdi(v);
-      if (j && jurusan !== j) setJurusan(j);
+      if (j && pJurusan !== j) setPJurusan(j);
     }
+  };
+
+  const handleApply = () => {
+    applyAll({ degree: pDegree, jurusan: pJurusan, prodi: pProdi, tahunLulus: pTahun, week: pWeek });
+  };
+  const handleReset = () => {
+    setPDegree(ALL); setPJurusan(ALL); setPProdi(ALL); setPTahun("all");
+    reset();
   };
 
   const updatedLabel = lastUpdatedAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -121,7 +141,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
         <>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Jenjang</label>
-            <Select value={degree} onValueChange={handleDegree} disabled={isApplying}>
+            <Select value={pDegree} onValueChange={handleDegree} disabled={isApplying}>
               <SelectTrigger className="h-9 w-[110px] text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua</SelectItem>
@@ -131,7 +151,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Jurusan</label>
-            <Select value={jurusan} onValueChange={handleJurusan} disabled={isApplying}>
+            <Select value={pJurusan} onValueChange={handleJurusan} disabled={isApplying}>
               <SelectTrigger className="h-9 w-[200px] text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Jurusan</SelectItem>
@@ -141,7 +161,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Prodi</label>
-            <Select value={prodi} onValueChange={handleProdi} disabled={isApplying}>
+            <Select value={pProdi} onValueChange={handleProdi} disabled={isApplying}>
               <SelectTrigger className="h-9 w-[220px] text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Prodi</SelectItem>
@@ -158,7 +178,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
 
       <div className="flex flex-col gap-1">
         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tahun Lulus</label>
-        <Select value={tahunLulus} onValueChange={setTahunLulus} disabled={isApplying}>
+        <Select value={pTahun} onValueChange={setPTahun} disabled={isApplying}>
           <SelectTrigger className="h-9 w-[140px] text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Tahun</SelectItem>
@@ -168,36 +188,35 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
       </div>
 
       {inferredDataMode === "snapshot" ? (
-        <div className="flex items-end gap-2">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
               <Camera className="w-3 h-3" /> Snapshot Minggu
             </label>
-            <Select value={pendingWeek} onValueChange={setPendingWeek} disabled={isApplying}>
+            <Select value={pWeek} onValueChange={setPWeek} disabled={isApplying}>
               <SelectTrigger className="h-9 w-[200px] text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {WEEK_OPTIONS.map((w) => <SelectItem key={w} value={w}>{w}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <Button
-            size="sm"
-            disabled={!weekDirty || isApplying}
-            onClick={() => setWeek(pendingWeek)}
-            className="h-9 gap-1.5"
-          >
-            {isApplying ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</>
-            ) : (
-              <><Check className="w-4 h-4" /> Terapkan</>
-            )}
-          </Button>
-        </div>
       ) : null}
 
       <div className="ml-auto flex items-end gap-2">
+        <Button
+          size="sm"
+          onClick={handleApply}
+          disabled={isApplying}
+          className="h-9 gap-1.5"
+          variant={dirty ? "default" : "secondary"}
+        >
+          {isApplying ? (
+            <><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</>
+          ) : (
+            <><Check className="w-4 h-4" /> Terapkan{dirty ? " *" : ""}</>
+          )}
+        </Button>
         {mode === "full" && (
-          <Button size="sm" variant="outline" onClick={reset} disabled={isApplying}>Reset</Button>
+          <Button size="sm" variant="outline" onClick={handleReset} disabled={isApplying}>Reset</Button>
         )}
       </div>
     </div>

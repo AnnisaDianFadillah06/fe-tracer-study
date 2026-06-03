@@ -16,6 +16,7 @@ export interface GlobalFiltersState {
   reset: () => void;
   isApplying: boolean;
   triggerApply: (ms?: number) => void;
+  applyAll: (next: { degree: string; jurusan: string; prodi: string; tahunLulus: string; week: string }) => void;
   /** Timestamp of last successful filter apply / data refresh. */
   lastUpdatedAt: Date;
 }
@@ -51,12 +52,21 @@ export function GlobalFiltersProvider({ children }: { children: ReactNode }) {
     }, ms);
   }, []);
 
-  const wrap = <T,>(setter: (v: T) => void) => (v: T) => { setter(v); triggerApply(); };
-  const setDegree = wrap(setDegreeRaw);
-  const setJurusan = wrap(setJurusanRaw);
-  const setProdi = wrap(setProdiRaw);
-  const setTahunLulus = wrap(setTahunLulusRaw);
-  const setWeek = wrap(setWeekRaw);
+  // Setters update value WITHOUT auto-applying. The UI commits via applyAll/Terapkan.
+  const setDegree = setDegreeRaw;
+  const setJurusan = setJurusanRaw;
+  const setProdi = setProdiRaw;
+  const setTahunLulus = setTahunLulusRaw;
+  const setWeek = setWeekRaw;
+
+  const applyAll = useCallback((next: { degree: string; jurusan: string; prodi: string; tahunLulus: string; week: string }) => {
+    setDegreeRaw(next.degree);
+    setJurusanRaw(next.jurusan);
+    setProdiRaw(next.prodi);
+    setTahunLulusRaw(next.tahunLulus);
+    setWeekRaw(next.week);
+    triggerApply();
+  }, [triggerApply]);
 
   const value = useMemo<GlobalFiltersState>(
     () => ({
@@ -68,9 +78,10 @@ export function GlobalFiltersProvider({ children }: { children: ReactNode }) {
       },
       isApplying,
       triggerApply,
+      applyAll,
       lastUpdatedAt,
     }),
-    [degree, jurusan, prodi, tahunLulus, week, isApplying, triggerApply, lastUpdatedAt]
+    [degree, jurusan, prodi, tahunLulus, week, isApplying, triggerApply, applyAll, lastUpdatedAt]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
@@ -86,6 +97,7 @@ export function useGlobalFilters() {
       reset: () => {},
       isApplying: false,
       triggerApply: () => {},
+      applyAll: () => {},
       lastUpdatedAt: new Date(),
     } as GlobalFiltersState;
   }
