@@ -20,12 +20,14 @@ import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
+import { renderActivePieShape, usePieActive } from "./pieUtils";
+import { formatPctCount, nFromPct } from "./format";
 
 const defaultCombo = [
-  { year: "2021", value: 68 },
-  { year: "2022", value: 72 },
-  { year: "2023", value: 76 },
-  { year: "2024", value: 79 },
+  { year: "2021", value: 68, total: 220 },
+  { year: "2022", value: 72, total: 240 },
+  { year: "2023", value: 76, total: 250 },
+  { year: "2024", value: 79, total: 260 },
 ];
 const defaultPie = [
   { name: "Sangat Erat", value: 38, color: C.greenDark },
@@ -57,6 +59,8 @@ const Kpi6FieldRelevanceChart = ({
   reasonsData = defaultReasons, loading, error, isEmpty }: Props) => {
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   const lam = useLamFilter("fieldRelevance");
+  const pieActive = usePieActive();
+  const pieTotal = pieData.reduce((s, d) => s + d.value, 0);
   const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, Math.max(n, 5)) });
   return (
   <>
@@ -69,7 +73,11 @@ const Kpi6FieldRelevanceChart = ({
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
             <XAxis dataKey="year" fontSize={12} />
             <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} fontSize={12} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
+            <Tooltip contentStyle={tooltipStyle}
+              formatter={(v: number, _n, p: any) => {
+                const t = p?.payload?.total ?? 0;
+                return [formatPctCount(v, nFromPct(v, t), t), "Kesesuaian"];
+              }} />
             <Bar dataKey="value" name="Kesesuaian" radius={[6, 6, 0, 0]} maxBarSize={50}
               cursor="pointer" onClick={(d: any) => openModal(`Kesesuaian ${d.year} (${d.value}%)`, d.value)}
               activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
@@ -78,7 +86,7 @@ const Kpi6FieldRelevanceChart = ({
               ))}
               <LabelList dataKey="value" position="center" fill="#fff" fontSize={11} formatter={(v: number) => `${v}%`} />
             </Bar>
-            <Line type="monotone" dataKey="value" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} />
+            <Line type="monotone" dataKey="value" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
             <ReferenceLine y={lam.threshold} stroke={C.red} strokeDasharray="6 3"
               label={{ value: `${lam.level === "baik" ? "Baik" : "Unggul"} ${lam.threshold}%`, fill: C.red, fontSize: 11, position: "insideTopRight" }} />
           </ComposedChart>
@@ -90,12 +98,15 @@ const Kpi6FieldRelevanceChart = ({
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label={(e: any) => `${e.name}: ${e.value}%`}
+              activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
+              onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
               cursor="pointer" onClick={(d: any) => openModal(`${d.name} (${d.value}%)`, d.value)}>
               {pieData.map((d, i) => (
                 <Cell key={i} fill={d.color} />
               ))}
             </Pie>
-            <Tooltip contentStyle={tooltipStyle} />
+            <Tooltip contentStyle={tooltipStyle}
+              formatter={(v: number, n) => [formatPctCount(v, v, pieTotal), n]} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
           </PieChart>
         </ResponsiveContainer>
@@ -108,9 +119,10 @@ const Kpi6FieldRelevanceChart = ({
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} horizontal={false} />
             <XAxis type="number" fontSize={11} />
             <YAxis type="category" dataKey="reason" width={220} fontSize={11} />
-            <Tooltip contentStyle={tooltipStyle} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${v}%`, "Frekuensi"]} />
             <Bar dataKey="value" fill={C.orange} radius={[0, 6, 6, 0]} maxBarSize={28}
-              cursor="pointer" onClick={(d: any) => openModal(`Alasan: ${d.reason}`, d.value)}>
+              cursor="pointer" onClick={(d: any) => openModal(`Alasan: ${d.reason}`, d.value)}
+              activeBar={{ stroke: "hsl(20 90% 45%)", strokeWidth: 2 } as any}>
               <LabelList dataKey="value" position="right" fontSize={11} fill="hsl(var(--foreground))" />
             </Bar>
           </BarChart>

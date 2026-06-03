@@ -16,6 +16,8 @@ import {
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
+import { renderActivePieShape, usePieActive } from "./pieUtils";
+import { formatPctCount } from "./format";
 
 const defaultPie = [
   { name: "Lokal", value: 38, color: C.greenLight },
@@ -40,6 +42,8 @@ const Kpi12WorkplaceDistributionChart = ({
   pieData = defaultPie,
   groupedData = defaultGrouped, loading, error, isEmpty }: Props) => {
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
+  const pieActive = usePieActive();
+  const pieTotal = pieData.reduce((s, d) => s + d.value, 0);
   const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, Math.max(n, 5)) });
   return (
   <>
@@ -49,12 +53,14 @@ const Kpi12WorkplaceDistributionChart = ({
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label={(e: any) => `${e.name}: ${e.value}%`}
+              activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
+              onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
               cursor="pointer" onClick={(d: any) => openModal(`${d.name} (${d.value}%)`, d.value)}>
               {pieData.map((d, i) => (
                 <Cell key={i} fill={d.color} />
               ))}
             </Pie>
-            <Tooltip contentStyle={tooltipStyle} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n) => [formatPctCount(v, v, pieTotal), n]} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
           </PieChart>
         </ResponsiveContainer>
@@ -69,13 +75,19 @@ const Kpi12WorkplaceDistributionChart = ({
             <YAxis tickFormatter={(v) => `${v}%`} fontSize={12} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="lokal" name="Lokal" fill={C.greenLight} radius={[3, 3, 0, 0]} cursor="pointer" onClick={(d: any) => openModal(`Lokal — ${d.year} (${d.lokal}%)`, d.lokal)}>
+            <Bar dataKey="lokal" name="Lokal" fill={C.greenLight} radius={[3, 3, 0, 0]} cursor="pointer"
+              onClick={(d: any) => openModal(`Lokal — ${d.year} (${d.lokal}%)`, d.lokal)}
+              activeBar={{ stroke: C.greenDark, strokeWidth: 2 } as any}>
               <LabelList dataKey="lokal" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
             </Bar>
-            <Bar dataKey="nasional" name="Nasional" fill={C.blue} radius={[3, 3, 0, 0]} cursor="pointer" onClick={(d: any) => openModal(`Nasional — ${d.year} (${d.nasional}%)`, d.nasional)}>
+            <Bar dataKey="nasional" name="Nasional" fill={C.blue} radius={[3, 3, 0, 0]} cursor="pointer"
+              onClick={(d: any) => openModal(`Nasional — ${d.year} (${d.nasional}%)`, d.nasional)}
+              activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
               <LabelList dataKey="nasional" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
             </Bar>
-            <Bar dataKey="multi" name="Multinasional" fill={C.navy} radius={[3, 3, 0, 0]} cursor="pointer" onClick={(d: any) => openModal(`Multinasional — ${d.year} (${d.multi}%)`, d.multi)}>
+            <Bar dataKey="multi" name="Multinasional" fill={C.navy} radius={[3, 3, 0, 0]} cursor="pointer"
+              onClick={(d: any) => openModal(`Multinasional — ${d.year} (${d.multi}%)`, d.multi)}
+              activeBar={{ stroke: C.navy, strokeWidth: 2 } as any}>
               <LabelList dataKey="multi" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
             </Bar>
           </BarChart>

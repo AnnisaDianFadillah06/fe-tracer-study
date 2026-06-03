@@ -93,9 +93,9 @@ const Kpi13ProdiComparisonChart = ({ loading, error, isEmpty }: { loading?: bool
 
   const InnerLabel = (props: any) => {
     const { x, y, width, height, value } = props;
-    if (width < 28) return null;
+    if (width < 22) return null;
     return (
-      <text x={x + width / 2} y={y + height / 2} fill="#fff" fontSize={10} fontWeight={600}
+      <text x={x + width / 2} y={y + height / 2} fill="#fff" fontSize={13} fontWeight={700}
         textAnchor="middle" dominantBaseline="central">
         {value}%
       </text>
@@ -157,14 +157,16 @@ const Kpi13ProdiComparisonChart = ({ loading, error, isEmpty }: { loading?: bool
                   { value: "Sisa target", type: "square", color: C.gray },
                 ]} />
               <Bar dataKey="value" stackId="a" name="value" cursor="pointer"
-                onClick={(d: any) => handleClick(d)}>
+                onClick={(d: any) => handleClick(d)}
+                activeBar={{ stroke: "hsl(var(--foreground))", strokeWidth: 2 } as any}>
                 {stackedRows.map((d, i) => (
                   <Cell key={i} fill={d.value >= indMeta.thresholdBaik ? C.blue : C.orange} />
                 ))}
                 <LabelList dataKey="value" content={InnerLabel} />
               </Bar>
               <Bar dataKey="remainder" stackId="a" name="remainder" fill={C.gray} radius={[0, 4, 4, 0]}
-                cursor="pointer" onClick={(d: any) => handleClick(d)}>
+                cursor="pointer" onClick={(d: any) => handleClick(d)}
+                activeBar={{ stroke: C.grayDark, strokeWidth: 2 } as any}>
                 <LabelList dataKey="remainder" content={InnerLabel} />
               </Bar>
               <ReferenceLine x={indMeta.thresholdBaik} stroke={C.green} strokeDasharray="6 3" strokeWidth={2}

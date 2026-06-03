@@ -86,10 +86,14 @@ const Kpi8IncomeChart = ({ avgData = defaultAvg, distData = defaultDist, loading
               label={{ value: "Persentase Lulusan (%)", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="below" name="< 1,2× UMP" fill={C.orange} radius={[3, 3, 0, 0]} cursor="pointer" onClick={(d: any) => openModal(`< 1,2× UMP — ${d.year} (${d.below}%)`, d.below)}>
+            <Bar dataKey="below" name="< 1,2× UMP" fill={C.orange} radius={[3, 3, 0, 0]} cursor="pointer"
+              onClick={(d: any) => openModal(`< 1,2× UMP — ${d.year} (${d.below}%)`, d.below)}
+              activeBar={{ stroke: "hsl(20 90% 45%)", strokeWidth: 2 } as any}>
               <LabelList dataKey="below" position="center" fontSize={12} fontWeight={600} fill="#fff" formatter={(v: number) => `${v}%`} />
             </Bar>
-            <Bar dataKey="above" name="≥ 1,2× UMP" fill={C.blue} radius={[3, 3, 0, 0]} cursor="pointer" onClick={(d: any) => openModal(`≥ 1,2× UMP — ${d.year} (${d.above}%)`, d.above)}>
+            <Bar dataKey="above" name="≥ 1,2× UMP" fill={C.blue} radius={[3, 3, 0, 0]} cursor="pointer"
+              onClick={(d: any) => openModal(`≥ 1,2× UMP — ${d.year} (${d.above}%)`, d.above)}
+              activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
               <LabelList dataKey="above" position="center" fontSize={12} fontWeight={600} fill="#fff" formatter={(v: number) => `${v}%`} />
             </Bar>
           </BarChart>

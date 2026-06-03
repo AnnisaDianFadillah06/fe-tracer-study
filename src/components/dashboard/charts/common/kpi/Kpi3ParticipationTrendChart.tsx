@@ -75,20 +75,25 @@ const Kpi3ParticipationTrendChart = ({
             }} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           {tahunLulus !== "all" && (
-            <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill={C.orange} fillOpacity={0.12}
-              label={{ value: "Filter aktif", fontSize: 10, fill: C.orange, position: "insideTop" }} />
+            <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill="hsl(var(--foreground))" fillOpacity={0.06}
+              stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3"
+              label={{ value: "Filter aktif", fontSize: 10, fill: "hsl(var(--muted-foreground))", position: "insideTop" }} />
           )}
+          {marked.filter((d: any) => d.isMax).map((d: any) => (
+            <ReferenceArea key={`max-${d.year}`} x1={d.year} x2={d.year}
+              fill="hsl(45 95% 55%)" fillOpacity={0.14}
+              stroke="hsl(45 95% 45%)" strokeOpacity={0.55} strokeDasharray="4 2" />
+          ))}
           <Bar dataKey="rate" name="Response Rate" radius={[6, 6, 0, 0]} maxBarSize={60}
             cursor="pointer" onClick={(d: any) => handleClick(d)}
             activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
             {marked.map((d: any) => (
-              <Cell key={d.year} fill={d.isMax ? C.blueDark : d.rate >= lam.threshold ? C.blue : C.orange}
-                stroke={d.isMax ? C.orange : undefined} strokeWidth={d.isMax ? 2 : 0} />
+              <Cell key={d.year} fill={d.rate >= lam.threshold ? C.blue : C.orange} />
             ))}
             <LabelList dataKey="rate" position="center" formatter={(v: number) => `${v}%`}
-              style={{ fontSize: 11, fontWeight: 600, fill: "#fff" }} />
+              style={{ fontSize: 13, fontWeight: 700, fill: "#fff" }} />
             <LabelList dataKey="isMax" position="top" content={(p: any) =>
-              p.value ? <text x={p.x + p.width / 2} y={p.y - 6} fontSize={10} fontWeight={700} fill={C.orange} textAnchor="middle">↑ Tertinggi</text> : null
+              p.value ? <text x={p.x + p.width / 2} y={p.y - 6} fontSize={11} fontWeight={700} fill="hsl(38 92% 38%)" textAnchor="middle">★ Tertinggi</text> : null
             } />
           </Bar>
           <Line type="monotone" dataKey="rate" name="Tren" stroke="#06b6d4" strokeWidth={2}

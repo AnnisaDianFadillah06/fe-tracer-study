@@ -19,6 +19,8 @@ import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
+import { renderActivePieShape, usePieActive } from "./pieUtils";
+import { formatPctCount } from "./format";
 
 const defaultCombo = [
   { year: "2021", value: 4 },
@@ -44,6 +46,8 @@ interface Props {
 const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = defaultPie, loading, error, isEmpty }: Props) => {
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   const lam = useLamFilter("entrepreneurship");
+  const pieActive = usePieActive();
+  const pieTotal = pieData.reduce((s, d) => s + d.value, 0);
   const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, Math.max(n, 5)) });
   return (
   <>
@@ -56,7 +60,7 @@ const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = default
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
             <XAxis dataKey="year" fontSize={12} />
             <YAxis domain={[0, 20]} tickFormatter={(v) => `${v}%`} fontSize={12} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${v}%`, "Wirausaha"]} />
             <Bar dataKey="value" name="Wirausaha" radius={[6, 6, 0, 0]} maxBarSize={50}
               cursor="pointer" onClick={(d: any) => openModal(`Wirausaha ${d.year} (${d.value}%)`, d.value * 3)}
               activeBar={{ stroke: C.greenDark, strokeWidth: 2 } as any}>
@@ -65,7 +69,7 @@ const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = default
               ))}
               <LabelList dataKey="value" position="center" fill="#fff" fontSize={11} formatter={(v: number) => `${v}%`} />
             </Bar>
-            <Line type="monotone" dataKey="value" stroke={C.greenDark} strokeWidth={2.5} dot={{ r: 4 }} />
+            <Line type="monotone" dataKey="value" stroke={C.greenDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
             <ReferenceLine y={lam.threshold} stroke={C.red} strokeDasharray="6 3"
               label={{ value: `${lam.level === "baik" ? "Baik" : "Unggul"} ${lam.threshold}%`, fill: C.red, fontSize: 11, position: "insideTopRight" }} />
           </ComposedChart>
@@ -77,12 +81,14 @@ const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = default
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label={(e: any) => `${e.name}: ${e.value}%`}
+              activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
+              onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
               cursor="pointer" onClick={(d: any) => openModal(`${d.name} (${d.value}%)`, d.value)}>
               {pieData.map((d, i) => (
                 <Cell key={i} fill={d.color} />
               ))}
             </Pie>
-            <Tooltip contentStyle={tooltipStyle} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n) => [formatPctCount(v, v, pieTotal), n]} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
           </PieChart>
         </ResponsiveContainer>

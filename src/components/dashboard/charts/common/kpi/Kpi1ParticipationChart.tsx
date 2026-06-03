@@ -35,9 +35,9 @@ const defaultData = generateMockProdi();
 
 const InnerLabel = (props: any) => {
   const { x, y, width, height, value } = props;
-  if (width < 28) return null;
+  if (width < 22) return null;
   return (
-    <text x={x + width / 2} y={y + height / 2} fill="#fff" fontSize={10} fontWeight={600}
+    <text x={x + width / 2} y={y + height / 2} fill="#fff" fontSize={13} fontWeight={700}
       textAnchor="middle" dominantBaseline="central">
       {value}%
     </text>

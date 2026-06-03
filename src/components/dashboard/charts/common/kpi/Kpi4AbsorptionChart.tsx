@@ -19,6 +19,7 @@ import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
+import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { formatPctCount, nFromPct } from "./format";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import { ReferenceArea } from "recharts";
@@ -49,6 +50,7 @@ const Kpi4AbsorptionChart = ({ comboData = defaultCombo, pieData = defaultPie, l
   const pieTotal = pieData.reduce((s, d) => s + d.value, 0);
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   const lam = useLamFilter("absorption");
+  const pieActive = usePieActive();
   const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, n) });
   return (
   <>
@@ -69,7 +71,8 @@ const Kpi4AbsorptionChart = ({ comboData = defaultCombo, pieData = defaultPie, l
                 return [formatPctCount(v, nFromPct(v, t), t), "Keterserapan"];
               }} />
             {tahunLulus !== "all" && (
-              <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill={C.orange} fillOpacity={0.12} />
+              <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill="hsl(var(--foreground))" fillOpacity={0.06}
+                stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3" />
             )}
             <Bar dataKey="value" name="Keterserapan" radius={[6, 6, 0, 0]} maxBarSize={50}
               cursor="pointer" onClick={(d: any) => openModal(`Keterserapan ${d.year} • ${formatPctCount(d.value, nFromPct(d.value, d.total), d.total)}`, nFromPct(d.value, d.total))}
@@ -91,6 +94,8 @@ const Kpi4AbsorptionChart = ({ comboData = defaultCombo, pieData = defaultPie, l
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label={(e: any) => `${e.name}: ${e.value}%`}
+              activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
+              onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
               cursor="pointer" onClick={(d: any) => openModal(`${d.name} • ${formatPctCount(d.value, d.value, pieTotal)}`, d.value)}>
               {pieData.map((d, i) => (
                 <Cell key={i} fill={d.color} />

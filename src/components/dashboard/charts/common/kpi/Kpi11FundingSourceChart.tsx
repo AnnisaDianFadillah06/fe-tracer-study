@@ -16,6 +16,8 @@ import {
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
+import { renderActivePieShape, usePieActive } from "./pieUtils";
+import { formatPctCount } from "./format";
 
 const defaultPie = [
   { name: "Mandiri/Keluarga", value: 58, color: C.blueLight },
@@ -39,6 +41,8 @@ interface Props {
 
 const Kpi11FundingSourceChart = ({ pieData = defaultPie, groupedData = defaultGrouped, loading, error, isEmpty }: Props) => {
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
+  const pieActive = usePieActive();
+  const pieTotal = pieData.reduce((s, d) => s + d.value, 0);
   const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, Math.max(n, 5)) });
   return (
   <>
@@ -48,12 +52,14 @@ const Kpi11FundingSourceChart = ({ pieData = defaultPie, groupedData = defaultGr
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label={(e: any) => `${e.name}: ${e.value}%`}
+              activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
+              onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
               cursor="pointer" onClick={(d: any) => openModal(`${d.name} (${d.value}%)`, d.value)}>
               {pieData.map((d, i) => (
                 <Cell key={i} fill={d.color} />
               ))}
             </Pie>
-            <Tooltip contentStyle={tooltipStyle} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n) => [formatPctCount(v, v, pieTotal), n]} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
           </PieChart>
         </ResponsiveContainer>
@@ -68,16 +74,24 @@ const Kpi11FundingSourceChart = ({ pieData = defaultPie, groupedData = defaultGr
             <YAxis tickFormatter={(v) => `${v}%`} fontSize={12} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="mandiri" name="Mandiri" fill={C.blueLight} radius={[3, 3, 0, 0]} cursor="pointer" onClick={(d: any) => openModal(`Mandiri — ${d.year} (${d.mandiri}%)`, d.mandiri)}>
+            <Bar dataKey="mandiri" name="Mandiri" fill={C.blueLight} radius={[3, 3, 0, 0]} cursor="pointer"
+              onClick={(d: any) => openModal(`Mandiri — ${d.year} (${d.mandiri}%)`, d.mandiri)}
+              activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
               <LabelList dataKey="mandiri" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
             </Bar>
-            <Bar dataKey="pemerintah" name="Pemerintah" fill={C.green} radius={[3, 3, 0, 0]} cursor="pointer" onClick={(d: any) => openModal(`Pemerintah — ${d.year} (${d.pemerintah}%)`, d.pemerintah)}>
+            <Bar dataKey="pemerintah" name="Pemerintah" fill={C.green} radius={[3, 3, 0, 0]} cursor="pointer"
+              onClick={(d: any) => openModal(`Pemerintah — ${d.year} (${d.pemerintah}%)`, d.pemerintah)}
+              activeBar={{ stroke: C.greenDark, strokeWidth: 2 } as any}>
               <LabelList dataKey="pemerintah" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
             </Bar>
-            <Bar dataKey="swasta" name="Inst./Swasta" fill={C.orange} radius={[3, 3, 0, 0]} cursor="pointer" onClick={(d: any) => openModal(`Inst./Swasta — ${d.year} (${d.swasta}%)`, d.swasta)}>
+            <Bar dataKey="swasta" name="Inst./Swasta" fill={C.orange} radius={[3, 3, 0, 0]} cursor="pointer"
+              onClick={(d: any) => openModal(`Inst./Swasta — ${d.year} (${d.swasta}%)`, d.swasta)}
+              activeBar={{ stroke: "hsl(20 90% 45%)", strokeWidth: 2 } as any}>
               <LabelList dataKey="swasta" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
             </Bar>
-            <Bar dataKey="lain" name="Lainnya" fill={C.gray} radius={[3, 3, 0, 0]} cursor="pointer" onClick={(d: any) => openModal(`Lainnya — ${d.year} (${d.lain}%)`, d.lain)}>
+            <Bar dataKey="lain" name="Lainnya" fill={C.gray} radius={[3, 3, 0, 0]} cursor="pointer"
+              onClick={(d: any) => openModal(`Lainnya — ${d.year} (${d.lain}%)`, d.lain)}
+              activeBar={{ stroke: C.grayDark, strokeWidth: 2 } as any}>
               <LabelList dataKey="lain" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
             </Bar>
           </BarChart>
