@@ -1,4 +1,14 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { useFilterOptions, FilterOptions } from "@/hooks/useFilterOptions";
 
 export const ALL = "__all__";
 
@@ -6,8 +16,10 @@ export interface GlobalFiltersState {
   degree: string;
   jurusan: string;
   prodi: string;
-  tahunLulus: string; // "all" | year
+  tahunLulus: string;
   week: string;
+  /** Raw ISO week key (e.g. "2024-W06") matching the selected week label */
+  weekKey: string;
   setDegree: (v: string) => void;
   setJurusan: (v: string) => void;
   setProdi: (v: string) => void;
@@ -16,29 +28,39 @@ export interface GlobalFiltersState {
   reset: () => void;
   isApplying: boolean;
   triggerApply: (ms?: number) => void;
-  applyAll: (next: { degree: string; jurusan: string; prodi: string; tahunLulus: string; week: string }) => void;
-  /** Timestamp of last successful filter apply / data refresh. */
+  applyAll: (next: {
+    degree: string;
+    jurusan: string;
+    prodi: string;
+    tahunLulus: string;
+    week: string;
+  }) => void;
   lastUpdatedAt: Date;
+  /** Full filter-options from BE (pass-through so children avoid double-fetch) */
+  filterOptions: FilterOptions;
 }
 
 const Ctx = createContext<GlobalFiltersState | undefined>(undefined);
 
-export const WEEK_OPTIONS = [
-  "2026 Mei - Minggu 3",
-  "2026 Mei - Minggu 2",
-  "2026 Mei - Minggu 1",
-  "2026 Apr - Minggu 4",
-  "2026 Apr - Minggu 3",
-  "2026 Feb - Minggu 3",
-  "2025 Des - Minggu 4",
-];
-
 export function GlobalFiltersProvider({ children }: { children: ReactNode }) {
+  const filterOptions = useFilterOptions();
+
+  // ── Derived defaults (wait until BE data arrives) ──────────────────────────
+  const defaultWeek = filterOptions.weekOptions[0] ?? "";
+
   const [degree, setDegreeRaw] = useState<string>(ALL);
   const [jurusan, setJurusanRaw] = useState<string>(ALL);
   const [prodi, setProdiRaw] = useState<string>(ALL);
   const [tahunLulus, setTahunLulusRaw] = useState<string>("all");
-  const [week, setWeekRaw] = useState<string>(WEEK_OPTIONS[0]);
+  const [week, setWeekRaw] = useState<string>("");
+
+  // Once BE data loads, initialise week to the latest snapshot
+  useEffect(() => {
+    if (!filterOptions.loading && filterOptions.weekOptions.length > 0 && week === "") {
+      setWeekRaw(filterOptions.weekOptions[0]);
+    }
+  }, [filterOptions.loading, filterOptions.weekOptions, week]);
+
   const [isApplying, setIsApplying] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date>(() => new Date());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,62 +74,135 @@ export function GlobalFiltersProvider({ children }: { children: ReactNode }) {
     }, ms);
   }, []);
 
-  // Setters update value WITHOUT auto-applying. The UI commits via applyAll/Terapkan.
   const setDegree = setDegreeRaw;
   const setJurusan = setJurusanRaw;
   const setProdi = setProdiRaw;
   const setTahunLulus = setTahunLulusRaw;
   const setWeek = setWeekRaw;
 
-  const applyAll = useCallback((next: { degree: string; jurusan: string; prodi: string; tahunLulus: string; week: string }) => {
-    setDegreeRaw(next.degree);
-    setJurusanRaw(next.jurusan);
-    setProdiRaw(next.prodi);
-    setTahunLulusRaw(next.tahunLulus);
-    setWeekRaw(next.week);
-    triggerApply();
-  }, [triggerApply]);
+  const applyAll = useCallback(
+    (next: {
+      degree: string;
+      jurusan: string;
+      prodi: string;
+      tahunLulus: string;
+      week: string;
+    }) => {
+      setDegreeRaw(next.degree);
+      setJurusanRaw(next.jurusan);
+      setProdiRaw(next.prodi);
+      setTahunLulusRaw(next.tahunLulus);
+      setWeekRaw(next.week);
+      triggerApply();
+    },
+    [triggerApply]
+  );
+
+  // Derive the raw ISO key that corresponds to the selected week label
+  const weekKey = useMemo(() => {
+    const idx = filterOptions.weekOptions.indexOf(week);
+    return idx !== -1 ? filterOptions.weekKeys[idx] : filterOptions.weekKeys[0] ?? "";
+  }, [week, filterOptions.weekOptions, filterOptions.weekKeys]);
 
   const value = useMemo<GlobalFiltersState>(
     () => ({
-      degree, jurusan, prodi, tahunLulus, week,
-      setDegree, setJurusan, setProdi, setTahunLulus, setWeek,
+      degree,
+      jurusan,
+      prodi,
+      tahunLulus,
+      week,
+      weekKey,
+      setDegree,
+      setJurusan,
+      setProdi,
+      setTahunLulus,
+      setWeek,
       reset: () => {
-        setDegreeRaw(ALL); setJurusanRaw(ALL); setProdiRaw(ALL); setTahunLulusRaw("all");
+        setDegreeRaw(ALL);
+        setJurusanRaw(ALL);
+        setProdiRaw(ALL);
+        setTahunLulusRaw("all");
+        setWeekRaw(filterOptions.weekOptions[0] ?? "");
         triggerApply();
       },
       isApplying,
       triggerApply,
       applyAll,
       lastUpdatedAt,
+      filterOptions,
     }),
-    [degree, jurusan, prodi, tahunLulus, week, isApplying, triggerApply, applyAll, lastUpdatedAt]
+    [
+      degree,
+      jurusan,
+      prodi,
+      tahunLulus,
+      week,
+      weekKey,
+      isApplying,
+      triggerApply,
+      applyAll,
+      lastUpdatedAt,
+      filterOptions,
+    ]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-export function useGlobalFilters() {
+export function useGlobalFilters(): GlobalFiltersState {
   const ctx = useContext(Ctx);
   if (!ctx) {
-    // Fallback no-op state if used outside provider (e.g. landing). Returns inert defaults.
+    // Inert fallback when used outside provider
+    const noopFilterOptions: FilterOptions = {
+      tahunLulus: [],
+      weekOptions: [],
+      weekKeys: [],
+      jenjang: [],
+      jurusanList: [],
+      jurusanMap: {},
+      prodiList: [],
+      loading: false,
+      error: null,
+    };
     return {
-      degree: ALL, jurusan: ALL, prodi: ALL, tahunLulus: "all", week: WEEK_OPTIONS[0],
-      setDegree: () => {}, setJurusan: () => {}, setProdi: () => {}, setTahunLulus: () => {}, setWeek: () => {},
+      degree: ALL,
+      jurusan: ALL,
+      prodi: ALL,
+      tahunLulus: "all",
+      week: "",
+      weekKey: "",
+      setDegree: () => {},
+      setJurusan: () => {},
+      setProdi: () => {},
+      setTahunLulus: () => {},
+      setWeek: () => {},
       reset: () => {},
       isApplying: false,
       triggerApply: () => {},
       applyAll: () => {},
       lastUpdatedAt: new Date(),
-    } as GlobalFiltersState;
+      filterOptions: noopFilterOptions,
+    };
   }
   return ctx;
 }
 
-/* ===== KPI UI Context — controls whether Compare buttons render (Kaprodi hides) ===== */
-interface KpiUIState { hideCompare: boolean }
+/* ===== KPI UI Context ======================================================= */
+interface KpiUIState {
+  hideCompare: boolean;
+}
 const KpiUICtx = createContext<KpiUIState>({ hideCompare: false });
-export function KpiUIProvider({ hideCompare = false, children }: { hideCompare?: boolean; children: ReactNode }) {
+
+export function KpiUIProvider({
+  hideCompare = false,
+  children,
+}: {
+  hideCompare?: boolean;
+  children: ReactNode;
+}) {
   return <KpiUICtx.Provider value={{ hideCompare }}>{children}</KpiUICtx.Provider>;
 }
-export function useKpiUI() { return useContext(KpiUICtx); }
+
+export function useKpiUI() {
+  return useContext(KpiUICtx);
+}

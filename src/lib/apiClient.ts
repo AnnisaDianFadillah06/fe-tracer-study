@@ -3,6 +3,7 @@ import axios, {
   AxiosRequestConfig,
   AxiosError,
 } from "axios";
+import { FilterOptionsResponse } from "@/hooks/useFilterOptions";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
@@ -144,6 +145,20 @@ export const apiService = {
   getMe: async () => {
     const response = await apiClient.get("/auth/me");
     return response.data.data ?? response.data;
+  },
+
+  // ── Filter Options ────────────────────────
+
+  /**
+   * GET /dashboard/meta/filter-options
+   * Fetch semua opsi filter global untuk dropdown di DashboardFilters
+   * Response: { success, data: { tahun_lulus, snapshot, jenjang, jurusan, prodi } }
+   */
+  getFilterOptions: async (): Promise<FilterOptionsResponse> => {
+    const response = await apiClient.get<FilterOptionsResponse>(
+      "/dashboard/meta/filter-options"
+    );
+    return response.data;
   },
 
   // ── Programs ──────────────────────────────
