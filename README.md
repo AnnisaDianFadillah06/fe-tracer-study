@@ -1,317 +1,195 @@
-**Konsep Arsitektur Sistem Tracer Study**  
-**Before vs After Brainstorming dengan Grok**  
+# FE Tracer Study
 
-- Dari MVC klasik → Layered Architecture + Cube.js  
-- Penjelasan lengkap alur, keunggulan, dan perbedaan implementasi  
-- Disusun untuk pembimbing / sidang / laporan TA  
+Frontend aplikasi **Tracer Study** untuk kebutuhan pengisian kuesioner alumni serta dashboard/management untuk role tertentu. Dibangun menggunakan **React + TypeScript** dengan tooling **Vite**, styling **Tailwind CSS**, dan komponen UI berbasis **shadcn-ui**.
 
 ---
 
-### **Arsitektur SEBELUM Brainstorming (MVC Klasik)**
-**Pendekatan Lama (Sederhana)**  
+## Tech Stack
 
-- Laravel MVC  
-  - Controller → langsung query PostgreSQL  
-  - Model → tabel fact & dimension (Star Schema)  
-- Repository → panggil **View / Materialized View** di PostgreSQL  
-- Tidak ada Service / DTO yang jelas  
-- OLAP “mini” → pakai SQL + Materialized View  
-
-**Kelemahan:**  
-- Fat Controller  
-- Query logic bercampur di banyak tempat  
-- Sulit ganti data source nanti  
+- **Vite** (build tool)
+- **React** + **TypeScript**
+- **Tailwind CSS**
+- **shadcn-ui**
 
 ---
 
-### **Arsitektur SESUDAH Brainstorming (Layered + Cube.js)**
-**Pendekatan Baru (Best Practice)**  
+## Cara Menjalankan Project (Local Development)
 
-✅ **Repository** → hanya panggil Cube.js API  
-✅ **Service** → business logic & orkestrasi  
-✅ **DTO** → transform response jadi clean untuk Frontend  
-✅ Controller tetap **tipis**  
-
-**Alur Request:**  
-Frontend (React) → Laravel Controller → Service → Repository → **Cube.js** → PostgreSQL  
-
----
-
-### **Perbedaan View/Materialized View vs Cube.js**
-| Aspek                  | Materialized View (PostgreSQL) | Cube.js (Analytic Layer)          |
-|------------------------|--------------------------------|-----------------------------------|
-| Tempat logic KPI       | SQL manual                     | JS Schema (measure + dimension)  |
-| Pre-aggregation        | Manual (refresh manual)        | Otomatis (rollup)                 |
-| Drill-down / filter    | Query ulang setiap kali        | Instan dari cache/pre-agg         |
-| Performa dashboard     | Sedang                         | Sangat cepat                      |
-| Keamanan & akses role  | Harus di Laravel               | Laravel tetap kontrol (auth)      |
-
-**Kesimpulan**  
-❌ OLAP Cube ≠ sekadar View di PostgreSQL  
-✅ Tapi bisa “ditiru” pakai Materialized View (level implementasi sederhana)  
-
----
-
-### **Layer Penyimpanan & Analitik (Keunggulan Cube.js)**
-**Arsitektur 4 Layer yang Jelas**
-
-- **PostgreSQL** → Data Warehouse (Star Schema tetap)  
-- **Cube.js** → Analytic Layer (pre-aggregate, roll-up, multidimensional)  
-- **Laravel** → Backend + Security (Auth, Role Kaprodi/P2MPP, DTO)  
-- **React** → Visualisasi Dashboard  
-
-**Keunggulan Cube.js**  
-- Pre-aggregation otomatis  
-- Query pakai JSON (bukan SQL raw)  
-- Cache & roll-up multidimensional  
-- Scalable kalau data bertambah besar  
-
-
-### **Cara Kerja Cube.js (Praktis)**
-**Cube.js hanya definisi (bukan pindah data!)**  
-
-- Data **tetap di PostgreSQL**  
-- Cube.js = **schema JS** (1 file per domain, contoh: `schema/Tracer.js`)  
-- Isi schema:  
-  - `sql:` → JOIN semua fact & dimension  
-  - `measures:` → KPI (keterserapan, rata_masa_tunggu, dll.)  
-  - `dimensions:` → tahun, prodi, angkatan, dll.  
-  - `preAggregations:` → roll-up otomatis  
-
-**Repository Laravel hanya HTTP POST ke Cube.js API** (bukan DB::select lagi).
-
----
-
-### **Slide 8: Contoh Kode Repository (Cube.js Call)**
-```php
-// DashboardRepository.php
-public function getKeterserapan($tahun)
-{
-    return Http::post('http://cubejs:4000/cubejs-api/v1/load', [
-        "query" => [
-            "measures" => ["Tracer.keterserapan"],
-            "dimensions" => ["Tracer.prodi"],
-            "filters" => [["dimension" => "Tracer.tahun", "operator" => "equals", "values" => [$tahun]]]
-        ]
-    ])->json();
-}
-```
-
-**DTO** → transform response Cube.js jadi clean JSON untuk React.
-
----
-
-### **Mengapa Tetap Pakai Laravel? (Bukan Langsung React → Cube.js)**
-**Alasan Penting (Security & Best Practice)**
-
-- Cube.js API langsung dari React = **risk security** (token bocor, query bisa dimanipulasi)  
-- Laravel tetap jadi **API Gateway**  
-- Handle: Auth, Role-based access (Kaprodi hanya lihat prodi sendiri), Business logic, DTO formatting  
-- Scalable & maintainable  
-
----
-
-### **Kesimpulan**
-**Ringkasan Before → After**
-
-- **Before:** MVC + Materialized View (cukup untuk skala kecil)  
-- **After:** Layered Architecture + Cube.js (professional, scalable, cepat)  
-- PostgreSQL tetap jadi Data Warehouse  
-- Cube.js jadi Analytic Layer (pre-agg otomatis)  
-- Laravel = Security & Orchestration  
-- React = Visualization  
-
-**Manfaat utama:** Lebih cepat, lebih aman, lebih mudah maintenance.
-
----
-
-### **Paradigma Pemrograman Laravel**
-
-**Apakah Laravel OOP atau Structured/Procedural?**
-
-**Laravel adalah framework berbasis Object-Oriented Programming (OOP)** yang dibangun di atas PHP modern.
-
-- Laravel **bukan** structured/procedural seperti PHP lama (PHP 4 atau script biasa).  
-- Laravel **sangat mengadopsi OOP** secara mendalam + konsep modern (MVC, Dependency Injection, Facades, Eloquent ORM, dll).
----
-
-### **Laravel Menggunakan OOP (Contoh Kode)**
-
-**1. Class & Object (OOP Dasar)**
-
-```php
-// app/Models/Alumni.php
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class Alumni extends Model  // Inheritance (OOP)
-{
-    protected $table = 'dim_alumni';  // Encapsulation
-    protected $fillable = ['nama', 'angkatan']; 
-
-    public function prodi()  // Method
-    {
-        return $this->belongsTo(Prodi::class);  // Relationship
-    }
-}
-```
-
-**2. Controller (OOP)**
-
-```php
-// app/Http/Controllers/DashboardController.php
-namespace App\Http\Controllers;
-
-use App\Services\DashboardService;  // Dependency Injection
-use Illuminate\Http\Request;
-
-class DashboardController extends Controller  // Inheritance
-{
-    protected $dashboardService;
-
-    public function __construct(DashboardService $dashboardService)  // Constructor Injection
-    {
-        $this->dashboardService = $dashboardService;
-    }
-
-    public function getKeterserapan(Request $request)
-    {
-        return $this->dashboardService->getKeterserapan($request->tahun);
-    }
-}
-```
-
-**3. Service Layer (Clean Architecture Style)**
-
-```php
-// app/Services/DashboardService.php
-namespace App\Services;
-
-use App\Repositories\DashboardRepository;
-use App\DTOs\KeterserapanDTO;
-
-class DashboardService
-{
-    protected $repository;
-
-    public function __construct(DashboardRepository $repository)
-    {
-        $this->repository = $repository;
-    }
-
-    public function getKeterserapan($tahun)
-    {
-        $data = $this->repository->getKeterserapan($tahun);
-        return KeterserapanDTO::fromCube($data);  // Menggunakan DTO
-    }
-}
-```
-
-**4. Repository + DTO (Layered Architecture)**
-
-```php
-// app/Repositories/DashboardRepository.php
-namespace App\Repositories;
-
-use Illuminate\Support\Facades\Http;
-
-class DashboardRepository
-{
-    public function getKeterserapan($tahun)
-    {
-        // HTTP call ke Cube.js
-        return Http::post(...)->json();
-    }
-}
-```
-
----
-
-### **Perbandingan Paradigma**
-
-| Paradigma       | Structured/Procedural | Object-Oriented (Laravel)          | Status di Proyek Kamu |
-|-----------------|-----------------------|------------------------------------|-----------------------|
-| Cara Penulisan  | Function global       | Class, Object, Inheritance         | OOP                   |
-| Organisasi Kode | Script panjang        | Folder: Models, Services, Repositories, DTOs | Layered OOP     |
-| Maintainability | Sulit (spaghetti)     | Tinggi (modular & testable)        | OOP + Layered         |
-| Contoh          | `function hitungKPI()`| `class DashboardService { ... }`   | Digunakan             |
-
-**Kesimpulan**  
-“Pada sistem ini, framework Laravel digunakan dengan pendekatan **Object-Oriented Programming (OOP)** yang dikombinasikan dengan Layered Architecture (Repository, Service, DTO) untuk meningkatkan keterbacaan, reusability, dan maintainability kode.”
-
----
-
-> **3.2 Paradigma Pemrograman**  
-> Sistem backend dikembangkan menggunakan Laravel 10/11 yang berbasis **Object-Oriented Programming (OOP)**. Pendekatan ini diimplementasikan melalui pembuatan class-class pada layer Controller, Service, Repository, Model (Eloquent), dan DTO. Penggunaan OOP memungkinkan penerapan prinsip SOLID, Dependency Injection, dan pemisahan tanggung jawab (Separation of Concerns) yang jelas.
-
----
-
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
+### 1) Clone
+```bash
 git clone <YOUR_GIT_URL>
+cd fe-tracer-study
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### 2) Install dependencies
+Pilih salah satu:
 
-# Step 3: Install the necessary dependencies.
-npm i
+**Menggunakan npm**
+```bash
+npm install
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### 3) Run dev server
+**npm**
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Aplikasi akan berjalan di URL dev server yang ditampilkan di terminal (umumnya `http://localhost:5173`).
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## Struktur Folder (Ringkasan)
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Struktur utama berada di `src/`:
 
-## What technologies are used for this project?
+```text
+src/
+  App.tsx
+  main.tsx
+  App.css
+  index.css
+  vite-env.d.ts
 
-This project is built with:
+  pages/
+    Landing.tsx
+    Login.tsx
+    LoginWithAPI.tsx
+    StudentLoginPage.tsx
+    ProfilePage.tsx
+    ChangePasswordPage.tsx
+    ComparePage.tsx
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+    FormPage.tsx
+    FormPreviewPage.tsx
+    FormBuilderPage.tsx
+    FormManagementPage.tsx
 
-## How can I deploy this project?
+    StudentManagementPage.tsx
+    TeamManagementPage.tsx
+    NotFound.tsx
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+    dashboard/
+      overview/
+      analytics/
+      education/
+      employment/
 
-## Can I connect a custom domain to my Lovable project?
+  components/
+    NavLink.tsx
+    PolbanLogo.tsx
+    ProtectedRoute.tsx
+    ThemeProvider.tsx
+    ThemeToggle.tsx
 
-Yes, you can!
+    landing/
+    dashboard/
+    ui/
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+  contexts/
+    RoleContext.tsx
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+  hooks/
+    useAuth.ts
+    useStudentAuth.ts
+    useFormResponse.ts
+    useQuestionManagement.ts
+    useStudentManagement.ts
+    use-mobile.tsx
+    use-toast.ts
+
+    dashboard/
+      kaprodi/
+      kotc/
+      p2mpp/
+
+  lib/
+    apiClient.ts
+    formManagement.ts
+    mockData.ts
+    utils.ts
+```
+
+---
+
+## Penjelasan Singkat Tiap Layer/Folder
+
+### `src/pages/`
+Berisi halaman (route-level pages), misalnya:
+- Auth & landing: `Landing.tsx`, `Login.tsx`, `LoginWithAPI.tsx`, `StudentLoginPage.tsx`
+- Profil & akun: `ProfilePage.tsx`, `ChangePasswordPage.tsx`
+- Form/kuesioner: `FormPage.tsx`, `FormPreviewPage.tsx`, `FormBuilderPage.tsx`, `FormManagementPage.tsx`
+- Manajemen: `StudentManagementPage.tsx`, `TeamManagementPage.tsx`
+- Dashboard (dikelompokkan lagi): `pages/dashboard/*`
+- Fallback: `NotFound.tsx`
+
+### `src/components/`
+Komponen reusable.
+- Navigation: `NavLink.tsx`
+- Branding: `PolbanLogo.tsx`
+- Proteksi route: `ProtectedRoute.tsx`
+- Tema: `ThemeProvider.tsx`, `ThemeToggle.tsx`
+- Subfolder:
+  - `components/ui/` → komponen UI (shadcn-ui)
+  - `components/landing/` → komponen khusus landing page
+  - `components/dashboard/` → komponen khusus dashboard
+
+### `src/hooks/`
+Custom hooks untuk logic yang dipakai ulang:
+- `useAuth.ts`, `useStudentAuth.ts` → autentikasi
+- `useStudentManagement.ts` → fitur manajemen mahasiswa/alumni (sesuai kebutuhan sistem)
+- `useQuestionManagement.ts` → pengelolaan pertanyaan (form builder/management)
+- `useFormResponse.ts` → pengisian/submit/jawaban form
+- `hooks/dashboard/*` → hook khusus dashboard berdasarkan role (mis. `kaprodi`, `kotc`, `p2mpp`)
+- Utility hooks: `use-toast.ts`, `use-mobile.tsx`
+
+### `src/contexts/`
+Context React untuk state global berbasis Context API.
+- `RoleContext.tsx` → menyimpan/mengelola role user untuk kebutuhan akses/fitur.
+
+### `src/lib/`
+Utilitas dan helper yang sifatnya “library” internal:
+- `apiClient.ts` → konfigurasi client untuk komunikasi API (base URL, token, interceptor, dll)
+- `formManagement.ts` → helper terkait manajemen form
+- `mockData.ts` → data dummy untuk development/testing UI
+- `utils.ts` → fungsi utilitas kecil
+
+---
+
+## Konsep Role & Akses (High Level)
+
+Repo ini mengindikasikan adanya pemisahan fitur berdasarkan role, misalnya:
+- Akses dashboard/fitur tertentu per role (terlihat dari `RoleContext` dan `hooks/dashboard/{kaprodi,kotc,p2mpp}`)
+- Proteksi route menggunakan `ProtectedRoute`
+
+## Konfigurasi Penting
+
+File konfigurasi utama di root:
+- `vite.config.ts` → konfigurasi Vite
+- `tailwind.config.ts`, `postcss.config.js` → styling Tailwind
+- `eslint.config.js` → linting
+- `components.json` → konfigurasi shadcn-ui
+
+---
+
+## Deployment
+
+Tergantung platform yang kamu pakai (Vercel/Netlify/Render/dll). Untuk umum:
+- Build: `npm run build`
+- Preview hasil build: `npm run preview`
+
+Jika kamu deploy lewat platform tertentu, cukup set:
+- Build command: `npm run build`
+- Output directory: `dist`
+
+---
+
+## Catatan Pengembangan
+
+- Gunakan `mockData.ts` saat UI masih perlu data contoh.
+- Pisahkan logic ke `hooks/` dan `lib/` agar `pages/` tetap bersih dan fokus pada rendering.
+
+---
+
+## License
+Tentukan sesuai kebutuhan (mis. MIT) atau biarkan private/internal jika untuk proyek TA.
