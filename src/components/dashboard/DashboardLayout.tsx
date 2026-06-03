@@ -18,6 +18,7 @@ import {
   FileText,
   Gauge,
   Target,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +34,7 @@ import { useRole } from "@/contexts/RoleContext";
 import { Badge } from "@/components/ui/badge";
 import GlobalFilters from "@/components/dashboard/GlobalFilters";
 import { GlobalFiltersProvider } from "@/contexts/GlobalFiltersContext";
+import DownloadDataButton from "@/components/dashboard/DownloadDataButton";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -74,6 +76,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   // Show GlobalFilters on dashboard data pages (overview/employment/education/kpi)
   const showGlobalFilters = /\/dashboard\/(overview|employment|education|kpi)/.test(location.pathname);
   const filtersMode = currentRole === "kaprodi" ? "kaprodi" : "full";
+  const isRealtimePage = /\/dashboard\/overview/.test(location.pathname);
+  const todayId = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 
   return (
     <GlobalFiltersProvider>
@@ -234,6 +238,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Realtime indicator (Overview only) */}
+            {isRealtimePage && (
+              <Badge
+                variant="outline"
+                className="hidden md:flex h-8 px-3 gap-1.5 items-center text-xs border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              >
+                <Radio className="w-3.5 h-3.5 animate-pulse" /> Realtime — {todayId}
+              </Badge>
+            )}
+
             {/* Prodi indicator for Kaprodi */}
             {selectedProdi && (
               <Badge variant="secondary" className="hidden md:flex">
@@ -242,6 +256,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             )}
 
             {/* Theme Toggle */}
+            {showGlobalFilters && <DownloadDataButton />}
             <ThemeToggle />
 
             {/* Notifications */}

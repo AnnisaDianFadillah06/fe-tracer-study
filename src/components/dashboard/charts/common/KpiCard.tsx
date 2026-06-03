@@ -1,8 +1,10 @@
 import { motion } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
 import { Loader2, AlertCircle, ArrowRightLeft, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { useKpiUI } from "@/contexts/GlobalFiltersContext";
+import { useKpiUI, useGlobalFilters, ALL } from "@/contexts/GlobalFiltersContext";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 /* ============================================================
    COLOR TOKENS — sesuai psikologi warna pada spesifikasi KPI
@@ -85,8 +87,23 @@ export const KpiCard = ({
 }) => {
   const navigate = useNavigate();
   const { hideCompare } = useKpiUI();
+  const { prodi, isApplying } = useGlobalFilters();
+  const compareDisabled = prodi !== ALL || isApplying;
+  // Per-card staggered loading window so charts don't all finish at once.
+  const stagger = useMemo(() => 250 + Math.floor(Math.random() * 700), []);
+  const [localLoading, setLocalLoading] = useState(false);
+  useEffect(() => {
+    if (!isApplying) return;
+    setLocalLoading(true);
+    const t = setTimeout(() => setLocalLoading(false), stagger);
+    return () => clearTimeout(t);
+  }, [isApplying, stagger]);
+  const showSkeleton = isApplying || localLoading;
+  const compareTooltip = isApplying
+    ? "Tunggu data selesai dimuat."
+    : "Jangan filter hingga prodi — butuh lebih dari 1 prodi untuk fitur ini.";
   return (
-  <div className={`glass-card p-5 ${className}`}>
+  <div className={`glass-card p-5 ${className}`} aria-busy={showSkeleton}>
     <div className="mb-4 flex items-start justify-between gap-3">
       <div className="min-w-0">
         <h3 className="font-heading font-semibold text-base">{title}</h3>
@@ -95,15 +112,33 @@ export const KpiCard = ({
       <div className="flex items-center gap-2 shrink-0">
         {headerExtra}
         {compareType && !hideCompare && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs gap-1"
-            onClick={() => navigate(`/dashboard/compare?type=${encodeURIComponent(compareType)}`)}
-          >
-            <ArrowRightLeft className="w-3 h-3" />
-            Bandingkan
-          </Button>
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={compareDisabled ? 0 : -1}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={compareDisabled}
+                    className="h-8 text-xs gap-1"
+                    aria-disabled={compareDisabled}
+                    onClick={() =>
+                      !compareDisabled &&
+                      navigate(`/dashboard/compare?type=${encodeURIComponent(compareType)}`)
+                    }
+                  >
+                    <ArrowRightLeft className="w-3 h-3" />
+                    Bandingkan
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {compareDisabled && (
+                <TooltipContent side="top" className="max-w-[220px] text-xs">
+                  {compareTooltip}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
     </div>
@@ -127,7 +162,35 @@ export const KpiCard = ({
         <p className="text-xs">Coba ubah filter atau pilih periode lain.</p>
       </div>
     ) : (
-      children
+      <div className="relative">
+        {/* Keep previously rendered chart visible while new data loads —
+            only dim slightly and disable interactions so users keep context. */}
+        <div
+          className={
+            showSkeleton
+              ? "opacity-80 pointer-events-none transition-opacity duration-300"
+              : "transition-opacity duration-300"
+          }
+        >
+          {children}
+        </div>
+        {showSkeleton && (
+          <>
+            {/* Subtle top progress bar to show activity without hiding the chart */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 overflow-hidden rounded-t-md bg-primary/10">
+              <div className="h-full w-1/3 bg-primary/70 animate-shimmer" />
+            </div>
+            <div
+              role="status"
+              aria-live="polite"
+              className="absolute top-2 right-2 flex items-center gap-1.5 text-[11px] text-muted-foreground bg-card/90 border border-border rounded-full px-2 py-0.5 shadow-sm animate-in fade-in"
+            >
+              <Loader2 className="w-3 h-3 animate-spin text-primary" />
+              Memperbarui…
+            </div>
+          </>
+        )}
+      </div>
     )}
   </div>
   );

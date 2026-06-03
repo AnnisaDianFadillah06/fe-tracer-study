@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState, ReactNode } from "react";
 
 export const ALL = "__all__";
 
@@ -14,6 +14,10 @@ export interface GlobalFiltersState {
   setTahunLulus: (v: string) => void;
   setWeek: (v: string) => void;
   reset: () => void;
+  isApplying: boolean;
+  triggerApply: (ms?: number) => void;
+  /** Timestamp of last successful filter apply / data refresh. */
+  lastUpdatedAt: Date;
 }
 
 const Ctx = createContext<GlobalFiltersState | undefined>(undefined);
@@ -29,21 +33,44 @@ export const WEEK_OPTIONS = [
 ];
 
 export function GlobalFiltersProvider({ children }: { children: ReactNode }) {
-  const [degree, setDegree] = useState<string>(ALL);
-  const [jurusan, setJurusan] = useState<string>(ALL);
-  const [prodi, setProdi] = useState<string>(ALL);
-  const [tahunLulus, setTahunLulus] = useState<string>("all");
-  const [week, setWeek] = useState<string>(WEEK_OPTIONS[0]);
+  const [degree, setDegreeRaw] = useState<string>(ALL);
+  const [jurusan, setJurusanRaw] = useState<string>(ALL);
+  const [prodi, setProdiRaw] = useState<string>(ALL);
+  const [tahunLulus, setTahunLulusRaw] = useState<string>("all");
+  const [week, setWeekRaw] = useState<string>(WEEK_OPTIONS[0]);
+  const [isApplying, setIsApplying] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date>(() => new Date());
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const triggerApply = useCallback((ms = 650) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setIsApplying(true);
+    timerRef.current = setTimeout(() => {
+      setIsApplying(false);
+      setLastUpdatedAt(new Date());
+    }, ms);
+  }, []);
+
+  const wrap = <T,>(setter: (v: T) => void) => (v: T) => { setter(v); triggerApply(); };
+  const setDegree = wrap(setDegreeRaw);
+  const setJurusan = wrap(setJurusanRaw);
+  const setProdi = wrap(setProdiRaw);
+  const setTahunLulus = wrap(setTahunLulusRaw);
+  const setWeek = wrap(setWeekRaw);
 
   const value = useMemo<GlobalFiltersState>(
     () => ({
       degree, jurusan, prodi, tahunLulus, week,
       setDegree, setJurusan, setProdi, setTahunLulus, setWeek,
       reset: () => {
-        setDegree(ALL); setJurusan(ALL); setProdi(ALL); setTahunLulus("all");
+        setDegreeRaw(ALL); setJurusanRaw(ALL); setProdiRaw(ALL); setTahunLulusRaw("all");
+        triggerApply();
       },
+      isApplying,
+      triggerApply,
+      lastUpdatedAt,
     }),
-    [degree, jurusan, prodi, tahunLulus, week]
+    [degree, jurusan, prodi, tahunLulus, week, isApplying, triggerApply, lastUpdatedAt]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
@@ -57,6 +84,9 @@ export function useGlobalFilters() {
       degree: ALL, jurusan: ALL, prodi: ALL, tahunLulus: "all", week: WEEK_OPTIONS[0],
       setDegree: () => {}, setJurusan: () => {}, setProdi: () => {}, setTahunLulus: () => {}, setWeek: () => {},
       reset: () => {},
+      isApplying: false,
+      triggerApply: () => {},
+      lastUpdatedAt: new Date(),
     } as GlobalFiltersState;
   }
   return ctx;
