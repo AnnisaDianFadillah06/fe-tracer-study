@@ -36,12 +36,6 @@ const EmploymentPageContent = ({ summary = DEFAULT_SUMMARY, emptyKpis = [] }: Pr
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-[1400px] mx-auto">
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Badge variant="outline" className="bg-primary/5 border-primary/30">
-            <Camera className="w-3 h-3 mr-1.5" /> Snapshot: <span className="font-semibold ml-1">{week}</span>
-          </Badge>
-          <Badge variant="secondary">Tahun Lulus: <span className="font-semibold ml-1">{tahunLabel}</span></Badge>
-        </div>
         <SummaryCards items={summary} />
 
         <Tabs defaultValue="k4" className="space-y-4">

@@ -37,12 +37,6 @@ const OverviewPageContent = ({ summary = DEFAULT_SUMMARY, emptyKpis = [] }: Prop
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-[1400px] mx-auto">
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Badge variant="outline" className="bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400">
-            <Activity className="w-3 h-3 mr-1.5 animate-pulse" /> Realtime — {today}
-          </Badge>
-          <Badge variant="secondary">Tahun Lulus: <span className="font-semibold ml-1">{tahunLabel}</span></Badge>
-        </div>
         <SummaryCards items={summary} />
 
         <Tabs defaultValue="k1" className="space-y-4">
