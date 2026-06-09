@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MethodologyBlock } from "./Methodology";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
@@ -53,7 +54,14 @@ const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = default
   <>
   <div className="grid lg:grid-cols-2 gap-4">
     <KpiCard loading={loading} error={error} empty={isEmpty} title="Tren Persentase Wirausaha" subtitle={lamSubtitle(lam)}
-      compareType="entrepreneurship" headerExtra={<LamFilterControls lam={lam} />}>
+      compareType="entrepreneurship" headerExtra={<LamFilterControls lam={lam} />}
+      methodology={
+        <MethodologyBlock
+          description="Proporsi lulusan yang berstatus wirausaha (owner/co-founder) dalam satu periode."
+          formula={<>% Wirausaha = (Jumlah Lulusan Berstatus Wirausaha / Total Lulusan Periode) × 100%</>}
+          notes="Termasuk lulusan dengan usaha berbadan hukum maupun usaha mandiri yang aktif."
+        />
+      }>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={comboData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
@@ -76,7 +84,13 @@ const Kpi7EntrepreneurshipChart = ({ comboData = defaultCombo, pieData = default
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Posisi Wirausaha" subtitle="Periode terakhir" compareType="entrepreneurship">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Posisi Wirausaha" subtitle="Periode terakhir" compareType="entrepreneurship"
+      methodology={
+        <MethodologyBlock
+          description="Sebaran posisi/peran lulusan wirausaha."
+          formula={<>% Posisi = (Jumlah Wirausaha pada Posisi / Total Lulusan Wirausaha) × 100%</>}
+        />
+      }>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>

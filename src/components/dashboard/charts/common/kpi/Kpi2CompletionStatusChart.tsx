@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, Sector } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MethodologyBlock } from "./Methodology";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { formatPctCount, formatNTotal } from "./format";
 
@@ -50,7 +51,14 @@ const Kpi2CompletionStatusChart = ({
   const [activeIdx, setActiveIdx] = useState<number | undefined>();
   return (
   <>
-  <KpiCard loading={loading} error={error} empty={isDataEmpty} title={title} subtitle={subtitleText} compareType="completion">
+  <KpiCard loading={loading} error={error} empty={isDataEmpty} title={title} subtitle={subtitleText} compareType="completion"
+    methodology={
+      <MethodologyBlock
+        description="Status penyelesaian studi lulusan pada periode terpilih."
+        formula={<>% Status = (Jumlah Lulusan pada Status / Total Lulusan Periode) × 100%<br/>Tepat Waktu = Lulus ≤ Masa Studi Normal Program</>}
+        notes="Masa studi normal: D3 = 3 thn, D4/S1 = 4 thn."
+      />
+    }>
     <div className="h-80">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>

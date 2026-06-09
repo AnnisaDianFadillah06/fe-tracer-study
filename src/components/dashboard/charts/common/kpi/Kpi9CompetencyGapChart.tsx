@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MethodologyBlock } from "./Methodology";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 
 const defaultRadar = [
@@ -48,7 +49,13 @@ const Kpi9CompetencyGapChart = ({ radarData = defaultRadar, loading, error, isEm
   return (
     <>
     <div className="grid lg:grid-cols-2 gap-4">
-      <KpiCard loading={loading} error={error} empty={isEmpty} title="Profil Kompetensi: Saat Lulus vs Kebutuhan Industri" subtitle="Radar chart" compareType="competency">
+      <KpiCard loading={loading} error={error} empty={isEmpty} title="Profil Kompetensi: Saat Lulus vs Kebutuhan Industri" subtitle="Radar chart" compareType="competency"
+        methodology={
+          <MethodologyBlock
+            description="Membandingkan rata-rata skor kompetensi yang dimiliki saat lulus dengan skor kompetensi yang dibutuhkan industri."
+            formula={<>Skor Kompetensi = Σ Skor Likert (1–5) / Jumlah Responden</>}
+          />
+        }>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={radarData}>
@@ -63,7 +70,14 @@ const Kpi9CompetencyGapChart = ({ radarData = defaultRadar, loading, error, isEm
           </ResponsiveContainer>
         </div>
       </KpiCard>
-      <KpiCard loading={loading} error={error} empty={isEmpty} title="Gap Kompetensi per Indikator" subtitle="Bar horizontal — merah = gap negatif, hijau = aman" compareType="competency">
+      <KpiCard loading={loading} error={error} empty={isEmpty} title="Gap Kompetensi per Indikator" subtitle="Bar horizontal — merah = gap negatif, hijau = aman" compareType="competency"
+        methodology={
+          <MethodologyBlock
+            description="Selisih rata-rata skor kompetensi saat lulus terhadap kebutuhan industri."
+            formula={<>Gap = Skor Saat Lulus − Skor Kebutuhan Industri</>}
+            notes="Gap negatif berarti kompetensi lulusan di bawah ekspektasi industri."
+          />
+        }>
         <div style={{ height: gap.length * 44 + 40 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={gap} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>

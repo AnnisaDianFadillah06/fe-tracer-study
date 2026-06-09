@@ -16,13 +16,17 @@ const Login = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuth(); // ✅ pakai hook
 
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   try {
+  //     await login(email, password);
+  //     navigate("/dashboard/overview");
+  //   } catch {
+  //   }
+  // };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await login(email, password);
-      navigate("/dashboard/overview");
-    } catch {
-    }
+    navigate("/dashboard/overview"); // langsung bypass, skip login()
   };
 
   return (

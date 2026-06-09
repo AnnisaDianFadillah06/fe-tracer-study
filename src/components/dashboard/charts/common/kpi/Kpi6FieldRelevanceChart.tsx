@@ -18,6 +18,7 @@ import {
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MethodologyBlock } from "./Methodology";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
@@ -66,7 +67,14 @@ const Kpi6FieldRelevanceChart = ({
   <>
   <div className="grid lg:grid-cols-2 gap-4">
     <KpiCard loading={loading} error={error} empty={isEmpty} title="Tren Kesesuaian Bidang Kerja" subtitle={lamSubtitle(lam)}
-      compareType="kesesuaian" headerExtra={<LamFilterControls lam={lam} />}>
+      compareType="kesesuaian" headerExtra={<LamFilterControls lam={lam} />}
+      methodology={
+        <MethodologyBlock
+          description="Mengukur kesesuaian bidang pekerjaan lulusan terhadap bidang studi."
+          formula={<>Kesesuaian (%) = ((Sangat Erat + Erat) / Total Lulusan Bekerja) × 100%</>}
+          notes="Kategori jawaban: Sangat Erat, Erat, Cukup Erat, Kurang, Tidak Erat."
+        />
+      }>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={comboData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
@@ -93,7 +101,13 @@ const Kpi6FieldRelevanceChart = ({
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Tingkat Kesesuaian" subtitle="Periode terakhir" compareType="kesesuaian">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Tingkat Kesesuaian" subtitle="Periode terakhir" compareType="kesesuaian"
+      methodology={
+        <MethodologyBlock
+          description="Sebaran lulusan menurut tingkat keeratan bidang kerja dengan bidang studi."
+          formula={<>% Tingkat = (Jumlah Lulusan pada Tingkat / Total Lulusan Bekerja) × 100%</>}
+        />
+      }>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -112,7 +126,14 @@ const Kpi6FieldRelevanceChart = ({
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} empty={isEmpty} title="Frekuensi Alasan Ketidaksesuaian" subtitle="Horizontal bar chart" className="lg:col-span-2" compareType="kesesuaian">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Frekuensi Alasan Ketidaksesuaian" subtitle="Horizontal bar chart" className="lg:col-span-2" compareType="kesesuaian"
+      methodology={
+        <MethodologyBlock
+          description="Frekuensi alasan lulusan memilih pekerjaan di luar bidang studi."
+          formula={<>Frekuensi Alasan X = Jumlah Responden yang Memilih Alasan X</>}
+          notes="Responden dapat memilih lebih dari satu alasan."
+        />
+      }>
       <div style={{ height: reasonsData.length * 50 + 40 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={reasonsData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>

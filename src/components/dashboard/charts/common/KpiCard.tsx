@@ -1,10 +1,11 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, AlertCircle, ArrowRightLeft, Inbox } from "lucide-react";
+import { Loader2, AlertCircle, ArrowRightLeft, Inbox, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useKpiUI, useGlobalFilters, ALL } from "@/contexts/GlobalFiltersContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /* ============================================================
    COLOR TOKENS — sesuai psikologi warna pada spesifikasi KPI
@@ -70,6 +71,7 @@ export const KpiCard = ({
   emptyMessage = "Belum ada data untuk filter ini",
   compareType,
   headerExtra,
+  methodology,
 }: {
   title: string;
   subtitle?: string;
@@ -84,6 +86,8 @@ export const KpiCard = ({
   compareType?: string;
   /** Extra header controls (filters etc.) */
   headerExtra?: React.ReactNode;
+  /** Methodology / formula explanation shown via info icon (hover + click). */
+  methodology?: React.ReactNode;
 }) => {
   const navigate = useNavigate();
   const { hideCompare } = useKpiUI();
@@ -111,6 +115,34 @@ export const KpiCard = ({
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {headerExtra}
+        {methodology && (
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <Popover>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Lihat metodologi perhitungan"
+                      className="inline-flex items-center justify-center h-7 w-7 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      <Info className="w-4 h-4" />
+                    </button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Lihat Metodologi Perhitungan
+                </TooltipContent>
+                <PopoverContent side="bottom" align="end" className="w-80 text-xs leading-relaxed">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary mb-2">
+                    <Info className="w-3.5 h-3.5" /> Metodologi Perhitungan
+                  </div>
+                  <div className="space-y-2 text-foreground">{methodology}</div>
+                </PopoverContent>
+              </Popover>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         {compareType && !hideCompare && (
           <TooltipProvider delayDuration={150}>
             <Tooltip>

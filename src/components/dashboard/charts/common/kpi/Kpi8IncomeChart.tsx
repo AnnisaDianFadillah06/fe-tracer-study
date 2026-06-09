@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MethodologyBlock } from "./Methodology";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 
@@ -48,7 +49,14 @@ const Kpi8IncomeChart = ({ avgData = defaultAvg, distData = defaultDist, loading
   <>
   <div className="grid lg:grid-cols-2 gap-4">
     <KpiCard loading={loading} error={error} empty={isEmpty} title="Tren Pendapatan & % Lulusan ≥ 1,2× UMP" subtitle={lamSubtitle(lam)}
-      compareType="income" headerExtra={<LamFilterControls lam={lam} />}>
+      compareType="income" headerExtra={<LamFilterControls lam={lam} />}
+      methodology={
+        <MethodologyBlock
+          description="Mengukur rata-rata pendapatan lulusan serta proporsi yang berpendapatan ≥ 1,2× UMP daerah kerja."
+          formula={<>Rata-rata Gaji = Σ Gaji Lulusan Bekerja / Total Lulusan Bekerja<br/>% ≥ 1,2× UMP = (Lulusan dengan Gaji ≥ 1,2 × UMP / Total Lulusan Bekerja) × 100%</>}
+          notes="UMP mengacu pada daerah lokasi kerja lulusan pada tahun pengukuran."
+        />
+      }>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={avgData} margin={{ top: 30, right: 50, left: 20, bottom: 30 }}>
@@ -75,7 +83,13 @@ const Kpi8IncomeChart = ({ avgData = defaultAvg, distData = defaultDist, loading
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} empty={isEmpty} title="Proporsi Lulusan Berdasar UMP" subtitle="Dua kelompok: < 1,2× UMP vs ≥ 1,2× UMP per tahun" compareType="income">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Proporsi Lulusan Berdasar UMP" subtitle="Dua kelompok: < 1,2× UMP vs ≥ 1,2× UMP per tahun" compareType="income"
+      methodology={
+        <MethodologyBlock
+          description="Membagi lulusan bekerja ke dua kelompok pendapatan berdasarkan ambang 1,2× UMP."
+          formula={<>% Kelompok = (Lulusan pada Kelompok / Total Lulusan Bekerja) × 100%</>}
+        />
+      }>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={distData} margin={{ top: 30, right: 20, left: 20, bottom: 30 }}>

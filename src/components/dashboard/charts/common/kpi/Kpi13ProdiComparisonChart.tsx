@@ -15,6 +15,7 @@ import {
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MOCK_STUDENTS, PRODI_LIST, Student } from "@/lib/mockData";
+import { MethodologyBlock } from "./Methodology";
 
 /** Master list of 32 prodi names for realistic comparison demo. */
 const ALL_PRODI = (() => {
@@ -126,6 +127,13 @@ const Kpi13ProdiComparisonChart = ({ loading, error, isEmpty }: { loading?: bool
         title="Perbandingan KPI Lintas Program Studi"
         subtitle="Stacked bar — capaian vs sisa target, threshold Baik & Unggul"
         headerExtra={headerControls}
+        methodology={
+          <MethodologyBlock
+            description="Membandingkan capaian KPI yang dipilih antar program studi."
+            formula={<>Capaian Prodi (%) = (Lulusan Memenuhi Indikator pada Prodi / Total Lulusan Prodi) × 100%<br/>Sisa Target (%) = 100% − Capaian Prodi</>}
+            notes="Threshold Baik &amp; Unggul mengikuti pedoman LAM/BAN-PT per indikator."
+          />
+        }
       >
         <div className="flex flex-wrap gap-2 mb-4">
           {indicators.map((ind) => (

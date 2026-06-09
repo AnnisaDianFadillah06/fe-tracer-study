@@ -23,6 +23,7 @@ import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { formatPctCount, nFromPct } from "./format";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import { ReferenceArea } from "recharts";
+import { MethodologyBlock } from "./Methodology";
 
 const defaultCombo = [
   { year: "2021", value: 72, total: 220 },
@@ -56,7 +57,14 @@ const Kpi4AbsorptionChart = ({ comboData = defaultCombo, pieData = defaultPie, l
   <>
   <div className="grid lg:grid-cols-2 gap-4">
     <KpiCard loading={loading} error={error} empty={isEmpty} title="Tren Keterserapan Lulusan" subtitle={lamSubtitle(lam)}
-      compareType="absorption" headerExtra={<LamFilterControls lam={lam} />}>
+      compareType="absorption" headerExtra={<LamFilterControls lam={lam} />}
+      methodology={
+        <MethodologyBlock
+          description="Mengukur lulusan S1/Diploma yang berhasil bekerja (A), melanjutkan studi (B), atau berwirausaha (C) dalam satu periode."
+          formula={<>Keterserapan (%) = ((A + B + C) × 100) / Total Lulusan S1 &amp; Diploma dalam Satu Periode</>}
+          notes="A = bekerja, B = lanjut studi, C = wiraswasta. Sumber: BAN-PT / IAPS 4.0."
+        />
+      }>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={comboData} margin={{ top: 20, right: 20, left: 10, bottom: 25 }}>
@@ -89,7 +97,13 @@ const Kpi4AbsorptionChart = ({ comboData = defaultCombo, pieData = defaultPie, l
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Status Keterserapan" subtitle={`Periode terakhir — total ${pieTotal}%`} compareType="status">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Status Keterserapan" subtitle={`Periode terakhir — total ${pieTotal}%`} compareType="status"
+      methodology={
+        <MethodologyBlock
+          description="Proporsi status aktivitas lulusan pada periode terakhir."
+          formula={<>% Status (X) = (Jumlah Lulusan Status X / Total Lulusan Periode) × 100%</>}
+        />
+      }>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>

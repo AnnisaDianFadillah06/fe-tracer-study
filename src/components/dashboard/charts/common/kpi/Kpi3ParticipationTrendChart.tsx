@@ -20,6 +20,7 @@ import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { formatPctCount, markMax, nFromPct } from "./format";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import { ReferenceArea } from "recharts";
+import { MethodologyBlock } from "./Methodology";
 
 const defaultData = [
   { year: "2020", rate: 42, total: 1320 },
@@ -59,7 +60,14 @@ const Kpi3ParticipationTrendChart = ({
   return (
   <>
   <KpiCard loading={loading} error={error} empty={isDataEmpty} title={title} subtitle={subtitle ?? lamSubtitle(lam)}
-    compareType="participation-trend" headerExtra={<LamFilterControls lam={lam} />}>
+    compareType="participation-trend" headerExtra={<LamFilterControls lam={lam} />}
+    methodology={
+      <MethodologyBlock
+        description="Response Rate Tracer Study — proporsi lulusan yang mengisi kuesioner tracer dalam satu periode kelulusan."
+        formula={<>Response Rate (%) = (Jumlah Lulusan Merespons / Total Lulusan Periode) × 100%</>}
+        notes="Periode dihitung berdasarkan tahun kelulusan terpilih pada filter global."
+      />
+    }>
     <div className="h-80">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={marked} margin={{ top: 30, right: 30, left: 10, bottom: 25 }}>

@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MethodologyBlock } from "./Methodology";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { formatPctCount } from "./format";
@@ -47,7 +48,13 @@ const Kpi11FundingSourceChart = ({ pieData = defaultPie, groupedData = defaultGr
   return (
   <>
   <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Sumber Pembiayaan" subtitle="Periode terakhir" compareType="sumberBiaya">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Sumber Pembiayaan" subtitle="Periode terakhir" compareType="sumberBiaya"
+      methodology={
+        <MethodologyBlock
+          description="Proporsi sumber pembiayaan studi lulusan pada periode terakhir."
+          formula={<>% Sumber = (Jumlah Lulusan dengan Sumber Pembiayaan X / Total Lulusan Periode) × 100%</>}
+        />
+      }>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -65,7 +72,13 @@ const Kpi11FundingSourceChart = ({ pieData = defaultPie, groupedData = defaultGr
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} empty={isEmpty} title="Perubahan Distribusi Antar Periode" subtitle="Grouped bar chart" compareType="sumberBiaya">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Perubahan Distribusi Antar Periode" subtitle="Grouped bar chart" compareType="sumberBiaya"
+      methodology={
+        <MethodologyBlock
+          description="Tren proporsi sumber pembiayaan studi antar tahun kelulusan."
+          formula={<>% Sumber per Tahun = (Lulusan dengan Sumber X pada Tahun T / Total Lulusan Tahun T) × 100%</>}
+        />
+      }>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={groupedData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>

@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MethodologyBlock } from "./Methodology";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 
@@ -49,7 +50,14 @@ const Kpi5WaitingTimeChart = ({ comboData = defaultCombo, distData = defaultDist
     <KpiCard loading={loading} error={error} empty={isEmpty}
       title="% Lulusan Mendapat Kerja dalam ≤ 6 Bulan"
       subtitle={lamSubtitle(lam)}
-      compareType="waktuTunggu" headerExtra={<LamFilterControls lam={lam} />}>
+      compareType="waktuTunggu" headerExtra={<LamFilterControls lam={lam} />}
+      methodology={
+        <MethodologyBlock
+          description="Mengukur kecepatan lulusan memperoleh pekerjaan pertama setelah lulus."
+          formula={<>% ≤ 6 Bulan = (Jumlah Lulusan dengan Masa Tunggu ≤ 6 Bulan / Total Lulusan Bekerja) × 100%</>}
+          notes="Masa tunggu dihitung dari bulan kelulusan ke bulan mulai pekerjaan pertama."
+        />
+      }>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={comboData} margin={{ top: 30, right: 30, left: 20, bottom: 30 }}>
@@ -75,7 +83,13 @@ const Kpi5WaitingTimeChart = ({ comboData = defaultCombo, distData = defaultDist
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Kategori Masa Tunggu" subtitle="Periode terakhir — sumbu X: % lulusan" compareType="waktuTunggu">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Kategori Masa Tunggu" subtitle="Periode terakhir — sumbu X: % lulusan" compareType="waktuTunggu"
+      methodology={
+        <MethodologyBlock
+          description="Proporsi lulusan menurut kategori rentang masa tunggu kerja."
+          formula={<>% Kategori = (Jumlah Lulusan pada Kategori / Total Lulusan Bekerja) × 100%</>}
+        />
+      }>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={distData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 25 }}>

@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MethodologyBlock } from "./Methodology";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 
 const defaultData = [
@@ -39,7 +40,13 @@ const Kpi10LearningPerceptionChart = ({
   const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   return (
   <>
-  <KpiCard loading={loading} error={error} empty={isEmpty} title={title} subtitle={subtitle} compareType="learning">
+  <KpiCard loading={loading} error={error} empty={isEmpty} title={title} subtitle={subtitle} compareType="learning"
+    methodology={
+      <MethodologyBlock
+        description="Persepsi alumni terhadap 7 metode pembelajaran (Q14) — diukur dengan skala Likert 1–5."
+        formula={<>Skor Metode = Σ Jawaban Responden / Jumlah Responden<br/>Skala: 1 = Sangat Kurang, 5 = Sangat Baik</>}
+      />
+    }>
     <div className="h-80">
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data} onClick={(e: any) => {

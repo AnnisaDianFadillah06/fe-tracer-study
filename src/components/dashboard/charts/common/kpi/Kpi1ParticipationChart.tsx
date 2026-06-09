@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MethodologyBlock } from "./Methodology";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { formatNTotal, formatPctCount } from "./format";
 
@@ -91,6 +92,13 @@ const Kpi1ParticipationChart = ({
   return (
   <>
   <KpiCard loading={loading} error={error} empty={isDataEmpty} title={title} subtitle={subtitleText}
+    methodology={
+      <MethodologyBlock
+        description="Tingkat partisipasi alumni mengisi tracer study per program studi."
+        formula={<>Response Rate (%) = (Jumlah Alumni Merespons / Total Alumni Prodi) × 100%</>}
+        notes="Dihitung berdasarkan basis data lulusan aktif per program studi pada periode yang dipilih."
+      />
+    }
     headerExtra={
       <div className="flex items-center gap-1.5">
         <label className="text-xs text-muted-foreground">Urutkan:</label>

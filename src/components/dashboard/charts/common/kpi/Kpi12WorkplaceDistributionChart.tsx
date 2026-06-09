@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
+import { MethodologyBlock } from "./Methodology";
 import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { formatPctCount } from "./format";
@@ -48,7 +49,13 @@ const Kpi12WorkplaceDistributionChart = ({
   return (
   <>
   <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard loading={loading} error={error} empty={isEmpty} title="Sebaran Level Perusahaan" subtitle="Distribusi level perusahaan tempat kerja lulusan — periode terakhir" compareType="jenisInstansi">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Sebaran Level Perusahaan" subtitle="Distribusi level perusahaan tempat kerja lulusan — periode terakhir" compareType="jenisInstansi"
+      methodology={
+        <MethodologyBlock
+          description="Proporsi lulusan menurut level perusahaan tempat bekerja (Lokal/Nasional/Multinasional)."
+          formula={<>% Level = (Lulusan Bekerja di Level X / Total Lulusan Bekerja) × 100%</>}
+        />
+      }>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -66,7 +73,13 @@ const Kpi12WorkplaceDistributionChart = ({
         </ResponsiveContainer>
       </div>
     </KpiCard>
-    <KpiCard loading={loading} error={error} empty={isEmpty} title="Perubahan Sebaran Level Perusahaan Antar Periode" subtitle="Sumbu Y: persentase lulusan • Sumbu X: tahun kelulusan" compareType="jenisInstansi">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Perubahan Sebaran Level Perusahaan Antar Periode" subtitle="Sumbu Y: persentase lulusan • Sumbu X: tahun kelulusan" compareType="jenisInstansi"
+      methodology={
+        <MethodologyBlock
+          description="Tren proporsi level perusahaan tempat bekerja lulusan antar tahun kelulusan."
+          formula={<>% Level per Tahun = (Lulusan Bekerja di Level X pada Tahun T / Total Lulusan Bekerja Tahun T) × 100%</>}
+        />
+      }>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={groupedData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
