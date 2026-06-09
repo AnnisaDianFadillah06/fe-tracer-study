@@ -93,16 +93,47 @@ export const KpiCard = ({
   const { hideCompare } = useKpiUI();
   const { prodi, isApplying } = useGlobalFilters();
   const compareDisabled = prodi !== ALL || isApplying;
+  const { degree, jurusan, tahunLulus, weekKey } = useGlobalFilters();
+ 
+  const handleCompareClick = () => {
+    if (compareDisabled || !compareType) return;
+  
+    const params = new URLSearchParams();
+    params.set("type", compareType);
+  
+    // Encode filter aktif ke URL supaya ComparePage bisa baca
+    // walau GlobalFiltersProvider tidak wrap halaman compare
+    if (degree && degree !== "__all__") params.set("jenjang", degree);
+    if (jurusan && jurusan !== "__all__") params.set("jurusan", jurusan);
+    if (tahunLulus && tahunLulus !== "all") params.set("tahun_lulus", tahunLulus);
+    if (weekKey) params.set("minggu_snapshot", weekKey);
+  
+    navigate(`/dashboard/compare?${params.toString()}`);
+  };
+
   // Per-card staggered loading window so charts don't all finish at once.
   const stagger = useMemo(() => 250 + Math.floor(Math.random() * 700), []);
   const [localLoading, setLocalLoading] = useState(false);
+ 
+  // Stagger: saat filter diterapkan, tahan skeleton sebentar
+  // supaya chart tidak flash-update semua sekaligus
   useEffect(() => {
     if (!isApplying) return;
     setLocalLoading(true);
     const t = setTimeout(() => setLocalLoading(false), stagger);
     return () => clearTimeout(t);
   }, [isApplying, stagger]);
-  const showSkeleton = isApplying || localLoading;
+ 
+  // ← FIX: saat data hook sudah selesai, clear skeleton segera
+  // Jangan tunggu timeout — loading prop false = data sudah ada
+  useEffect(() => {
+    if (loading === false) setLocalLoading(false);
+  }, [loading]);
+ 
+  // Skeleton tampil hanya kalau:
+  // - filter sedang diterapkan (isApplying) ATAU localLoading masih aktif
+  // - DAN hook belum selesai (loading !== false)
+  const showSkeleton = (isApplying || localLoading) && loading !== false;
   const compareTooltip = isApplying
     ? "Tunggu data selesai dimuat."
     : "Jangan filter hingga prodi — butuh lebih dari 1 prodi untuk fitur ini.";
@@ -154,10 +185,7 @@ export const KpiCard = ({
                     disabled={compareDisabled}
                     className="h-8 text-xs gap-1"
                     aria-disabled={compareDisabled}
-                    onClick={() =>
-                      !compareDisabled &&
-                      navigate(`/dashboard/compare?type=${encodeURIComponent(compareType)}`)
-                    }
+                    onClick={handleCompareClick}
                   >
                     <ArrowRightLeft className="w-3 h-3" />
                     Bandingkan

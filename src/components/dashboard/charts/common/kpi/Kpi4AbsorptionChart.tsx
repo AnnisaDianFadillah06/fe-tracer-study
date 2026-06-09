@@ -1,68 +1,108 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
-  ResponsiveContainer,
-  ComposedChart,
-  PieChart,
-  Pie,
-  Cell,
-  Bar,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ReferenceLine,
-  LabelList,
-  ReferenceArea,
+  ResponsiveContainer, ComposedChart, PieChart, Pie, Cell,
+  Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  Legend, ReferenceLine, LabelList, ReferenceArea,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
-import StudentDataModal from "@/components/dashboard/StudentDataModal";
-import { MOCK_STUDENTS, Student } from "@/lib/mockData";
+import { MethodologyBlock } from "./Methodology";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
-import { formatPctCount, nFromPct } from "./format";
+import { formatPctCount } from "./format";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
-import { MethodologyBlock } from "./Methodology";
+import { useKeterserapanBar, useKeterserapanPie, useKeterserapanDrillDown } from "@/hooks/useKeterserapan";
+import { buildColorMap } from "@/lib/chartColors";
+import DrillDownModal from "@/components/dashboard/DrillDownModal";
 
-const defaultCombo = [
-  { year: "2021", value: 72, total: 220 },
-  { year: "2022", value: 78, total: 240 },
-  { year: "2023", value: 81, total: 250 },
-  { year: "2024", value: 84, total: 260 },
-];
-const defaultPie = [
-  { name: "Bekerja", value: 68, color: C.blue },
-  { name: "Berwirausaha", value: 8, color: C.green },
-  { name: "Melanjutkan Studi", value: 12, color: C.purple },
-  { name: "Belum Bekerja", value: 12, color: C.gray },
-];
-
-interface Props {
-  comboData?: typeof defaultCombo;
-  pieData?: typeof defaultPie;
-  loading?: boolean;
-  error?: string | null;
-  isEmpty?: boolean;
-}
-
-const Kpi4AbsorptionChart = ({ comboData = defaultCombo, pieData = defaultPie, loading, error, isEmpty }: Props) => {
+const Kpi4AbsorptionChart = () => {
   const { tahunLulus } = useGlobalFilters();
-  const pieTotal = pieData.reduce((s, d) => s + d.value, 0);
-  const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   const lam = useLamFilter("absorption");
-  const pieActive = usePieActive();
-  const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, n) });
 
+  const barHook   = useKeterserapanBar();
+  const pieHook   = useKeterserapanPie();
+  const drillHook = useKeterserapanDrillDown();
+
+  // ── Modal state — simpan juga apakah dari bar atau pie ─────────────────────
+  const [modal, setModal] = useState<{
+    open: boolean;
+    title: string;
+    status?: string;
+    tahunLulus?: string;
+    showStatusColumn: boolean;  // bar=true, pie=false
+  }>({ open: false, title: "", showStatusColumn: false });
+
+  const openFromBar = (title: string, tahun: string) => {
+    // Klik bar → selalu status=terserap + tahun yang diklik
+    setModal({ open: true, title, status: "terserap", tahunLulus: tahun, showStatusColumn: true });
+    drillHook.fetch({ status: "terserap", tahun_lulus: tahun, page: 1 });
+  };
+
+  const openFromPie = (title: string, status: string) => {
+    // Klik pie → status spesifik, tanpa filter tahun (pakai tahunEfektif dari hook)
+    setModal({ open: true, title, status, tahunLulus: pieHook.tahunEfektif, showStatusColumn: false });
+    drillHook.fetch({ status, tahun_lulus: pieHook.tahunEfektif, page: 1 });
+  };
+
+  const handlePageChange = (page: number, search?: string) => {
+    drillHook.fetch({
+      status: modal.status,
+      tahun_lulus: modal.tahunLulus,
+      page,
+      search,
+    });
+  };
+
+  // ── Bar data ────────────────────────────────────────────────────────────────
+  const comboData = useMemo(() => {
+    if (!barHook.data?.data) return [];
+    return barHook.data.data.map((d) => ({
+      year: String(d.tahun_lulus),
+      value: d.pct_terserap,
+      total: d.total,
+      n: d.count_terserap,
+    }));
+  }, [barHook.data]);
+
+  // ── Pie data ────────────────────────────────────────────────────────────────
+  const pieData = useMemo(() => {
+    if (!pieHook.data?.data) return [];
+    const labels = pieHook.data.data.map((d) => d.status);
+    const colorMap = buildColorMap(labels);
+    return pieHook.data.data.map((d) => ({
+      name: d.status,
+      value: d.pct,
+      count: d.count,
+      color: colorMap[d.status],
+    }));
+  }, [pieHook.data]);
+
+  // ── Subtitle pie: dinamis sesuai tahun aktif ────────────────────────────────
+  const pieSubtitle = useMemo(() => {
+    const total = pieHook.data?.total ?? 0;
+    const tahun = pieHook.tahunEfektif;
+    const tahunLabel = tahun
+      ? (tahunLulus && tahunLulus !== "all" ? `Tahun ${tahun}` : `Tahun terakhir (${tahun})`)
+      : "Semua tahun";
+    return `${tahunLabel} — total ${total.toLocaleString("id-ID")} alumni`;
+  }, [pieHook.data, pieHook.tahunEfektif, tahunLulus]);
+
+  const pieTotal  = pieHook.data?.total ?? 0;
+  const pieActive = usePieActive();
   const showRefLine = !lam.isDisabled && !!lam.threshold;
+  const isLoading   = barHook.loading || pieHook.loading;
+  const hasError    = barHook.error || pieHook.error;
 
   return (
     <>
       <div className="grid lg:grid-cols-2 gap-4">
+
+        {/* ── Grafik Bar: Tren Keterserapan ───────────────────────────────── */}
         <KpiCard
-          loading={loading} error={error} empty={isEmpty}
+          loading={isLoading} error={hasError}
+          empty={!isLoading && comboData.length === 0}
           title="Tren Keterserapan Lulusan"
           subtitle={lamSubtitle(lam)}
+          // fix #4: compareType harus "absorption" bukan "status"
           compareType="absorption"
           headerExtra={<LamFilterControls lam={lam} />}
           methodology={
@@ -77,37 +117,35 @@ const Kpi4AbsorptionChart = ({ comboData = defaultCombo, pieData = defaultPie, l
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={comboData} margin={{ top: 20, right: 20, left: 10, bottom: 25 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-                <XAxis
-                  dataKey="year" fontSize={13}
+                <XAxis dataKey="year" fontSize={13}
                   label={{ value: "Tahun Kelulusan", position: "insideBottom", offset: -8, fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                 />
-                <YAxis
-                  tickFormatter={(v) => `${v}%`} domain={[0, 100]} fontSize={13}
+                <YAxis tickFormatter={(v) => `${v}%`} domain={[0, 100]} fontSize={13}
                   label={{ value: "Keterserapan (%)", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                 />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(v: number, _n, p: any) => {
-                    const t = p?.payload?.total ?? 0;
-                    return [formatPctCount(v, nFromPct(v, t), t), "Keterserapan"];
-                  }}
+                <Tooltip contentStyle={tooltipStyle}
+                  formatter={(v: number, _n, p: any) => [
+                    formatPctCount(v, p?.payload?.n ?? 0, p?.payload?.total ?? 0),
+                    "Keterserapan",
+                  ]}
                 />
                 {tahunLulus !== "all" && (
-                  <ReferenceArea
-                    x1={tahunLulus} x2={tahunLulus}
+                  <ReferenceArea x1={tahunLulus} x2={tahunLulus}
                     fill="hsl(var(--foreground))" fillOpacity={0.06}
                     stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3"
                   />
                 )}
-                <Bar
-                  dataKey="value" name="Keterserapan" radius={[6, 6, 0, 0]} maxBarSize={50}
+                <Bar dataKey="value" name="Keterserapan" radius={[6, 6, 0, 0]} maxBarSize={50}
                   cursor="pointer"
-                  onClick={(d: any) => openModal(`Keterserapan ${d.year} • ${formatPctCount(d.value, nFromPct(d.value, d.total), d.total)}`, nFromPct(d.value, d.total))}
+                  // fix #2: selalu buka dengan status=terserap
+                  onClick={(d: any) => openFromBar(
+                    `Terserap ${d.year} — ${d.value}% (${d.n}/${d.total} alumni)`,
+                    d.year
+                  )}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
                   {comboData.map((d) => (
-                    <Cell
-                      key={d.year}
+                    <Cell key={d.year}
                       fill={showRefLine && lam.threshold ? (d.value >= lam.threshold ? C.blue : C.orange) : C.blue}
                     />
                   ))}
@@ -115,8 +153,7 @@ const Kpi4AbsorptionChart = ({ comboData = defaultCombo, pieData = defaultPie, l
                 </Bar>
                 <Line type="monotone" dataKey="value" name="Tren" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
                 {showRefLine && (
-                  <ReferenceLine
-                    y={lam.threshold} stroke={C.red} strokeDasharray="6 3" strokeWidth={2}
+                  <ReferenceLine y={lam.threshold} stroke={C.red} strokeDasharray="6 3" strokeWidth={2}
                     label={{ value: `${lam.level === "baik" ? "Baik" : "Unggul"} ${lam.threshold}%`, fill: C.red, fontSize: 11, position: "insideTopRight" }}
                   />
                 )}
@@ -125,11 +162,14 @@ const Kpi4AbsorptionChart = ({ comboData = defaultCombo, pieData = defaultPie, l
           </div>
         </KpiCard>
 
+        {/* ── Grafik Pie: Distribusi Status ──────────────────────────────── */}
         <KpiCard
-          loading={loading} error={error} empty={isEmpty}
+          loading={isLoading} error={hasError}
+          empty={!isLoading && pieData.length === 0}
           title="Distribusi Status Keterserapan"
-          subtitle={`Periode terakhir — total ${pieTotal}%`}
-          compareType="status"
+          // fix #1: subtitle dinamis dengan tahun aktif
+          subtitle={pieSubtitle}
+          compareType="absorption"
           methodology={
             <MethodologyBlock
               description="Proporsi status aktivitas lulusan pada periode terakhir."
@@ -140,26 +180,42 @@ const Kpi4AbsorptionChart = ({ comboData = defaultCombo, pieData = defaultPie, l
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie
-                  data={pieData} dataKey="value" nameKey="name" outerRadius={100}
+                <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100}
                   label={(e: any) => `${e.name}: ${e.value}%`}
                   activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                   cursor="pointer"
-                  onClick={(d: any) => openModal(`${d.name} • ${formatPctCount(d.value, d.value, pieTotal)}`, d.value)}
+                  // fix #3: modal pie tidak tampilkan kolom status
+                  onClick={(d: any) => openFromPie(
+                    `${d.name} — ${d.value}% (${d.count?.toLocaleString("id-ID")} alumni)`,
+                    d.name
+                  )}
                 >
                   {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
                 </Pie>
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n) => [formatPctCount(v, v, pieTotal), n]} />
+                <Tooltip contentStyle={tooltipStyle}
+                  formatter={(v: number, n, p: any) => [
+                    `${v}% (${p.payload?.count?.toLocaleString("id-ID")} alumni)`, n,
+                  ]}
+                />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
         </KpiCard>
       </div>
-      <StudentDataModal
-        isOpen={modal.open} onClose={() => setModal((m) => ({ ...m, open: false }))}
-        title={modal.title} students={modal.students} columns={[]}
+
+      {/* ── Drill-down Modal ─────────────────────────────────────────────── */}
+      <DrillDownModal
+        isOpen={modal.open}
+        onClose={() => setModal((m) => ({ ...m, open: false }))}
+        title={modal.title}
+        data={drillHook.data}
+        loading={drillHook.loading}
+        error={drillHook.error}
+        // fix #3: kolom status hanya muncul saat dari bar
+        contextColumn={modal.showStatusColumn ? { key: "status", label: "Status" } : null}
+        onPageChange={handlePageChange}
       />
     </>
   );
