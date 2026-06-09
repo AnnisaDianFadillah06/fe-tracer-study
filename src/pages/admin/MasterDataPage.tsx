@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ interface Provinsi { id: string; name: string; code: string; }
 // ── Kota Tab ─────────────────────────────────────────────────
 interface Kota { id: string; name: string; provinsiId: string; code: string; }
 
-const jurusanOptions = [
+const defaultJurusanOptions = [
   "Teknik Sipil", "Teknik Mesin", "Teknik Refrigerasi & Tata Udara",
   "Teknik Konversi Energi", "Teknik Elektro", "Teknik Kimia",
   "Teknik Komputer & Informatika", "Akuntansi", "Administrasi Niaga", "Bahasa Inggris",
@@ -50,6 +50,11 @@ const MasterDataPage = () => {
   const [prodiForm, setProdiForm] = useState({ name: "", code: "", degree: "D3", jurusan: "" });
   const [deleteProdiId, setDeleteProdiId] = useState<string | null>(null);
   const [prodiSearch, setProdiSearch] = useState("");
+
+  const jurusanOptions = useMemo(() => {
+    const fromData = prodiList.map((p) => p.jurusan).filter(Boolean);
+    return [...new Set([...defaultJurusanOptions, ...fromData])].sort();
+  }, [prodiList]);
 
   // Provinsi state
   const [provList, setProvList] = useState<Provinsi[]>([]);

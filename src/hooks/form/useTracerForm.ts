@@ -316,7 +316,7 @@ const fallbackSections: FormSection[] = [
  *
  * Jika backend belum bisa diakses, akan fallback ke soal hardcoded.
  */
-export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?: string) => {
+export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?: string, identityPrefill?: Record<string, string>) => {
   const { toast } = useToast();
   const [sections, setSections] = useState<FormSection[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
@@ -347,6 +347,21 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
           const mapped = mapBackendToSections(data.data);
           setSections(mapped);
           setHasResponded(!!data.has_responded);
+          // Auto-fill identity fields from profile
+          if (identityPrefill) {
+            const prefilled: Record<string, unknown> = {};
+            for (const sec of mapped) {
+              for (const q of sec.questions) {
+                const rawCode = q.id.includes(QID_SEP) ? q.id.split(QID_SEP)[1] : q.id;
+                if (identityPrefill[rawCode]) {
+                  prefilled[q.id] = identityPrefill[rawCode];
+                }
+              }
+            }
+            if (Object.keys(prefilled).length > 0) {
+              setAnswers((prev) => ({ ...prefilled, ...prev }));
+            }
+          }
         } else {
           // Tidak ada kuesioner aktif untuk tahun lulus ini
           setSections([]);

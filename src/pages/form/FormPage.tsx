@@ -30,6 +30,15 @@ const FormPage = () => {
   // Pass kode_prodi dari session agar backend bisa filter kuesioner yang relevan
   const kodeProdi = session?.kodeProdi ?? undefined;
   const graduationYear = session?.graduationYear ?? (session?.angkatan ? parseInt(session.angkatan) + 3 : undefined);
+  const identityPrefill = session ? {
+    nimhsmsmh: session.nim,
+    kdptimsmh: "083010", // Kode PT POLBAN
+    tahun_lulus: String(session.graduationYear ?? (session.angkatan ? parseInt(session.angkatan) + 3 : "")),
+    kdpstmsmh: session.kodeProdi ?? "",
+    nmmhsmsmh: session.username,
+    telpomsmh: session.phone ?? "",
+    emailmsmh: session.email ?? "",
+  } : undefined;
   const {
     sections,
     answers,
@@ -48,7 +57,7 @@ const FormPage = () => {
     handleBack,
     handleSubmit: submitToBackend,
     handleReset,
-  } = useTracerForm(kodeProdi, graduationYear, session?.nim);
+  } = useTracerForm(kodeProdi, graduationYear, session?.nim, identityPrefill);
 
   // Wrap submit to include identity data from session
   // Only include fields genuinely known from session — nik/npwp/kode_pt come from form answers
@@ -59,7 +68,7 @@ const FormPage = () => {
         name: session.username,
         email: session.email,
         phone: session.phone || undefined,
-        tahun_lulus: session.graduationYear ?? (parseInt(session.angkatan) + 3),
+        tahun_lulus: session.graduationYear ?? (session.angkatan ? parseInt(session.angkatan) + 3 : undefined),
         kdpstmsmh: kodeProdi ?? "",
       }
       : undefined;
