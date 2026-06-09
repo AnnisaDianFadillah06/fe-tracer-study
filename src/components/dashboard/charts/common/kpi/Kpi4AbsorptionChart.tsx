@@ -14,6 +14,7 @@ import {
   Legend,
   ReferenceLine,
   LabelList,
+  ReferenceArea,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
@@ -22,7 +23,6 @@ import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { formatPctCount, nFromPct } from "./format";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
-import { ReferenceArea } from "recharts";
 import { MethodologyBlock } from "./Methodology";
 
 const defaultCombo = [
@@ -53,77 +53,115 @@ const Kpi4AbsorptionChart = ({ comboData = defaultCombo, pieData = defaultPie, l
   const lam = useLamFilter("absorption");
   const pieActive = usePieActive();
   const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, n) });
+
+  const showRefLine = !lam.isDisabled && !!lam.threshold;
+
   return (
-  <>
-  <div className="grid lg:grid-cols-2 gap-4">
-    <KpiCard loading={loading} error={error} empty={isEmpty} title="Tren Keterserapan Lulusan" subtitle={lamSubtitle(lam)}
-      compareType="absorption" headerExtra={<LamFilterControls lam={lam} />}
-      methodology={
-        <MethodologyBlock
-          description="Mengukur lulusan S1/Diploma yang berhasil bekerja (A), melanjutkan studi (B), atau berwirausaha (C) dalam satu periode."
-          formula={<>Keterserapan (%) = ((A + B + C) × 100) / Total Lulusan S1 &amp; Diploma dalam Satu Periode</>}
-          notes="A = bekerja, B = lanjut studi, C = wiraswasta. Sumber: BAN-PT / IAPS 4.0."
-        />
-      }>
-      <div className="h-72">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={comboData} margin={{ top: 20, right: 20, left: 10, bottom: 25 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-            <XAxis dataKey="year" fontSize={13}
-              label={{ value: "Tahun Kelulusan", position: "insideBottom", offset: -8, fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
-            <YAxis tickFormatter={(v) => `${v}%`} domain={[0, 100]} fontSize={13}
-              label={{ value: "Keterserapan (%)", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
-            <Tooltip contentStyle={tooltipStyle}
-              formatter={(v: number, _n, p: any) => {
-                const t = p?.payload?.total ?? 0;
-                return [formatPctCount(v, nFromPct(v, t), t), "Keterserapan"];
-              }} />
-            {tahunLulus !== "all" && (
-              <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill="hsl(var(--foreground))" fillOpacity={0.06}
-                stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3" />
-            )}
-            <Bar dataKey="value" name="Keterserapan" radius={[6, 6, 0, 0]} maxBarSize={50}
-              cursor="pointer" onClick={(d: any) => openModal(`Keterserapan ${d.year} • ${formatPctCount(d.value, nFromPct(d.value, d.total), d.total)}`, nFromPct(d.value, d.total))}
-              activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
-              {comboData.map((d) => (
-                <Cell key={d.year} fill={d.value >= lam.threshold ? C.blue : C.orange} />
-              ))}
-              <LabelList dataKey="value" position="center" fill="#fff" fontSize={11} formatter={(v: number) => `${v}%`} />
-            </Bar>
-            <Line type="monotone" dataKey="value" name="Tren" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
-            <ReferenceLine y={lam.threshold} stroke={C.red} strokeDasharray="6 3" strokeWidth={2}
-              label={{ value: `${lam.level === "baik" ? "Baik" : "Unggul"} ${lam.threshold}%`, fill: C.red, fontSize: 11, position: "insideTopRight" }} />
-          </ComposedChart>
-        </ResponsiveContainer>
+    <>
+      <div className="grid lg:grid-cols-2 gap-4">
+        <KpiCard
+          loading={loading} error={error} empty={isEmpty}
+          title="Tren Keterserapan Lulusan"
+          subtitle={lamSubtitle(lam)}
+          compareType="absorption"
+          headerExtra={<LamFilterControls lam={lam} />}
+          methodology={
+            <MethodologyBlock
+              description="Mengukur lulusan S1/Diploma yang berhasil bekerja (A), melanjutkan studi (B), atau berwirausaha (C) dalam satu periode."
+              formula={<>Keterserapan (%) = ((A + B + C) × 100) / Total Lulusan S1 &amp; Diploma dalam Satu Periode</>}
+              notes="A = bekerja, B = lanjut studi, C = wiraswasta. Sumber: BAN-PT / IAPS 4.0."
+            />
+          }
+        >
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={comboData} margin={{ top: 20, right: 20, left: 10, bottom: 25 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+                <XAxis
+                  dataKey="year" fontSize={13}
+                  label={{ value: "Tahun Kelulusan", position: "insideBottom", offset: -8, fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <YAxis
+                  tickFormatter={(v) => `${v}%`} domain={[0, 100]} fontSize={13}
+                  label={{ value: "Keterserapan (%)", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(v: number, _n, p: any) => {
+                    const t = p?.payload?.total ?? 0;
+                    return [formatPctCount(v, nFromPct(v, t), t), "Keterserapan"];
+                  }}
+                />
+                {tahunLulus !== "all" && (
+                  <ReferenceArea
+                    x1={tahunLulus} x2={tahunLulus}
+                    fill="hsl(var(--foreground))" fillOpacity={0.06}
+                    stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3"
+                  />
+                )}
+                <Bar
+                  dataKey="value" name="Keterserapan" radius={[6, 6, 0, 0]} maxBarSize={50}
+                  cursor="pointer"
+                  onClick={(d: any) => openModal(`Keterserapan ${d.year} • ${formatPctCount(d.value, nFromPct(d.value, d.total), d.total)}`, nFromPct(d.value, d.total))}
+                  activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
+                >
+                  {comboData.map((d) => (
+                    <Cell
+                      key={d.year}
+                      fill={showRefLine && lam.threshold ? (d.value >= lam.threshold ? C.blue : C.orange) : C.blue}
+                    />
+                  ))}
+                  <LabelList dataKey="value" position="center" fill="#fff" fontSize={11} formatter={(v: number) => `${v}%`} />
+                </Bar>
+                <Line type="monotone" dataKey="value" name="Tren" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
+                {showRefLine && (
+                  <ReferenceLine
+                    y={lam.threshold} stroke={C.red} strokeDasharray="6 3" strokeWidth={2}
+                    label={{ value: `${lam.level === "baik" ? "Baik" : "Unggul"} ${lam.threshold}%`, fill: C.red, fontSize: 11, position: "insideTopRight" }}
+                  />
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </KpiCard>
+
+        <KpiCard
+          loading={loading} error={error} empty={isEmpty}
+          title="Distribusi Status Keterserapan"
+          subtitle={`Periode terakhir — total ${pieTotal}%`}
+          compareType="status"
+          methodology={
+            <MethodologyBlock
+              description="Proporsi status aktivitas lulusan pada periode terakhir."
+              formula={<>% Status (X) = (Jumlah Lulusan Status X / Total Lulusan Periode) × 100%</>}
+            />
+          }
+        >
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData} dataKey="value" nameKey="name" outerRadius={100}
+                  label={(e: any) => `${e.name}: ${e.value}%`}
+                  activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
+                  onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
+                  cursor="pointer"
+                  onClick={(d: any) => openModal(`${d.name} • ${formatPctCount(d.value, d.value, pieTotal)}`, d.value)}
+                >
+                  {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                </Pie>
+                <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n) => [formatPctCount(v, v, pieTotal), n]} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </KpiCard>
       </div>
-    </KpiCard>
-    <KpiCard loading={loading} error={error} empty={isEmpty} title="Distribusi Status Keterserapan" subtitle={`Periode terakhir — total ${pieTotal}%`} compareType="status"
-      methodology={
-        <MethodologyBlock
-          description="Proporsi status aktivitas lulusan pada periode terakhir."
-          formula={<>% Status (X) = (Jumlah Lulusan Status X / Total Lulusan Periode) × 100%</>}
-        />
-      }>
-      <div className="h-72">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label={(e: any) => `${e.name}: ${e.value}%`}
-              activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
-              onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
-              cursor="pointer" onClick={(d: any) => openModal(`${d.name} • ${formatPctCount(d.value, d.value, pieTotal)}`, d.value)}>
-              {pieData.map((d, i) => (
-                <Cell key={i} fill={d.color} />
-              ))}
-            </Pie>
-            <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n) => [formatPctCount(v, v, pieTotal), n]} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-    </KpiCard>
-  </div>
-  <StudentDataModal isOpen={modal.open} onClose={() => setModal((m) => ({ ...m, open: false }))} title={modal.title} students={modal.students} columns={[]} />
-  </>
+      <StudentDataModal
+        isOpen={modal.open} onClose={() => setModal((m) => ({ ...m, open: false }))}
+        title={modal.title} students={modal.students} columns={[]}
+      />
+    </>
   );
 };
 

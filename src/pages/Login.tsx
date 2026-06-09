@@ -16,18 +16,18 @@ const Login = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuth(); // ✅ pakai hook
 
-  // const handleSubmit = async (e: React.FormEvent) => {
-  //   e.preventDefault();
-  //   try {
-  //     await login(email, password);
-  //     navigate("/dashboard/overview");
-  //   } catch {
-  //   }
-  // };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate("/dashboard/overview"); // langsung bypass, skip login()
+    try {
+      await login(email, password);
+      navigate("/dashboard/overview");
+    } catch {
+    }
   };
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   navigate("/dashboard/overview"); // langsung bypass, skip login()
+  // };
 
   return (
     <div className="min-h-screen bg-background flex">

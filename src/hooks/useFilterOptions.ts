@@ -12,6 +12,7 @@ export interface RawJurusan {
 }
  
 export interface RawProdi {
+  id: number;
   nama_prodi: string;
   jurusan: string;
   jenjang: string;
@@ -69,7 +70,7 @@ function buildJurusanMap(prodiList: RawProdi[]): JurusanMap {
   }, {});
 }
 
-const CACHE_KEY = "filterOptions_v1";
+const CACHE_KEY = "filterOptions_v2";
 
 function readCache(): RawFilterOptionsData | null {
   try {

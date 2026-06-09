@@ -29,12 +29,12 @@ import FormPage from "./pages/FormPage";
 const queryClient = new QueryClient();
 
 // ✅ Helper agar tidak repeat ProtectedRoute di tiap route
-// const P = ({ children }: { children: React.ReactNode }) => (
-//   <ProtectedRoute>{children}</ProtectedRoute>
-// );
 const P = ({ children }: { children: React.ReactNode }) => (
-  <>{children}</>
+  <ProtectedRoute>{children}</ProtectedRoute>
 );
+// const P = ({ children }: { children: React.ReactNode }) => (
+//   <>{children}</>
+// );
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
