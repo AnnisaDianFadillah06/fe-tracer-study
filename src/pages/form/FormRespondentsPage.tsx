@@ -41,6 +41,7 @@ import {
   RotateCcw,
   Search,
   Users,
+  XCircle,
 } from "lucide-react";
 
 interface QuestionnaireDetail {
@@ -83,7 +84,7 @@ interface Program {
   jurusan: string | null;
 }
 
-type StatusFilter = "all" | "ongoing" | "finished";
+type StatusFilter = "all" | "not_started" | "ongoing" | "finished";
 
 const formatDateTime = (value: string | null) => {
   if (!value) return "-";
@@ -164,8 +165,9 @@ const FormRespondentsPage = () => {
   const stats = useMemo(() => {
     const rows = respondentsQuery.data?.data ?? [];
     const finished = rows.filter((r) => r.response_status === "finished").length;
-    const ongoing = rows.length - finished;
-    return { finished, ongoing };
+    const ongoing = rows.filter((r) => r.response_status === "ongoing").length;
+    const notStarted = rows.filter((r) => r.response_status === "not_started").length;
+    return { finished, ongoing, notStarted, total: rows.length };
   }, [respondentsQuery.data?.data]);
 
   const yearList = useMemo(() => {
@@ -200,7 +202,20 @@ const FormRespondentsPage = () => {
         </div>
 
         {/* Status Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                  <XCircle className="w-5 h-5 text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Not Started</p>
+                  <p className="text-2xl font-bold">{isLoading ? "…" : stats.notStarted}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           <Card>
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center gap-3">
@@ -235,7 +250,7 @@ const FormRespondentsPage = () => {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Response Rate</p>
-                  <p className="text-2xl font-bold">{isLoading ? "…" : `${stats.ongoing + stats.finished > 0 ? ((stats.finished / (stats.ongoing + stats.finished)) * 100).toFixed(1) : 0}%`}</p>
+                  <p className="text-2xl font-bold">{isLoading ? "…" : `${stats.total > 0 ? ((stats.finished / stats.total) * 100).toFixed(1) : 0}%`}</p>
                 </div>
               </div>
             </CardContent>
@@ -294,6 +309,7 @@ const FormRespondentsPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Semua Status</SelectItem>
+                  <SelectItem value="not_started">Not Started</SelectItem>
                   <SelectItem value="ongoing">Ongoing</SelectItem>
                   <SelectItem value="finished">Finished</SelectItem>
                 </SelectContent>
@@ -372,10 +388,15 @@ const FormRespondentsPage = () => {
                               <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
                               Finished
                             </Badge>
-                          ) : (
+                          ) : item.response_status === "ongoing" ? (
                             <Badge variant="outline" className="border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300">
                               <Clock className="mr-1 h-3.5 w-3.5" />
                               Ongoing
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-orange-500/20 bg-orange-500/10 text-orange-700 dark:text-orange-300">
+                              <XCircle className="mr-1 h-3.5 w-3.5" />
+                              Not Started
                             </Badge>
                           )}
                         </TableCell>

@@ -138,12 +138,12 @@ const AlumniDataPage = () => {
                       <TableCell className="text-sm">{a.jurusan_name ?? "—"}</TableCell>
                       <TableCell>{a.graduation_year ?? "—"}</TableCell>
                       <TableCell>
-                        {a.response_status === "finish" ? (
-                          <Badge variant="outline" className="border-emerald-500/20 bg-emerald-500/10 text-emerald-700"><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Finish</Badge>
+                        {a.response_status === "finished" ? (
+                          <Badge variant="outline" className="border-emerald-500/20 bg-emerald-500/10 text-emerald-700"><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Finished</Badge>
                         ) : a.response_status === "ongoing" ? (
                           <Badge variant="outline" className="border-blue-500/20 bg-blue-500/10 text-blue-700"><Loader2 className="mr-1 h-3.5 w-3.5" />Ongoing</Badge>
                         ) : (
-                          <Badge variant="outline" className="border-orange-500/20 bg-orange-500/10 text-orange-700"><XCircle className="mr-1 h-3.5 w-3.5" />Belum Mengisi</Badge>
+                          <Badge variant="outline" className="border-orange-500/20 bg-orange-500/10 text-orange-700"><XCircle className="mr-1 h-3.5 w-3.5" />Not Started</Badge>
                         )}
                       </TableCell>
                     </TableRow>

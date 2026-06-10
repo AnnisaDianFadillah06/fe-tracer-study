@@ -3,9 +3,9 @@ import api from "@/lib/api";
 
 export interface KaprodiAlumniStats {
   total: number;
-  finish: number;
+  finished: number;
   ongoing: number;
-  belum_mengisi: number;
+  not_started: number;
   answered: number;
   unanswered: number;
   response_rate: number;
@@ -23,7 +23,7 @@ export interface KaprodiAlumniItem {
   jurusan_name: string | null;
   graduation_year: number | null;
   is_active: boolean;
-  response_status: "finish" | "ongoing" | "belum_mengisi";
+  response_status: "finished" | "ongoing" | "not_started";
 }
 
 interface AlumniPaginator {
