@@ -19,6 +19,7 @@ import {
   Gauge,
   Target,
   Radio,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -166,6 +167,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             { href: "/dashboard/question-management", icon: ClipboardList, title: "Pertanyaan", desc: "Manajemen kuesioner" },
             { href: "/dashboard/form-preview", icon: FileText, title: "Preview Form", desc: "Lihat tampilan form" },
             { href: "/dashboard/threshold-management", icon: Target, title: "Threshold", desc: "Nilai LAM/BAN-PT" },
+            { href: "/dashboard/master-ump", icon: Wallet, title: "Master UMP", desc: "Data UMP per provinsi" },
           ].map((item) => {
             const isActive = location.pathname === item.href;
             return (

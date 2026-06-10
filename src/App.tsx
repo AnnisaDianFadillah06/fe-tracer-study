@@ -25,6 +25,7 @@ import ThresholdManagementPage from "./pages/ThresholdManagementPage";
 import NotFound from "./pages/NotFound";
 import StudentLoginPage from "./pages/StudentLoginPage";
 import FormPage from "./pages/FormPage";
+import MasterUmpPage from "./pages/MasterUmpPage";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,7 @@ const App = () => (
               <Route path="/dashboard/education"            element={<P><EducationPage /></P>} />
               <Route path="/dashboard/kpi"                  element={<P><KpiOverviewPage /></P>} />
               <Route path="/dashboard/threshold-management" element={<P><ThresholdManagementPage /></P>} />
+              <Route path="/dashboard/master-ump" element={<P><MasterUmpPage /></P>} />
               <Route path="/dashboard/compare"              element={<P><ComparePage /></P>} />
               <Route path="/dashboard/profile"              element={<P><ProfilePage /></P>} />
               <Route path="/dashboard/change-password"      element={<P><ChangePasswordPage /></P>} />
