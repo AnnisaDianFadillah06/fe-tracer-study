@@ -47,20 +47,40 @@ const Kpi10LearningPerceptionChart = ({
         formula={<>Skor Metode = Σ Jawaban Responden / Jumlah Responden<br/>Skala: 1 = Sangat Kurang, 5 = Sangat Baik</>}
       />
     }>
-    <div className="h-80">
-      <ResponsiveContainer width="100%" height="100%">
-        <RadarChart data={data} onClick={(e: any) => {
-          const d = e?.activePayload?.[0]?.payload;
-          if (d) setModal({ open: true, title: `Persepsi: ${d.dim} (skor ${d.skor})`, students: MOCK_STUDENTS.slice(0, 30) });
-        }}>
-          <PolarGrid stroke="hsl(var(--border))" />
-          <PolarAngleAxis dataKey="dim" fontSize={10} />
-          <PolarRadiusAxis domain={[0, 5]} fontSize={10} />
-          <Radar name="Profil Persepsi" dataKey="skor" stroke={C.blue} fill={C.blue} fillOpacity={0.45} dot={{ r: 4, fill: C.blueDark, cursor: "pointer" } as any} />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Tooltip contentStyle={tooltipStyle} />
-        </RadarChart>
-      </ResponsiveContainer>
+    <div className="grid lg:grid-cols-2 gap-5 items-stretch">
+      <div className="h-80 min-w-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart data={data} onClick={(e: any) => {
+            const d = e?.activePayload?.[0]?.payload;
+            if (d) setModal({ open: true, title: `Persepsi: ${d.dim} (skor ${d.skor})`, students: MOCK_STUDENTS.slice(0, 30) });
+          }}>
+            <PolarGrid stroke="hsl(var(--border))" />
+            <PolarAngleAxis dataKey="dim" fontSize={10} />
+            <PolarRadiusAxis domain={[0, 5]} fontSize={10} />
+            <Radar name="Profil Persepsi" dataKey="skor" stroke={C.blue} fill={C.blue} fillOpacity={0.45} dot={{ r: 4, fill: C.blueDark, cursor: "pointer" } as any} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Tooltip contentStyle={tooltipStyle} />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+      <aside className="rounded-lg border border-border bg-muted/30 p-4 text-sm leading-relaxed flex flex-col gap-3">
+        <h4 className="font-semibold text-foreground">Cara Membaca Grafik</h4>
+        <p className="text-muted-foreground">
+          Nilai pada radar merupakan <strong>rata-rata skor persepsi alumni</strong> terhadap efektivitas 7 metode pembelajaran selama kuliah,
+          diukur dengan skala Likert <strong>1–5</strong>.
+        </p>
+        <div className="text-xs text-muted-foreground border-t border-border pt-2 space-y-0.5">
+          <p><strong>1</strong> = sangat kurang</p>
+          <p><strong>2</strong> = kurang</p>
+          <p><strong>3</strong> = cukup</p>
+          <p><strong>4</strong> = baik</p>
+          <p><strong>5</strong> = sangat baik</p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Semakin luas area biru menutup polygon, semakin merata kualitas metode pembelajaran yang dirasakan alumni.
+          Klik titik pada grafik untuk melihat data alumni terkait metode tersebut.
+        </p>
+      </aside>
     </div>
   </KpiCard>
   <StudentDataModal isOpen={modal.open} onClose={() => setModal((m) => ({ ...m, open: false }))} title={modal.title} students={modal.students} columns={[]} />
