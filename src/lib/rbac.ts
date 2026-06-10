@@ -132,6 +132,7 @@ const adminItems: MenuItem[] = [
   { title: "Manajemen Kuesioner", href: "/dashboard/form-management", icon: ClipboardList, description: "Kelola kuesioner", permission: "admin.questionnaire" },
   { title: "Approval Request", href: "/dashboard/approvals", icon: ShieldCheck, description: "Riwayat & approval pengajuan", permission: "admin.approval" },
   { title: "Master Data", href: "/dashboard/master-data", icon: Building2, description: "Prodi, provinsi, kota", permission: "admin.master" },
+  { title: "Kontak Stakeholder", href: "/dashboard/stakeholder-contacts", icon: Users, description: "Data kontak pengguna lulusan", permission: "admin.questionnaire" },
 ];
 
 const academicItems: MenuItem[] = [

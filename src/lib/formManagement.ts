@@ -103,6 +103,7 @@ export interface BuilderQuestion {
   _individual_codes?: string[];
   // Original option objects with codes (preserved from backend for roundtrip)
   _original_options?: Array<{ label: string; code: string }>;
+  _options_hidden?: boolean[];
 }
 
 export const isOptionQuestionType = (type: BuilderQuestionType) =>
@@ -274,6 +275,7 @@ export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
       group_label: (q as any).metadata?.group_label ?? undefined,
       group_title: (q as any).metadata?.group_title ?? undefined,
       _original_options: (q.options ?? []).map((o) => ({ label: o.label, code: o.code ?? o.value ?? "" })),
+      _options_hidden: (q.options ?? []).map((o) => !!(o as any).is_hidden),
       logic: (() => {
         const showIf = (q as any).metadata?.show_if ?? (q as any).show_if;
         if (showIf && typeof showIf === "object") {
@@ -596,11 +598,11 @@ export const formListItemToApiPayload = (form: FormListItem & { targetGraduation
           ? { type: "in_array", dependsOn: q.logic.dependsOn, values: q.logic.values }
           : null,
         options: q._original_options && q._original_options.length === q.options.length
-          ? q._original_options.map((o) => ({ label: o.label, code: o.code }))
+          ? q._original_options.map((o, oi) => ({ label: o.label, code: o.code, is_hidden: q._options_hidden?.[oi] ?? false }))
           : q.options.map((opt, oi) =>
               typeof opt === "string"
-                ? { label: opt, code: `opt_${oi + 1}` }
-                : opt
+                ? { label: opt, code: `opt_${oi + 1}`, is_hidden: q._options_hidden?.[oi] ?? false }
+                : { ...(opt as any), is_hidden: q._options_hidden?.[oi] ?? false }
             ),
       }];
     }),

@@ -18,6 +18,7 @@ import { LogOut, Star, CheckCircle2, User } from "lucide-react";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import PolbanLogo from "@/components/common/PolbanLogo";
 import { useStudentAuth } from "@/hooks/auth/useStudentAuth";
+import api from "@/lib/api";
 import { useTracerForm, isQuestionVisible } from "@/hooks/form/useTracerForm";
 import type { Question } from "@/hooks/form/useQuestionManagement";
 import { useState } from "react";
@@ -73,6 +74,41 @@ const FormPage = () => {
       }
       : undefined;
     submitToBackend(e, identityData);
+  };
+
+  // Stakeholder contacts state (Bagian 2) — must be before early returns
+  const [stakeholderDone, setStakeholderDone] = useState(false);
+  const [stakeholderContacts, setStakeholderContacts] = useState([
+    { contact_name: "", contact_email: "" },
+    { contact_name: "", contact_email: "" },
+    { contact_name: "", contact_email: "" },
+  ]);
+  const [stakeholderSubmitting, setStakeholderSubmitting] = useState(false);
+
+  const f8Answer = Object.entries(answers).find(([k]) => k.includes("f8"))?.[1];
+  const needsStakeholder = f8Answer === "1" || f8Answer === 1 || f8Answer === "3" || f8Answer === 3 || f8Answer === "4" || f8Answer === 4;
+  const f8Label = f8Answer === "1" || f8Answer === 1 ? "bekerja" : f8Answer === "3" || f8Answer === 3 ? "wiraswasta" : "lanjut_studi";
+
+  const stakeholderLabels = {
+    bekerja: ["atasan Anda", "senior terdekat Anda", "rekan kerja Anda"],
+    wiraswasta: ["rekan bisnis Anda", "rekan kerja Anda", "rekan kerja lain Anda"],
+    lanjut_studi: ["dosen pembimbing Anda", "mahasiswa senior Anda", "teman dekat Anda"],
+  };
+
+  const handleStakeholderSubmit = async () => {
+    const valid = stakeholderContacts.filter((c) => c.contact_name && c.contact_email);
+    if (valid.length === 0) { setStakeholderDone(true); return; }
+    setStakeholderSubmitting(true);
+    try {
+      await api.post("/stakeholder-contacts", {
+        alumni_id: session?.id,
+        questionnaire_id: Number(sections[0]?.id),
+        alumni_status: f8Label,
+        contacts: valid.map((c, i) => ({ ...c, contact_type: ["atasan", "rekan", "senior"][i] ?? "rekan" })),
+      });
+    } catch {}
+    setStakeholderSubmitting(false);
+    setStakeholderDone(true);
   };
 
   // Redirect to login if not authenticated
@@ -151,6 +187,45 @@ const FormPage = () => {
     );
   }
 
+  // Stakeholder form (Bagian 2) — show after DIKTI submitted, if bekerja/wiraswasta/lanjut studi
+  if (submitted && needsStakeholder && !stakeholderDone) {
+    const labels = stakeholderLabels[f8Label as keyof typeof stakeholderLabels] ?? stakeholderLabels.bekerja;
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="max-w-2xl mx-auto px-4 py-8 space-y-4">
+          <Card className="border-t-4 border-t-blue-500">
+            <CardContent className="pt-5 pb-5 space-y-4">
+              <h2 className="font-heading text-xl font-bold">Bagian 2 — Kontak Pengguna Lulusan</h2>
+              <p className="text-sm text-muted-foreground">Mohon isi data kontak berikut untuk keperluan survei pengguna lulusan. Minimal 1 kontak wajib diisi.</p>
+              {labels.map((label, i) => (
+                <div key={i} className="space-y-2 border-b pb-4">
+                  <p className="font-medium text-sm">USER {i + 1} — Tuliskan nama {label}</p>
+                  <Input placeholder="Nama" value={stakeholderContacts[i].contact_name} onChange={(e) => {
+                    const next = [...stakeholderContacts];
+                    next[i] = { ...next[i], contact_name: e.target.value };
+                    setStakeholderContacts(next);
+                  }} />
+                  <Input type="email" placeholder="Email" value={stakeholderContacts[i].contact_email} onChange={(e) => {
+                    const next = [...stakeholderContacts];
+                    next[i] = { ...next[i], contact_email: e.target.value };
+                    setStakeholderContacts(next);
+                  }} />
+                </div>
+              ))}
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="outline" onClick={() => setStakeholderDone(true)}>Lewati</Button>
+                <Button onClick={handleStakeholderSubmit} disabled={stakeholderSubmitting}>
+                  {stakeholderSubmitting ? "Mengirim..." : "Kirim"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Success screen
   if (submitted) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">

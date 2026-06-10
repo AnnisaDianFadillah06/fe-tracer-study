@@ -49,6 +49,7 @@ import {
   ChevronsUpDown,
   Copy,
   Eye,
+  EyeOff,
   FileImage,
   FileText,
   Film,
@@ -1265,7 +1266,23 @@ const QuestionEditor = ({ question, onChange }: QuestionEditorProps) => {
                 onChange({ options: nextOptions });
               }}
               placeholder={`Opsi ${optionIndex + 1}`}
+              className={question._options_hidden?.[optionIndex] ? "opacity-50" : ""}
             />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title={question._options_hidden?.[optionIndex] ? "Tampilkan opsi" : "Sembunyikan opsi"}
+              onClick={() => {
+                const nextHidden = [...(question._options_hidden ?? question.options.map(() => false))];
+                nextHidden[optionIndex] = !nextHidden[optionIndex];
+                onChange({ _options_hidden: nextHidden });
+              }}
+            >
+              {question._options_hidden?.[optionIndex]
+                ? <EyeOff className="h-4 w-4 text-orange-500" />
+                : <Eye className="h-4 w-4 text-muted-foreground" />}
+            </Button>
             {question.options.length > 1 && (
               <Button
                 type="button"

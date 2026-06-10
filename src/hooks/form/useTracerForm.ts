@@ -41,10 +41,12 @@ function mapSingleQuestion(q: any): Question {
   }
 
   // Boolean questions without group → multiple_choice with Ya/Tidak
-  let options: Option[] = (q.options ?? []).map((o: any) => ({
-    id: o.value ?? o.code ?? String(o.id),
-    label: o.label ?? "",
-  }));
+  let options: Option[] = (q.options ?? [])
+    .filter((o: any) => !o.is_hidden)
+    .map((o: any) => ({
+      id: o.value ?? o.code ?? String(o.id),
+      label: o.label ?? "",
+    }));
 
   if (q.question_type === "boolean" && !meta.group_code) {
     feType = "multiple_choice";
