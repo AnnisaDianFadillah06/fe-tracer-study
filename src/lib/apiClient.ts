@@ -18,6 +18,71 @@ export interface ApiResponse<T> {
   success?: boolean;
 }
 
+export type UmpSumber = "BPS_API" | "IMPORT" | "MANUAL" | "GAGAL" | "KOSONG";
+ 
+export interface UmpRow {
+  id: number | null;
+  tahun: number;
+  id_provinsi: number;
+  nama_provinsi: string;
+  nilai_ump: number | null;
+  sumber: UmpSumber;
+  error_msg: string | null;
+}
+ 
+export interface UmpByTahunResponse {
+  success: boolean;
+  data: {
+    tahun: number;
+    sudah_tersimpan: boolean;
+    rows: UmpRow[];
+  };
+}
+ 
+export interface UmpPreviewResponse {
+  success: boolean;
+  message: string;
+  data: {
+    tahun: number;
+    ok_count: number;
+    fail_count: number;
+    rows: UmpRow[];
+  };
+}
+ 
+export interface UmpImportResponse {
+  success: boolean;
+  message: string;
+  data: {
+    tahun: number | null;
+    ok_count: number;
+    unrecognized: string[];
+    rows: UmpRow[];
+  };
+}
+ 
+export interface UmpBulkSavePayloadRow {
+  id_provinsi: number;
+  nilai_ump: number | null;
+  sumber: UmpSumber;
+}
+ 
+export interface UmpBulkSaveResponse {
+  success: boolean;
+  message: string;
+  data: {
+    tahun: number;
+    saved_count: number;
+    skipped_count: number;
+  };
+}
+ 
+export interface UmpUpdateSingleResponse {
+  success: boolean;
+  message: string;
+  data: UmpRow;
+}
+
 export interface ThresholdValue {
   threshold_id: number;
   value: number;
@@ -145,6 +210,58 @@ export const apiService = {
   getMe: async () => {
     const response = await apiClient.get("/auth/me");
     return response.data.data ?? response.data;
+  },
+
+  // ── UMP ──────────────────────────────────
+ 
+  getUmpYears: async (): Promise<{ success: boolean; data: number[] }> => {
+    const response = await apiClient.get("/ump/years");
+    return response.data;
+  },
+ 
+  getUmpByTahun: async (tahun: number): Promise<UmpByTahunResponse> => {
+    const response = await apiClient.get(`/ump/${tahun}`);
+    return response.data;
+  },
+ 
+  fetchUmpFromBps: async (tahun: number): Promise<UmpPreviewResponse> => {
+    const response = await apiClient.get(`/ump/${tahun}/fetch-bps`);
+    return response.data;
+  },
+ 
+  importUmpFile: async (file: File): Promise<UmpImportResponse> => {
+    const form = new FormData();
+    form.append("file", file);
+    const response = await apiClient.post("/ump/import", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
+  },
+ 
+  bulkSaveUmp: async (
+    tahun: number,
+    rows: UmpBulkSavePayloadRow[]
+  ): Promise<UmpBulkSaveResponse> => {
+    const response = await apiClient.post(`/ump/${tahun}/bulk-save`, { rows });
+    return response.data;
+  },
+ 
+  updateUmpSingle: async (
+    tahun: number,
+    idProvinsi: number,
+    nilaiUmp: number
+  ): Promise<UmpUpdateSingleResponse> => {
+    const response = await apiClient.patch(`/ump/${tahun}/provinces/${idProvinsi}`, {
+      nilai_ump: nilaiUmp,
+    });
+    return response.data;
+  },
+ 
+  downloadUmpTemplate: async (): Promise<Blob> => {
+    const response = await apiClient.get("/ump/template", {
+      responseType: "blob",
+    });
+    return response.data;
   },
 
   // ── Filter Options ────────────────────────
