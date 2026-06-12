@@ -1,12 +1,17 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import StatCard from "@/components/dashboard/StatCard";
 import { GenderChart, StatusChart, TrendChart, ProdiInputChart } from "@/components/dashboard/charts/common";
 import { Badge } from "@/components/ui/badge";
 import { useKotcOverview } from "@/hooks/dashboard/kotc";
+import GraduationYearFilter, { ALL_YEARS } from "@/components/dashboard/GraduationYearFilter";
 
 const KotcOverviewPage = () => {
   const { filters, stats, pengumpulanRows } = useKotcOverview();
+
+  // Filter tahun kelulusan (UI only — belum terintegrasi dengan backend)
+  const [gradYear, setGradYear] = useState<string>(ALL_YEARS);
 
   return (
     <DashboardLayout>
@@ -16,9 +21,12 @@ const KotcOverviewPage = () => {
             <h1 className="font-heading text-2xl font-bold">Overview Dashboard</h1>
             <p className="text-muted-foreground">Monitoring operasional tracer study Politeknik Negeri Bandung</p>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-sm font-medium text-emerald-400">Realtime</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <GraduationYearFilter value={gradYear} onChange={setGradYear} />
+            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-sm font-medium text-emerald-400">Realtime</span>
+            </div>
           </div>
         </div>
 
