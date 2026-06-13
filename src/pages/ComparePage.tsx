@@ -48,6 +48,7 @@ import {
   usePendapatanDrillDown,
   PendapatanBandingkanItem,
 } from "@/hooks/usePendapatan";
+import { useInstansiBandingkan } from "@/hooks/useInstansi";
 import { buildColorMap } from "@/lib/chartColors";
 import {
   MOCK_STUDENTS, Student,
@@ -230,9 +231,11 @@ const ComparePage = () => {
   const isWirausaha       = chartType === "entrepreneurship";
   const isIncome          = chartType === "income";
   const isIncomeKelompok  = chartType === "income-kelompok";
+  const isJenisInstansi   = chartType === "jenisInstansi";
+  const isTingkatInstansi = chartType === "tingkatInstansi";
   const isTrendType       = chartType === "trend";
   const isKepuasanType    = chartType === "kepuasan";
-  const isBeType          = isAbsorption || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok;
+  const isBeType          = isAbsorption || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok || isJenisInstansi || isTingkatInstansi;
 
   // selectedProdi hanya untuk tampilan chip — tidak dipakai untuk fetch
   // (fetch dilakukan berdasarkan filter aktif di GlobalFiltersContext)
@@ -248,6 +251,7 @@ const ComparePage = () => {
   const incomeBandingkanHook         = usePendapatanBandingkan(isIncome);
   const incomeKelompokBandingkanHook = usePendapatanKelompokBandingkan(isIncomeKelompok);
   const incomeDrillHook              = usePendapatanDrillDown();
+  const instansiBandingkanHook       = useInstansiBandingkan(isJenisInstansi || isTingkatInstansi);
 
   // ── Segment & warna dinamis dari BE ───────────────────────────────────────
   const { allLabels: beLabels, colorMap: beColorMap } = useMemo(() => {
@@ -344,6 +348,59 @@ const ComparePage = () => {
     "8-12 jt": "#2563eb",
     "> 12 jt": "#1e3a8a",
   };
+
+  // Jenis Instansi — transform data BE ke stacked bar per prodi
+  const instansiJenisLabels = useMemo(() => {
+    if (!instansiBandingkanHook.data?.data) return [] as string[];
+    const set = new Set<string>();
+    instansiBandingkanHook.data.data.forEach((d) => d.jenis.forEach((j) => set.add(j.label)));
+    return [...set];
+  }, [instansiBandingkanHook.data]);
+
+  const instansiJenisColorMap = useMemo(
+    () => buildColorMap(instansiJenisLabels),
+    [instansiJenisLabels]
+  );
+
+  const instansiJenisChartData = useMemo(() => {
+    if (!isJenisInstansi || !instansiBandingkanHook.data?.data) return [];
+    return instansiBandingkanHook.data.data.map((d) => {
+      const row: Record<string, any> = {
+        prodi:    d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
+        fullProdi: d.nama_prodi,
+        total:    d.total,
+      };
+      d.jenis.forEach((j) => {
+        row[j.label] = j.pct;
+        row[`${j.label}Count`] = j.count;
+      });
+      return row;
+    });
+  }, [isJenisInstansi, instansiBandingkanHook.data]);
+
+  // Tingkat Instansi — transform data BE ke stacked bar per prodi
+  const instansiTingkatLabels = ["Lokal", "Nasional", "Internasional"];
+  const instansiTingkatColorMap: Record<string, string> = {
+    "Lokal":         "#6ee7b7",
+    "Nasional":      "#3b82f6",
+    "Internasional": "#1e3a8a",
+  };
+
+  const instansiTingkatChartData = useMemo(() => {
+    if (!isTingkatInstansi || !instansiBandingkanHook.data?.data) return [];
+    return instansiBandingkanHook.data.data.map((d) => {
+      const row: Record<string, any> = {
+        prodi:    d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
+        fullProdi: d.nama_prodi,
+        total:    d.total,
+      };
+      d.tingkat.forEach((t) => {
+        row[t.label] = +(t.pct).toFixed(1);
+        row[`${t.label}Count`] = t.count;
+      });
+      return row;
+    });
+  }, [isTingkatInstansi, instansiBandingkanHook.data]);
 
   // Wirausaha — transform data BE ke stacked bar per prodi
   const wsLabels   = ["Lokal", "Nasional", "Internasional"];
@@ -478,6 +535,8 @@ const ComparePage = () => {
       : isWirausaha ? wsChartData.length
       : isIncome ? incomeChartData.length
       : isIncomeKelompok ? incomeKelompokChartData.length
+      : isJenisInstansi ? instansiJenisChartData.length
+      : isTingkatInstansi ? instansiTingkatChartData.length
       : selectedProdi.length) * 52
   );
 
@@ -491,6 +550,10 @@ const ComparePage = () => {
     ? "Perbandingan Distribusi UMP per Prodi"
     : isIncomeKelompok
     ? "Perbandingan Kelompok Pendapatan per Prodi"
+    : isJenisInstansi
+    ? "Perbandingan Jenis Instansi per Prodi"
+    : isTingkatInstansi
+    ? "Perbandingan Sebaran Level Perusahaan per Prodi"
     : isTrendType
     ? `Heatmap Trend ${indicatorParam} per Prodi`
     : config?.title ?? "";
@@ -505,6 +568,10 @@ const ComparePage = () => {
     ? "Proporsi alumni ≥ 1,2× UMP vs < 1,2× UMP per program studi"
     : isIncomeKelompok
     ? "Distribusi pendapatan alumni per program studi"
+    : isJenisInstansi
+    ? "Distribusi jenis instansi tempat alumni bekerja per program studi"
+    : isTingkatInstansi
+    ? "Distribusi Lokal / Nasional / Internasional per program studi"
     : isTrendType
     ? "Visualisasi persentase indikator per prodi per tahun"
     : config?.description ?? "";
@@ -531,7 +598,11 @@ const ComparePage = () => {
 
         {/* Chip prodi */}
         {(() => {
-          const chips = isIncome ? incomeProdiList : selectedProdi;
+          const chips = isIncome || isIncomeKelompok
+            ? incomeProdiList
+            : isJenisInstansi || isTingkatInstansi
+            ? (instansiBandingkanHook.data?.prodi_list ?? [])
+            : selectedProdi;
           return chips.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {chips.slice(0, 10).map((p) => (
@@ -1073,6 +1144,190 @@ const ComparePage = () => {
               contextColumn={{ key: "perusahaan", label: "Perusahaan" }}
               onPageChange={(page, search) => incomeDrillHook.fetch({ page, search })}
             />
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            JENIS INSTANSI — data dari BE
+        ══════════════════════════════════════════════════════════════════ */}
+        {isJenisInstansi && (
+          <>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
+              {instansiBandingkanHook.loading ? (
+                <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" /><span>Memuat data…</span>
+                </div>
+              ) : instansiBandingkanHook.error ? (
+                <div className="flex items-center justify-center h-64 text-destructive">{instansiBandingkanHook.error}</div>
+              ) : instansiJenisChartData.length === 0 ? (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">Tidak ada data</div>
+              ) : (
+                <div className="overflow-y-auto max-h-[600px]">
+                  <div style={{ minHeight: chartHeight }}>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
+                      <BarChart data={instansiJenisChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload) return null;
+                            const row = instansiJenisChartData.find((d) => d.prodi === label);
+                            return (
+                              <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
+                                <p className="font-semibold mb-1">{row?.fullProdi ?? label}</p>
+                                <p className="text-xs text-muted-foreground mb-2">Total: {row?.total?.toLocaleString("id-ID")} alumni</p>
+                                {payload.map((e: any) => (
+                                  <p key={e.dataKey} style={{ color: e.color }} className="text-xs">
+                                    {e.dataKey}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count`]} alumni)
+                                  </p>
+                                ))}
+                              </div>
+                            );
+                          }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
+                        {instansiJenisLabels.map((label) => (
+                          <Bar key={label} dataKey={label} stackId="a" fill={instansiJenisColorMap[label]} cursor="pointer" />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+
+            {instansiJenisChartData.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+                <h3 className="font-heading font-semibold mb-4">Ringkasan Data</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Total Alumni</th>
+                        {instansiJenisLabels.map((l) => (
+                          <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{l}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(instansiBandingkanHook.data?.data ?? []).map((row) => (
+                        <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                          <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
+                          <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
+                          {instansiJenisLabels.map((l) => {
+                            const j = row.jenis.find((x) => x.label === l);
+                            return (
+                              <td key={l} className="py-2 px-3">
+                                {j ? (
+                                  <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: instansiJenisColorMap[l] }}>
+                                    {j.pct}% ({j.count})
+                                  </span>
+                                ) : <span className="text-muted-foreground text-xs">—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            TINGKAT INSTANSI — data dari BE
+        ══════════════════════════════════════════════════════════════════ */}
+        {isTingkatInstansi && (
+          <>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
+              {instansiBandingkanHook.loading ? (
+                <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" /><span>Memuat data…</span>
+                </div>
+              ) : instansiBandingkanHook.error ? (
+                <div className="flex items-center justify-center h-64 text-destructive">{instansiBandingkanHook.error}</div>
+              ) : instansiTingkatChartData.length === 0 ? (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">Tidak ada data</div>
+              ) : (
+                <div className="overflow-y-auto max-h-[600px]">
+                  <div style={{ minHeight: chartHeight }}>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
+                      <BarChart data={instansiTingkatChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload) return null;
+                            const row = instansiTingkatChartData.find((d) => d.prodi === label);
+                            return (
+                              <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
+                                <p className="font-semibold mb-1">{row?.fullProdi ?? label}</p>
+                                <p className="text-xs text-muted-foreground mb-2">Total: {row?.total?.toLocaleString("id-ID")} alumni</p>
+                                {payload.map((e: any) => (
+                                  <p key={e.dataKey} style={{ color: e.color }} className="text-xs">
+                                    {e.dataKey}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count`]} alumni)
+                                  </p>
+                                ))}
+                              </div>
+                            );
+                          }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
+                        {instansiTingkatLabels.map((label) => (
+                          <Bar key={label} dataKey={label} stackId="a" fill={instansiTingkatColorMap[label]} cursor="pointer" />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+
+            {instansiTingkatChartData.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+                <h3 className="font-heading font-semibold mb-4">Ringkasan Data</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Total Alumni</th>
+                        {instansiTingkatLabels.map((l) => (
+                          <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{l}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(instansiBandingkanHook.data?.data ?? []).map((row) => (
+                        <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                          <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
+                          <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
+                          {instansiTingkatLabels.map((l) => {
+                            const t = row.tingkat.find((x) => x.label === l);
+                            return (
+                              <td key={l} className="py-2 px-3">
+                                {t ? (
+                                  <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: instansiTingkatColorMap[l] }}>
+                                    {t.pct}% ({t.count})
+                                  </span>
+                                ) : <span className="text-muted-foreground text-xs">—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
           </>
         )}
 

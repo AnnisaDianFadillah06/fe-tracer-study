@@ -144,7 +144,7 @@ const Kpi12WorkplaceDistributionChart = () => {
           empty={!isLoading && barData.length === 0}
           title="Sebaran Tingkat Instansi per Prodi"
           subtitle="Distribusi Lokal / Nasional / Internasional per program studi"
-          compareType="jenisInstansi"
+          compareType="tingkatInstansi"
           methodology={
             <MethodologyBlock
               description="Proporsi lulusan per prodi berdasarkan skala/tingkat instansi tempat bekerja."
