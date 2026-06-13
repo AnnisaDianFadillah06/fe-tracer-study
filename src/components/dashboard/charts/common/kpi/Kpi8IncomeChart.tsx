@@ -105,7 +105,7 @@ const Kpi8IncomeChart = () => {
                   yAxisId="left"
                   tickFormatter={(v) => `${v} jt`}
                   fontSize={13}
-                  domain={[0, 10]}
+                  domain={[0, "auto"]}
                   stroke={C.blue}
                   label={{ value: "Rata-rata Gaji (Juta Rp)", angle: -90, position: "insideLeft", fontSize: 12, fill: C.blue }}
                 />
