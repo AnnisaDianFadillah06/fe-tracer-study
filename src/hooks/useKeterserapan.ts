@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { apiService } from "@/lib/apiClient";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 
@@ -110,40 +111,27 @@ function buildBaseParams(
 
 export function useKeterserapanBar() {
   const { degree, jurusan, prodi, weekKey, lastUpdatedAt } = useGlobalFilters();
-  // Stabilkan lastUpdatedAt jadi timestamp number supaya tidak trigger ulang
-  // setiap kali GlobalFiltersContext re-render dengan new Date()
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
-  const [data, setData] = useState<BarResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  // Bar tidak pakai tahun_lulus — itu sumbu X
+  const params = useMemo(
+    () => buildBaseParams(degree, jurusan, prodi, "all", weekKey),
+    [degree, jurusan, prodi, weekKey]
+  );
 
-  useEffect(() => {
-    if (abortRef.current) abortRef.current.abort();
-    abortRef.current = new AbortController();
-    setLoading(true);
-    setError(null);
+  const result = useQuery<BarResponse>({
+    queryKey: ["keterserapan", "bar", params, updatedTs],
+    queryFn: ({ signal }) =>
+      apiService.get<any>("/dashboard/keterserapan/bar", { params, signal })
+        .then((res) => res?.data ?? res),
+    staleTime: 5 * 60 * 1000,
+  });
 
-    // Bar tidak pakai tahun_lulus — itu sumbu X
-    const params = buildBaseParams(degree, jurusan, prodi, "all", weekKey);
-
-    apiService
-      .get<any>("/dashboard/keterserapan/bar", { params, signal: abortRef.current.signal })
-      .then((res) => {
-        setData(res?.data ?? res);
-        setLoading(false);
-      })
-      .catch((err: any) => {
-        if (err?.name === "CanceledError" || err?.name === "AbortError") return;
-        setError(err?.message ?? "Gagal memuat data keterserapan");
-        setLoading(false);
-      });
-
-    return () => { abortRef.current?.abort(); };
-  }, [degree, jurusan, prodi, weekKey, updatedTs]);
-
-  return { data, loading, error };
+  return {
+    data: result.data ?? null,
+    loading: result.isLoading,
+    error: (result.error as Error | null)?.message ?? null,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -163,41 +151,31 @@ export function useKeterserapanPie() {
     return "";
   }, [tahunLulus, filterOptions.tahunLulus]);
 
-  const [data, setData] = useState<PieResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const params = useMemo(
+    () => buildBaseParams(degree, jurusan, prodi, tahunEfektif, weekKey),
+    [degree, jurusan, prodi, tahunEfektif, weekKey]
+  );
 
-  useEffect(() => {
-    // Tunggu filterOptions selesai load dulu sebelum fetch
-    if (filterOptions.loading) return;
+  const result = useQuery<PieResponse>({
+    queryKey: ["keterserapan", "pie", params, updatedTs],
+    queryFn: ({ signal }) =>
+      apiService.get<any>("/dashboard/keterserapan/pie", { params, signal })
+        .then((res) => {
+          const payload: PieResponse = res?.data ?? res;
+          // Simpan tahun efektif ke dalam data supaya subtitle bisa pakai
+          payload.tahun_aktif = tahunEfektif;
+          return payload;
+        }),
+    enabled: !filterOptions.loading, // Tunggu filterOptions selesai load
+    staleTime: 5 * 60 * 1000,
+  });
 
-    if (abortRef.current) abortRef.current.abort();
-    abortRef.current = new AbortController();
-    setLoading(true);
-    setError(null);
-
-    const params = buildBaseParams(degree, jurusan, prodi, tahunEfektif, weekKey);
-
-    apiService
-      .get<any>("/dashboard/keterserapan/pie", { params, signal: abortRef.current.signal })
-      .then((res) => {
-        const payload: PieResponse = res?.data ?? res;
-        // Simpan tahun efektif ke dalam data supaya subtitle bisa pakai
-        payload.tahun_aktif = tahunEfektif;
-        setData(payload);
-        setLoading(false);
-      })
-      .catch((err: any) => {
-        if (err?.name === "CanceledError" || err?.name === "AbortError") return;
-        setError(err?.message ?? "Gagal memuat distribusi status");
-        setLoading(false);
-      });
-
-    return () => { abortRef.current?.abort(); };
-  }, [degree, jurusan, prodi, tahunEfektif, weekKey, updatedTs, filterOptions.loading]);
-
-  return { data, loading, error, tahunEfektif };
+  return {
+    data: result.data ?? null,
+    loading: result.isLoading || filterOptions.loading,
+    error: (result.error as Error | null)?.message ?? null,
+    tahunEfektif,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { apiService } from "@/lib/apiClient";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 
@@ -69,33 +70,24 @@ export function useKompetensiGap() {
   const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
-  const [data, setData]       = useState<KompetensiGapResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
-  const abortRef              = useRef<AbortController | null>(null);
+  const params = useMemo(
+    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
+    [degree, jurusan, prodi, tahunLulus, weekKey]
+  );
 
-  useEffect(() => {
-    if (abortRef.current) abortRef.current.abort();
-    abortRef.current = new AbortController();
-    setLoading(true);
-    setError(null);
+  const result = useQuery<KompetensiGapResponse>({
+    queryKey: ["kompetensi", "gap", params, updatedTs],
+    queryFn: ({ signal }) =>
+      apiService.get<any>("/dashboard/kompetensi/gap", { params, signal })
+        .then((res) => res?.data ?? res),
+    staleTime: 5 * 60 * 1000,
+  });
 
-    apiService
-      .get<any>("/dashboard/kompetensi/gap", {
-        params: buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-        signal: abortRef.current.signal,
-      })
-      .then((res) => { setData(res?.data ?? res); setLoading(false); })
-      .catch((err: any) => {
-        if (err?.name === "CanceledError" || err?.name === "AbortError") return;
-        setError(err?.message ?? "Gagal memuat data kompetensi");
-        setLoading(false);
-      });
-
-    return () => { abortRef.current?.abort(); };
-  }, [degree, jurusan, prodi, tahunLulus, weekKey, updatedTs]);
-
-  return { data, loading, error };
+  return {
+    data: result.data ?? null,
+    loading: result.isLoading,
+    error: (result.error as Error | null)?.message ?? null,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
