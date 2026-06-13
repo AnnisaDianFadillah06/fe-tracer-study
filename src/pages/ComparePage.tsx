@@ -38,6 +38,10 @@ import {
   useMasaTungguBandingkan,
   useMasaTungguDrillDown,
 } from "@/hooks/useMasaTunggu";
+import {
+  useWirausahaBandingkan,
+  useWirausahaDrillDown,
+} from "@/hooks/useWirausaha";
 import { buildColorMap } from "@/lib/chartColors";
 import {
   MOCK_STUDENTS, Student,
@@ -215,11 +219,12 @@ const ComparePage = () => {
   const chartType      = searchParams.get("type")      || "gender";
   const indicatorParam = searchParams.get("indicator") || "kesesuaian";
 
-  const isAbsorption   = chartType === "absorption";
-  const isWaktuTunggu  = chartType === "waktuTunggu";
-  const isTrendType    = chartType === "trend";
-  const isKepuasanType = chartType === "kepuasan";
-  const isBeType       = isAbsorption || isWaktuTunggu;
+  const isAbsorption    = chartType === "absorption";
+  const isWaktuTunggu   = chartType === "waktuTunggu";
+  const isWirausaha     = chartType === "entrepreneurship";
+  const isTrendType     = chartType === "trend";
+  const isKepuasanType  = chartType === "kepuasan";
+  const isBeType        = isAbsorption || isWaktuTunggu || isWirausaha;
 
   // selectedProdi hanya untuk tampilan chip — tidak dipakai untuk fetch
   // (fetch dilakukan berdasarkan filter aktif di GlobalFiltersContext)
@@ -230,6 +235,8 @@ const ComparePage = () => {
   const drillHook        = useKeterserapanDrillDown();
   const mtBandingkanHook = useMasaTungguBandingkan(isWaktuTunggu);
   const mtDrillHook      = useMasaTungguDrillDown();
+  const wsBandingkanHook = useWirausahaBandingkan(isWirausaha);
+  const wsDrillHook      = useWirausahaDrillDown();
 
   // ── Segment & warna dinamis dari BE ───────────────────────────────────────
   const { allLabels: beLabels, colorMap: beColorMap } = useMemo(() => {
@@ -271,9 +278,30 @@ const ComparePage = () => {
   const mtLabels   = ["< 3 bulan", "3-6 bulan", "> 6 bulan"];
   const mtColorMap = buildColorMap(mtLabels);
 
+  // Wirausaha — transform data BE ke stacked bar per prodi
+  const wsLabels   = ["Lokal", "Nasional", "Internasional"];
+  const wsColorMap = buildColorMap(wsLabels);
+  const wsChartData = useMemo(() => {
+    if (!isWirausaha || !wsBandingkanHook.data?.chart) return [];
+    return wsBandingkanHook.data.chart.map((d) => {
+      const row: Record<string, any> = {
+        prodi:        d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
+        fullProdi:    d.nama_prodi,
+        pct_wirausaha: d.pct_wirausaha,
+        count_wirausaha: d.count_wirausaha,
+      };
+      d.tingkat.forEach((t) => {
+        row[t.label]              = t.pct;
+        row[`${t.label}Count`]   = t.count;
+      });
+      return row;
+    });
+  }, [isWirausaha, wsBandingkanHook.data]);
+
   // ── Modal absorption (BE — DrillDownModal) ────────────────────────────────
   const [beModal, setBeModal] = useState<{ open: boolean; title: string; status?: string }>({ open: false, title: "" });
   const [mtModal, setMtModal] = useState<{ open: boolean; title: string; rentang?: "0-3" | "3-6" | ">6" }>({ open: false, title: "" });
+  const [wsModal, setWsModal] = useState<{ open: boolean; title: string; tingkat?: string }>({ open: false, title: "" });
 
   const handleBeBarClick = (barData: any, statusLabel: string) => {
     setBeModal({ open: true, title: `${barData.fullProdi ?? barData.prodi} — ${statusLabel}`, status: statusLabel });
@@ -377,13 +405,15 @@ const ComparePage = () => {
 
   const chartHeight = Math.max(
     400,
-    (isAbsorption ? beChartData.length : isWaktuTunggu ? mtChartData.length : selectedProdi.length) * 52
+    (isAbsorption ? beChartData.length : isWaktuTunggu ? mtChartData.length : isWirausaha ? wsChartData.length : selectedProdi.length) * 52
   );
 
   const pageTitle = isAbsorption
     ? "Perbandingan Keterserapan Lulusan per Prodi"
     : isWaktuTunggu
     ? "Perbandingan Masa Tunggu Kerja per Prodi"
+    : isWirausaha
+    ? "Perbandingan Lulusan Wirausaha per Prodi"
     : isTrendType
     ? `Heatmap Trend ${indicatorParam} per Prodi`
     : config?.title ?? "";
@@ -392,6 +422,8 @@ const ComparePage = () => {
     ? "Distribusi status alumni per program studi (data real)"
     : isWaktuTunggu
     ? "Distribusi rentang masa tunggu mendapatkan pekerjaan per prodi"
+    : isWirausaha
+    ? "Distribusi tingkat wirausaha (Lokal / Nasional / Internasional) per prodi"
     : isTrendType
     ? "Visualisasi persentase indikator per prodi per tahun"
     : config?.description ?? "";
@@ -623,6 +655,109 @@ const ComparePage = () => {
               error={mtDrillHook.error}
               contextColumn={{ key: "masa_tunggu_bekerja", label: "Masa Tunggu (bln)" }}
               onPageChange={(page, search) => mtDrillHook.fetch({ rentang: mtModal.rentang!, page, search })}
+            />
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            WIRAUSAHA — data dari BE
+        ══════════════════════════════════════════════════════════════════ */}
+        {isWirausaha && (
+          <>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
+              {wsBandingkanHook.loading ? (
+                <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" /><span>Memuat data…</span>
+                </div>
+              ) : wsBandingkanHook.error ? (
+                <div className="flex items-center justify-center h-64 text-destructive">{wsBandingkanHook.error}</div>
+              ) : wsChartData.length === 0 ? (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">Tidak ada data</div>
+              ) : (
+                <div className="overflow-y-auto max-h-[600px]">
+                  <div style={{ minHeight: chartHeight }}>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
+                      <BarChart data={wsChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload) return null;
+                            const row = wsChartData.find((d) => d.prodi === label);
+                            return (
+                              <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
+                                <p className="font-semibold mb-1">{row?.fullProdi ?? label}</p>
+                                <p className="text-xs text-muted-foreground mb-2">Wirausaha: {row?.count_wirausaha} ({row?.pct_wirausaha}%)</p>
+                                {payload.map((e: any) => (
+                                  <p key={e.dataKey} style={{ color: e.color }} className="text-xs">
+                                    {e.dataKey}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count`]} alumni)
+                                  </p>
+                                ))}
+                              </div>
+                            );
+                          }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
+                        {wsLabels.map((label) => (
+                          <Bar
+                            key={label} dataKey={label} stackId="a" fill={wsColorMap[label]} cursor="pointer"
+                            onClick={(d: any) => {
+                              setWsModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}`, tingkat: label });
+                              wsDrillHook.fetch({ tingkat: label });
+                            }}
+                          />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+
+            {/* Summary table wirausaha */}
+            {wsChartData.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+                <h3 className="font-heading font-semibold mb-4">Ringkasan Data</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">% Wirausaha</th>
+                        {wsLabels.map((l) => <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{l}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {wsChartData.map((row) => (
+                        <tr key={row.fullProdi} className="border-t border-border/30 hover:bg-secondary/20">
+                          <td className="py-2 px-3 font-medium">{row.fullProdi}</td>
+                          <td className="py-2 px-3 text-muted-foreground">{row.pct_wirausaha}%</td>
+                          {wsLabels.map((l) => (
+                            <td key={l} className="py-2 px-3">
+                              <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: wsColorMap[l] }}>
+                                {row[l] ?? 0}% ({row[`${l}Count`] ?? 0})
+                              </span>
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+
+            <DrillDownModal
+              isOpen={wsModal.open}
+              onClose={() => setWsModal((m) => ({ ...m, open: false }))}
+              title={wsModal.title}
+              data={wsDrillHook.data}
+              loading={wsDrillHook.loading}
+              error={wsDrillHook.error}
+              contextColumn={{ key: "tingkat_instansi", label: "Tingkat" }}
+              onPageChange={(page, search) => wsDrillHook.fetch({ tingkat: wsModal.tingkat!, page, search })}
             />
           </>
         )}

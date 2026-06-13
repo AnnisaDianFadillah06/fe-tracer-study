@@ -16,4 +16,3 @@ export { default as Kpi9CompetencyGapChart } from "./kpi/Kpi9CompetencyGapChart"
 export { default as Kpi10LearningPerceptionChart } from "./kpi/Kpi10LearningPerceptionChart";
 export { default as Kpi11FundingSourceChart } from "./kpi/Kpi11FundingSourceChart";
 export { default as Kpi12WorkplaceDistributionChart } from "./kpi/Kpi12WorkplaceDistributionChart";
-export { default as Kpi13ProdiComparisonChart } from "./kpi/Kpi13ProdiComparisonChart";
