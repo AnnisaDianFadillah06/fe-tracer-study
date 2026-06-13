@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ResponsiveContainer,
   RadarChart,
@@ -18,52 +18,65 @@ import {
   LabelList,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
-import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MethodologyBlock } from "./Methodology";
-import { MOCK_STUDENTS, Student } from "@/lib/mockData";
+import { useKompetensiGap } from "@/hooks/useKompetensi";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Radar as RadarIcon, BarChart3 } from "lucide-react";
 
-const defaultRadar = [
-  { kompetensi: "Etika", lulus: 4.6, industri: 4.3 },
-  { kompetensi: "Keahlian Bid. Ilmu", lulus: 3.8, industri: 4.4 },
-  { kompetensi: "Bahasa Inggris", lulus: 3.1, industri: 4.2 },
-  { kompetensi: "Teknologi Informasi", lulus: 4.5, industri: 4.2 },
-  { kompetensi: "Komunikasi", lulus: 3.6, industri: 4.3 },
-  { kompetensi: "Kerja Sama Tim", lulus: 4.5, industri: 4.1 },
-  { kompetensi: "Pengembangan Diri", lulus: 3.7, industri: 4.2 },
-];
-
-interface Props {
-  radarData?: typeof defaultRadar;
-  loading?: boolean;
-  error?: string | null;
-  isEmpty?: boolean;
-}
-
-const Kpi9CompetencyGapChart = ({ radarData = defaultRadar, loading, error, isEmpty }: Props) => {
-  const gap = radarData.map((d) => ({
-    kompetensi: d.kompetensi,
-    gap: +(d.lulus - d.industri).toFixed(2),
-  }));
-  const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
-  const openModal = (title: string) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, 30) });
+const Kpi9CompetencyGapChart = () => {
+  const { data, loading, error } = useKompetensiGap();
   const [view, setView] = useState<"radar" | "bar">("radar");
+
+  // Transform: radar membutuhkan skor_lulus & skor_dibutuhkan per indikator
+  const radarData = useMemo(() => {
+    if (!data?.data) return [];
+    return data.data.map((d) => ({
+      kompetensi: d.label,
+      lulus:      d.skor_lulus,
+      industri:   d.skor_dibutuhkan,
+    }));
+  }, [data]);
+
+  // Transform: bar gap = skor_lulus - skor_dibutuhkan
+  // (positif = lulus > dibutuhkan = hijau/aman, negatif = merah/perlu ditingkatkan)
+  const gapData = useMemo(() => {
+    if (!data?.data) return [];
+    return data.data.map((d) => ({
+      kompetensi: d.label,
+      gap:        +(d.skor_lulus - d.skor_dibutuhkan).toFixed(2),
+    }));
+  }, [data]);
+
+  const isEmpty = !loading && radarData.length === 0;
+
   return (
-    <>
     <KpiCard
       loading={loading}
       error={error}
       empty={isEmpty}
       title="Analisis Gap Kompetensi Lulusan"
-      subtitle={view === "radar" ? "Radar chart — profil kompetensi saat lulus vs kebutuhan industri" : "Bar horizontal — gap per kompetensi (hijau = aman, merah = di bawah industri)"}
+      subtitle={
+        view === "radar"
+          ? "Radar chart — profil kompetensi saat lulus vs kebutuhan industri"
+          : "Bar horizontal — gap per kompetensi (hijau = aman, merah = di bawah industri)"
+      }
       compareType="competency"
       headerExtra={
-        <ToggleGroup type="single" value={view} size="sm" onValueChange={(v) => v && setView(v as any)} className="bg-muted/40 rounded-md p-0.5">
-          <ToggleGroupItem value="radar" aria-label="Tampilkan radar" className="h-7 px-2 text-xs gap-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+        <ToggleGroup
+          type="single" value={view} size="sm"
+          onValueChange={(v) => v && setView(v as "radar" | "bar")}
+          className="bg-muted/40 rounded-md p-0.5"
+        >
+          <ToggleGroupItem
+            value="radar" aria-label="Tampilkan radar"
+            className="h-7 px-2 text-xs gap-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+          >
             <RadarIcon className="w-3.5 h-3.5" /> Radar
           </ToggleGroupItem>
-          <ToggleGroupItem value="bar" aria-label="Tampilkan bar horizontal" className="h-7 px-2 text-xs gap-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+          <ToggleGroupItem
+            value="bar" aria-label="Tampilkan bar horizontal"
+            className="h-7 px-2 text-xs gap-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+          >
             <BarChart3 className="w-3.5 h-3.5" /> Bar Gap
           </ToggleGroupItem>
         </ToggleGroup>
@@ -84,90 +97,173 @@ const Kpi9CompetencyGapChart = ({ radarData = defaultRadar, loading, error, isEm
       }
     >
       <div className="grid lg:grid-cols-2 gap-5 items-stretch">
+        {/* ── Chart area ── */}
         <div className="min-w-0">
           {view === "radar" ? (
-            <div className="h-80">
+            <div className="h-[340px]">
               <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={radarData}>
-                  <PolarGrid stroke="hsl(var(--border))" />
-                  <PolarAngleAxis dataKey="kompetensi" fontSize={10} />
-                  <PolarRadiusAxis domain={[0, 5]} fontSize={10} />
-                  <Radar name="Saat Lulus" dataKey="lulus" stroke={C.blue} fill={C.blue} fillOpacity={0.3} />
-                  <Radar name="Kebutuhan Industri" dataKey="industri" stroke={C.orange} fill={C.orange} fillOpacity={0.3} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Tooltip contentStyle={tooltipStyle} />
+                <RadarChart data={radarData} margin={{ top: 16, right: 24, bottom: 8, left: 24 }}>
+                  {/* Grid lebih kontras supaya terlihat jelas seperti jaring laba-laba */}
+                  <PolarGrid
+                    stroke="hsl(var(--border))"
+                    strokeOpacity={0.8}
+                    strokeWidth={1}
+                  />
+                  {/* Label sumbu — font lebih besar untuk keterbacaan */}
+                  <PolarAngleAxis
+                    dataKey="kompetensi"
+                    tick={{ fontSize: 13, fontWeight: 600, fill: "hsl(var(--foreground))" }}
+                  />
+                  {/* Cincin skala 0–5 dengan label numerik di sumbu */}
+                  <PolarRadiusAxis
+                    domain={[0, 5]}
+                    tickCount={6}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    angle={72}
+                    axisLine={false}
+                  />
+                  <Radar
+                    name="Saat Lulus" dataKey="lulus"
+                    stroke={C.blue} fill={C.blue} fillOpacity={0.35}
+                    dot={{ r: 5, fill: C.blue, strokeWidth: 0 }}
+                    activeDot={{ r: 7 } as any}
+                    strokeWidth={2}
+                  />
+                  <Radar
+                    name="Kebutuhan Industri" dataKey="industri"
+                    stroke={C.orange} fill={C.orange} fillOpacity={0.2}
+                    dot={{ r: 5, fill: C.orange, strokeWidth: 0 }}
+                    activeDot={{ r: 7 } as any}
+                    strokeWidth={2}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 13, fontWeight: 500, paddingTop: 8 }} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(v: number, name) => [v.toFixed(2), name]}
+                  />
                 </RadarChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div style={{ height: gap.length * 44 + 40 }}>
+            <div style={{ height: Math.max(gapData.length * 52 + 48, 200) }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={gap} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} horizontal={false} />
-                  <XAxis type="number" domain={[-1.5, 1.5]} fontSize={11} />
-                  <YAxis type="category" dataKey="kompetensi" width={150} fontSize={10} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <ReferenceLine x={0} stroke="hsl(var(--foreground))" />
-                  <Bar dataKey="gap" radius={[0, 6, 6, 0]} maxBarSize={24}
-                    cursor="pointer" onClick={(d: any) => openModal(`Gap ${d.kompetensi} (${d.gap})`)}
-                    activeBar={{ stroke: "hsl(var(--foreground))", strokeWidth: 2 } as any}>
-                    {gap.map((d, i) => (
-                      <Cell key={i} fill={d.gap < 0 ? C.red : C.green} />
+                <BarChart
+                  data={gapData}
+                  layout="vertical"
+                  margin={{ top: 5, right: 48, left: 8, bottom: 5 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3" stroke="hsl(var(--border))"
+                    opacity={0.35} horizontal={false}
+                  />
+                  <XAxis
+                    type="number" domain={[-1.5, 1.5]} fontSize={12}
+                    tickFormatter={(v) => `${v > 0 ? "+" : ""}${v.toFixed(1)}`}
+                    stroke="hsl(var(--muted-foreground))"
+                  />
+                  <YAxis
+                    type="category" dataKey="kompetensi"
+                    width={160} fontSize={12}
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fill: "hsl(var(--foreground))", fontWeight: 500 }}
+                  />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(v: number) => [
+                      `${v >= 0 ? "+" : ""}${v.toFixed(2)} (${v >= 0 ? "Aman" : "Perlu ditingkatkan"})`,
+                      "Gap",
+                    ]}
+                  />
+                  <ReferenceLine x={0} stroke="hsl(var(--foreground))" strokeWidth={1.5} />
+                  <Bar dataKey="gap" radius={[0, 6, 6, 0]} maxBarSize={30}>
+                    {gapData.map((d, i) => (
+                      <Cell key={i} fill={d.gap >= 0 ? C.green : C.red} />
                     ))}
-                    <LabelList dataKey="gap" position="right" fontSize={11} />
+                    <LabelList
+                      dataKey="gap"
+                      position="right"
+                      fontSize={12}
+                      fontWeight={600}
+                      formatter={(v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}`}
+                    />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           )}
         </div>
-        <aside className="rounded-lg border border-border bg-muted/30 p-4 text-sm leading-relaxed flex flex-col gap-3">
+
+        {/* ── Keterangan samping ── */}
+        <aside className="rounded-lg border border-border bg-muted/30 p-5 text-sm leading-relaxed flex flex-col gap-3">
           {view === "radar" ? (
             <>
-              <h4 className="font-semibold text-foreground">Cara Membaca Radar</h4>
+              <h4 className="font-semibold text-foreground text-[15px]">Cara Membaca Radar</h4>
               <p className="text-muted-foreground">
-                Nilai pada grafik merupakan <strong>rata-rata skor persepsi</strong> alumni terhadap kompetensi pada skala
-                <strong> 1–5</strong>:
+                Nilai pada grafik merupakan <strong>rata-rata skor persepsi</strong> alumni terhadap kompetensi pada skala{" "}
+                <strong>1–5</strong>:
               </p>
-              <ul className="space-y-1.5 text-xs">
-                <li className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded-sm" style={{ background: C.blue }} /> <span><strong>Saat Lulus</strong> — kompetensi yang dimiliki alumni saat lulus.</span></li>
-                <li className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded-sm" style={{ background: C.orange }} /> <span><strong>Kebutuhan Industri</strong> — ekspektasi industri terhadap kompetensi.</span></li>
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-center gap-2.5">
+                  <span
+                    className="inline-block w-4 h-4 rounded-sm shrink-0"
+                    style={{ background: C.blue }}
+                  />
+                  <span>
+                    <strong>Saat Lulus</strong> — kompetensi yang dimiliki alumni saat lulus.
+                  </span>
+                </li>
+                <li className="flex items-center gap-2.5">
+                  <span
+                    className="inline-block w-4 h-4 rounded-sm shrink-0"
+                    style={{ background: C.orange }}
+                  />
+                  <span>
+                    <strong>Kebutuhan Industri</strong> — ekspektasi industri terhadap kompetensi.
+                  </span>
+                </li>
               </ul>
-              <div className="text-xs text-muted-foreground border-t border-border pt-2 space-y-0.5">
+              <div className="text-sm text-muted-foreground border-t border-border pt-3 space-y-1">
                 <p><strong>1</strong> = sangat kecil / sangat kurang</p>
                 <p><strong>3</strong> = cukup</p>
                 <p><strong>5</strong> = sangat besar / sangat baik</p>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Semakin luas area biru menutup area oranye, semakin sesuai kompetensi lulusan dengan kebutuhan industri.
               </p>
             </>
           ) : (
             <>
-              <h4 className="font-semibold text-foreground">Cara Membaca Gap</h4>
+              <h4 className="font-semibold text-foreground text-[15px]">Cara Membaca Gap</h4>
               <p className="text-muted-foreground">
                 Bar menunjukkan <strong>selisih</strong> skor kompetensi lulusan terhadap kebutuhan industri.
               </p>
-              <ul className="space-y-2 text-xs">
-                <li className="flex items-start gap-2">
-                  <span className="inline-block w-3 h-3 rounded-sm mt-1 shrink-0" style={{ background: C.green }} />
-                  <span><strong>Hijau (positif)</strong> — kompetensi lulusan <em>melampaui</em> persepsi kebutuhan industri. Ini kondisi yang baik.</span>
+              <ul className="space-y-3 text-sm">
+                <li className="flex items-start gap-2.5">
+                  <span
+                    className="inline-block w-4 h-4 rounded-sm mt-0.5 shrink-0"
+                    style={{ background: C.green }}
+                  />
+                  <span>
+                    <strong>Hijau (positif)</strong> — kompetensi lulusan{" "}
+                    <em>melampaui</em> persepsi kebutuhan industri. Ini kondisi yang baik.
+                  </span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="inline-block w-3 h-3 rounded-sm mt-1 shrink-0" style={{ background: C.red }} />
-                  <span><strong>Merah (negatif)</strong> — kompetensi lulusan <em>di bawah</em> kebutuhan industri. Indikator yang perlu perhatian / perbaikan kurikulum.</span>
+                <li className="flex items-start gap-2.5">
+                  <span
+                    className="inline-block w-4 h-4 rounded-sm mt-0.5 shrink-0"
+                    style={{ background: C.red }}
+                  />
+                  <span>
+                    <strong>Merah (negatif)</strong> — kompetensi lulusan{" "}
+                    <em>di bawah</em> kebutuhan industri. Indikator yang perlu perhatian / perbaikan kurikulum.
+                  </span>
                 </li>
               </ul>
-              <p className="text-xs text-muted-foreground border-t border-border pt-2">
-                Klik bar untuk melihat data alumni terkait kompetensi tersebut.
-              </p>
             </>
           )}
         </aside>
       </div>
     </KpiCard>
-    <StudentDataModal isOpen={modal.open} onClose={() => setModal((m) => ({ ...m, open: false }))} title={modal.title} students={modal.students} columns={[]} />
-    </>
   );
 };
 

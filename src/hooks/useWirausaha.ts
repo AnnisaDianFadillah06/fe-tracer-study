@@ -134,9 +134,7 @@ export function useWirausahaBar() {
         signal: abortRef.current.signal,
       })
       .then((res) => {
-        const d = res?.data ?? res;
-        if (d?.data?.[0]) console.log("[BAR RAW ITEM]", JSON.stringify(d.data[0]));
-        setData(d);
+        setData(res?.data ?? res);
         setLoading(false);
       })
       .catch((err: any) => {

@@ -19,7 +19,7 @@ const DEFAULT_SUMMARY: SummaryCardItem[] = [
   { title: "Beasiswa", value: "36%", hint: "Pem. + Swasta", icon: GraduationCap, color: "bg-primary/10 text-primary" },
 ];
 
-type KpiKey = "k9" | "k10" | "k11";
+type KpiKey = "k11";
 
 interface Props {
   summary?: SummaryCardItem[];
@@ -41,8 +41,8 @@ const EducationPageContent = ({ summary = DEFAULT_SUMMARY, emptyKpis = [] }: Pro
             <TabsTrigger value="k10" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow rounded-lg px-4 py-2.5"><Sparkles className="w-4 h-4"/>Persepsi Metode Pembelajaran</TabsTrigger>
             <TabsTrigger value="k11" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow rounded-lg px-4 py-2.5"><Wallet className="w-4 h-4"/>Sumber Pembiayaan Kuliah</TabsTrigger>
           </TabsList>
-          <TabsContent value="k9"><Kpi9CompetencyGapChart isEmpty={isEmpty("k9")} /></TabsContent>
-          <TabsContent value="k10"><Kpi10LearningPerceptionChart isEmpty={isEmpty("k10")} /></TabsContent>
+          <TabsContent value="k9"><Kpi9CompetencyGapChart /></TabsContent>
+          <TabsContent value="k10"><Kpi10LearningPerceptionChart /></TabsContent>
           <TabsContent value="k11"><Kpi11FundingSourceChart isEmpty={isEmpty("k11")} /></TabsContent>
         </Tabs>
       </div>
