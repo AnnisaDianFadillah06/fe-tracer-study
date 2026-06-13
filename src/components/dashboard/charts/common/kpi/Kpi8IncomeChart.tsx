@@ -124,7 +124,7 @@ const Kpi8IncomeChart = () => {
                     n === "Rata-rata Gaji" ? [`Rp ${v.toFixed(2)} jt`, n] : [`${v}%`, n]
                   }
                 />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
                 <Bar
                   yAxisId="left"
                   dataKey="avg"
@@ -209,7 +209,7 @@ const Kpi8IncomeChart = () => {
                   label={{ value: "Persentase Lulusan (%)", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                 />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
                 <Bar
                   dataKey="below"
                   name="< 1,2× UMP"
