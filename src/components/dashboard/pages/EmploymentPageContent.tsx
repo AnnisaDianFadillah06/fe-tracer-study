@@ -78,20 +78,14 @@ const DEFAULT_SUMMARY: SummaryCardItem[] = [
   },
 ];
 
-type KpiKey = "k8";
-
 interface Props {
   summary?: SummaryCardItem[];
-  emptyKpis?: KpiKey[];
 }
 
 const EmploymentPageContent = ({
   summary = DEFAULT_SUMMARY,
-  emptyKpis = [],
 }: Props) => {
-  const { tahunLulus, week } = useGlobalFilters();
-  const tahunLabel = tahunLulus === "all" ? "Semua Tahun" : tahunLulus;
-  const isEmpty = (k: KpiKey) => emptyKpis.includes(k);
+  const { tahunLulus } = useGlobalFilters();
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-[1400px] mx-auto">
@@ -130,7 +124,7 @@ const EmploymentPageContent = ({
             <Kpi7EntrepreneurshipChart />
           </TabsContent>
           <TabsContent value="k8">
-            <Kpi8IncomeChart isEmpty={isEmpty("k8")} />
+            <Kpi8IncomeChart />
           </TabsContent>
           <TabsContent value="k12">
             <Kpi12WorkplaceDistributionChart />
