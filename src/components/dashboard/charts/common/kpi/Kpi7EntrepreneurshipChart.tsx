@@ -116,9 +116,20 @@ const Kpi7EntrepreneurshipChart = () => {
                 <YAxis domain={[0, 20]} tickFormatter={(v) => `${v}%`} fontSize={12} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip
                   contentStyle={tooltipStyle}
-                  formatter={(v: number, _n, p: any) =>
-                    [`${v}% (${p.payload.n}/${p.payload.total} lulusan)`, "Wirausaha"]
-                  }
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const bar = (payload as any[]).find((p) => p.name === "Wirausaha");
+                    if (!bar) return null;
+                    const d = bar.payload;
+                    return (
+                      <div style={{ ...tooltipStyle, padding: "8px 12px" }}>
+                        <p style={{ fontWeight: 600, marginBottom: 4 }}>{label}</p>
+                        <p style={{ color: bar.color }}>
+                          {`Wirausaha: ${bar.value}% (${d.n}/${d.total} lulusan)`}
+                        </p>
+                      </div>
+                    );
+                  }}
                 />
                 <Bar
                   dataKey="value" name="Wirausaha" radius={[6, 6, 0, 0]} maxBarSize={50}
@@ -153,7 +164,7 @@ const Kpi7EntrepreneurshipChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && pieData.length === 0}
           title="Distribusi Posisi Wirausaha"
-          subtitle="Periode aktif"
+          subtitle="Periode aktif — klik slice untuk lihat alumni"
           compareType="entrepreneurship"
           methodology={
             <MethodologyBlock
@@ -169,6 +180,8 @@ const Kpi7EntrepreneurshipChart = () => {
                   data={pieData} dataKey="value" nameKey="name" outerRadius={100}
                   activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
+                  cursor="pointer"
+                  onClick={(d: any) => openModal(`${d.name} (${d.value}% · ${d.count} alumni)`, d.name)}
                 >
                   {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
                 </Pie>
