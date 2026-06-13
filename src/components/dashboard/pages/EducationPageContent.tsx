@@ -1,9 +1,7 @@
-import { BookOpen, Sparkles, Wallet, GraduationCap, Award, Activity, Camera } from "lucide-react";
+import { BookOpen, Sparkles, Wallet, GraduationCap, Award, Activity } from "lucide-react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import SummaryCards, { SummaryCardItem } from "@/components/dashboard/SummaryCards";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import {
   Kpi9CompetencyGapChart,
   Kpi10LearningPerceptionChart,
@@ -19,17 +17,11 @@ const DEFAULT_SUMMARY: SummaryCardItem[] = [
   { title: "Beasiswa", value: "36%", hint: "Pem. + Swasta", icon: GraduationCap, color: "bg-primary/10 text-primary" },
 ];
 
-type KpiKey = "k11";
-
 interface Props {
   summary?: SummaryCardItem[];
-  emptyKpis?: KpiKey[];
 }
 
-const EducationPageContent = ({ summary = DEFAULT_SUMMARY, emptyKpis = [] }: Props) => {
-  const { tahunLulus, week } = useGlobalFilters();
-  const tahunLabel = tahunLulus === "all" ? "Semua Tahun" : tahunLulus;
-  const isEmpty = (k: KpiKey) => emptyKpis.includes(k);
+const EducationPageContent = ({ summary = DEFAULT_SUMMARY }: Props) => {
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-[1400px] mx-auto">
@@ -43,7 +35,7 @@ const EducationPageContent = ({ summary = DEFAULT_SUMMARY, emptyKpis = [] }: Pro
           </TabsList>
           <TabsContent value="k9"><Kpi9CompetencyGapChart /></TabsContent>
           <TabsContent value="k10"><Kpi10LearningPerceptionChart /></TabsContent>
-          <TabsContent value="k11"><Kpi11FundingSourceChart isEmpty={isEmpty("k11")} /></TabsContent>
+          <TabsContent value="k11"><Kpi11FundingSourceChart /></TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>

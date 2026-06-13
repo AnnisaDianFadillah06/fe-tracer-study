@@ -78,7 +78,7 @@ const DEFAULT_SUMMARY: SummaryCardItem[] = [
   },
 ];
 
-type KpiKey = "k4" | "k5" | "k6" | "k7" | "k8" | "k12";
+type KpiKey = "k8";
 
 interface Props {
   summary?: SummaryCardItem[];
@@ -133,7 +133,7 @@ const EmploymentPageContent = ({
             <Kpi8IncomeChart isEmpty={isEmpty("k8")} />
           </TabsContent>
           <TabsContent value="k12">
-            <Kpi12WorkplaceDistributionChart isEmpty={isEmpty("k12")} />
+            <Kpi12WorkplaceDistributionChart />
           </TabsContent>
         </Tabs>
       </div>
