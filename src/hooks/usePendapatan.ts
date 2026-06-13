@@ -203,6 +203,52 @@ export function usePendapatanDrillDown() {
 // Hook: usePendapatanBandingkan
 // ─────────────────────────────────────────────────────────────────────────────
 
+export function usePendapatanKelompokBandingkan(enabled: boolean) {
+  const searchParams = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search)
+    : new URLSearchParams();
+
+  const jenjang    = searchParams.get("jenjang")         ?? "";
+  const jurusan    = searchParams.get("jurusan")         ?? "";
+  const tahunLulus = searchParams.get("tahun_lulus")     ?? "";
+  const weekKey    = searchParams.get("minggu_snapshot") ?? "";
+
+  const paramKey = `${jenjang}|${jurusan}|${tahunLulus}|${weekKey}`;
+
+  const [data, setData]       = useState<PendapatanBandingkanResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const abortRef              = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+    setLoading(true);
+    setError(null);
+
+    const params: Record<string, string> = {};
+    if (jenjang)    params.jenjang         = jenjang;
+    if (jurusan)    params.jurusan         = jurusan;
+    if (tahunLulus) params.tahun_lulus     = tahunLulus;
+    if (weekKey)    params.minggu_snapshot = weekKey;
+
+    apiService
+      .get<any>("/dashboard/pendapatan/bandingkan-kelompok", { params, signal: abortRef.current.signal })
+      .then((res) => { setData(res?.data ?? res); setLoading(false); })
+      .catch((err: any) => {
+        if (err?.name === "CanceledError" || err?.name === "AbortError") return;
+        setError(err?.message ?? "Gagal memuat data perbandingan kelompok pendapatan");
+        setLoading(false);
+      });
+
+    return () => { abortRef.current?.abort(); };
+  }, [enabled, paramKey]);
+
+  return { data, loading, error };
+}
+
 export function usePendapatanBandingkan(enabled: boolean) {
   const searchParams = typeof window !== "undefined"
     ? new URLSearchParams(window.location.search)

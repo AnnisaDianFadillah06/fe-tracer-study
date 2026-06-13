@@ -42,6 +42,12 @@ import {
   useWirausahaBandingkan,
   useWirausahaDrillDown,
 } from "@/hooks/useWirausaha";
+import {
+  usePendapatanBandingkan,
+  usePendapatanKelompokBandingkan,
+  usePendapatanDrillDown,
+  PendapatanBandingkanItem,
+} from "@/hooks/usePendapatan";
 import { buildColorMap } from "@/lib/chartColors";
 import {
   MOCK_STUDENTS, Student,
@@ -219,24 +225,29 @@ const ComparePage = () => {
   const chartType      = searchParams.get("type")      || "gender";
   const indicatorParam = searchParams.get("indicator") || "kesesuaian";
 
-  const isAbsorption    = chartType === "absorption";
-  const isWaktuTunggu   = chartType === "waktuTunggu";
-  const isWirausaha     = chartType === "entrepreneurship";
-  const isTrendType     = chartType === "trend";
-  const isKepuasanType  = chartType === "kepuasan";
-  const isBeType        = isAbsorption || isWaktuTunggu || isWirausaha;
+  const isAbsorption      = chartType === "absorption";
+  const isWaktuTunggu     = chartType === "waktuTunggu";
+  const isWirausaha       = chartType === "entrepreneurship";
+  const isIncome          = chartType === "income";
+  const isIncomeKelompok  = chartType === "income-kelompok";
+  const isTrendType       = chartType === "trend";
+  const isKepuasanType    = chartType === "kepuasan";
+  const isBeType          = isAbsorption || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok;
 
   // selectedProdi hanya untuk tampilan chip — tidak dipakai untuk fetch
   // (fetch dilakukan berdasarkan filter aktif di GlobalFiltersContext)
   const selectedProdi: string[] = [];
 
   // ── Data BE ───────────────────────────────────────────────────────────────
-  const bandingkanHook   = useKeterserapanBandingkan(isAbsorption);
-  const drillHook        = useKeterserapanDrillDown();
-  const mtBandingkanHook = useMasaTungguBandingkan(isWaktuTunggu);
-  const mtDrillHook      = useMasaTungguDrillDown();
-  const wsBandingkanHook = useWirausahaBandingkan(isWirausaha);
-  const wsDrillHook      = useWirausahaDrillDown();
+  const bandingkanHook        = useKeterserapanBandingkan(isAbsorption);
+  const drillHook             = useKeterserapanDrillDown();
+  const mtBandingkanHook      = useMasaTungguBandingkan(isWaktuTunggu);
+  const mtDrillHook           = useMasaTungguDrillDown();
+  const wsBandingkanHook      = useWirausahaBandingkan(isWirausaha);
+  const wsDrillHook           = useWirausahaDrillDown();
+  const incomeBandingkanHook         = usePendapatanBandingkan(isIncome);
+  const incomeKelompokBandingkanHook = usePendapatanKelompokBandingkan(isIncomeKelompok);
+  const incomeDrillHook              = usePendapatanDrillDown();
 
   // ── Segment & warna dinamis dari BE ───────────────────────────────────────
   const { allLabels: beLabels, colorMap: beColorMap } = useMemo(() => {
@@ -278,6 +289,62 @@ const ComparePage = () => {
   const mtLabels   = ["< 3 bulan", "3-6 bulan", "> 6 bulan"];
   const mtColorMap = buildColorMap(mtLabels);
 
+  // Income — transform data BE ke stacked bar per prodi
+  const incomeChartData = useMemo(() => {
+    if (!isIncome || !incomeBandingkanHook.data?.chart) return [];
+    return (incomeBandingkanHook.data.chart as PendapatanBandingkanItem[]).map((item) => {
+      const row: Record<string, any> = {
+        prodi:    item.nama_prodi.length > 28 ? item.nama_prodi.slice(0, 26) + "…" : item.nama_prodi,
+        fullProdi: item.nama_prodi,
+        total:    item.total,
+        avg_gaji: item.avg_gaji,
+      };
+      item.statuses.forEach((s) => {
+        row[s.label] = s.pct;
+        row[`${s.label}Count`] = s.count;
+      });
+      return row;
+    });
+  }, [isIncome, incomeBandingkanHook.data]);
+
+  const incomeTableData = incomeBandingkanHook.data?.table ?? [];
+  const incomeLabels = useMemo(() => {
+    if (!incomeBandingkanHook.data?.chart?.length) return [];
+    const set = new Set<string>();
+    (incomeBandingkanHook.data.chart as PendapatanBandingkanItem[]).forEach((item) =>
+      item.statuses.forEach((s) => set.add(s.label))
+    );
+    return [...set];
+  }, [incomeBandingkanHook.data]);
+  const incomeColorMap = buildColorMap(incomeLabels);
+
+  // Income Kelompok — distribusi kelompok jt per prodi
+  const incomeKelompokChartData = useMemo(() => {
+    if (!isIncomeKelompok || !incomeKelompokBandingkanHook.data?.chart) return [];
+    return (incomeKelompokBandingkanHook.data.chart as PendapatanBandingkanItem[]).map((item) => {
+      const row: Record<string, any> = {
+        prodi:    item.nama_prodi.length > 28 ? item.nama_prodi.slice(0, 26) + "…" : item.nama_prodi,
+        fullProdi: item.nama_prodi,
+        total:    item.total,
+        avg_gaji: item.avg_gaji,
+      };
+      item.statuses.forEach((s) => {
+        row[s.label] = s.pct;
+        row[`${s.label}Count`] = s.count;
+      });
+      return row;
+    });
+  }, [isIncomeKelompok, incomeKelompokBandingkanHook.data]);
+
+  const incomeKelompokTableData = incomeKelompokBandingkanHook.data?.table ?? [];
+  const incomeKelompokLabels = ["< 5 jt", "5-8 jt", "8-12 jt", "> 12 jt"];
+  const incomeKelompokColorMap: Record<string, string> = {
+    "< 5 jt":  "#bfdbfe",
+    "5-8 jt":  "#60a5fa",
+    "8-12 jt": "#2563eb",
+    "> 12 jt": "#1e3a8a",
+  };
+
   // Wirausaha — transform data BE ke stacked bar per prodi
   const wsLabels   = ["Lokal", "Nasional", "Internasional"];
   const wsColorMap = buildColorMap(wsLabels);
@@ -301,7 +368,8 @@ const ComparePage = () => {
   // ── Modal absorption (BE — DrillDownModal) ────────────────────────────────
   const [beModal, setBeModal] = useState<{ open: boolean; title: string; status?: string }>({ open: false, title: "" });
   const [mtModal, setMtModal] = useState<{ open: boolean; title: string; rentang?: "0-3" | "3-6" | ">6" }>({ open: false, title: "" });
-  const [wsModal, setWsModal] = useState<{ open: boolean; title: string; tingkat?: string }>({ open: false, title: "" });
+  const [wsModal, setWsModal]         = useState<{ open: boolean; title: string; tingkat?: string }>({ open: false, title: "" });
+  const [incomeModal, setIncomeModal] = useState<{ open: boolean; title: string; segmen?: "above_ump" | "below_ump"; tahun_lulus?: string }>({ open: false, title: "" });
 
   const handleBeBarClick = (barData: any, statusLabel: string) => {
     setBeModal({ open: true, title: `${barData.fullProdi ?? barData.prodi} — ${statusLabel}`, status: statusLabel });
@@ -405,7 +473,12 @@ const ComparePage = () => {
 
   const chartHeight = Math.max(
     400,
-    (isAbsorption ? beChartData.length : isWaktuTunggu ? mtChartData.length : isWirausaha ? wsChartData.length : selectedProdi.length) * 52
+    (isAbsorption ? beChartData.length
+      : isWaktuTunggu ? mtChartData.length
+      : isWirausaha ? wsChartData.length
+      : isIncome ? incomeChartData.length
+      : isIncomeKelompok ? incomeKelompokChartData.length
+      : selectedProdi.length) * 52
   );
 
   const pageTitle = isAbsorption
@@ -414,6 +487,10 @@ const ComparePage = () => {
     ? "Perbandingan Masa Tunggu Kerja per Prodi"
     : isWirausaha
     ? "Perbandingan Lulusan Wirausaha per Prodi"
+    : isIncome
+    ? "Perbandingan Distribusi UMP per Prodi"
+    : isIncomeKelompok
+    ? "Perbandingan Kelompok Pendapatan per Prodi"
     : isTrendType
     ? `Heatmap Trend ${indicatorParam} per Prodi`
     : config?.title ?? "";
@@ -424,9 +501,17 @@ const ComparePage = () => {
     ? "Distribusi rentang masa tunggu mendapatkan pekerjaan per prodi"
     : isWirausaha
     ? "Distribusi tingkat wirausaha (Lokal / Nasional / Internasional) per prodi"
+    : isIncome
+    ? "Proporsi alumni ≥ 1,2× UMP vs < 1,2× UMP per program studi"
+    : isIncomeKelompok
+    ? "Distribusi pendapatan alumni per program studi"
     : isTrendType
     ? "Visualisasi persentase indikator per prodi per tahun"
     : config?.description ?? "";
+
+  const incomeProdiList = isIncomeKelompok
+    ? (incomeKelompokBandingkanHook.data?.prodi_list ?? [])
+    : (incomeBandingkanHook.data?.prodi_list ?? []);
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -445,14 +530,19 @@ const ComparePage = () => {
         </div>
 
         {/* Chip prodi */}
-        <div className="flex flex-wrap gap-2">
-          {selectedProdi.slice(0, 10).map((p) => (
-            <span key={p} className="px-3 py-1 bg-primary/20 text-primary rounded-full text-sm">{p}</span>
-          ))}
-          {selectedProdi.length > 10 && (
-            <span className="px-3 py-1 bg-muted text-muted-foreground rounded-full text-sm">+{selectedProdi.length - 10} lainnya</span>
-          )}
-        </div>
+        {(() => {
+          const chips = isIncome ? incomeProdiList : selectedProdi;
+          return chips.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {chips.slice(0, 10).map((p) => (
+                <span key={p} className="px-3 py-1 bg-primary/20 text-primary rounded-full text-sm">{p}</span>
+              ))}
+              {chips.length > 10 && (
+                <span className="px-3 py-1 bg-muted text-muted-foreground rounded-full text-sm">+{chips.length - 10} lainnya</span>
+              )}
+            </div>
+          ) : null;
+        })()}
 
         {/* ══════════════════════════════════════════════════════════════════
             ABSORPTION — data dari BE
@@ -758,6 +848,230 @@ const ComparePage = () => {
               error={wsDrillHook.error}
               contextColumn={{ key: "tingkat_instansi", label: "Tingkat" }}
               onPageChange={(page, search) => wsDrillHook.fetch({ tingkat: wsModal.tingkat!, page, search })}
+            />
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            INCOME — data dari BE
+        ══════════════════════════════════════════════════════════════════ */}
+        {isIncome && (
+          <>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
+              {incomeBandingkanHook.loading ? (
+                <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" /><span>Memuat data…</span>
+                </div>
+              ) : incomeBandingkanHook.error ? (
+                <div className="flex items-center justify-center h-64 text-destructive">{incomeBandingkanHook.error}</div>
+              ) : incomeChartData.length === 0 ? (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">Tidak ada data</div>
+              ) : (
+                <div className="overflow-y-auto max-h-[600px]">
+                  <div style={{ minHeight: chartHeight }}>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
+                      <BarChart data={incomeChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload) return null;
+                            const row = incomeChartData.find((d) => d.prodi === label);
+                            return (
+                              <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
+                                <p className="font-semibold mb-1">{row?.fullProdi ?? label}</p>
+                                <p className="text-xs text-muted-foreground mb-2">Total: {row?.total?.toLocaleString("id-ID")} alumni</p>
+                                {payload.map((e: any) => (
+                                  <p key={e.dataKey} style={{ color: e.color }} className="text-xs">
+                                    {e.dataKey}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count`]} alumni)
+                                  </p>
+                                ))}
+                              </div>
+                            );
+                          }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
+                        {incomeLabels.map((label) => (
+                          <Bar
+                            key={label} dataKey={label} stackId="a" fill={incomeColorMap[label]} cursor="pointer"
+                            onClick={(d: any) => {
+                              setIncomeModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}` });
+                              incomeDrillHook.fetch({ page: 1 });
+                            }}
+                          />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+
+            {/* Summary table income */}
+            {incomeTableData.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+                <h3 className="font-heading font-semibold mb-4">Ringkasan Data</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Total Alumni</th>
+                        {incomeLabels.map((l) => (
+                          <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{l}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(incomeTableData as PendapatanBandingkanItem[]).map((row) => {
+                        const sm = Object.fromEntries(row.statuses.map((s) => [s.label, s]));
+                        return (
+                          <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                            <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
+                            <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
+                            {incomeLabels.map((l) => {
+                              const s = sm[l];
+                              return (
+                                <td key={l} className="py-2 px-3">
+                                  {s ? (
+                                    <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: incomeColorMap[l] }}>
+                                      {s.pct}% ({s.count})
+                                    </span>
+                                  ) : <span className="text-muted-foreground text-xs">—</span>}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+
+            <DrillDownModal
+              isOpen={incomeModal.open}
+              onClose={() => setIncomeModal((m) => ({ ...m, open: false }))}
+              title={incomeModal.title}
+              data={incomeDrillHook.data as any}
+              loading={incomeDrillHook.loading}
+              error={incomeDrillHook.error}
+              contextColumn={{ key: "perusahaan", label: "Perusahaan" }}
+              onPageChange={(page, search) => incomeDrillHook.fetch({ page, search })}
+            />
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            INCOME KELOMPOK — kelompok jt per prodi (data dari BE)
+        ══════════════════════════════════════════════════════════════════ */}
+        {isIncomeKelompok && (
+          <>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
+              {incomeKelompokBandingkanHook.loading ? (
+                <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" /><span>Memuat data…</span>
+                </div>
+              ) : incomeKelompokBandingkanHook.error ? (
+                <div className="flex items-center justify-center h-64 text-destructive">{incomeKelompokBandingkanHook.error}</div>
+              ) : incomeKelompokChartData.length === 0 ? (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">Tidak ada data</div>
+              ) : (
+                <div className="overflow-y-auto max-h-[600px]">
+                  <div style={{ minHeight: chartHeight }}>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
+                      <BarChart data={incomeKelompokChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload) return null;
+                            const row = incomeKelompokChartData.find((d) => d.prodi === label);
+                            return (
+                              <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
+                                <p className="font-semibold mb-1">{row?.fullProdi ?? label}</p>
+                                <p className="text-xs text-muted-foreground mb-2">Total: {row?.total?.toLocaleString("id-ID")} alumni</p>
+                                {payload.map((e: any) => (
+                                  <p key={e.dataKey} style={{ color: e.color }} className="text-xs">
+                                    {e.dataKey}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count`]} alumni)
+                                  </p>
+                                ))}
+                              </div>
+                            );
+                          }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
+                        {incomeKelompokLabels.map((label) => (
+                          <Bar key={label} dataKey={label} stackId="a" fill={incomeKelompokColorMap[label]} cursor="pointer"
+                            onClick={(d: any) => {
+                              setIncomeModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}` });
+                              incomeDrillHook.fetch({ page: 1 });
+                            }}
+                          />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+
+            {incomeKelompokTableData.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+                <h3 className="font-heading font-semibold mb-4">Ringkasan Data</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Total Alumni</th>
+                        {incomeKelompokLabels.map((l) => (
+                          <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{l.toUpperCase()}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(incomeKelompokTableData as PendapatanBandingkanItem[]).map((row) => {
+                        const sm = Object.fromEntries(row.statuses.map((s) => [s.label, s]));
+                        return (
+                          <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                            <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
+                            <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
+                            {incomeKelompokLabels.map((l) => {
+                              const s = sm[l];
+                              return (
+                                <td key={l} className="py-2 px-3">
+                                  {s ? (
+                                    <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: incomeKelompokColorMap[l] }}>
+                                      {s.pct}% ({s.count})
+                                    </span>
+                                  ) : <span className="text-muted-foreground text-xs">—</span>}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+
+            <DrillDownModal
+              isOpen={incomeModal.open}
+              onClose={() => setIncomeModal((m) => ({ ...m, open: false }))}
+              title={incomeModal.title}
+              data={incomeDrillHook.data as any}
+              loading={incomeDrillHook.loading}
+              error={incomeDrillHook.error}
+              contextColumn={{ key: "perusahaan", label: "Perusahaan" }}
+              onPageChange={(page, search) => incomeDrillHook.fetch({ page, search })}
             />
           </>
         )}

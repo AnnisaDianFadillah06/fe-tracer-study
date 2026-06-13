@@ -76,7 +76,7 @@ const Kpi8IncomeChart = () => {
           empty={isEmpty}
           title="Tren Pendapatan & % Lulusan ≥ 1,2× UMP"
           subtitle={lamSubtitle(lam)}
-          compareType="income"
+          compareType="income-kelompok"
           headerExtra={<LamFilterControls lam={lam} />}
           methodology={
             <MethodologyBlock
