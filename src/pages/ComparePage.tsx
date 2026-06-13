@@ -34,6 +34,10 @@ import {
   useKeterserapanDrillDown,
   BandingkanProdiItem,
 } from "@/hooks/useKeterserapan";
+import {
+  useMasaTungguBandingkan,
+  useMasaTungguDrillDown,
+} from "@/hooks/useMasaTunggu";
 import { buildColorMap } from "@/lib/chartColors";
 import {
   MOCK_STUDENTS, Student,
@@ -78,15 +82,6 @@ const CHART_CONFIGS: Record<string, {
       { key: "cukup",      name: "Cukup Erat",        color: "#f59e0b", filter: (s) => s.kesesuaianBidang === "Cukup Erat" },
       { key: "kurang",     name: "Kurang Erat",       color: "#f97316", filter: (s) => s.kesesuaianBidang === "Kurang Erat" },
       { key: "tidak",      name: "Tidak Sesuai",      color: "#ef4444", filter: (s) => s.kesesuaianBidang === "Tidak Sesuai" },
-    ],
-  },
-  waktuTunggu: {
-    title: "Perbandingan Waktu Tunggu Kerja per Prodi",
-    description: "Distribusi waktu tunggu mendapatkan pekerjaan pertama",
-    getCategories: () => [
-      { key: "cepat",  name: "< 3 bulan", color: "#10b981", filter: (s) => s.waktuTunggu < 3 },
-      { key: "sedang", name: "3-6 bulan", color: "#f59e0b", filter: (s) => s.waktuTunggu >= 3 && s.waktuTunggu <= 6 },
-      { key: "lama",   name: "> 6 bulan", color: "#ef4444", filter: (s) => s.waktuTunggu > 6 },
     ],
   },
   perusahaan: {
@@ -221,16 +216,20 @@ const ComparePage = () => {
   const indicatorParam = searchParams.get("indicator") || "kesesuaian";
 
   const isAbsorption   = chartType === "absorption";
+  const isWaktuTunggu  = chartType === "waktuTunggu";
   const isTrendType    = chartType === "trend";
   const isKepuasanType = chartType === "kepuasan";
+  const isBeType       = isAbsorption || isWaktuTunggu;
 
   // selectedProdi hanya untuk tampilan chip — tidak dipakai untuk fetch
   // (fetch dilakukan berdasarkan filter aktif di GlobalFiltersContext)
   const selectedProdi: string[] = [];
 
-  // ── Data BE — hanya absorption ────────────────────────────────────────────
-  const bandingkanHook = useKeterserapanBandingkan(isAbsorption);
-  const drillHook      = useKeterserapanDrillDown();
+  // ── Data BE ───────────────────────────────────────────────────────────────
+  const bandingkanHook   = useKeterserapanBandingkan(isAbsorption);
+  const drillHook        = useKeterserapanDrillDown();
+  const mtBandingkanHook = useMasaTungguBandingkan(isWaktuTunggu);
+  const mtDrillHook      = useMasaTungguDrillDown();
 
   // ── Segment & warna dinamis dari BE ───────────────────────────────────────
   const { allLabels: beLabels, colorMap: beColorMap } = useMemo(() => {
@@ -249,8 +248,32 @@ const ComparePage = () => {
   );
   const beTableData = bandingkanHook.data?.table ?? [];
 
+  // Masa Tunggu — transform data BE ke stacked bar per prodi
+  const mtChartData = useMemo(() => {
+    if (!isWaktuTunggu || !mtBandingkanHook.data?.data) return [];
+    return mtBandingkanHook.data.data.map((d) => {
+      const total = d.count_tunggu_0_3_bulan + d.count_tunggu_3_6_bulan + d.count_tunggu_lebih_6_bulan || 1;
+      return {
+        prodi:            d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
+        fullProdi:        d.nama_prodi,
+        total,
+        "< 3 bulan":     Math.round(d.count_tunggu_0_3_bulan    / total * 100 * 10) / 10,
+        "3-6 bulan":     Math.round(d.count_tunggu_3_6_bulan    / total * 100 * 10) / 10,
+        "> 6 bulan":     Math.round(d.count_tunggu_lebih_6_bulan / total * 100 * 10) / 10,
+        "< 3 bulanCount": d.count_tunggu_0_3_bulan,
+        "3-6 bulanCount": d.count_tunggu_3_6_bulan,
+        "> 6 bulanCount": d.count_tunggu_lebih_6_bulan,
+        avg: d.avg_masa_tunggu_bekerja,
+      };
+    });
+  }, [isWaktuTunggu, mtBandingkanHook.data]);
+
+  const mtLabels   = ["< 3 bulan", "3-6 bulan", "> 6 bulan"];
+  const mtColorMap = buildColorMap(mtLabels);
+
   // ── Modal absorption (BE — DrillDownModal) ────────────────────────────────
   const [beModal, setBeModal] = useState<{ open: boolean; title: string; status?: string }>({ open: false, title: "" });
+  const [mtModal, setMtModal] = useState<{ open: boolean; title: string; rentang?: "0-3" | "3-6" | ">6" }>({ open: false, title: "" });
 
   const handleBeBarClick = (barData: any, statusLabel: string) => {
     setBeModal({ open: true, title: `${barData.fullProdi ?? barData.prodi} — ${statusLabel}`, status: statusLabel });
@@ -261,8 +284,8 @@ const ComparePage = () => {
     drillHook.fetch({ status: beModal.status, page, search });
   };
 
-  // ── Mock data (KPI selain absorption) ────────────────────────────────────
-  const config     = !isAbsorption && !isTrendType ? (CHART_CONFIGS[chartType] ?? CHART_CONFIGS.gender) : null;
+  // ── Mock data (KPI selain BE) ─────────────────────────────────────────────
+  const config     = !isBeType && !isTrendType ? (CHART_CONFIGS[chartType] ?? CHART_CONFIGS.gender) : null;
   const categories = config ? config.getCategories() : [];
 
   const [selectedCategory, setSelectedCategory]               = useState("");
@@ -278,7 +301,7 @@ const ComparePage = () => {
   const currentTrendCat  = trendCategories.find((c) => c.key === selectedCategory) ?? trendCategories[0];
 
   const mockChartData = useMemo(() => {
-    if (isAbsorption || isTrendType) return [];
+    if (isBeType || isTrendType) return [];
     return selectedProdi.map((prodiName) => {
       const prodiStudents = MOCK_STUDENTS.filter((s) => s.prodi === prodiName);
       const total = prodiStudents.length || 1;
@@ -306,7 +329,7 @@ const ComparePage = () => {
       }
       return row;
     });
-  }, [selectedProdi, chartType, categories, isAbsorption, isTrendType, isKepuasanType]);
+  }, [selectedProdi, chartType, categories, isBeType, isTrendType, isKepuasanType]);
 
   const heatmapData = useMemo(() => {
     if (!isTrendType) return [];
@@ -352,16 +375,23 @@ const ComparePage = () => {
     });
   };
 
-  const chartHeight = Math.max(400, selectedProdi.length * (isAbsorption ? 52 : 40));
+  const chartHeight = Math.max(
+    400,
+    (isAbsorption ? beChartData.length : isWaktuTunggu ? mtChartData.length : selectedProdi.length) * 52
+  );
 
   const pageTitle = isAbsorption
     ? "Perbandingan Keterserapan Lulusan per Prodi"
+    : isWaktuTunggu
+    ? "Perbandingan Masa Tunggu Kerja per Prodi"
     : isTrendType
     ? `Heatmap Trend ${indicatorParam} per Prodi`
     : config?.title ?? "";
 
   const pageDesc = isAbsorption
     ? "Distribusi status alumni per program studi (data real)"
+    : isWaktuTunggu
+    ? "Distribusi rentang masa tunggu mendapatkan pekerjaan per prodi"
     : isTrendType
     ? "Visualisasi persentase indikator per prodi per tahun"
     : config?.description ?? "";
@@ -494,6 +524,110 @@ const ComparePage = () => {
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
+            WAKTU TUNGGU — data dari BE
+        ══════════════════════════════════════════════════════════════════ */}
+        {isWaktuTunggu && (
+          <>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
+              {mtBandingkanHook.loading ? (
+                <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" /><span>Memuat data…</span>
+                </div>
+              ) : mtBandingkanHook.error ? (
+                <div className="flex items-center justify-center h-64 text-destructive">{mtBandingkanHook.error}</div>
+              ) : mtChartData.length === 0 ? (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">Tidak ada data</div>
+              ) : (
+                <div className="overflow-y-auto max-h-[600px]">
+                  <div style={{ minHeight: chartHeight }}>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
+                      <BarChart data={mtChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload) return null;
+                            const row = mtChartData.find((d) => d.prodi === label);
+                            return (
+                              <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
+                                <p className="font-semibold mb-1">{row?.fullProdi ?? label}</p>
+                                <p className="text-xs text-muted-foreground mb-1">Avg masa tunggu: {row?.avg} bln</p>
+                                {payload.map((e: any) => (
+                                  <p key={e.dataKey} style={{ color: e.color }} className="text-xs">
+                                    {e.dataKey}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count` as keyof typeof row]} alumni)
+                                  </p>
+                                ))}
+                              </div>
+                            );
+                          }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
+                        {mtLabels.map((label) => (
+                          <Bar
+                            key={label} dataKey={label} stackId="a" fill={mtColorMap[label]} cursor="pointer"
+                            onClick={(d: any) => {
+                              const rentang = label === "< 3 bulan" ? "0-3" : label === "3-6 bulan" ? "3-6" : ">6";
+                              setMtModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}`, rentang: rentang as any });
+                              mtDrillHook.fetch({ rentang: rentang as any });
+                            }}
+                          />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+
+            {/* Summary table masa tunggu */}
+            {mtChartData.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+                <h3 className="font-heading font-semibold mb-4">Ringkasan Data</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Avg (bln)</th>
+                        {mtLabels.map((l) => <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{l}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mtChartData.map((row) => (
+                        <tr key={row.fullProdi} className="border-t border-border/30 hover:bg-secondary/20">
+                          <td className="py-2 px-3 font-medium">{row.fullProdi}</td>
+                          <td className="py-2 px-3 text-muted-foreground">{row.avg}</td>
+                          {mtLabels.map((l) => (
+                            <td key={l} className="py-2 px-3">
+                              <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: mtColorMap[l] }}>
+                                {row[l as keyof typeof row]}% ({row[`${l}Count` as keyof typeof row]})
+                              </span>
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+
+            <DrillDownModal
+              isOpen={mtModal.open}
+              onClose={() => setMtModal((m) => ({ ...m, open: false }))}
+              title={mtModal.title}
+              data={mtDrillHook.data}
+              loading={mtDrillHook.loading}
+              error={mtDrillHook.error}
+              contextColumn={{ key: "masa_tunggu_bekerja", label: "Masa Tunggu (bln)" }}
+              onPageChange={(page, search) => mtDrillHook.fetch({ rentang: mtModal.rentang!, page, search })}
+            />
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
             TREND HEATMAP — mock
         ══════════════════════════════════════════════════════════════════ */}
         {isTrendType && (
@@ -553,7 +687,7 @@ const ComparePage = () => {
         {/* ══════════════════════════════════════════════════════════════════
             KPI LAIN — mock (stacked bar)
         ══════════════════════════════════════════════════════════════════ */}
-        {!isAbsorption && !isTrendType && (
+        {!isBeType && !isTrendType && (
           <>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
               {isKepuasanType && (

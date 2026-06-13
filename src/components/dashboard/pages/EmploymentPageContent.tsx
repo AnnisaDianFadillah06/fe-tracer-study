@@ -54,7 +54,7 @@ const EmploymentPageContent = ({ summary = DEFAULT_SUMMARY, emptyKpis = [] }: Pr
             ))}
           </TabsList>
           <TabsContent value="k4"><Kpi4AbsorptionChart isEmpty={isEmpty("k4")} /></TabsContent>
-          <TabsContent value="k5"><Kpi5WaitingTimeChart isEmpty={isEmpty("k5")} /></TabsContent>
+          <TabsContent value="k5"><Kpi5WaitingTimeChart /></TabsContent>
           <TabsContent value="k6"><Kpi6FieldRelevanceChart isEmpty={isEmpty("k6")} /></TabsContent>
           <TabsContent value="k7"><Kpi7EntrepreneurshipChart isEmpty={isEmpty("k7")} /></TabsContent>
           <TabsContent value="k8"><Kpi8IncomeChart isEmpty={isEmpty("k8")} /></TabsContent>

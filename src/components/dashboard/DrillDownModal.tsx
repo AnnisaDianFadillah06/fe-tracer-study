@@ -16,13 +16,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Search, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { DrillDownResponse, DrillDownStudent } from "@/hooks/useKeterserapan";
-
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface DrillDownData {
+  data: Record<string, any>[];
+  pagination: { page: number; per_page: number; total_on_page: number };
+}
+
 export interface ContextColumn {
-  /** key field di DrillDownStudent */
-  key: keyof DrillDownStudent | string;
+  key: string;
   label: string;
 }
 
@@ -31,7 +33,7 @@ interface Props {
   onClose: () => void;
   title: string;
   /** Data respons dari BE (null saat belum load) */
-  data: DrillDownResponse | null;
+  data: DrillDownData | null;
   loading: boolean;
   error: string | null;
   /** Kolom tambahan sesuai konteks KPI */
@@ -89,7 +91,7 @@ const DrillDownModal = ({
     onPageChange(page, search);
   }, [onPageChange, search]);
 
-  const students: DrillDownStudent[] = data?.data ?? [];
+  const students = data?.data ?? [];
   const pagination = data?.pagination;
   const totalOnPage = pagination?.total_on_page ?? 0;
   const perPage = pagination?.per_page ?? 15;

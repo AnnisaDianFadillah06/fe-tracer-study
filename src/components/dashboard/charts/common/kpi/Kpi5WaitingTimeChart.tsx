@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -14,44 +14,86 @@ import {
   Cell,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
-import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MethodologyBlock } from "./Methodology";
-import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
+import { useMasaTungguBar, useMasaTungguDistribusi, useMasaTungguDrillDown } from "@/hooks/useMasaTunggu";
+import DrillDownModal from "@/components/dashboard/DrillDownModal";
+import { buildColorMap } from "@/lib/chartColors";
 
-const defaultCombo = [
-  { year: "2021", pct: 62, n: 124, total: 200 },
-  { year: "2022", pct: 70, n: 154, total: 220 },
-  { year: "2023", pct: 78, n: 187, total: 240 },
-  { year: "2024", pct: 85, n: 221, total: 260 },
-];
-const defaultDist = [
-  { cat: "< 3 bulan", value: 58, color: C.green },
-  { cat: "3-6 bulan", value: 28, color: C.blue },
-  { cat: "> 6 bulan", value: 14, color: C.orange },
-];
+const CONTEXT_COLUMN = { key: "masa_tunggu_bekerja", label: "Masa Tunggu (bln)" };
 
-interface Props {
-  comboData?: typeof defaultCombo;
-  distData?: typeof defaultDist;
-  loading?: boolean;
-  error?: string | null;
-  isEmpty?: boolean;
-}
+const Kpi5WaitingTimeChart = () => {
+  const barHook        = useMasaTungguBar();
+  const distribusiHook = useMasaTungguDistribusi();
+  const drillHook      = useMasaTungguDrillDown();
+  const lam            = useLamFilter("waitingTime");
 
-const Kpi5WaitingTimeChart = ({ comboData = defaultCombo, distData = defaultDist, loading, error, isEmpty }: Props) => {
-  const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
-  const lam = useLamFilter("waitingTime");
-  const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, n) });
+  const [modal, setModal] = useState<{
+    open: boolean;
+    title: string;
+    rentang?: "0-3" | "3-6" | ">6";
+  }>({ open: false, title: "" });
 
-  // Hanya tampilkan ReferenceLine jika threshold tersedia (prodi spesifik)
+  const openModal = (title: string, rentang: "0-3" | "3-6" | ">6") => {
+    setModal({ open: true, title, rentang });
+    drillHook.fetch({ rentang, page: 1 });
+  };
+
+  const handlePageChange = (page: number, search?: string) => {
+    if (!modal.rentang) return;
+    drillHook.fetch({ rentang: modal.rentang, page, search });
+  };
+
+  // Aggregate bar data: per-prodi/tahun → per tahun (sum count, hitung pct)
+  const comboData = useMemo(() => {
+    if (!barHook.data?.data) return [];
+    const byTahun = new Map<string, { total: number; totalCepat: number }>();
+    barHook.data.data.forEach((d) => {
+      const cur = byTahun.get(d.tahun_lulus) ?? { total: 0, totalCepat: 0 };
+      byTahun.set(d.tahun_lulus, {
+        total:      cur.total      + d.count_alumni,
+        totalCepat: cur.totalCepat + d.count_masa_tunggu_cepat,
+      });
+    });
+    return [...byTahun.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([year, v]) => ({
+        year,
+        pct:   v.total > 0 ? Math.round((v.totalCepat / v.total) * 100 * 10) / 10 : 0,
+        n:     v.totalCepat,
+        total: v.total,
+      }));
+  }, [barHook.data]);
+
+  // Aggregate distribusi: semua prodi/tahun → total per rentang
+  const distData = useMemo(() => {
+    if (!distribusiHook.data?.data) return [];
+    let t03 = 0, t36 = 0, t6plus = 0;
+    distribusiHook.data.data.forEach((d) => {
+      t03    += d.count_tunggu_0_3_bulan;
+      t36    += d.count_tunggu_3_6_bulan;
+      t6plus += d.count_tunggu_lebih_6_bulan;
+    });
+    const total = t03 + t36 + t6plus || 1;
+    const colorMap = buildColorMap(["< 3 bulan", "3-6 bulan", "> 6 bulan"]);
+    return [
+      { cat: "< 3 bulan", value: Math.round(t03    / total * 100 * 10) / 10, rentang: "0-3"  as const, color: colorMap["< 3 bulan"] },
+      { cat: "3-6 bulan", value: Math.round(t36    / total * 100 * 10) / 10, rentang: "3-6"  as const, color: colorMap["3-6 bulan"] },
+      { cat: "> 6 bulan", value: Math.round(t6plus / total * 100 * 10) / 10, rentang: ">6"   as const, color: colorMap["> 6 bulan"] },
+    ];
+  }, [distribusiHook.data]);
+
   const showRefLine = !lam.isDisabled && !!lam.threshold;
+  const isLoading   = barHook.loading || distribusiHook.loading;
+  const hasError    = barHook.error || distribusiHook.error;
 
   return (
     <>
       <div className="grid lg:grid-cols-2 gap-4">
+        {/* ── Bar: tren % ≤ 6 bulan ── */}
         <KpiCard
-          loading={loading} error={error} empty={isEmpty}
+          loading={isLoading} error={hasError}
+          empty={!isLoading && comboData.length === 0}
           title="% Lulusan Mendapat Kerja dalam ≤ 6 Bulan"
           subtitle={lamSubtitle(lam)}
           compareType="waktuTunggu"
@@ -79,12 +121,16 @@ const Kpi5WaitingTimeChart = ({ comboData = defaultCombo, distData = defaultDist
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}
-                  formatter={(v: number, _name, p: any) => [`${v}% (${p.payload.n}/${p.payload.total} lulusan)`, "≤ 6 bulan"]}
+                  formatter={(v: number, _name, p: any) =>
+                    [`${v}% (${p.payload.n}/${p.payload.total} lulusan)`, "≤ 6 bulan"]
+                  }
                 />
                 <Bar
                   dataKey="pct" name="% ≤ 6 bln" radius={[6, 6, 0, 0]} maxBarSize={60}
                   cursor="pointer"
-                  onClick={(d: any) => openModal(`Lulusan ≤ 6 bln — ${d.year} (${d.pct}% • ${d.n}/${d.total})`, d.n)}
+                  onClick={(d: any) => openModal(
+                    `Lulusan ≤ 6 bln — ${d.year} (${d.pct}% • ${d.n}/${d.total})`, "0-3"
+                  )}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
                   {comboData.map((d) => (
@@ -107,10 +153,12 @@ const Kpi5WaitingTimeChart = ({ comboData = defaultCombo, distData = defaultDist
           </div>
         </KpiCard>
 
+        {/* ── Bar horizontal: distribusi rentang ── */}
         <KpiCard
-          loading={loading} error={error} empty={isEmpty}
+          loading={isLoading} error={hasError}
+          empty={!isLoading && distData.length === 0}
           title="Distribusi Kategori Masa Tunggu"
-          subtitle="Periode terakhir — sumbu X: % lulusan"
+          subtitle="Semua periode aktif — sumbu X: % lulusan"
           compareType="waktuTunggu"
           methodology={
             <MethodologyBlock
@@ -132,12 +180,10 @@ const Kpi5WaitingTimeChart = ({ comboData = defaultCombo, distData = defaultDist
                 <Bar
                   dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={40}
                   cursor="pointer"
-                  onClick={(d: any) => openModal(`Masa tunggu ${d.cat} (${d.value}%)`, d.value)}
+                  onClick={(d: any) => openModal(`Masa tunggu ${d.cat} (${d.value}%)`, d.rentang)}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
-                  {distData.map((d, i) => (
-                    <Cell key={i} fill={d.color} />
-                  ))}
+                  {distData.map((d, i) => <Cell key={i} fill={d.color} />)}
                   <LabelList dataKey="value" position="center" fill="#fff" fontSize={12} fontWeight={600} formatter={(v: number) => `${v}%`} />
                 </Bar>
               </BarChart>
@@ -145,9 +191,17 @@ const Kpi5WaitingTimeChart = ({ comboData = defaultCombo, distData = defaultDist
           </div>
         </KpiCard>
       </div>
-      <StudentDataModal
-        isOpen={modal.open} onClose={() => setModal((m) => ({ ...m, open: false }))}
-        title={modal.title} students={modal.students} columns={[]}
+
+      {/* ── Drill-down Modal ── */}
+      <DrillDownModal
+        isOpen={modal.open}
+        onClose={() => setModal((m) => ({ ...m, open: false }))}
+        title={modal.title}
+        data={drillHook.data}
+        loading={drillHook.loading}
+        error={drillHook.error}
+        contextColumn={CONTEXT_COLUMN}
+        onPageChange={handlePageChange}
       />
     </>
   );
