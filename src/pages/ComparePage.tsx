@@ -227,6 +227,7 @@ const ComparePage = () => {
   const indicatorParam = searchParams.get("indicator") || "kesesuaian";
 
   const isAbsorption      = chartType === "absorption";
+  const isStatusDistrib   = chartType === "status";        // distribusi status per prodi (BE)
   const isWaktuTunggu     = chartType === "waktuTunggu";
   const isWirausaha       = chartType === "entrepreneurship";
   const isIncome          = chartType === "income";
@@ -235,14 +236,15 @@ const ComparePage = () => {
   const isTingkatInstansi = chartType === "tingkatInstansi";
   const isTrendType       = chartType === "trend";
   const isKepuasanType    = chartType === "kepuasan";
-  const isBeType          = isAbsorption || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok || isJenisInstansi || isTingkatInstansi;
+  const isKeterserapanBE  = isAbsorption || isStatusDistrib;
+  const isBeType          = isKeterserapanBE || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok || isJenisInstansi || isTingkatInstansi;
 
   // selectedProdi hanya untuk tampilan chip — tidak dipakai untuk fetch
   // (fetch dilakukan berdasarkan filter aktif di GlobalFiltersContext)
   const selectedProdi: string[] = [];
 
   // ── Data BE ───────────────────────────────────────────────────────────────
-  const bandingkanHook        = useKeterserapanBandingkan(isAbsorption);
+  const bandingkanHook        = useKeterserapanBandingkan(isKeterserapanBE);
   const drillHook             = useKeterserapanDrillDown();
   const mtBandingkanHook      = useMasaTungguBandingkan(isWaktuTunggu);
   const mtDrillHook           = useMasaTungguDrillDown();
@@ -263,10 +265,10 @@ const ComparePage = () => {
   }, [bandingkanHook.data]);
 
   const beChartData = useMemo(
-    () => (isAbsorption && bandingkanHook.data?.chart)
+    () => (isKeterserapanBE && bandingkanHook.data?.chart)
       ? buildBeChartData(bandingkanHook.data.chart)
       : [],
-    [bandingkanHook.data, isAbsorption]
+    [bandingkanHook.data, isKeterserapanBE]
   );
   const beTableData = bandingkanHook.data?.table ?? [];
 
@@ -539,7 +541,7 @@ const ComparePage = () => {
 
   const chartHeight = Math.max(
     400,
-    (isAbsorption ? beChartData.length
+    (isKeterserapanBE ? beChartData.length
       : isWaktuTunggu ? mtChartData.length
       : isWirausaha ? wsChartData.length
       : isIncome ? incomeChartData.length
@@ -549,7 +551,9 @@ const ComparePage = () => {
       : selectedProdi.length) * 52
   );
 
-  const pageTitle = isAbsorption
+  const pageTitle = isStatusDistrib
+    ? "Perbandingan Distribusi Status Alumni per Prodi"
+    : isAbsorption
     ? "Perbandingan Keterserapan Lulusan per Prodi"
     : isWaktuTunggu
     ? "Perbandingan Masa Tunggu Kerja per Prodi"
@@ -567,7 +571,9 @@ const ComparePage = () => {
     ? `Heatmap Trend ${indicatorParam} per Prodi`
     : config?.title ?? "";
 
-  const pageDesc = isAbsorption
+  const pageDesc = isStatusDistrib
+    ? "Distribusi lengkap status keterserapan per program studi (data real)"
+    : isAbsorption
     ? "Distribusi status alumni per program studi (data real)"
     : isWaktuTunggu
     ? "Distribusi rentang masa tunggu mendapatkan pekerjaan per prodi"
@@ -625,9 +631,9 @@ const ComparePage = () => {
         })()}
 
         {/* ══════════════════════════════════════════════════════════════════
-            ABSORPTION — data dari BE
+            KETERSERAPAN (absorption + status distribution) — data dari BE
         ══════════════════════════════════════════════════════════════════ */}
-        {isAbsorption && (
+        {isKeterserapanBE && (
           <>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
               {bandingkanHook.loading ? (
