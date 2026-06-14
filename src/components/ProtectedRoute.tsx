@@ -1,22 +1,15 @@
-import { ReactNode } from "react";
+// src/components/ProtectedRoute.tsx
 import { Navigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 
-interface ProtectedRouteProps {
-  children: ReactNode;
-  requiredRole?: string;
-}
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, isLoading } = useAuth();
 
-export const ProtectedRoute = ({
-  children,
-  requiredRole,
-}: ProtectedRouteProps) => {
-  const { isAuthenticated, isLoading, user } = useAuth();
-
+  // Tunggu checkAuth selesai dulu — jangan redirect prematur
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-lg text-muted-foreground">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center">
+        <span className="text-muted-foreground text-sm">Memuat...</span>
       </div>
     );
   }
@@ -25,9 +18,7 @@ export const ProtectedRoute = ({
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && user?.role !== requiredRole) {
-    return <Navigate to="/" replace />;
-  }
-
   return <>{children}</>;
 };
+
+export default ProtectedRoute;

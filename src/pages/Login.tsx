@@ -7,29 +7,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import PolbanLogo from "@/components/PolbanLogo";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { login, isLoading } = useAuth(); // ✅ pakai hook
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-
-    // Simulate login
-    setTimeout(() => {
-      setIsLoading(false);
-      toast({
-        title: "Login Berhasil",
-        description: "Selamat datang di Dashboard Tracer Study",
-      });
+    try {
+      await login(email, password);
       navigate("/dashboard/overview");
-    }, 1500);
+    } catch {
+    }
   };
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   navigate("/dashboard/overview"); // langsung bypass, skip login()
+  // };
 
   return (
     <div className="min-h-screen bg-background flex">

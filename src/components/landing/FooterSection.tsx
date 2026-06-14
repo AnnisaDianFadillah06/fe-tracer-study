@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
-import { Mail, Phone, MapPin } from "lucide-react";
-import PolbanLogo from "@/components/PolbanLogo";
+import { GraduationCap, Mail, Phone, MapPin } from "lucide-react";
 
 const FooterSection = () => {
   return (
@@ -9,7 +8,15 @@ const FooterSection = () => {
         <div className="grid md:grid-cols-4 gap-12">
           {/* Brand */}
           <div className="md:col-span-2">
-            <PolbanLogo className="mb-4" compact title="Tracer Study" subtitle="POLBAN" />
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-orange-light flex items-center justify-center">
+                <GraduationCap className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <div>
+                <span className="font-heading font-bold text-lg">Tracer Study</span>
+                <span className="text-xs text-muted-foreground block -mt-1">POLBAN</span>
+              </div>
+            </div>
             <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mb-6">
               Platform analitik komprehensif untuk penelusuran alumni Politeknik Negeri Bandung. 
               Mendukung penjaminan mutu pendidikan dengan data-driven insights.

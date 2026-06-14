@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
+  GraduationCap, 
   LayoutDashboard, 
-  BarChart3, 
   ChevronLeft, 
   ChevronRight,
   LogOut,
@@ -15,6 +15,11 @@ import {
   BookOpen,
   UserCog,
   ClipboardList,
+  FileText,
+  Gauge,
+  Target,
+  Radio,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +33,9 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import RoleSwitcher from "@/components/dashboard/RoleSwitcher";
 import { useRole } from "@/contexts/RoleContext";
 import { Badge } from "@/components/ui/badge";
-import PolbanLogo from "@/components/PolbanLogo";
+import GlobalFilters from "@/components/dashboard/GlobalFilters";
+import { GlobalFiltersProvider } from "@/contexts/GlobalFiltersContext";
+import DownloadDataButton from "@/components/dashboard/DownloadDataButton";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -37,28 +44,28 @@ interface DashboardLayoutProps {
 // Navigation items — role-agnostic routes
 const navItems = [
   {
-    title: "Overview",
+    title: "Monitoring Operasional",
     icon: LayoutDashboard,
     href: "/dashboard/overview",
-    description: "High-level KPI metrics",
+    description: "Pemantauan pengisian tracer study",
   },
   {
-    title: "Employment Outcome",
+    title: "Luaran Pekerjaan",
     icon: Briefcase,
     href: "/dashboard/employment",
-    description: "Job placement & career",
+    description: "Penempatan & karier alumni",
   },
   {
-    title: "Educational Assessment",
+    title: "Evaluasi Pendidikan",
     icon: BookOpen,
     href: "/dashboard/education",
-    description: "Kompetensi & learning",
+    description: "Kompetensi & pembelajaran",
   },
   {
-    title: "Analitik",
-    icon: BarChart3,
-    href: "/dashboard/analytics",
-    description: "Clustering & Survival",
+    title: "Ringkasan KPI",
+    icon: Gauge,
+    href: "/dashboard/kpi",
+    description: "Gabungan 13 KPI tracer",
   },
 ];
 
@@ -67,7 +74,14 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const location = useLocation();
   const { currentRole, selectedProdi, roleLabels } = useRole();
 
+  // Show GlobalFilters on dashboard data pages (overview/employment/education/kpi)
+  const showGlobalFilters = /\/dashboard\/(overview|employment|education|kpi)/.test(location.pathname);
+  const filtersMode = currentRole === "kaprodi" ? "kaprodi" : "full";
+  const isRealtimePage = /\/dashboard\/overview/.test(location.pathname);
+  const todayId = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+
   return (
+    <GlobalFiltersProvider>
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
       <motion.aside
@@ -79,7 +93,23 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Logo */}
         <div className="p-4 border-b border-sidebar-border">
           <Link to="/dashboard/overview" className="flex items-center gap-3">
-            <PolbanLogo compact title="Tracer Study" subtitle="Dashboard" showText={!collapsed} />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-orange-light flex items-center justify-center flex-shrink-0">
+              <GraduationCap className="w-6 h-6 text-primary-foreground" />
+            </div>
+            {!collapsed && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <span className="font-heading font-bold text-lg text-sidebar-foreground">
+                  Tracer Study
+                </span>
+                <span className="text-xs text-muted-foreground block -mt-1">
+                  Dashboard
+                </span>
+              </motion.div>
+            )}
           </Link>
         </div>
 
@@ -134,7 +164,10 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           {[
             { href: "/dashboard/team-management", icon: Users, title: "Tim Koordinator", desc: "Kelola tim tracer" },
             { href: "/dashboard/student-management", icon: UserCog, title: "Akun Mahasiswa", desc: "CRUD akun kuesioner" },
-            { href: "/dashboard/form-management", icon: ClipboardList, title: "Form Management", desc: "Kelola formulir dan hasil respon" },
+            { href: "/dashboard/question-management", icon: ClipboardList, title: "Pertanyaan", desc: "Manajemen kuesioner" },
+            { href: "/dashboard/form-preview", icon: FileText, title: "Preview Form", desc: "Lihat tampilan form" },
+            { href: "/dashboard/threshold-management", icon: Target, title: "Threshold", desc: "Nilai LAM/BAN-PT" },
+            { href: "/dashboard/master-ump", icon: Wallet, title: "Master UMP", desc: "Data UMP per provinsi" },
           ].map((item) => {
             const isActive = location.pathname === item.href;
             return (
@@ -156,6 +189,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             );
           })}
         </nav>
+
+        {/* Role Switcher pinned to bottom */}
+        {!collapsed && (
+          <div className="p-3 border-t border-sidebar-border">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pb-2">
+              Beralih Peran (Demo)
+            </p>
+            <RoleSwitcher />
+          </div>
+        )}
 
         {/* Collapse Toggle */}
         <div className="p-4 border-t border-sidebar-border">
@@ -185,9 +228,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Top Bar */}
         <header className="sticky top-0 z-30 h-16 bg-background/80 backdrop-blur-lg border-b border-border flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
-            {/* Role Switcher */}
-            <RoleSwitcher />
-            
             {/* Current page info */}
             <div className="hidden md:block">
               <h1 className="font-heading font-semibold text-lg">
@@ -200,6 +240,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Realtime indicator (Overview only) */}
+            {isRealtimePage && (
+              <Badge
+                variant="outline"
+                className="hidden md:flex h-8 px-3 gap-1.5 items-center text-xs border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              >
+                <Radio className="w-3.5 h-3.5 animate-pulse" /> Realtime — {todayId}
+              </Badge>
+            )}
+
             {/* Prodi indicator for Kaprodi */}
             {selectedProdi && (
               <Badge variant="secondary" className="hidden md:flex">
@@ -208,6 +258,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             )}
 
             {/* Theme Toggle */}
+            {showGlobalFilters && <DownloadDataButton />}
             <ThemeToggle />
 
             {/* Notifications */}
@@ -251,12 +302,20 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
         </header>
 
+        {/* Sticky Global Filters under the top bar */}
+        {showGlobalFilters && (
+          <div className="sticky top-16 z-20">
+            <GlobalFilters mode={filtersMode} kaprodiName={selectedProdi ?? undefined} />
+          </div>
+        )}
+
         {/* Page Content */}
         <main className="flex-1 p-6 overflow-auto">
           {children}
         </main>
       </div>
     </div>
+    </GlobalFiltersProvider>
   );
 };
 
