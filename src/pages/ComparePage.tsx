@@ -429,13 +429,22 @@ const ComparePage = () => {
   const [incomeModal, setIncomeModal] = useState<{ open: boolean; title: string; segmen?: "above_ump" | "below_ump"; tahun_lulus?: string }>({ open: false, title: "" });
 
   const handleBeBarClick = (barData: any, statusLabel: string) => {
-    setBeModal({ open: true, title: `${barData.fullProdi ?? barData.prodi} — ${statusLabel}`, status: statusLabel });
+    setBeModal({ open: true, title: `${barData.fullProdi ?? barData.prodi} — ${getShortLabel(statusLabel)}`, status: statusLabel });
     drillHook.fetch({ status: statusLabel });
   };
 
   const handleBePageChange = (page: number, search?: string) => {
     drillHook.fetch({ status: beModal.status, page, search });
   };
+
+  const beModalData = useMemo(() => {
+    if (!drillHook.data) return null;
+    const statusDisplay = getShortLabel(beModal.status ?? '');
+    return {
+      ...drillHook.data,
+      data: drillHook.data.data.map((row) => ({ ...row, status: statusDisplay })),
+    };
+  }, [drillHook.data, beModal.status]);
 
   // ── Mock data (KPI selain BE) ─────────────────────────────────────────────
   const config     = !isBeType && !isTrendType ? (CHART_CONFIGS[chartType] ?? CHART_CONFIGS.gender) : null;
@@ -707,7 +716,7 @@ const ComparePage = () => {
               isOpen={beModal.open}
               onClose={() => setBeModal((m) => ({ ...m, open: false }))}
               title={beModal.title}
-              data={drillHook.data}
+              data={beModalData}
               loading={drillHook.loading}
               error={drillHook.error}
               contextColumn={{ key: "status", label: "Status" }}

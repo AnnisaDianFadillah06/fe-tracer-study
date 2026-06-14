@@ -69,10 +69,11 @@ const Kpi4AbsorptionChart = () => {
     const labels = pieHook.data.data.map((d) => d.status);
     const colorMap = buildColorMap(labels);
     return pieHook.data.data.map((d) => ({
-      name: getShortLabel(d.status),
-      value: d.pct,
-      count: d.count,
-      color: colorMap[d.status],
+      name:      getShortLabel(d.status),
+      olapLabel: d.status,           // label OLAP asli untuk filter ke BE
+      value:     d.pct,
+      count:     d.count,
+      color:     colorMap[d.status],
     }));
   }, [pieHook.data]);
 
@@ -185,10 +186,9 @@ const Kpi4AbsorptionChart = () => {
                   activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                   cursor="pointer"
-                  // fix #3: modal pie tidak tampilkan kolom status
                   onClick={(d: any) => openFromPie(
                     `${d.name} — ${d.value}% (${d.count?.toLocaleString("id-ID")} alumni)`,
-                    d.name
+                    d.olapLabel ?? d.name
                   )}
                 >
                   {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
