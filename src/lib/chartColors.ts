@@ -10,16 +10,23 @@
  */
 
 const KNOWN_SEGMENT_COLORS: Record<string, string> = {
-  // ── Keterserapan / Status alumni ──────────────────────────────────────────
+  // ── Keterserapan / Status alumni (label pendek — mock data) ──────────────
   "Bekerja":             "#10b981", // green  (sesuai CHART_CONFIGS status)
   "Mencari Kerja":       "#f59e0b", // amber
   "Studi Lanjut":        "#0ea5e9", // sky
-  "Melanjutkan Studi":   "#0ea5e9", // sky    (alias BE)
-  "Wiraswasta":          "#8b5cf6", // violet
-  "Wirausaha":           "#8b5cf6", // violet (alias BE)
+  "Melanjutkan Studi":   "#0ea5e9", // sky    (alias)
+  "Berwirausaha":        "#10b981", // green  (alias display KPI4)
+  "Wiraswasta":          "#10b981", // green  (OLAP label → tampil sebagai Berwirausaha)
+  "Wirausaha":           "#10b981", // green  (alias lama)
   "Studi & Bekerja":     "#3b82f6", // blue
   "Belum Bekerja":       "#6b7280", // slate
   "Tidak Mencari Kerja": "#f97316", // orange
+
+  // ── OLAP long-form labels (dim_status_alumni) ─────────────────────────────
+  "Bekerja (full time / part time)":         "#3b82f6", // blue  (design: Bekerja)
+  "Melanjutkan Pendidikan":                   "#8b5cf6", // purple (design: Melanjutkan Studi)
+  "Tidak kerja tetapi sedang mencari kerja":  "#f59e0b", // amber  (design: Mencari Kerja)
+  "Belum memungkinkan bekerja":               "#9ca3af", // gray   (design: Belum Bekerja)
 
   // aggregate label dari endpoint bar
   "terserap": "#3b82f6",
@@ -88,4 +95,18 @@ export function buildColorMap(labels: string[]): Record<string, string> {
       return [label, color];
     })
   );
+}
+
+// ─── Label pendek untuk OLAP long-form labels ─────────────────────────────────
+
+const OLAP_SHORT_LABELS: Record<string, string> = {
+  "Bekerja (full time / part time)":         "Bekerja",
+  "Wiraswasta":                              "Berwirausaha",
+  "Melanjutkan Pendidikan":                  "Melanjutkan Studi",
+  "Tidak kerja tetapi sedang mencari kerja": "Mencari Kerja",
+  "Belum memungkinkan bekerja":              "Belum Bekerja",
+};
+
+export function getShortLabel(label: string): string {
+  return OLAP_SHORT_LABELS[label] ?? label;
 }

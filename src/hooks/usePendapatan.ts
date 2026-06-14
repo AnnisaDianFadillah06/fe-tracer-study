@@ -10,11 +10,11 @@ import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 export interface PendapatanBarItem {
   tahun_lulus: string;
   avg_gaji: number;
-  min_gaji: number;
-  max_gaji: number;
+  min_gaji?: number;
+  max_gaji?: number;
   total_alumni_ump: number;
   count_above_ump: number;
-  pct_above_ump: number;
+  pct_above_ump: number | null;  // null = UMP belum tersedia di OLAP
 }
 
 export interface PendapatanBarResponse {

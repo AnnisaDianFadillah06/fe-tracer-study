@@ -49,7 +49,7 @@ import {
   PendapatanBandingkanItem,
 } from "@/hooks/usePendapatan";
 import { useInstansiBandingkan } from "@/hooks/useInstansi";
-import { buildColorMap } from "@/lib/chartColors";
+import { buildColorMap, getShortLabel } from "@/lib/chartColors";
 import {
   MOCK_STUDENTS, Student,
   SUMBER_BIAYA_OPTIONS, CARA_MENDAPAT_KERJA_OPTIONS, JENIS_INSTANSI_OPTIONS,
@@ -648,7 +648,7 @@ const ComparePage = () => {
                                 <p className="text-xs text-muted-foreground mb-2">Total: {row?.total?.toLocaleString("id-ID")} alumni</p>
                                 {payload.map((e: any) => (
                                   <p key={e.dataKey} style={{ color: e.color }} className="text-xs">
-                                    {e.dataKey}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count`]} alumni)
+                                    {getShortLabel(e.dataKey)}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count`]} alumni)
                                   </p>
                                 ))}
                               </div>
@@ -657,7 +657,7 @@ const ComparePage = () => {
                         />
                         <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
                         {beLabels.map((label) => (
-                          <Bar key={label} dataKey={label} stackId="a" fill={beColorMap[label]} cursor="pointer" onClick={(d) => handleBeBarClick(d, label)} />
+                          <Bar key={label} dataKey={label} name={getShortLabel(label)} stackId="a" fill={beColorMap[label]} cursor="pointer" onClick={(d) => handleBeBarClick(d, label)} />
                         ))}
                       </BarChart>
                     </ResponsiveContainer>
@@ -676,7 +676,7 @@ const ComparePage = () => {
                       <tr className="border-b border-border">
                         <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
                         <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Total</th>
-                        {beLabels.map((l) => <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{l}</th>)}
+                        {beLabels.map((l) => <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{getShortLabel(l)}</th>)}
                       </tr>
                     </thead>
                     <tbody>

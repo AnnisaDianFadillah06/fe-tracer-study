@@ -11,7 +11,7 @@ import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { formatPctCount } from "./format";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import { useKeterserapanBar, useKeterserapanPie, useKeterserapanDrillDown } from "@/hooks/useKeterserapan";
-import { buildColorMap } from "@/lib/chartColors";
+import { buildColorMap, getShortLabel } from "@/lib/chartColors";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 
 const Kpi4AbsorptionChart = () => {
@@ -69,7 +69,7 @@ const Kpi4AbsorptionChart = () => {
     const labels = pieHook.data.data.map((d) => d.status);
     const colorMap = buildColorMap(labels);
     return pieHook.data.data.map((d) => ({
-      name: d.status,
+      name: getShortLabel(d.status),
       value: d.pct,
       count: d.count,
       color: colorMap[d.status],
@@ -169,7 +169,7 @@ const Kpi4AbsorptionChart = () => {
           title="Distribusi Status Keterserapan"
           // fix #1: subtitle dinamis dengan tahun aktif
           subtitle={pieSubtitle}
-          compareType="absorption"
+          compareType="status"
           methodology={
             <MethodologyBlock
               description="Proporsi status aktivitas lulusan pada periode terakhir."
