@@ -26,6 +26,7 @@ export interface WirausahaTingkatItem {
   label: string;
   count: number;
   pct: number;
+  sub_labels?: string[];
 }
 
 export interface WirausahaSebaranKotaItem {
@@ -48,6 +49,7 @@ export interface WirausahaDrillDownStudent {
   nama_prodi: string;
   jenjang: string;
   tahun_lulus: string;
+  jabatan: string;
   nama_kota: string;
   nama_provinsi: string;
   tingkat_instansi: string;
@@ -62,7 +64,10 @@ export interface WirausahaDrillDownResponse {
 }
 
 export interface WirausahaDrillDownParams {
-  tingkat: string;
+  tingkat?: string;
+  jabatan?: string;
+  jabatan_values?: string[];
+  tahun_lulus?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -187,8 +192,10 @@ export function useWirausahaDrillDown() {
       setError(null);
 
       const params: Record<string, string> = {
-        ...buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-        tingkat:  extra.tingkat,
+        ...buildParams(degree, jurusan, prodi, extra.tahun_lulus ?? tahunLulus, weekKey),
+        ...(extra.tingkat ? { tingkat: extra.tingkat } : {}),
+        ...(extra.jabatan ? { jabatan: extra.jabatan } : {}),
+        ...(extra.jabatan_values?.length ? { jabatan_values: extra.jabatan_values.join(',') } : {}),
         page:     String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),
         ...(extra.search ? { search: extra.search } : {}),

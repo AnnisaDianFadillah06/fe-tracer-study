@@ -432,7 +432,11 @@ const ComparePage = () => {
 
   // Wirausaha — transform data BE ke stacked bar per prodi
   const wsLabels   = ["Lokal", "Nasional", "Internasional"];
-  const wsColorMap = buildColorMap(wsLabels);
+  const wsColorMap: Record<string, string> = {
+    "Lokal":         "#6ee7b7",
+    "Nasional":      "#3b82f6",
+    "Internasional": "#1e3a8a",
+  };
   const wsChartData = useMemo(() => {
     if (!isWirausaha || !wsBandingkanHook.data?.chart) return [];
     return wsBandingkanHook.data.chart.map((d) => {
@@ -651,6 +655,10 @@ const ComparePage = () => {
             ? (instansiBandingkanHook.data?.prodi_list ?? [])
             : isKesesuaian
             ? (ksBandingkanHook.data?.prodi_list ?? [])
+            : isWirausaha
+            ? (wsBandingkanHook.data?.prodi_list ?? [])
+            : isWaktuTunggu
+            ? (mtBandingkanHook.data?.data?.map((d) => d.nama_prodi) ?? [])
             : selectedProdi;
           return chips.length > 0 ? (
             <div className="flex flex-wrap gap-2">

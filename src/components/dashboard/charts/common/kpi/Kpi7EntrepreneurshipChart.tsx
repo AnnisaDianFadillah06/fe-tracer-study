@@ -36,17 +36,33 @@ const Kpi7EntrepreneurshipChart = () => {
   const [modal, setModal] = useState<{
     open: boolean;
     title: string;
-    tingkat?: string;
+    jabatan?: string;
+    jabatanValues?: string[];
+    tahunLulus?: string;
   }>({ open: false, title: "" });
 
-  const openModal = (title: string, tingkat: string) => {
-    setModal({ open: true, title, tingkat });
-    drillHook.fetch({ tingkat, page: 1 });
+  const openPieModal = (title: string, jabatan: string, jabatanValues?: string[]) => {
+    setModal({ open: true, title, jabatan, jabatanValues });
+    if (jabatanValues?.length) {
+      drillHook.fetch({ jabatan_values: jabatanValues, page: 1 });
+    } else {
+      drillHook.fetch({ jabatan, page: 1 });
+    }
+  };
+
+  const openBarModal = (title: string, tahunLulus: string) => {
+    setModal({ open: true, title, tahunLulus });
+    drillHook.fetch({ tahun_lulus: tahunLulus, page: 1 });
   };
 
   const handlePageChange = (page: number, search?: string) => {
-    if (!modal.tingkat) return;
-    drillHook.fetch({ tingkat: modal.tingkat, page, search });
+    if (modal.jabatanValues?.length) {
+      drillHook.fetch({ jabatan_values: modal.jabatanValues, page, search });
+    } else if (modal.jabatan) {
+      drillHook.fetch({ jabatan: modal.jabatan, page, search });
+    } else if (modal.tahunLulus) {
+      drillHook.fetch({ tahun_lulus: modal.tahunLulus, page, search });
+    }
   };
 
   // Aggregate bar: per-prodi/tahun → per tahun
@@ -54,14 +70,10 @@ const Kpi7EntrepreneurshipChart = () => {
     if (!barHook.data?.data) return [];
     const byTahun = new Map<string, { totalAlumni: number; totalWirausaha: number }>();
     barHook.data.data.forEach((d) => {
-      const cur       = byTahun.get(d.tahun_lulus) ?? { totalAlumni: 0, totalWirausaha: 0 };
-      const wirausaha = d.count_wirausaha ?? 0;
-      // BE /bar tidak return count_alumni total; derive dari pct_wirausaha
-      const pct       = d.pct_wirausaha ?? 0;
-      const total     = pct > 0 ? Math.round((wirausaha / pct) * 100) : 0;
+      const cur = byTahun.get(d.tahun_lulus) ?? { totalAlumni: 0, totalWirausaha: 0 };
       byTahun.set(d.tahun_lulus, {
-        totalAlumni:    cur.totalAlumni    + total,
-        totalWirausaha: cur.totalWirausaha + wirausaha,
+        totalAlumni:    cur.totalAlumni    + (d.count_alumni   ?? 0),
+        totalWirausaha: cur.totalWirausaha + (d.count_wirausaha ?? 0),
       });
     });
     return [...byTahun.entries()]
@@ -78,10 +90,11 @@ const Kpi7EntrepreneurshipChart = () => {
   const pieData = useMemo(() => {
     if (!pieHook.data?.posisi) return [];
     return pieHook.data.posisi.map((d, i) => ({
-      name:  d.label,
-      value: d.pct,
-      count: d.count,
-      color: PIE_COLORS[i % PIE_COLORS.length],
+      name:       d.label,
+      value:      d.pct,
+      count:      d.count,
+      sub_labels: d.sub_labels,
+      color:      PIE_COLORS[i % PIE_COLORS.length],
     }));
   }, [pieHook.data]);
 
@@ -134,8 +147,8 @@ const Kpi7EntrepreneurshipChart = () => {
                 <Bar
                   dataKey="value" name="Wirausaha" radius={[6, 6, 0, 0]} maxBarSize={50}
                   cursor="pointer"
-                  onClick={(d: any) => openModal(
-                    `Wirausaha — ${d.year} (${d.value}% · ${d.n}/${d.total} lulusan)`, "Lokal"
+                  onClick={(d: any) => openBarModal(
+                    `Wirausaha — ${d.year} (${d.value}% · ${d.n}/${d.total} lulusan)`, d.year
                   )}
                   activeBar={{ stroke: C.greenDark, strokeWidth: 2 } as any}
                 >
@@ -159,17 +172,17 @@ const Kpi7EntrepreneurshipChart = () => {
           </div>
         </KpiCard>
 
-        {/* ── Pie: distribusi tingkat wirausaha ── */}
+        {/* ── Pie: distribusi posisi wirausaha ── */}
         <KpiCard
           loading={isLoading} error={hasError}
           empty={!isLoading && pieData.length === 0}
           title="Distribusi Posisi Wirausaha"
-          subtitle="Periode aktif — klik slice untuk lihat alumni"
+          subtitle="Periode terakhir"
           compareType="entrepreneurship"
           methodology={
             <MethodologyBlock
-              description="Sebaran lulusan wirausaha berdasarkan skala/tingkat usaha."
-              formula={<>% Tingkat = (Jumlah Wirausaha pada Tingkat / Total Wirausaha) × 100%</>}
+              description="Sebaran lulusan wirausaha berdasarkan posisi/jabatan usaha."
+              formula={<>% Posisi = (Jumlah Wirausaha pada Posisi / Total Wirausaha) × 100%</>}
             />
           }
         >
@@ -178,10 +191,13 @@ const Kpi7EntrepreneurshipChart = () => {
               <PieChart>
                 <Pie
                   data={pieData} dataKey="value" nameKey="name" outerRadius={100}
+                  label={(e: any) => `${e.name}: ${e.value}%`}
+                  cursor="pointer"
                   activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
-                  cursor="pointer"
-                  onClick={(d: any) => openModal(`${d.name} (${d.value}% · ${d.count} alumni)`, d.name)}
+                  onClick={(d: any) => openPieModal(
+                    `${d.name} (${d.value}% · ${d.count} alumni)`, d.name, d.sub_labels
+                  )}
                 >
                   {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
                 </Pie>
