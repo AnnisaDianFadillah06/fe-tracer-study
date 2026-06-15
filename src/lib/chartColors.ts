@@ -105,6 +105,7 @@ const OLAP_SHORT_LABELS: Record<string, string> = {
   "Melanjutkan Pendidikan":                  "Melanjutkan Studi",
   "Tidak kerja tetapi sedang mencari kerja": "Mencari Kerja",
   "Belum memungkinkan bekerja":              "Belum Bekerja",
+  "Tidak Sama Sekali":                       "Tidak Sesuai",
 };
 
 export function getShortLabel(label: string): string {

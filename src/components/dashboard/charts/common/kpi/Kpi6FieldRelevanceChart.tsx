@@ -86,17 +86,25 @@ const Kpi6FieldRelevanceChart = () => {
       }));
   }, [barHook.data]);
 
-  // Pie: map BE data → recharts format dengan warna
+  const KESESUAIAN_ORDER = ["Sangat Erat", "Erat", "Cukup Erat", "Kurang Erat", "Tidak Sama Sekali"];
+
+  // Pie: map BE data → recharts format dengan warna, urut berdasarkan tingkat kesesuaian
   const pieData = useMemo(() => {
     if (!pieHook.data?.data) return [];
     const labels = pieHook.data.data.map((d) => d.label);
     const colorMap = buildColorMap(labels);
-    return pieHook.data.data.map((d) => ({
-      name:  d.label,
-      value: d.pct,
-      count: d.count,
-      color: colorMap[d.label],
-    }));
+    return [...pieHook.data.data]
+      .sort((a, b) => {
+        const ai = KESESUAIAN_ORDER.indexOf(a.label);
+        const bi = KESESUAIAN_ORDER.indexOf(b.label);
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+      })
+      .map((d) => ({
+        name:  d.label,
+        value: d.pct,
+        count: d.count,
+        color: colorMap[d.label],
+      }));
   }, [pieHook.data]);
 
   // Alasan: map BE data → recharts format
@@ -190,6 +198,7 @@ const Kpi6FieldRelevanceChart = () => {
               <PieChart>
                 <Pie
                   data={pieData} dataKey="value" nameKey="name" outerRadius={100}
+                  label={(e: any) => `${e.name}: ${e.value}%`}
                   activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                   cursor="pointer"

@@ -72,6 +72,20 @@ export interface KesesuaianDrillDownParams {
   search?: string;
 }
 
+export interface KesesuaianBandingkanItem {
+  nama_prodi: string;
+  jenjang: string;
+  jurusan: string;
+  total: number;
+  statuses: { label: string; count: number; pct: number }[];
+}
+
+export interface KesesuaianBandingkanResponse {
+  chart: KesesuaianBandingkanItem[];
+  table: KesesuaianBandingkanItem[];
+  prodi_list: string[];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,6 +189,62 @@ export function useKesesuaianAlasan() {
     loading: result.isLoading,
     error: (result.error as Error | null)?.message ?? null,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook: useKesesuaianBandingkan
+// Baca filter dari URL — reliabel di halaman compare karena GlobalFiltersProvider
+// mungkin tidak membungkus halaman compare (sama persis seperti useKeterserapanBandingkan).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useKesesuaianBandingkan(enabled: boolean) {
+  const searchParams = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search)
+    : new URLSearchParams();
+
+  const jenjang    = searchParams.get("jenjang")         ?? "";
+  const jurusan    = searchParams.get("jurusan")         ?? "";
+  const tahunLulus = searchParams.get("tahun_lulus")     ?? "";
+  const weekKey    = searchParams.get("minggu_snapshot") ?? "";
+
+  const [data, setData] = useState<KesesuaianBandingkanResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const abortRef              = useRef<AbortController | null>(null);
+
+  const paramKey = `${jenjang}|${jurusan}|${tahunLulus}|${weekKey}`;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+    setLoading(true);
+    setError(null);
+
+    const params: Record<string, string> = {};
+    if (jenjang)    params.jenjang         = jenjang;
+    if (jurusan)    params.jurusan         = jurusan;
+    if (tahunLulus) params.tahun_lulus     = tahunLulus;
+    if (weekKey)    params.minggu_snapshot = weekKey;
+
+    apiService
+      .get<any>("/dashboard/kesesuaian/bandingkan", { params, signal: abortRef.current.signal })
+      .then((res) => {
+        const payload: KesesuaianBandingkanResponse = res?.chart ? res : res?.data ?? res;
+        setData(payload);
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (err?.name === "CanceledError" || err?.name === "AbortError") return;
+        setError(err?.message ?? "Gagal memuat data perbandingan");
+        setLoading(false);
+      });
+
+    return () => { abortRef.current?.abort(); };
+  }, [enabled, paramKey]);
+
+  return { data, loading, error };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

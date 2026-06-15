@@ -35,6 +35,10 @@ import {
   BandingkanProdiItem,
 } from "@/hooks/useKeterserapan";
 import {
+  useKesesuaianBandingkan,
+  useKesesuaianDrillDown,
+} from "@/hooks/useKesesuaian";
+import {
   useMasaTungguBandingkan,
   useMasaTungguDrillDown,
 } from "@/hooks/useMasaTunggu";
@@ -227,7 +231,8 @@ const ComparePage = () => {
   const indicatorParam = searchParams.get("indicator") || "kesesuaian";
 
   const isAbsorption      = chartType === "absorption";
-  const isStatusDistrib   = chartType === "status";        // distribusi status per prodi (BE)
+  const isStatusDistrib   = chartType === "status";           // distribusi status per prodi (BE)
+  const isKesesuaian      = chartType === "kesesuaian";       // kesesuaian bidang per prodi (BE)
   const isWaktuTunggu     = chartType === "waktuTunggu";
   const isWirausaha       = chartType === "entrepreneurship";
   const isIncome          = chartType === "income";
@@ -237,7 +242,7 @@ const ComparePage = () => {
   const isTrendType       = chartType === "trend";
   const isKepuasanType    = chartType === "kepuasan";
   const isKeterserapanBE  = isAbsorption || isStatusDistrib;
-  const isBeType          = isKeterserapanBE || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok || isJenisInstansi || isTingkatInstansi;
+  const isBeType          = isKeterserapanBE || isKesesuaian || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok || isJenisInstansi || isTingkatInstansi;
 
   // selectedProdi hanya untuk tampilan chip — tidak dipakai untuk fetch
   // (fetch dilakukan berdasarkan filter aktif di GlobalFiltersContext)
@@ -246,6 +251,8 @@ const ComparePage = () => {
   // ── Data BE ───────────────────────────────────────────────────────────────
   const bandingkanHook        = useKeterserapanBandingkan(isKeterserapanBE);
   const drillHook             = useKeterserapanDrillDown();
+  const ksBandingkanHook      = useKesesuaianBandingkan(isKesesuaian);
+  const ksDrillHook           = useKesesuaianDrillDown();
   const mtBandingkanHook      = useMasaTungguBandingkan(isWaktuTunggu);
   const mtDrillHook           = useMasaTungguDrillDown();
   const wsBandingkanHook      = useWirausahaBandingkan(isWirausaha);
@@ -271,6 +278,25 @@ const ComparePage = () => {
     [bandingkanHook.data, isKeterserapanBE]
   );
   const beTableData = bandingkanHook.data?.table ?? [];
+
+  // Kesesuaian — stacked bar distribusi tingkat kesesuaian per prodi
+  const KESESUAIAN_SK_MAP: Record<string, number> = {
+    "Sangat Erat": 1, "Erat": 2, "Cukup Erat": 3, "Kurang Erat": 4, "Tidak Sama Sekali": 5,
+  };
+  const { allLabels: ksLabels, colorMap: ksColorMap } = useMemo(() => {
+    if (!ksBandingkanHook.data?.chart) return { allLabels: [] as string[], colorMap: {} as Record<string, string> };
+    const set = new Set<string>();
+    ksBandingkanHook.data.chart.forEach((item) => item.statuses.forEach((s) => set.add(s.label)));
+    const labels = [...set];
+    return { allLabels: labels, colorMap: buildColorMap(labels) };
+  }, [ksBandingkanHook.data]);
+  const ksChartData = useMemo(
+    () => isKesesuaian && ksBandingkanHook.data?.chart
+      ? buildBeChartData(ksBandingkanHook.data.chart as unknown as BandingkanProdiItem[])
+      : [],
+    [ksBandingkanHook.data, isKesesuaian]
+  );
+  const ksTableData = ksBandingkanHook.data?.table ?? [];
 
   // Masa Tunggu — transform data BE ke stacked bar per prodi
   const mtChartData = useMemo(() => {
@@ -426,6 +452,7 @@ const ComparePage = () => {
 
   // ── Modal absorption (BE — DrillDownModal) ────────────────────────────────
   const [beModal, setBeModal] = useState<{ open: boolean; title: string; status?: string }>({ open: false, title: "" });
+  const [ksModal, setKsModal] = useState<{ open: boolean; title: string; kesesuaian_sk?: number }>({ open: false, title: "" });
   const [mtModal, setMtModal] = useState<{ open: boolean; title: string; rentang?: "0-3" | "3-6" | ">6" }>({ open: false, title: "" });
   const [wsModal, setWsModal]         = useState<{ open: boolean; title: string; tingkat?: string }>({ open: false, title: "" });
   const [incomeModal, setIncomeModal] = useState<{ open: boolean; title: string; segmen?: "above_ump" | "below_ump"; tahun_lulus?: string }>({ open: false, title: "" });
@@ -542,6 +569,7 @@ const ComparePage = () => {
   const chartHeight = Math.max(
     400,
     (isKeterserapanBE ? beChartData.length
+      : isKesesuaian ? ksChartData.length
       : isWaktuTunggu ? mtChartData.length
       : isWirausaha ? wsChartData.length
       : isIncome ? incomeChartData.length
@@ -555,6 +583,8 @@ const ComparePage = () => {
     ? "Perbandingan Distribusi Status Alumni per Prodi"
     : isAbsorption
     ? "Perbandingan Keterserapan Lulusan per Prodi"
+    : isKesesuaian
+    ? "Perbandingan Kesesuaian Bidang per Prodi"
     : isWaktuTunggu
     ? "Perbandingan Masa Tunggu Kerja per Prodi"
     : isWirausaha
@@ -575,6 +605,8 @@ const ComparePage = () => {
     ? "Distribusi lengkap status keterserapan per program studi (data real)"
     : isAbsorption
     ? "Distribusi status alumni per program studi (data real)"
+    : isKesesuaian
+    ? "Distribusi tingkat kesesuaian bidang kerja per program studi (hanya alumni bekerja)"
     : isWaktuTunggu
     ? "Distribusi rentang masa tunggu mendapatkan pekerjaan per prodi"
     : isWirausaha
@@ -617,6 +649,8 @@ const ComparePage = () => {
             ? incomeProdiList
             : isJenisInstansi || isTingkatInstansi
             ? (instansiBandingkanHook.data?.prodi_list ?? [])
+            : isKesesuaian
+            ? (ksBandingkanHook.data?.prodi_list ?? [])
             : selectedProdi;
           return chips.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -727,6 +761,114 @@ const ComparePage = () => {
               error={drillHook.error}
               contextColumn={{ key: "status", label: "Status" }}
               onPageChange={handleBePageChange}
+            />
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            KESESUAIAN BIDANG — data dari BE
+        ══════════════════════════════════════════════════════════════════ */}
+        {isKesesuaian && (
+          <>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
+              {ksBandingkanHook.loading ? (
+                <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" /><span>Memuat data…</span>
+                </div>
+              ) : ksBandingkanHook.error ? (
+                <div className="flex items-center justify-center h-64 text-destructive">{ksBandingkanHook.error}</div>
+              ) : ksChartData.length === 0 ? (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">Tidak ada data</div>
+              ) : (
+                <div className="overflow-y-auto max-h-[600px]">
+                  <div style={{ minHeight: chartHeight }}>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
+                      <BarChart data={ksChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload) return null;
+                            const row = ksChartData.find((d) => d.prodi === label);
+                            return (
+                              <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
+                                <p className="font-semibold mb-1">{row?.fullProdi ?? label}</p>
+                                <p className="text-xs text-muted-foreground mb-2">Total: {row?.total?.toLocaleString("id-ID")} alumni</p>
+                                {payload.map((e: any) => (
+                                  <p key={e.dataKey} style={{ color: e.color }} className="text-xs">
+                                    {getShortLabel(e.dataKey)}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count`]} alumni)
+                                  </p>
+                                ))}
+                              </div>
+                            );
+                          }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
+                        {ksLabels.map((label) => (
+                          <Bar
+                            key={label} dataKey={label} name={getShortLabel(label)} stackId="a" fill={ksColorMap[label]} cursor="pointer"
+                            onClick={(d: any) => {
+                              const sk = KESESUAIAN_SK_MAP[label] ?? 1;
+                              setKsModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${getShortLabel(label)}`, kesesuaian_sk: sk });
+                              ksDrillHook.fetch({ kesesuaian_sk: sk });
+                            }}
+                          />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+
+            {/* Summary table kesesuaian */}
+            {ksTableData.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+                <h3 className="font-heading font-semibold mb-4">Ringkasan Data</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Total</th>
+                        {ksLabels.map((l) => <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{getShortLabel(l)}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ksTableData.map((row) => {
+                        const sm = Object.fromEntries(row.statuses.map((s) => [s.label, s]));
+                        return (
+                          <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                            <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
+                            <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
+                            {ksLabels.map((l) => {
+                              const s = sm[l];
+                              return (
+                                <td key={l} className="py-2 px-3">
+                                  {s ? <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: ksColorMap[l] }}>{s.pct}% ({s.count})</span> : <span className="text-muted-foreground text-xs">—</span>}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+
+            <DrillDownModal
+              isOpen={ksModal.open}
+              onClose={() => setKsModal((m) => ({ ...m, open: false }))}
+              title={ksModal.title}
+              data={ksDrillHook.data}
+              loading={ksDrillHook.loading}
+              error={ksDrillHook.error}
+              contextColumn={{ key: "kesesuaian_bidang", label: "Kesesuaian Bidang" }}
+              onPageChange={(page, search) => ksDrillHook.fetch({ kesesuaian_sk: ksModal.kesesuaian_sk!, page, search })}
             />
           </>
         )}
