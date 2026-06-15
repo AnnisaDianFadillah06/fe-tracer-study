@@ -50,6 +50,10 @@ const KNOWN_SEGMENT_COLORS: Record<string, string> = {
   "Multinasional":   "#0ea5e9", // sky
   "Lokal/Tidak BBH": "#8b5cf6", // violet
 
+  // ── Pendapatan / UMP ─────────────────────────────────────────────────────
+  "≥ 1,2× UMP": "#3b82f6", // blue
+  "< 1,2× UMP": "#f97316", // orange
+
   // ── Kepuasan pengguna ─────────────────────────────────────────────────────
   "Sangat Baik": "#10b981", // green
   "Baik":        "#22c55e", // lime-green

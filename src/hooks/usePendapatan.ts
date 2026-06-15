@@ -60,6 +60,7 @@ export interface PendapatanDrillDownResponse {
 export interface PendapatanDrillDownParams {
   segmen_ump?: "above_ump" | "below_ump";
   tahun_lulus?: string;
+  nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -174,7 +175,7 @@ export function usePendapatanDrillDown() {
       setLoading(true);
       setError(null);
 
-      const base = buildParams(degree, jurusan, prodi, weekKey);
+      const base = buildParams(degree, jurusan, extra.nama_prodi ?? prodi, weekKey);
       const params: Record<string, string> = {
         ...base,
         page:     String(extra.page     ?? 1),
@@ -235,7 +236,7 @@ export function usePendapatanKelompokBandingkan(enabled: boolean) {
     if (weekKey)    params.minggu_snapshot = weekKey;
 
     apiService
-      .get<any>("/dashboard/pendapatan/bandingkan-kelompok", { params, signal: abortRef.current.signal })
+      .get<any>("/dashboard/pendapatan/bandingkan", { params, signal: abortRef.current.signal })
       .then((res) => { setData(res?.data ?? res); setLoading(false); })
       .catch((err: any) => {
         if (err?.name === "CanceledError" || err?.name === "AbortError") return;

@@ -369,13 +369,15 @@ const ComparePage = () => {
   }, [isIncomeKelompok, incomeKelompokBandingkanHook.data]);
 
   const incomeKelompokTableData = incomeKelompokBandingkanHook.data?.table ?? [];
-  const incomeKelompokLabels = ["< 5 jt", "5-8 jt", "8-12 jt", "> 12 jt"];
-  const incomeKelompokColorMap: Record<string, string> = {
-    "< 5 jt":  "#bfdbfe",
-    "5-8 jt":  "#60a5fa",
-    "8-12 jt": "#2563eb",
-    "> 12 jt": "#1e3a8a",
-  };
+  const incomeKelompokLabels = useMemo(() => {
+    if (!incomeKelompokBandingkanHook.data?.chart?.length) return [] as string[];
+    const set = new Set<string>();
+    (incomeKelompokBandingkanHook.data.chart as PendapatanBandingkanItem[]).forEach((item) =>
+      item.statuses.forEach((s) => set.add(s.label))
+    );
+    return [...set];
+  }, [incomeKelompokBandingkanHook.data]);
+  const incomeKelompokColorMap = buildColorMap(incomeKelompokLabels);
 
   // Jenis Instansi — transform data BE ke stacked bar per prodi
   const instansiJenisLabels = useMemo(() => {
@@ -459,7 +461,7 @@ const ComparePage = () => {
   const [ksModal, setKsModal] = useState<{ open: boolean; title: string; kesesuaian_sk?: number }>({ open: false, title: "" });
   const [mtModal, setMtModal] = useState<{ open: boolean; title: string; rentang?: "0-3" | "3-6" | ">6" }>({ open: false, title: "" });
   const [wsModal, setWsModal]         = useState<{ open: boolean; title: string; tingkat?: string }>({ open: false, title: "" });
-  const [incomeModal, setIncomeModal] = useState<{ open: boolean; title: string; segmen?: "above_ump" | "below_ump"; tahun_lulus?: string }>({ open: false, title: "" });
+  const [incomeModal, setIncomeModal] = useState<{ open: boolean; title: string; segmen?: "above_ump" | "below_ump"; tahun_lulus?: string; namaProdi?: string }>({ open: false, title: "" });
 
   const handleBeBarClick = (barData: any, statusLabel: string) => {
     setBeModal({ open: true, title: `${barData.fullProdi ?? barData.prodi} — ${getShortLabel(statusLabel)}`, status: statusLabel });
@@ -1133,8 +1135,10 @@ const ComparePage = () => {
                           <Bar
                             key={label} dataKey={label} stackId="a" fill={incomeColorMap[label]} cursor="pointer"
                             onClick={(d: any) => {
-                              setIncomeModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}` });
-                              incomeDrillHook.fetch({ page: 1 });
+                              const segmen: "above_ump" | "below_ump" = label === "≥ 1,2× UMP" ? "above_ump" : "below_ump";
+                              const namaProdi = d.fullProdi ?? d.prodi;
+                              setIncomeModal({ open: true, title: `${namaProdi} — ${label}`, segmen, namaProdi });
+                              incomeDrillHook.fetch({ page: 1, segmen_ump: segmen, nama_prodi: namaProdi });
                             }}
                           />
                         ))}
@@ -1196,7 +1200,7 @@ const ComparePage = () => {
               loading={incomeDrillHook.loading}
               error={incomeDrillHook.error}
               contextColumn={{ key: "perusahaan", label: "Perusahaan" }}
-              onPageChange={(page, search) => incomeDrillHook.fetch({ page, search })}
+              onPageChange={(page, search) => incomeDrillHook.fetch({ page, search, segmen_ump: incomeModal.segmen, nama_prodi: incomeModal.namaProdi })}
             />
           </>
         )}
@@ -1245,8 +1249,10 @@ const ComparePage = () => {
                         {incomeKelompokLabels.map((label) => (
                           <Bar key={label} dataKey={label} stackId="a" fill={incomeKelompokColorMap[label]} cursor="pointer"
                             onClick={(d: any) => {
-                              setIncomeModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}` });
-                              incomeDrillHook.fetch({ page: 1 });
+                              const segmen: "above_ump" | "below_ump" = label === "≥ 1,2× UMP" ? "above_ump" : "below_ump";
+                              const namaProdi = d.fullProdi ?? d.prodi;
+                              setIncomeModal({ open: true, title: `${namaProdi} — ${label}`, segmen, namaProdi });
+                              incomeDrillHook.fetch({ page: 1, segmen_ump: segmen, nama_prodi: namaProdi });
                             }}
                           />
                         ))}
@@ -1307,7 +1313,7 @@ const ComparePage = () => {
               loading={incomeDrillHook.loading}
               error={incomeDrillHook.error}
               contextColumn={{ key: "perusahaan", label: "Perusahaan" }}
-              onPageChange={(page, search) => incomeDrillHook.fetch({ page, search })}
+              onPageChange={(page, search) => incomeDrillHook.fetch({ page, search, segmen_ump: incomeModal.segmen, nama_prodi: incomeModal.namaProdi })}
             />
           </>
         )}
