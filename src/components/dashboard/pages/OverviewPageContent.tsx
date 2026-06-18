@@ -123,7 +123,7 @@ const OverviewPageContent = ({
             <Kpi1ParticipationChart />
           </TabsContent>
           <TabsContent value="k2">
-            <Kpi2CompletionStatusChart data={isEmpty("k2") ? [] : undefined} />
+            <Kpi2CompletionStatusChart />
           </TabsContent>
           <TabsContent value="k3">
             <Kpi3ParticipationTrendChart
