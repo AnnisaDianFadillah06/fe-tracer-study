@@ -75,14 +75,14 @@ export interface KesesuaianDrillDownParams {
 export interface KesesuaianBandingkanItem {
   nama_prodi: string;
   jenjang: string;
-  jurusan: string;
   total: number;
-  statuses: { label: string; count: number; pct: number }[];
+  pct_sesuai: number;
+  pct_tidak_sesuai: number;
+  breakdown: { tahun_lulus: string; count_alumni: number; pct_sesuai: number; pct_tidak_sesuai: number }[];
 }
 
 export interface KesesuaianBandingkanResponse {
-  chart: KesesuaianBandingkanItem[];
-  table: KesesuaianBandingkanItem[];
+  data: KesesuaianBandingkanItem[];
   prodi_list: string[];
 }
 
@@ -231,7 +231,7 @@ export function useKesesuaianBandingkan(enabled: boolean) {
     apiService
       .get<any>("/dashboard/kesesuaian/bandingkan", { params, signal: abortRef.current.signal })
       .then((res) => {
-        const payload: KesesuaianBandingkanResponse = res?.chart ? res : res?.data ?? res;
+        const payload: KesesuaianBandingkanResponse = res?.data?.data ? res.data : res?.data ?? res;
         setData(payload);
         setLoading(false);
       })

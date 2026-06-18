@@ -284,20 +284,24 @@ const ComparePage = () => {
   const KESESUAIAN_SK_MAP: Record<string, number> = {
     "Sangat Erat": 1, "Erat": 2, "Cukup Erat": 3, "Kurang Erat": 4, "Tidak Sama Sekali": 5,
   };
-  const { allLabels: ksLabels, colorMap: ksColorMap } = useMemo(() => {
-    if (!ksBandingkanHook.data?.chart) return { allLabels: [] as string[], colorMap: {} as Record<string, string> };
-    const set = new Set<string>();
-    ksBandingkanHook.data.chart.forEach((item) => item.statuses.forEach((s) => set.add(s.label)));
-    const labels = [...set];
-    return { allLabels: labels, colorMap: buildColorMap(labels) };
-  }, [ksBandingkanHook.data]);
-  const ksChartData = useMemo(
-    () => isKesesuaian && ksBandingkanHook.data?.chart
-      ? buildBeChartData(ksBandingkanHook.data.chart as unknown as BandingkanProdiItem[])
-      : [],
-    [ksBandingkanHook.data, isKesesuaian]
-  );
-  const ksTableData = ksBandingkanHook.data?.table ?? [];
+  const ksLabels = ["Sesuai Bidang", "Tidak Sesuai"];
+  const ksColorMap: Record<string, string> = { "Sesuai Bidang": "#10b981", "Tidak Sesuai": "#f59e0b" };
+  const ksChartData = useMemo(() => {
+    if (!isKesesuaian || !ksBandingkanHook.data?.data) return [];
+    return ksBandingkanHook.data.data.map((d) => {
+      const shortProdi = d.nama_prodi.length > 20 ? d.nama_prodi.slice(0, 18) + "…" : d.nama_prodi;
+      return {
+        prodi: `${d.jenjang} ${shortProdi}`,
+        fullProdi: `${d.jenjang} ${d.nama_prodi}`,
+        total: d.total,
+        "Sesuai Bidang": d.pct_sesuai,
+        "Sesuai BidangCount": Math.round(d.total * d.pct_sesuai / 100),
+        "Tidak Sesuai": d.pct_tidak_sesuai,
+        "Tidak SesuaiCount": Math.round(d.total * d.pct_tidak_sesuai / 100),
+      };
+    });
+  }, [ksBandingkanHook.data, isKesesuaian]);
+  const ksTableData = ksBandingkanHook.data?.data ?? [];
 
   // Masa Tunggu — transform data BE ke stacked bar per prodi
   const mtChartData = useMemo(() => {
@@ -870,23 +874,22 @@ const ComparePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {ksTableData.map((row) => {
-                        const sm = Object.fromEntries(row.statuses.map((s) => [s.label, s]));
-                        return (
-                          <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
-                            <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
-                            <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
-                            {ksLabels.map((l) => {
-                              const s = sm[l];
-                              return (
-                                <td key={l} className="py-2 px-3">
-                                  {s ? <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: ksColorMap[l] }}>{s.pct}% ({s.count})</span> : <span className="text-muted-foreground text-xs">—</span>}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
+                      {ksTableData.map((row) => (
+                        <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                          <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
+                          <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
+                          <td className="py-2 px-3">
+                            <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: ksColorMap["Sesuai Bidang"] }}>
+                              {row.pct_sesuai}% ({Math.round(row.total * row.pct_sesuai / 100)})
+                            </span>
+                          </td>
+                          <td className="py-2 px-3">
+                            <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: ksColorMap["Tidak Sesuai"] }}>
+                              {row.pct_tidak_sesuai}% ({Math.round(row.total * row.pct_tidak_sesuai / 100)})
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
