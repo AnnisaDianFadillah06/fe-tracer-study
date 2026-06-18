@@ -52,7 +52,7 @@ import {
   usePendapatanDrillDown,
   PendapatanBandingkanItem,
 } from "@/hooks/usePendapatan";
-import { useInstansiBandingkan } from "@/hooks/useInstansi";
+import { useInstansiBandingkan, useInstansiDrillDown } from "@/hooks/useInstansi";
 import { buildColorMap, getShortLabel } from "@/lib/chartColors";
 import {
   MOCK_STUDENTS, Student,
@@ -261,6 +261,7 @@ const ComparePage = () => {
   const incomeKelompokBandingkanHook = usePendapatanKelompokBandingkan(isIncomeKelompok);
   const incomeDrillHook              = usePendapatanDrillDown();
   const instansiBandingkanHook       = useInstansiBandingkan(isJenisInstansi || isTingkatInstansi);
+  const instansiDrillHook            = useInstansiDrillDown();
 
   // ── Segment & warna dinamis dari BE ───────────────────────────────────────
   const { allLabels: beLabels, colorMap: beColorMap } = useMemo(() => {
@@ -462,6 +463,7 @@ const ComparePage = () => {
   const [mtModal, setMtModal] = useState<{ open: boolean; title: string; rentang?: "0-3" | "3-6" | ">6" }>({ open: false, title: "" });
   const [wsModal, setWsModal]         = useState<{ open: boolean; title: string; tingkat?: string }>({ open: false, title: "" });
   const [incomeModal, setIncomeModal] = useState<{ open: boolean; title: string; segmen?: "above_ump" | "below_ump"; tahun_lulus?: string; namaProdi?: string }>({ open: false, title: "" });
+  const [instansiModal, setInstansiModal] = useState<{ open: boolean; title: string; jenis_instansi?: string; tingkat_instansi?: string }>({ open: false, title: "" });
 
   const handleBeBarClick = (barData: any, statusLabel: string) => {
     setBeModal({ open: true, title: `${barData.fullProdi ?? barData.prodi} — ${getShortLabel(statusLabel)}`, status: statusLabel });
@@ -480,6 +482,27 @@ const ComparePage = () => {
       data: drillHook.data.data.map((row) => ({ ...row, status: statusDisplay })),
     };
   }, [drillHook.data, beModal.status]);
+
+  const handleInstansiJenisClick = (barData: any, jenisLabel: string) => {
+    const prodi = barData.fullProdi ?? barData.prodi;
+    setInstansiModal({ open: true, title: `${prodi} — ${jenisLabel}`, jenis_instansi: jenisLabel });
+    instansiDrillHook.fetch({ jenis_instansi: jenisLabel, page: 1 });
+  };
+
+  const handleInstansiTingkatClick = (barData: any, tingkatLabel: string) => {
+    const prodi = barData.fullProdi ?? barData.prodi;
+    setInstansiModal({ open: true, title: `${prodi} — ${tingkatLabel}`, tingkat_instansi: tingkatLabel });
+    instansiDrillHook.fetch({ tingkat_instansi: tingkatLabel, page: 1 });
+  };
+
+  const handleInstansiPageChange = (page: number, search?: string) => {
+    instansiDrillHook.fetch({
+      jenis_instansi: instansiModal.jenis_instansi,
+      tingkat_instansi: instansiModal.tingkat_instansi,
+      page,
+      search,
+    });
+  };
 
   // ── Mock data (KPI selain BE) ─────────────────────────────────────────────
   const config     = !isBeType && !isTrendType ? (CHART_CONFIGS[chartType] ?? CHART_CONFIGS.gender) : null;
@@ -1360,7 +1383,9 @@ const ComparePage = () => {
                         />
                         <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
                         {instansiJenisLabels.map((label) => (
-                          <Bar key={label} dataKey={label} stackId="a" fill={instansiJenisColorMap[label]} cursor="pointer" />
+                          <Bar key={label} dataKey={label} stackId="a" fill={instansiJenisColorMap[label]} cursor="pointer"
+                            onClick={(d: any) => handleInstansiJenisClick(d, label)}
+                          />
                         ))}
                       </BarChart>
                     </ResponsiveContainer>
@@ -1407,6 +1432,17 @@ const ComparePage = () => {
                 </div>
               </motion.div>
             )}
+
+            <DrillDownModal
+              isOpen={instansiModal.open && isJenisInstansi}
+              onClose={() => setInstansiModal((m) => ({ ...m, open: false }))}
+              title={instansiModal.title}
+              data={instansiDrillHook.data as any}
+              loading={instansiDrillHook.loading}
+              error={instansiDrillHook.error}
+              contextColumn={{ key: "jenis_instansi", label: "Jenis Instansi" }}
+              onPageChange={handleInstansiPageChange}
+            />
           </>
         )}
 
@@ -1452,7 +1488,9 @@ const ComparePage = () => {
                         />
                         <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
                         {instansiTingkatLabels.map((label) => (
-                          <Bar key={label} dataKey={label} stackId="a" fill={instansiTingkatColorMap[label]} cursor="pointer" />
+                          <Bar key={label} dataKey={label} stackId="a" fill={instansiTingkatColorMap[label]} cursor="pointer"
+                            onClick={(d: any) => handleInstansiTingkatClick(d, label)}
+                          />
                         ))}
                       </BarChart>
                     </ResponsiveContainer>
@@ -1499,6 +1537,17 @@ const ComparePage = () => {
                 </div>
               </motion.div>
             )}
+
+            <DrillDownModal
+              isOpen={instansiModal.open && isTingkatInstansi}
+              onClose={() => setInstansiModal((m) => ({ ...m, open: false }))}
+              title={instansiModal.title}
+              data={instansiDrillHook.data as any}
+              loading={instansiDrillHook.loading}
+              error={instansiDrillHook.error}
+              contextColumn={{ key: "tingkat_instansi", label: "Tingkat Instansi" }}
+              onPageChange={handleInstansiPageChange}
+            />
           </>
         )}
 
