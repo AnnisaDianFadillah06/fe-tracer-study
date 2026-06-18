@@ -53,6 +53,7 @@ import {
   PendapatanBandingkanItem,
 } from "@/hooks/usePendapatan";
 import { useInstansiBandingkan, useInstansiDrillDown } from "@/hooks/useInstansi";
+import { usePembiayaanBandingkan, usePembiayaanDrillDown } from "@/hooks/usePembiayaan";
 import { buildColorMap, getShortLabel } from "@/lib/chartColors";
 import {
   MOCK_STUDENTS, Student,
@@ -239,10 +240,11 @@ const ComparePage = () => {
   const isIncomeKelompok  = chartType === "income-kelompok";
   const isJenisInstansi   = chartType === "jenisInstansi";
   const isTingkatInstansi = chartType === "tingkatInstansi";
+  const isSumberBiaya     = chartType === "sumberBiaya";
   const isTrendType       = chartType === "trend";
   const isKepuasanType    = chartType === "kepuasan";
   const isKeterserapanBE  = isAbsorption || isStatusDistrib;
-  const isBeType          = isKeterserapanBE || isKesesuaian || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok || isJenisInstansi || isTingkatInstansi;
+  const isBeType          = isKeterserapanBE || isKesesuaian || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok || isJenisInstansi || isTingkatInstansi || isSumberBiaya;
 
   // selectedProdi hanya untuk tampilan chip — tidak dipakai untuk fetch
   // (fetch dilakukan berdasarkan filter aktif di GlobalFiltersContext)
@@ -262,6 +264,8 @@ const ComparePage = () => {
   const incomeDrillHook              = usePendapatanDrillDown();
   const instansiBandingkanHook       = useInstansiBandingkan(isJenisInstansi || isTingkatInstansi);
   const instansiDrillHook            = useInstansiDrillDown();
+  const pembiayaanBandingkanHook     = usePembiayaanBandingkan(isSumberBiaya);
+  const pembiayaanDrillHook          = usePembiayaanDrillDown();
 
   // ── Segment & warna dinamis dari BE ───────────────────────────────────────
   const { allLabels: beLabels, colorMap: beColorMap } = useMemo(() => {
@@ -437,6 +441,38 @@ const ComparePage = () => {
     });
   }, [isTingkatInstansi, instansiBandingkanHook.data]);
 
+  // Sumber Biaya — transform data BE ke stacked bar per prodi
+  const pembiayaanLabels = useMemo(() => {
+    if (!pembiayaanBandingkanHook.data?.data) return [] as string[];
+    const set = new Set<string>();
+    pembiayaanBandingkanHook.data.data.forEach((d) => d.sumber.forEach((s) => set.add(s.label)));
+    return [...set];
+  }, [pembiayaanBandingkanHook.data]);
+
+  const pembiayaanColorMap = useMemo(
+    () => buildColorMap(pembiayaanLabels),
+    [pembiayaanLabels]
+  );
+
+  const pembiayaanChartData = useMemo(() => {
+    if (!isSumberBiaya || !pembiayaanBandingkanHook.data?.data) return [];
+    return pembiayaanBandingkanHook.data.data.map((d) => {
+      const shortProdi = d.nama_prodi.length > 20 ? d.nama_prodi.slice(0, 18) + "…" : d.nama_prodi;
+      const row: Record<string, any> = {
+        prodi: `${d.jenjang} ${shortProdi}`,
+        fullProdi: `${d.jenjang} ${d.nama_prodi}`,
+        total: d.total,
+      };
+      d.sumber.forEach((s) => {
+        row[s.label] = +(s.pct).toFixed(1);
+        row[`${s.label}Count`] = s.count;
+      });
+      return row;
+    });
+  }, [isSumberBiaya, pembiayaanBandingkanHook.data]);
+
+  const [pembiayaanModal, setPembiayaanModal] = useState<{ open: boolean; title: string; sumber_biaya?: string }>({ open: false, title: "" });
+
   // Wirausaha — transform data BE ke stacked bar per prodi
   const wsLabels   = ["Lokal", "Nasional", "Internasional"];
   const wsColorMap: Record<string, string> = {
@@ -609,6 +645,7 @@ const ComparePage = () => {
       : isIncomeKelompok ? incomeKelompokChartData.length
       : isJenisInstansi ? instansiJenisChartData.length
       : isTingkatInstansi ? instansiTingkatChartData.length
+      : isSumberBiaya ? pembiayaanChartData.length
       : selectedProdi.length) * 52
   );
 
@@ -688,6 +725,8 @@ const ComparePage = () => {
             ? (wsBandingkanHook.data?.prodi_list ?? [])
             : isWaktuTunggu
             ? (mtBandingkanHook.data?.data?.map((d) => d.nama_prodi) ?? [])
+            : isSumberBiaya
+            ? (pembiayaanBandingkanHook.data?.prodi_list ?? [])
             : selectedProdi;
           return chips.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -1550,6 +1589,110 @@ const ComparePage = () => {
               error={instansiDrillHook.error}
               contextColumn={{ key: "tingkat_instansi", label: "Tingkat Instansi" }}
               onPageChange={handleInstansiPageChange}
+            />
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            SUMBER BIAYA — data dari BE
+        ══════════════════════════════════════════════════════════════════ */}
+        {isSumberBiaya && (
+          <>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
+              {pembiayaanBandingkanHook.isLoading ? (
+                <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" /><span>Memuat data…</span>
+                </div>
+              ) : pembiayaanBandingkanHook.error ? (
+                <div className="flex items-center justify-center h-64 text-destructive">{(pembiayaanBandingkanHook.error as Error)?.message ?? "Gagal memuat data"}</div>
+              ) : pembiayaanChartData.length === 0 ? (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">Tidak ada data</div>
+              ) : (
+                <div className="overflow-y-auto max-h-[600px]">
+                  <div style={{ minHeight: chartHeight }}>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
+                      <BarChart data={pembiayaanChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload) return null;
+                            const row = pembiayaanChartData.find((d) => d.prodi === label);
+                            return (
+                              <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
+                                <p className="font-semibold mb-1">{row?.fullProdi ?? label}</p>
+                                <p className="text-xs text-muted-foreground mb-2">Total: {row?.total?.toLocaleString("id-ID")} alumni</p>
+                                {payload.map((e: any) => (
+                                  <p key={e.dataKey} style={{ color: e.color }} className="text-xs">
+                                    {e.dataKey}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count`]} alumni)
+                                  </p>
+                                ))}
+                              </div>
+                            );
+                          }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
+                        {pembiayaanLabels.map((label) => (
+                          <Bar key={label} dataKey={label} stackId="a" fill={pembiayaanColorMap[label]} cursor="pointer"
+                            onClick={(d: any) => {
+                              setPembiayaanModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}`, sumber_biaya: label });
+                              pembiayaanDrillHook.fetch({ sumber_biaya: label, page: 1 });
+                            }}
+                          />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+
+            {pembiayaanChartData.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+                <h3 className="font-heading font-semibold mb-4">Ringkasan Data</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Total Alumni</th>
+                        {pembiayaanLabels.map((l) => (
+                          <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{l}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(pembiayaanBandingkanHook.data?.data ?? []).map((row) => (
+                        <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                          <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
+                          <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
+                          {pembiayaanLabels.map((l) => {
+                            const s = row.sumber.find((x) => x.label === l);
+                            return (
+                              <td key={l} className="py-2 px-3">
+                                {s ? <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: pembiayaanColorMap[l] }}>{s.pct}% ({s.count})</span> : <span className="text-muted-foreground text-xs">—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+
+            <DrillDownModal
+              isOpen={pembiayaanModal.open}
+              onClose={() => setPembiayaanModal((m) => ({ ...m, open: false }))}
+              title={pembiayaanModal.title}
+              data={pembiayaanDrillHook.data as any}
+              loading={pembiayaanDrillHook.loading}
+              error={pembiayaanDrillHook.error}
+              contextColumn={{ key: "sumber_biaya", label: "Sumber Biaya" }}
+              onPageChange={(page, search) => pembiayaanDrillHook.fetch({ sumber_biaya: pembiayaanModal.sumber_biaya, page, search })}
             />
           </>
         )}
