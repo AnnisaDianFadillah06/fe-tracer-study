@@ -79,6 +79,48 @@ export function useResponseRatePie() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Types & Hook: Trend (KPI 3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ResponseRateTrendItem {
+  year: number;
+  rate: number;
+  total: number;
+  breakdown: { selesai: number; on_going: number; belum_mengisi: number };
+}
+
+export interface ResponseRateTrendResponse {
+  filters: Record<string, string>;
+  data: ResponseRateTrendItem[];
+}
+
+export function useResponseRateTrend() {
+  const { degree, prodi, lastUpdatedAt } = useGlobalFilters();
+  const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
+
+  const params = useMemo(() => {
+    const p: Record<string, string> = {};
+    if (degree && degree !== "__all__") p.jenjang = degree;
+    if (prodi && prodi !== "__all__") p.nama_prodi = prodi;
+    return p;
+  }, [degree, prodi]);
+
+  const result = useQuery<ResponseRateTrendResponse>({
+    queryKey: ["response-rate", "trend", params, updatedTs],
+    queryFn: ({ signal }) =>
+      apiService.get<any>("/dashboard/response-rate/trend", { params, signal })
+        .then((res) => res?.data ?? res),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return {
+    data: result.data ?? null,
+    loading: result.isLoading,
+    error: (result.error as Error | null)?.message ?? null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Hook: useResponseRateBar
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -157,11 +199,12 @@ export function useResponseRateDrillDown() {
       setLoading(true);
       setError(null);
 
+      const searchUpper = extra.search?.toUpperCase().trim();
       const params: Record<string, string> = {
         status: extra.status,
         page: String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),
-        ...(extra.search ? { search: extra.search } : {}),
+        ...(searchUpper ? { search: searchUpper } : {}),
       };
       if (degree && degree !== "__all__") params.jenjang = degree;
       if (prodi && prodi !== "__all__") params.nama_prodi = prodi;

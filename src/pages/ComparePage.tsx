@@ -54,6 +54,7 @@ import {
 } from "@/hooks/usePendapatan";
 import { useInstansiBandingkan, useInstansiDrillDown } from "@/hooks/useInstansi";
 import { usePembiayaanBandingkan, usePembiayaanDrillDown } from "@/hooks/usePembiayaan";
+import { useResponseRateBar, useResponseRateDrillDown, statusNameToKey } from "@/hooks/useResponseRate";
 import { buildColorMap, getShortLabel } from "@/lib/chartColors";
 import {
   MOCK_STUDENTS, Student,
@@ -241,10 +242,12 @@ const ComparePage = () => {
   const isJenisInstansi   = chartType === "jenisInstansi";
   const isTingkatInstansi = chartType === "tingkatInstansi";
   const isSumberBiaya     = chartType === "sumberBiaya";
+  const isCompletion      = chartType === "completion";
+  const isParticipation   = chartType === "participation-trend";
   const isTrendType       = chartType === "trend";
   const isKepuasanType    = chartType === "kepuasan";
   const isKeterserapanBE  = isAbsorption || isStatusDistrib;
-  const isBeType          = isKeterserapanBE || isKesesuaian || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok || isJenisInstansi || isTingkatInstansi || isSumberBiaya;
+  const isBeType          = isKeterserapanBE || isKesesuaian || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok || isJenisInstansi || isTingkatInstansi || isSumberBiaya || isCompletion || isParticipation;
 
   // selectedProdi hanya untuk tampilan chip — tidak dipakai untuk fetch
   // (fetch dilakukan berdasarkan filter aktif di GlobalFiltersContext)
@@ -266,6 +269,8 @@ const ComparePage = () => {
   const instansiDrillHook            = useInstansiDrillDown();
   const pembiayaanBandingkanHook     = usePembiayaanBandingkan(isSumberBiaya);
   const pembiayaanDrillHook          = usePembiayaanDrillDown();
+  const responseRateBarHook          = useResponseRateBar();
+  const responseRateDrillHook        = useResponseRateDrillDown();
 
   // ── Segment & warna dinamis dari BE ───────────────────────────────────────
   const { allLabels: beLabels, colorMap: beColorMap } = useMemo(() => {
@@ -473,6 +478,44 @@ const ComparePage = () => {
 
   const [pembiayaanModal, setPembiayaanModal] = useState<{ open: boolean; title: string; sumber_biaya?: string }>({ open: false, title: "" });
 
+  // Response Rate — for completion (KPI2) and participation-trend (KPI3)
+  const rrLabels = isCompletion
+    ? ["Selesai", "Sedang Mengisi", "Belum Mengisi"]
+    : ["Sudah Merespons", "Belum Merespons"];
+  const rrColorMap: Record<string, string> = {
+    "Selesai": "#10b981", "Sedang Mengisi": "#f59e0b", "Belum Mengisi": "#ef4444",
+    "Sudah Merespons": "#3b82f6", "Belum Merespons": "#9ca3af",
+  };
+  const rrChartData = useMemo(() => {
+    if ((!isCompletion && !isParticipation) || !responseRateBarHook.data?.data) return [];
+    return responseRateBarHook.data.data.map((d) => {
+      const shortProdi = d.prodi.length > 20 ? d.prodi.slice(0, 18) + "…" : d.prodi;
+      const row: Record<string, any> = {
+        prodi: shortProdi,
+        fullProdi: d.prodi,
+        total: d.total,
+      };
+      if (isCompletion) {
+        const b = d.breakdown;
+        const t = d.total || 1;
+        row["Selesai"] = +(b.selesai / t * 100).toFixed(1);
+        row["SelesaiCount"] = b.selesai;
+        row["Sedang Mengisi"] = +(b.on_going / t * 100).toFixed(1);
+        row["Sedang MengisiCount"] = b.on_going;
+        row["Belum Mengisi"] = +(b.belum_mengisi / t * 100).toFixed(1);
+        row["Belum MengisiCount"] = b.belum_mengisi;
+      } else {
+        row["Sudah Merespons"] = d.responded;
+        row["Sudah MeresponsCount"] = Math.round(d.responded / 100 * d.total);
+        row["Belum Merespons"] = d.notResponded;
+        row["Belum MeresponsCount"] = Math.round(d.notResponded / 100 * d.total);
+      }
+      return row;
+    });
+  }, [isCompletion, isParticipation, responseRateBarHook.data]);
+
+  const [rrModal, setRrModal] = useState<{ open: boolean; title: string; status: string }>({ open: false, title: "", status: "" });
+
   // Wirausaha — transform data BE ke stacked bar per prodi
   const wsLabels   = ["Lokal", "Nasional", "Internasional"];
   const wsColorMap: Record<string, string> = {
@@ -646,6 +689,7 @@ const ComparePage = () => {
       : isJenisInstansi ? instansiJenisChartData.length
       : isTingkatInstansi ? instansiTingkatChartData.length
       : isSumberBiaya ? pembiayaanChartData.length
+      : (isCompletion || isParticipation) ? rrChartData.length
       : selectedProdi.length) * 52
   );
 
@@ -727,6 +771,8 @@ const ComparePage = () => {
             ? (mtBandingkanHook.data?.data?.map((d) => d.nama_prodi) ?? [])
             : isSumberBiaya
             ? (pembiayaanBandingkanHook.data?.prodi_list ?? [])
+            : (isCompletion || isParticipation)
+            ? (responseRateBarHook.data?.data?.map((d) => d.prodi) ?? [])
             : selectedProdi;
           return chips.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -1589,6 +1635,110 @@ const ComparePage = () => {
               error={instansiDrillHook.error}
               contextColumn={{ key: "tingkat_instansi", label: "Tingkat Instansi" }}
               onPageChange={handleInstansiPageChange}
+            />
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            RESPONSE RATE — completion (KPI2) & participation (KPI3)
+        ══════════════════════════════════════════════════════════════════ */}
+        {(isCompletion || isParticipation) && (
+          <>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
+              {responseRateBarHook.loading ? (
+                <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" /><span>Memuat data…</span>
+                </div>
+              ) : responseRateBarHook.error ? (
+                <div className="flex items-center justify-center h-64 text-destructive">{responseRateBarHook.error}</div>
+              ) : rrChartData.length === 0 ? (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">Tidak ada data</div>
+              ) : (
+                <div className="overflow-y-auto max-h-[600px]">
+                  <div style={{ minHeight: chartHeight }}>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
+                      <BarChart data={rrChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload) return null;
+                            const row = rrChartData.find((d) => d.prodi === label);
+                            return (
+                              <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
+                                <p className="font-semibold mb-1">{row?.fullProdi ?? label}</p>
+                                <p className="text-xs text-muted-foreground mb-2">Total: {row?.total?.toLocaleString("id-ID")} alumni</p>
+                                {payload.map((e: any) => (
+                                  <p key={e.dataKey} style={{ color: e.color }} className="text-xs">
+                                    {e.dataKey}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count`]} alumni)
+                                  </p>
+                                ))}
+                              </div>
+                            );
+                          }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
+                        {rrLabels.map((label) => (
+                          <Bar key={label} dataKey={label} stackId="a" fill={rrColorMap[label]} cursor="pointer"
+                            onClick={(d: any) => {
+                              const sk = statusNameToKey(label);
+                              setRrModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}`, status: sk });
+                              responseRateDrillHook.fetch({ status: sk, page: 1 });
+                            }}
+                          />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+
+            {rrChartData.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+                <h3 className="font-heading font-semibold mb-4">Ringkasan Data</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Total Alumni</th>
+                        {rrLabels.map((l) => (
+                          <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{l}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rrChartData.map((row) => (
+                        <tr key={row.prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                          <td className="py-2 px-3 font-medium">{row.fullProdi}</td>
+                          <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
+                          {rrLabels.map((l) => (
+                            <td key={l} className="py-2 px-3">
+                              <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: rrColorMap[l] }}>
+                                {row[l]}% ({row[`${l}Count`]})
+                              </span>
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+
+            <DrillDownModal
+              isOpen={rrModal.open}
+              onClose={() => setRrModal((m) => ({ ...m, open: false }))}
+              title={rrModal.title}
+              data={responseRateDrillHook.data as any}
+              loading={responseRateDrillHook.loading}
+              error={responseRateDrillHook.error}
+              contextColumn={{ key: "status", label: "Status" }}
+              onPageChange={(page, search) => responseRateDrillHook.fetch({ status: rrModal.status, page, search })}
             />
           </>
         )}
