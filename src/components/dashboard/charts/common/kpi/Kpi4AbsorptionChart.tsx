@@ -11,7 +11,7 @@ import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { formatPctCount } from "./format";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import { useKeterserapanBar, useKeterserapanPie, useKeterserapanDrillDown } from "@/hooks/useKeterserapan";
-import { buildColorMap } from "@/lib/chartColors";
+import { buildColorMap, getShortLabel } from "@/lib/chartColors";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 
 const Kpi4AbsorptionChart = () => {
@@ -69,10 +69,11 @@ const Kpi4AbsorptionChart = () => {
     const labels = pieHook.data.data.map((d) => d.status);
     const colorMap = buildColorMap(labels);
     return pieHook.data.data.map((d) => ({
-      name: d.status,
-      value: d.pct,
-      count: d.count,
-      color: colorMap[d.status],
+      name:      getShortLabel(d.status),
+      olapLabel: d.status,           // label OLAP asli untuk filter ke BE
+      value:     d.pct,
+      count:     d.count,
+      color:     colorMap[d.status],
     }));
   }, [pieHook.data]);
 
@@ -169,7 +170,7 @@ const Kpi4AbsorptionChart = () => {
           title="Distribusi Status Keterserapan"
           // fix #1: subtitle dinamis dengan tahun aktif
           subtitle={pieSubtitle}
-          compareType="absorption"
+          compareType="status"
           methodology={
             <MethodologyBlock
               description="Proporsi status aktivitas lulusan pada periode terakhir."
@@ -185,10 +186,9 @@ const Kpi4AbsorptionChart = () => {
                   activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                   cursor="pointer"
-                  // fix #3: modal pie tidak tampilkan kolom status
                   onClick={(d: any) => openFromPie(
                     `${d.name} — ${d.value}% (${d.count?.toLocaleString("id-ID")} alumni)`,
-                    d.name
+                    d.olapLabel ?? d.name
                   )}
                 >
                   {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}

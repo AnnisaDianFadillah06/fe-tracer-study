@@ -120,15 +120,13 @@ const OverviewPageContent = ({
             </TabsTrigger>
           </TabsList>
           <TabsContent value="k1">
-            <Kpi1ParticipationChart data={isEmpty("k1") ? [] : undefined} />
+            <Kpi1ParticipationChart />
           </TabsContent>
           <TabsContent value="k2">
-            <Kpi2CompletionStatusChart data={isEmpty("k2") ? [] : undefined} />
+            <Kpi2CompletionStatusChart />
           </TabsContent>
           <TabsContent value="k3">
-            <Kpi3ParticipationTrendChart
-              data={isEmpty("k3") ? [] : undefined}
-            />
+            <Kpi3ParticipationTrendChart />
           </TabsContent>
         </Tabs>
       </div>

@@ -47,10 +47,13 @@ const Kpi8IncomeChart = () => {
       (barHook.data?.data ?? []).map((d) => ({
         year:     d.tahun_lulus,
         avg:      Math.round((d.avg_gaji / 1_000_000) * 100) / 100,
-        pctAbove: d.pct_above_ump,
+        pctAbove: d.pct_above_ump ?? undefined,   // undefined → Recharts skip titik
       })),
     [barHook.data]
   );
+
+  // UMP tersedia jika setidaknya satu titik punya pctAbove bukan null
+  const hasUmpData = avgData.some((d) => d.pctAbove !== undefined);
 
   const distData = useMemo(
     () =>
@@ -91,9 +94,14 @@ const Kpi8IncomeChart = () => {
             />
           }
         >
+          {!hasUmpData && avgData.length > 0 && (
+            <p className="text-xs text-muted-foreground mb-2">
+              Data perbandingan UMP belum tersedia — menampilkan rata-rata gaji saja.
+            </p>
+          )}
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={avgData} margin={{ top: 30, right: 50, left: 20, bottom: 30 }}>
+              <ComposedChart data={avgData} margin={{ top: 30, right: hasUmpData ? 50 : 20, left: 20, bottom: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
                 <XAxis
                   dataKey="year"
@@ -109,15 +117,17 @@ const Kpi8IncomeChart = () => {
                   stroke={C.blue}
                   label={{ value: "Rata-rata Gaji (Juta Rp)", angle: -90, position: "insideLeft", fontSize: 12, fill: C.blue }}
                 />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tickFormatter={(v) => `${v}%`}
-                  fontSize={13}
-                  domain={[0, 100]}
-                  stroke={C.red}
-                  label={{ value: "% Lulusan ≥ 1,2× UMP", angle: 90, position: "insideRight", fontSize: 12, fill: C.red }}
-                />
+                {hasUmpData && (
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tickFormatter={(v) => `${v}%`}
+                    fontSize={13}
+                    domain={[0, 100]}
+                    stroke={C.red}
+                    label={{ value: "% Lulusan ≥ 1,2× UMP", angle: 90, position: "insideRight", fontSize: 12, fill: C.red }}
+                  />
+                )}
                 <Tooltip
                   contentStyle={tooltipStyle}
                   formatter={(v: number, n) =>
@@ -147,16 +157,18 @@ const Kpi8IncomeChart = () => {
                     formatter={(v: number) => `${v.toFixed(1)}jt`}
                   />
                 </Bar>
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="pctAbove"
-                  name="% ≥ 1,2× UMP"
-                  stroke={C.red}
-                  strokeWidth={2.5}
-                  dot={{ r: 5, fill: C.red }}
-                />
-                {showRefLine && (
+                {hasUmpData && (
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="pctAbove"
+                    name="% ≥ 1,2× UMP"
+                    stroke={C.red}
+                    strokeWidth={2.5}
+                    dot={{ r: 5, fill: C.red }}
+                  />
+                )}
+                {hasUmpData && showRefLine && (
                   <ReferenceLine
                     yAxisId="right"
                     y={lam.threshold}

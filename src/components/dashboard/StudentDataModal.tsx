@@ -129,7 +129,7 @@ const StudentDataModal = ({
             <div className="relative w-full sm:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Cari nama, NIM, atau prodi..."
+                placeholder="Cari nama…"
                 value={searchTerm}
                 onChange={e => {
                   setSearchTerm(e.target.value);
