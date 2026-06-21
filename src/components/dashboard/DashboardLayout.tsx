@@ -9,14 +9,9 @@ import {
   LogOut,
   User,
   Bell,
-  Users,
   KeyRound,
   Briefcase,
   BookOpen,
-  UserCog,
-  ClipboardList,
-  FileText,
-  Gauge,
   Target,
   Radio,
   Wallet,
@@ -30,7 +25,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import RoleSwitcher from "@/components/dashboard/RoleSwitcher";
 import { useRole } from "@/contexts/RoleContext";
 import { Badge } from "@/components/ui/badge";
 import GlobalFilters from "@/components/dashboard/GlobalFilters";
@@ -61,6 +55,11 @@ const navItems = [
     href: "/dashboard/education",
     description: "Kompetensi & pembelajaran",
   },
+];
+
+const adminItems = [
+  { href: "/dashboard/threshold-management", icon: Target, title: "Threshold", desc: "Nilai LAM/BAN-PT" },
+  { href: "/dashboard/master-ump", icon: Wallet, title: "Master UMP", desc: "Data UMP per provinsi" },
 ];
 
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
@@ -148,51 +147,38 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             );
           })}
 
-          {/* Admin section */}
-          {!collapsed && (
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-4 pb-1">
-              Administrasi
-            </p>
+          {/* Admin section — hidden for kaprodi */}
+          {currentRole !== "kaprodi" && (
+            <>
+              {!collapsed && (
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-4 pb-1">
+                  Administrasi
+                </p>
+              )}
+              {collapsed && <div className="my-2 border-t border-sidebar-border" />}
+              {adminItems.map((item) => {
+                const isActive = location.pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    className={`sidebar-item ${isActive ? "active" : ""}`}
+                  >
+                    <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-primary" : "text-sidebar-foreground"}`} />
+                    {!collapsed && (
+                      <div>
+                        <div className={`font-medium ${isActive ? "text-primary" : "text-sidebar-foreground"}`}>
+                          {item.title}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{item.desc}</div>
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </>
           )}
-          {collapsed && <div className="my-2 border-t border-sidebar-border" />}
-          {[
-            // { href: "/dashboard/team-management", icon: Users, title: "Tim Koordinator", desc: "Kelola tim tracer" },
-            // { href: "/dashboard/student-management", icon: UserCog, title: "Akun Mahasiswa", desc: "CRUD akun kuesioner" },
-            // { href: "/dashboard/question-management", icon: ClipboardList, title: "Pertanyaan", desc: "Manajemen kuesioner" },
-            // { href: "/dashboard/form-preview", icon: FileText, title: "Preview Form", desc: "Lihat tampilan form" },
-            { href: "/dashboard/threshold-management", icon: Target, title: "Threshold", desc: "Nilai LAM/BAN-PT" },
-            { href: "/dashboard/master-ump", icon: Wallet, title: "Master UMP", desc: "Data UMP per provinsi" },
-          ].map((item) => {
-            const isActive = location.pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                to={item.href}
-                className={`sidebar-item ${isActive ? "active" : ""}`}
-              >
-                <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-primary" : "text-sidebar-foreground"}`} />
-                {!collapsed && (
-                  <div>
-                    <div className={`font-medium ${isActive ? "text-primary" : "text-sidebar-foreground"}`}>
-                      {item.title}
-                    </div>
-                    <div className="text-xs text-muted-foreground">{item.desc}</div>
-                  </div>
-                )}
-              </Link>
-            );
-          })}
         </nav>
-
-        {/* Role Switcher pinned to bottom */}
-        {!collapsed && (
-          <div className="p-3 border-t border-sidebar-border">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pb-2">
-              Beralih Peran (Demo)
-            </p>
-            <RoleSwitcher />
-          </div>
-        )}
 
         {/* Collapse Toggle */}
         <div className="p-4 border-t border-sidebar-border">
@@ -251,7 +237,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               </Badge>
             )}
 
-            {/* Theme Toggle */}
+            {/* Download & Theme */}
             {showGlobalFilters && <DownloadDataButton />}
             <ThemeToggle />
 

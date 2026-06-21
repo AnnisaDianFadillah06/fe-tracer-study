@@ -1,11 +1,11 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, ReactNode } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export type UserRole = "p2mpp" | "kaprodi" | "kotc";
 
 interface RoleContextType {
   currentRole: UserRole;
-  setCurrentRole: (role: UserRole) => void;
-  selectedProdi: string | null; // For Kaprodi role, hardcoded for demo
+  selectedProdi: string | null;
   roleLabels: Record<UserRole, string>;
   roleDescriptions: Record<UserRole, string>;
 }
@@ -25,16 +25,22 @@ export const roleDescriptions: Record<UserRole, string> = {
 };
 
 export function RoleProvider({ children }: { children: ReactNode }) {
-  const [currentRole, setCurrentRole] = useState<UserRole>("p2mpp");
+  const { user } = useAuth();
 
-  // For Kaprodi, hardcode prodi for demo
-  const selectedProdi = currentRole === "kaprodi" ? "Teknik Informatika" : null;
+  // Derive role from authenticated user; fallback to p2mpp if unknown
+  const currentRole: UserRole =
+    user?.role && ["p2mpp", "kaprodi", "kotc"].includes(user.role)
+      ? (user.role as UserRole)
+      : "p2mpp";
+
+  // For kaprodi, use program_name from the real user data
+  const selectedProdi =
+    currentRole === "kaprodi" ? (user?.program_name ?? null) : null;
 
   return (
     <RoleContext.Provider
       value={{
         currentRole,
-        setCurrentRole,
         selectedProdi,
         roleLabels,
         roleDescriptions,
