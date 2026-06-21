@@ -121,6 +121,43 @@ export function useResponseRateTrend() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Hook: useResponseRateBandingkan (for ComparePage — reads URL search params)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useResponseRateBandingkan(enabled: boolean) {
+  const sp = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search)
+    : new URLSearchParams();
+
+  const jenjang = sp.get("jenjang") ?? "";
+  const namaProdi = sp.get("nama_prodi") ?? "";
+  const graduationYear = sp.get("graduation_year") ?? sp.get("tahun_lulus") ?? "";
+
+  const params = useMemo(() => {
+    const p: Record<string, string> = {};
+    if (jenjang) p.jenjang = jenjang;
+    if (namaProdi) p.nama_prodi = namaProdi;
+    if (graduationYear) p.graduation_year = graduationYear;
+    return p;
+  }, [jenjang, namaProdi, graduationYear]);
+
+  const result = useQuery<ResponseRateBarResponse>({
+    queryKey: ["response-rate", "bandingkan", params],
+    queryFn: ({ signal }) =>
+      apiService.get<any>("/dashboard/response-rate/bar", { params, signal })
+        .then((res) => res?.data ?? res),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return {
+    data: result.data ?? null,
+    loading: result.isLoading,
+    error: (result.error as Error | null)?.message ?? null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Hook: useResponseRateBar
 // ─────────────────────────────────────────────────────────────────────────────
 

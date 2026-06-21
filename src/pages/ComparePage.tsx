@@ -54,7 +54,7 @@ import {
 } from "@/hooks/usePendapatan";
 import { useInstansiBandingkan, useInstansiDrillDown } from "@/hooks/useInstansi";
 import { usePembiayaanBandingkan, usePembiayaanDrillDown } from "@/hooks/usePembiayaan";
-import { useResponseRateBar, useResponseRateDrillDown, statusNameToKey } from "@/hooks/useResponseRate";
+import { useResponseRateBandingkan, useResponseRateDrillDown, statusNameToKey } from "@/hooks/useResponseRate";
 import { buildColorMap, getShortLabel } from "@/lib/chartColors";
 import {
   MOCK_STUDENTS, Student,
@@ -269,7 +269,7 @@ const ComparePage = () => {
   const instansiDrillHook            = useInstansiDrillDown();
   const pembiayaanBandingkanHook     = usePembiayaanBandingkan(isSumberBiaya);
   const pembiayaanDrillHook          = usePembiayaanDrillDown();
-  const responseRateBarHook          = useResponseRateBar();
+  const responseRateBarHook          = useResponseRateBandingkan(isCompletion || isParticipation);
   const responseRateDrillHook        = useResponseRateDrillDown();
 
   // ── Segment & warna dinamis dari BE ───────────────────────────────────────
