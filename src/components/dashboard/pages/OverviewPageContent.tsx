@@ -38,7 +38,9 @@ function buildOverviewCards(cards: OverviewSummaryCards): SummaryCardItem[] {
   const rr = cards.response_rate;
   const trendLabel = rr.trend_pp != null && rr.trend_pp !== 0 ? `${rr.trend_pp > 0 ? "+" : ""}${rr.trend_pp}pp` : undefined;
   const waktu = cards.rata_rata_waktu;
-  const waktuValue = waktu.label ?? (waktu.value_hours != null ? `${formatNumber(waktu.value_hours)} hr` : "—");
+  const waktuValue = waktu.value_hours != null
+    ? `${formatNumber(waktu.value_hours)} hr`
+    : (waktu.label && waktu.label !== "-" ? waktu.label : "—");
 
   return [
     { title: "Total Kuesioner", value: formatNumber(cards.total_kuesioner.value), hint: cards.total_kuesioner.hint, icon: ClipboardList, color: "bg-primary/10 text-primary" },
