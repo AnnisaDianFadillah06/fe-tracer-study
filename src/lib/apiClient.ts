@@ -407,6 +407,11 @@ export const apiService = {
     return response.data;
   },
 
+  deleteLamVersion: async (id: number): Promise<ApiResponse<null>> => {
+    const response = await apiClient.delete(`/lam-versions/${id}`);
+    return response.data;
+  },
+
   /**
    * GET /lam-versions/{id}/thresholds
    * Ambil garis referensi baik/unggul untuk grafik di halaman overview/employment.

@@ -569,10 +569,7 @@ export const useThresholdManagement = () => {
     if (!target) return;
 
     try {
-      // Backend belum punya dedicated DELETE /lam-versions/{id},
-      // tapi cascade hapus lewat DELETE /lams sudah cover.
-      // Jika backend expose endpoint-nya, ganti baris ini:
-      // await apiService.deleteLamVersion(target._versionId);
+      await apiService.deleteLamVersion(target._versionId); // ← uncomment ini
       setStandars((prev) => prev.filter((s) => s.id !== deletingStdId));
       toast({ title: "Standar dihapus", description: target.version_name });
     } catch (err: any) {
