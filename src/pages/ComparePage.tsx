@@ -298,10 +298,10 @@ const ComparePage = () => {
   const ksChartData = useMemo(() => {
     if (!isKesesuaian || !ksBandingkanHook.data?.data) return [];
     return ksBandingkanHook.data.data.map((d) => {
-      const shortProdi = d.nama_prodi.length > 20 ? d.nama_prodi.slice(0, 18) + "…" : d.nama_prodi;
+      const shortProdi = d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi;
       return {
-        prodi: `${d.jenjang} ${shortProdi}`,
-        fullProdi: `${d.jenjang} ${d.nama_prodi}`,
+        prodi: shortProdi,
+        fullProdi: d.nama_prodi,
         total: d.total,
         "Sesuai Bidang": d.pct_sesuai,
         "Sesuai BidangCount": Math.round(d.total * d.pct_sesuai / 100),
@@ -327,7 +327,7 @@ const ComparePage = () => {
         "< 3 bulanCount": d.count_tunggu_0_3_bulan,
         "3-6 bulanCount": d.count_tunggu_3_6_bulan,
         "> 6 bulanCount": d.count_tunggu_lebih_6_bulan,
-        avg: d.avg_masa_tunggu_bekerja,
+        avg: Math.round(d.avg_masa_tunggu_bekerja),
       };
     });
   }, [isWaktuTunggu, mtBandingkanHook.data]);
@@ -806,7 +806,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={beChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -907,7 +907,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={ksChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1014,7 +1014,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={mtChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1118,7 +1118,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={wsChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1221,7 +1221,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={incomeChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1336,7 +1336,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={incomeKelompokChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1449,7 +1449,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={instansiJenisChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1554,7 +1554,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={instansiTingkatChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1659,7 +1659,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={rrChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1763,7 +1763,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={pembiayaanChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1925,7 +1925,7 @@ const ComparePage = () => {
                   <ResponsiveContainer width="100%" height={chartHeight}>
                     <BarChart data={mockChartData} layout="vertical" margin={{ top: 20, right: 30, left: 150, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 22%)" horizontal={false} />
-                      <XAxis type="number" stroke="hsl(215 20% 55%)" fontSize={12} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                      <XAxis type="number" stroke="hsl(215 20% 55%)" fontSize={12} domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} />
                       <YAxis dataKey="prodi" type="category" stroke="hsl(215 20% 55%)" fontSize={11} width={140} tickLine={false} />
                       <Tooltip
                         contentStyle={{ backgroundColor: "hsl(222 47% 11%)", border: "1px solid hsl(217 33% 22%)", borderRadius: "8px" }}

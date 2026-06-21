@@ -106,7 +106,7 @@ const Kpi3ParticipationTrendChart = () => {
                 label={{ value: `${lam.level === "baik" ? "Baik" : "Unggul"} ${lam.threshold}%`, fill: C.red, fontSize: 11, position: "insideTopRight" }} />
             )}
             <ReferenceLine y={avg} stroke={C.purple} strokeDasharray="4 2" strokeWidth={2}
-              label={{ value: `Rata-rata ${avg.toFixed(1)}%`, fill: C.purple, fontSize: 11, position: "insideTopRight" }} />
+              label={{ value: `Rata-rata ${Number.isInteger(avg) ? avg : avg.toFixed(1)}%`, fill: C.purple, fontSize: 11, position: "insideTopRight" }} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
