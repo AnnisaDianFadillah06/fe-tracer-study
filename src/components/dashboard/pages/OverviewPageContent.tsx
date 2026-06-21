@@ -26,7 +26,6 @@ const FALLBACK_SUMMARY: SummaryCardItem[] = [
   { title: "Total Kuesioner", value: "—", hint: "Dikirim", icon: ClipboardList, color: "bg-primary/10 text-primary" },
   { title: "Sudah Mengisi", value: "—", hint: "Response masuk", icon: MailCheck, color: "bg-blue-500/10 text-blue-500" },
   { title: "Response Rate", value: "—", hint: "Tingkat respons", icon: Users, color: "bg-emerald-500/10 text-emerald-500" },
-  { title: "Rata-rata Waktu", value: "—", hint: "Pengisian", icon: Clock, color: "bg-amber-500/10 text-amber-500" },
   { title: "Belum Mengisi", value: "—", hint: "Follow-up", icon: AlertTriangle, color: "bg-destructive/10 text-destructive" },
 ];
 
@@ -37,16 +36,11 @@ function formatNumber(n: number): string {
 function buildOverviewCards(cards: OverviewSummaryCards): SummaryCardItem[] {
   const rr = cards.response_rate;
   const trendLabel = rr.trend_pp != null && rr.trend_pp !== 0 ? `${rr.trend_pp > 0 ? "+" : ""}${rr.trend_pp}pp` : undefined;
-  const waktu = cards.rata_rata_waktu;
-  const waktuValue = waktu.value_hours != null
-    ? `${formatNumber(waktu.value_hours)} hr`
-    : (waktu.label && waktu.label !== "-" ? waktu.label : "—");
 
   return [
     { title: "Total Kuesioner", value: formatNumber(cards.total_kuesioner.value), hint: cards.total_kuesioner.hint, icon: ClipboardList, color: "bg-primary/10 text-primary" },
     { title: "Sudah Mengisi", value: formatNumber(cards.sudah_mengisi.value), hint: cards.sudah_mengisi.hint, icon: MailCheck, color: "bg-blue-500/10 text-blue-500" },
     { title: "Response Rate", value: `${formatNumber(rr.value)}%`, hint: rr.hint, icon: Users, color: "bg-emerald-500/10 text-emerald-500", ...(trendLabel ? { trend: trendLabel, trendUp: rr.trend_direction === "up" } : {}) },
-    { title: "Rata-rata Waktu", value: waktuValue, hint: waktu.hint, icon: Clock, color: "bg-amber-500/10 text-amber-500" },
     { title: "Belum Mengisi", value: formatNumber(cards.belum_mengisi.value), hint: cards.belum_mengisi.hint, icon: AlertTriangle, color: "bg-destructive/10 text-destructive" },
   ];
 }

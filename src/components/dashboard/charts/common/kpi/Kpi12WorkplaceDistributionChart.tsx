@@ -62,15 +62,27 @@ const Kpi12WorkplaceDistributionChart = () => {
   const isLoading = jenisHook.loading || tingkatHook.loading;
   const hasError  = jenisHook.error || tingkatHook.error;
 
-  // Pie data — jenis perusahaan
+  const MAX_PIE_SLICES = 8;
   const pieData = useMemo(() => {
     if (!jenisHook.data?.data) return [];
-    return jenisHook.data.data.map((d, i) => ({
-      name:  d.jenis,
-      value: d.pct,
+    const sorted = [...jenisHook.data.data].sort((a, b) => b.pct - a.pct);
+    const top = sorted.slice(0, MAX_PIE_SLICES);
+    const rest = sorted.slice(MAX_PIE_SLICES);
+    const result = top.map((d, i) => ({
+      name: d.jenis,
+      value: +(d.pct).toFixed(1),
       count: d.count,
       color: JENIS_COLORS[i % JENIS_COLORS.length],
     }));
+    if (rest.length > 0) {
+      result.push({
+        name: "Lainnya",
+        value: +(rest.reduce((s, d) => s + d.pct, 0)).toFixed(1),
+        count: rest.reduce((s, d) => s + d.count, 0),
+        color: C.gray,
+      });
+    }
+    return result;
   }, [jenisHook.data]);
 
   // Bar data — tingkat per prodi (horizontal stacked)
@@ -109,7 +121,6 @@ const Kpi12WorkplaceDistributionChart = () => {
               <PieChart>
                 <Pie
                   data={pieData} dataKey="value" nameKey="name" outerRadius={100}
-                  label={(e: any) => `${e.name}: ${e.value}%`}
                   activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                   cursor="pointer"
