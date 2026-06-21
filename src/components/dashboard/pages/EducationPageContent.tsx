@@ -7,7 +7,7 @@ import {
   Kpi10LearningPerceptionChart,
   Kpi11FundingSourceChart,
 } from "@/components/dashboard/charts/common";
-import { useEducationSummary } from "@/hooks/useSummaryCards";
+import { useEducationSummary, EducationSummaryCards } from "@/hooks/useSummaryCards";
 
 const FALLBACK_SUMMARY: SummaryCardItem[] = [
   { title: "Skor Kompetensi", value: "—", hint: "Avg Likert", icon: Award, color: "bg-blue-500/10 text-blue-500" },
@@ -22,7 +22,7 @@ function formatNumber(n: number): string {
   return n.toLocaleString("id-ID", { maximumFractionDigits: 1 });
 }
 
-function buildEducationCards(cards: NonNullable<ReturnType<typeof useEducationSummary>["data"]>): SummaryCardItem[] {
+function buildEducationCards(cards: EducationSummaryCards): SummaryCardItem[] {
   return [
     { title: "Skor Kompetensi", value: formatNumber(cards.skor_kompetensi.value), hint: cards.skor_kompetensi.hint, icon: Award, color: "bg-blue-500/10 text-blue-500" },
     { title: "Gap Terbesar", value: cards.gap_terbesar.label, hint: cards.gap_terbesar.hint, icon: Activity, color: "bg-destructive/10 text-destructive" },
