@@ -4,7 +4,6 @@ import {
   Users,
   Clock,
   AlertTriangle,
-  TrendingUp,
   ListChecks,
   LineChart as LineChartIcon,
   Activity,
@@ -21,57 +20,31 @@ import {
   Kpi2CompletionStatusChart,
   Kpi3ParticipationTrendChart,
 } from "@/components/dashboard/charts/common";
+import { useOverviewSummary } from "@/hooks/useSummaryCards";
 
-const DEFAULT_SUMMARY: SummaryCardItem[] = [
-  {
-    title: "Total Kuesioner",
-    value: "1.692",
-    hint: "Dikirim",
-    icon: ClipboardList,
-    color: "bg-primary/10 text-primary",
-  },
-  {
-    title: "Sudah Mengisi",
-    value: "1.227",
-    hint: "Response masuk",
-    icon: MailCheck,
-    color: "bg-blue-500/10 text-blue-500",
-  },
-  {
-    title: "Response Rate",
-    value: "72,5%",
-    hint: "Tingkat respons",
-    trend: "+5,2%",
-    trendUp: true,
-    icon: Users,
-    color: "bg-emerald-500/10 text-emerald-500",
-  },
-  {
-    title: "Rata-rata Waktu",
-    value: "4,2 hr",
-    hint: "Pengisian",
-    icon: Clock,
-    color: "bg-amber-500/10 text-amber-500",
-  },
-  {
-    title: "Belum Mengisi",
-    value: "465",
-    hint: "Follow-up",
-    icon: AlertTriangle,
-    color: "bg-destructive/10 text-destructive",
-  },
-  {
-    title: "Tren 5 Thn",
-    value: "↑ Stabil",
-    hint: "Naik konsisten",
-    icon: TrendingUp,
-    color: "bg-purple-500/10 text-purple-500",
-  },
+const FALLBACK_SUMMARY: SummaryCardItem[] = [
+  { title: "Total Kuesioner", value: "—", hint: "Dikirim", icon: ClipboardList, color: "bg-primary/10 text-primary" },
+  { title: "Sudah Mengisi", value: "—", hint: "Response masuk", icon: MailCheck, color: "bg-blue-500/10 text-blue-500" },
+  { title: "Response Rate", value: "—", hint: "Tingkat respons", icon: Users, color: "bg-emerald-500/10 text-emerald-500" },
+  { title: "Rata-rata Waktu", value: "—", hint: "Pengisian", icon: Clock, color: "bg-amber-500/10 text-amber-500" },
+  { title: "Belum Mengisi", value: "—", hint: "Follow-up", icon: AlertTriangle, color: "bg-destructive/10 text-destructive" },
 ];
 
+function formatNumber(n: number): string {
+  return n.toLocaleString("id-ID", { maximumFractionDigits: 1 });
+}
+
+function buildOverviewCards(cards: NonNullable<ReturnType<typeof useOverviewSummary>["data"]>): SummaryCardItem[] {
+  return [
+    { title: "Total Kuesioner", value: formatNumber(cards.total_kuesioner.value), hint: cards.total_kuesioner.hint, icon: ClipboardList, color: "bg-primary/10 text-primary" },
+    { title: "Sudah Mengisi", value: formatNumber(cards.sudah_mengisi.value), hint: cards.sudah_mengisi.hint, icon: MailCheck, color: "bg-blue-500/10 text-blue-500" },
+    { title: "Response Rate", value: `${formatNumber(cards.response_rate.value)}%`, hint: cards.response_rate.hint, icon: Users, color: "bg-emerald-500/10 text-emerald-500" },
+    { title: "Rata-rata Waktu", value: `${formatNumber(cards.rata_rata_waktu.value)} hr`, hint: cards.rata_rata_waktu.hint, icon: Clock, color: "bg-amber-500/10 text-amber-500" },
+    { title: "Belum Mengisi", value: formatNumber(cards.belum_mengisi.value), hint: cards.belum_mengisi.hint, icon: AlertTriangle, color: "bg-destructive/10 text-destructive" },
+  ];
+}
+
 interface Props {
-  /** Override summary cards (per-role). */
-  summary?: SummaryCardItem[];
   /** Hide compare buttons (Kaprodi). */
   hideCompare?: boolean;
   /** Demo: which KPIs should render empty (no data). */
@@ -79,10 +52,11 @@ interface Props {
 }
 
 const OverviewPageContent = ({
-  summary = DEFAULT_SUMMARY,
   emptyKpis = [],
 }: Props) => {
   const { tahunLulus } = useGlobalFilters();
+  const { data: cards, loading } = useOverviewSummary();
+  const summary = cards ? buildOverviewCards(cards) : FALLBACK_SUMMARY;
   const today = new Date().toLocaleDateString("id-ID", {
     day: "numeric",
     month: "long",

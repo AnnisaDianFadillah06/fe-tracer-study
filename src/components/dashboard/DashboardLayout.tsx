@@ -61,12 +61,6 @@ const navItems = [
     href: "/dashboard/education",
     description: "Kompetensi & pembelajaran",
   },
-  {
-    title: "Ringkasan KPI",
-    icon: Gauge,
-    href: "/dashboard/kpi",
-    description: "Gabungan 13 KPI tracer",
-  },
 ];
 
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
@@ -162,10 +156,10 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           )}
           {collapsed && <div className="my-2 border-t border-sidebar-border" />}
           {[
-            { href: "/dashboard/team-management", icon: Users, title: "Tim Koordinator", desc: "Kelola tim tracer" },
-            { href: "/dashboard/student-management", icon: UserCog, title: "Akun Mahasiswa", desc: "CRUD akun kuesioner" },
-            { href: "/dashboard/question-management", icon: ClipboardList, title: "Pertanyaan", desc: "Manajemen kuesioner" },
-            { href: "/dashboard/form-preview", icon: FileText, title: "Preview Form", desc: "Lihat tampilan form" },
+            // { href: "/dashboard/team-management", icon: Users, title: "Tim Koordinator", desc: "Kelola tim tracer" },
+            // { href: "/dashboard/student-management", icon: UserCog, title: "Akun Mahasiswa", desc: "CRUD akun kuesioner" },
+            // { href: "/dashboard/question-management", icon: ClipboardList, title: "Pertanyaan", desc: "Manajemen kuesioner" },
+            // { href: "/dashboard/form-preview", icon: FileText, title: "Preview Form", desc: "Lihat tampilan form" },
             { href: "/dashboard/threshold-management", icon: Target, title: "Threshold", desc: "Nilai LAM/BAN-PT" },
             { href: "/dashboard/master-ump", icon: Wallet, title: "Master UMP", desc: "Data UMP per provinsi" },
           ].map((item) => {
