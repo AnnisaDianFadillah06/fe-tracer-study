@@ -612,23 +612,27 @@ const ComparePage = () => {
   const [rrModal, setRrModal] = useState<{ open: boolean; title: string; status: string }>({ open: false, title: "", status: "" });
 
   // Wirausaha — transform data BE ke stacked bar per prodi
-  const wsLabels   = ["Lokal", "Nasional", "Internasional"];
-  const wsColorMap: Record<string, string> = {
-    "Lokal":         "#6ee7b7",
-    "Nasional":      "#3b82f6",
-    "Internasional": "#1e3a8a",
-  };
+  const wsLabels = useMemo(() => {
+    if (!wsBandingkanHook.data?.chart) return [] as string[];
+    const set = new Set<string>();
+    wsBandingkanHook.data.chart.forEach((d) => d.tingkat.forEach((t) => set.add(t.label)));
+    return [...set];
+  }, [wsBandingkanHook.data]);
+
+  const wsColorMap = useMemo(() => buildColorMap(wsLabels), [wsLabels]);
+
   const wsChartData = useMemo(() => {
     if (!isWirausaha || !wsBandingkanHook.data?.chart) return [];
     return wsBandingkanHook.data.chart.map((d) => {
       const row: Record<string, any> = {
         prodi:        d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
         fullProdi:    d.nama_prodi,
+        total:        d.count_wirausaha,
         pct_wirausaha: d.pct_wirausaha,
         count_wirausaha: d.count_wirausaha,
       };
       d.tingkat.forEach((t) => {
-        row[t.label]              = t.pct;
+        row[t.label]              = +(t.pct).toFixed(1);
         row[`${t.label}Count`]   = t.count;
       });
       return row;
@@ -797,7 +801,7 @@ const ComparePage = () => {
     : isWaktuTunggu
     ? "Perbandingan Masa Tunggu Kerja Antar Program Studi"
     : isWirausaha
-    ? "Perbandingan Lulusan Wirausaha Antar Program Studi"
+    ? "Perbandingan Posisi Wirausaha Antar Program Studi"
     : isIncome
     ? "Perbandingan Distribusi UMP Antar Program Studi"
     : isIncomeKelompok
@@ -829,7 +833,7 @@ const ComparePage = () => {
     : isWaktuTunggu
     ? "Distribusi rentang masa tunggu mendapatkan pekerjaan per prodi"
     : isWirausaha
-    ? "Distribusi tingkat wirausaha (Lokal / Nasional / Internasional) per prodi"
+    ? "Distribusi posisi alumni yang berwirausaha per program studi"
     : isIncome
     ? "Proporsi alumni ≥ 1,2× UMP vs < 1,2× UMP per program studi"
     : isIncomeKelompok
