@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   ResponsiveContainer,
   PieChart,
@@ -14,267 +14,102 @@ import {
   LabelList,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
+import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { MethodologyBlock } from "./Methodology";
+import { MOCK_STUDENTS, Student } from "@/lib/mockData";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { formatPctCount } from "./format";
-import { useInstansiJenis, useInstansiTingkat, useInstansiDrillDown, InstansiDrillDownParams } from "@/hooks/useInstansi";
-import DrillDownModal from "@/components/dashboard/DrillDownModal";
 
-const MAX_PIE_SLICES = 8;
-const JENIS_COLORS = [C.blueLight, C.green, C.orange, C.gray, C.blue, C.purple, C.red, C.greenLight];
-const TINGKAT_COLOR: Record<string, string> = {
-  "Lokal": C.greenLight,
-  "Nasional": C.blue,
-  "Internasional": C.navy,
-};
+const defaultPie = [
+  { name: "Lokal", value: 38, color: C.greenLight },
+  { name: "Nasional", value: 47, color: C.blue },
+  { name: "Multinasional", value: 15, color: C.navy },
+];
+const defaultGrouped = [
+  { year: "2022", lokal: 42, nasional: 44, multi: 14 },
+  { year: "2023", lokal: 40, nasional: 45, multi: 15 },
+  { year: "2024", lokal: 38, nasional: 47, multi: 15 },
+];
 
-const Kpi12WorkplaceDistributionChart = () => {
-  const jenisHook = useInstansiJenis();
-  const tingkatHook = useInstansiTingkat();
-  const drillHook = useInstansiDrillDown();
+interface Props {
+  pieData?: typeof defaultPie;
+  groupedData?: typeof defaultGrouped;
+  loading?: boolean;
+  error?: string | null;
+  isEmpty?: boolean;
+}
+
+const Kpi12WorkplaceDistributionChart = ({
+  pieData = defaultPie,
+  groupedData = defaultGrouped, loading, error, isEmpty }: Props) => {
+  const [modal, setModal] = useState<{ open: boolean; title: string; students: Student[] }>({ open: false, title: "", students: [] });
   const pieActive = usePieActive();
-
-  const [modal, setModal] = useState<{
-    open: boolean;
-    title: string;
-    fetchParams: InstansiDrillDownParams;
-    contextColumn: { key: string; label: string };
-  }>({
-    open: false,
-    title: "",
-    fetchParams: {},
-    contextColumn: { key: "tingkat_instansi", label: "Tingkat" },
-  });
-
-  const openModal = (
-    title: string,
-    fetchParams: InstansiDrillDownParams,
-    contextColumn: { key: string; label: string }
-  ) => {
-    setModal({ open: true, title, fetchParams, contextColumn });
-    drillHook.fetch({ ...fetchParams, page: 1 });
-  };
-
-  const handlePageChange = (page: number, search?: string) => {
-    drillHook.fetch({ ...modal.fetchParams, page, search });
-  };
-
-  const isLoading = jenisHook.loading || tingkatHook.loading;
-  const hasError = jenisHook.error || tingkatHook.error;
-
-  // Pie data — jenis perusahaan (top N + Lainnya)
-  const pieData = useMemo(() => {
-    if (!jenisHook.data?.data) return [];
-    const sorted = [...jenisHook.data.data].sort((a, b) => b.pct - a.pct);
-    const top = sorted.slice(0, MAX_PIE_SLICES);
-    const rest = sorted.slice(MAX_PIE_SLICES);
-    const result = top.map((d, i) => ({
-      name: d.jenis,
-      value: +(d.pct).toFixed(1),
-      count: d.count,
-      color: JENIS_COLORS[i % JENIS_COLORS.length],
-    }));
-    if (rest.length > 0) {
-      result.push({
-        name: "Lainnya",
-        value: +(rest.reduce((s, d) => s + d.pct, 0)).toFixed(1),
-        count: rest.reduce((s, d) => s + d.count, 0),
-        color: C.gray,
-      });
-    }
-    return result;
-  }, [jenisHook.data]);
-
-  // Tingkat pie — aggregate dari semua prodi → Lokal/Nasional/Internasional
-  const tingkatPieData = useMemo(() => {
-    if (!tingkatHook.data?.data) return [];
-    const totals: Record<string, number> = {};
-    tingkatHook.data.data.forEach((p) =>
-      p.tingkat.forEach((t) => {
-        totals[t.label] = (totals[t.label] ?? 0) + t.count;
-      })
-    );
-    const grandTotal = Object.values(totals).reduce((s, v) => s + v, 0) || 1;
-    return Object.entries(totals)
-      .sort((a, b) => b[1] - a[1])
-      .map(([label, count]) => ({
-        name: label,
-        value: +(count / grandTotal * 100).toFixed(1),
-        count,
-        color: TINGKAT_COLOR[label] ?? C.gray,
-      }));
-  }, [tingkatHook.data]);
-
-  // Bar data — tingkat per prodi (horizontal stacked)
-  const barData = useMemo(() => {
-    if (!tingkatHook.data?.data) return [];
-    return tingkatHook.data.data.map((p) => {
-      const row: Record<string, any> = { prodi: p.nama_prodi };
-      p.tingkat.forEach((t) => { row[t.label] = +(t.pct).toFixed(1); });
-      return row;
-    });
-  }, [tingkatHook.data]);
-
-  const barChartHeight = Math.max(barData.length * 44 + 60, 288);
-  const total = jenisHook.data?.total ?? 0;
-  const tingkatTotal = tingkatPieData.reduce((s, d) => s + d.count, 0);
-
+  const pieTotal = pieData.reduce((s, d) => s + d.value, 0);
+  const openModal = (title: string, n: number) => setModal({ open: true, title, students: MOCK_STUDENTS.slice(0, Math.max(n, 5)) });
   return (
-    <>
-      <div className="grid lg:grid-cols-2 gap-4">
-        {/* ── Pie: jenis perusahaan ── */}
-        <KpiCard
-          loading={isLoading} error={hasError}
-          empty={!isLoading && pieData.length === 0}
-          title="Jenis Perusahaan Tempat Kerja"
-          subtitle="Distribusi jenis instansi tempat kerja lulusan — periode terakhir"
-          compareType="jenisInstansi"
-          methodology={
-            <MethodologyBlock
-              description="Proporsi lulusan menurut jenis perusahaan/instansi tempat bekerja."
-              formula={<>% Jenis = (Lulusan Bekerja di Jenis X / Total Lulusan Bekerja) × 100%</>}
-            />
-          }
-        >
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData} dataKey="value" nameKey="name" outerRadius={100}
-                  activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
-                  onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
-                  cursor="pointer"
-                  onClick={(d: any) =>
-                    openModal(
-                      `${d.name} (${d.value}% · ${d.count} alumni)`,
-                      { jenis_instansi: d.name },
-                      { key: "tingkat_instansi", label: "Tingkat Instansi" }
-                    )
-                  }
-                >
-                  {pieData.map((d, i) => (
-                    <Cell key={i} fill={d.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(v: number, n) => [
-                    `${v}%${total > 0 ? ` (${Math.round((v * total) / 100)} alumni)` : ""}`,
-                    n,
-                  ]}
-                />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </KpiCard>
-
-        {/* ── Pie: sebaran level perusahaan (Lokal/Nasional/Internasional) ── */}
-        <KpiCard
-          loading={isLoading} error={hasError}
-          empty={!isLoading && tingkatPieData.length === 0}
-          title="Sebaran Level Perusahaan"
-          subtitle="Distribusi level perusahaan tempat kerja lulusan — periode terakhir"
-          compareType="tingkatInstansi"
-          methodology={
-            <MethodologyBlock
-              description="Proporsi lulusan menurut level perusahaan tempat bekerja (Lokal/Nasional/Internasional)."
-              formula={<>% Level = (Lulusan Bekerja di Level X / Total Lulusan Bekerja) × 100%</>}
-            />
-          }
-        >
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={tingkatPieData} dataKey="value" nameKey="name" outerRadius={100}
-                  label={(e: any) => `${e.name}: ${e.value}%`}
-                  activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
-                  onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
-                  cursor="pointer"
-                  onClick={(d: any) =>
-                    openModal(
-                      `${d.name} (${d.value}% · ${d.count} alumni)`,
-                      { tingkat_instansi: d.name },
-                      { key: "jenis_instansi", label: "Jenis Instansi" }
-                    )
-                  }
-                >
-                  {tingkatPieData.map((d, i) => (
-                    <Cell key={i} fill={d.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(v: number, n) => [
-                    formatPctCount(v, Math.round((v * tingkatTotal) / 100), tingkatTotal),
-                    n,
-                  ]}
-                />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </KpiCard>
+  <>
+  <div className="grid lg:grid-cols-2 gap-4">
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Sebaran Level Perusahaan" subtitle="Distribusi level perusahaan tempat kerja lulusan — periode terakhir" compareType="jenisInstansi"
+      methodology={
+        <MethodologyBlock
+          description="Proporsi lulusan menurut level perusahaan tempat bekerja (Lokal/Nasional/Multinasional)."
+          formula={<>% Level = (Lulusan Bekerja di Level X / Total Lulusan Bekerja) × 100%</>}
+        />
+      }>
+      <div className="h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label={(e: any) => `${e.name}: ${e.value}%`}
+              activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
+              onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
+              cursor="pointer" onClick={(d: any) => openModal(`${d.name} (${d.value}%)`, d.value)}>
+              {pieData.map((d, i) => (
+                <Cell key={i} fill={d.color} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n) => [formatPctCount(v, v, pieTotal), n]} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+          </PieChart>
+        </ResponsiveContainer>
       </div>
-
-      {/* ── Bar: tingkat instansi per prodi ── */}
-      {barData.length > 0 && (
-        <KpiCard
-          loading={isLoading} error={hasError}
-          empty={false}
-          title="Sebaran Tingkat Instansi per Prodi"
-          subtitle="Distribusi Lokal / Nasional / Internasional per program studi"
-          methodology={
-            <MethodologyBlock
-              description="Proporsi lulusan per prodi berdasarkan skala/tingkat instansi tempat bekerja."
-              formula={<>% Tingkat per Prodi = (Lulusan Prodi di Tingkat X / Total Lulusan Bekerja Prodi) × 100%</>}
-            />
-          }
-        >
-          <div style={{ height: barChartHeight }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={barData}
-                layout="vertical"
-                margin={{ top: 5, right: 20, left: 8, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} horizontal={false} />
-                <XAxis type="number" tickFormatter={(v) => `${v}%`} fontSize={12} domain={[0, 100]} stroke="hsl(var(--muted-foreground))" />
-                <YAxis type="category" dataKey="prodi" width={150} fontSize={10} stroke="hsl(var(--muted-foreground))" tick={{ fill: "hsl(var(--foreground))" }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n) => [`${v}%`, n]} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                {["Lokal", "Nasional", "Internasional"].map((label) => (
-                  <Bar
-                    key={label} dataKey={label} stackId="a"
-                    fill={TINGKAT_COLOR[label] ?? C.gray}
-                    cursor="pointer"
-                    onClick={(d: any) =>
-                      openModal(
-                        `${label} — ${d.prodi} (${d[label]}%)`,
-                        { tingkat_instansi: label },
-                        { key: "jenis_instansi", label: "Jenis Instansi" }
-                      )
-                    }
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </KpiCard>
-      )}
-
-      <DrillDownModal
-        isOpen={modal.open}
-        onClose={() => setModal((m) => ({ ...m, open: false }))}
-        title={modal.title}
-        data={drillHook.data}
-        loading={drillHook.loading}
-        error={drillHook.error}
-        contextColumn={modal.contextColumn}
-        onPageChange={handlePageChange}
-      />
-    </>
+    </KpiCard>
+    <KpiCard loading={loading} error={error} empty={isEmpty} title="Perubahan Sebaran Level Perusahaan Antar Periode" subtitle="Sumbu Y: persentase lulusan • Sumbu X: tahun kelulusan" compareType="jenisInstansi"
+      methodology={
+        <MethodologyBlock
+          description="Tren proporsi level perusahaan tempat bekerja lulusan antar tahun kelulusan."
+          formula={<>% Level per Tahun = (Lulusan Bekerja di Level X pada Tahun T / Total Lulusan Bekerja Tahun T) × 100%</>}
+        />
+      }>
+      <div className="h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={groupedData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+            <XAxis dataKey="year" fontSize={12} />
+            <YAxis tickFormatter={(v) => `${v}%`} fontSize={12} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar dataKey="lokal" name="Lokal" fill={C.greenLight} radius={[3, 3, 0, 0]} cursor="pointer"
+              onClick={(d: any) => openModal(`Lokal — ${d.year} (${d.lokal}%)`, d.lokal)}
+              activeBar={{ stroke: C.greenDark, strokeWidth: 2 } as any}>
+              <LabelList dataKey="lokal" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
+            </Bar>
+            <Bar dataKey="nasional" name="Nasional" fill={C.blue} radius={[3, 3, 0, 0]} cursor="pointer"
+              onClick={(d: any) => openModal(`Nasional — ${d.year} (${d.nasional}%)`, d.nasional)}
+              activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
+              <LabelList dataKey="nasional" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
+            </Bar>
+            <Bar dataKey="multi" name="Multinasional" fill={C.navy} radius={[3, 3, 0, 0]} cursor="pointer"
+              onClick={(d: any) => openModal(`Multinasional — ${d.year} (${d.multi}%)`, d.multi)}
+              activeBar={{ stroke: C.navy, strokeWidth: 2 } as any}>
+              <LabelList dataKey="multi" position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </KpiCard>
+  </div>
+  <StudentDataModal isOpen={modal.open} onClose={() => setModal((m) => ({ ...m, open: false }))} title={modal.title} students={modal.students} columns={[]} />
+  </>
   );
 };
 
