@@ -11,28 +11,28 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  LabelList,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import { MethodologyBlock } from "./Methodology";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
+import { formatPctCount } from "./format";
 import { useInstansiJenis, useInstansiTingkat, useInstansiDrillDown, InstansiDrillDownParams } from "@/hooks/useInstansi";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 
-const JENIS_COLORS = [C.blueLight, C.green, C.orange, C.gray, C.blue, C.purple];
-
-// Warna tetap untuk tingkat — sesuai screenshot UI (greenLight, blue, navy)
+const MAX_PIE_SLICES = 8;
+const JENIS_COLORS = [C.blueLight, C.green, C.orange, C.gray, C.blue, C.purple, C.red, C.greenLight];
 const TINGKAT_COLOR: Record<string, string> = {
-  "Lokal":         C.greenLight,
-  "Nasional":      C.blue,
+  "Lokal": C.greenLight,
+  "Nasional": C.blue,
   "Internasional": C.navy,
 };
-const TINGKAT_LABELS = ["Lokal", "Nasional", "Internasional"];
 
 const Kpi12WorkplaceDistributionChart = () => {
-  const jenisHook   = useInstansiJenis();
+  const jenisHook = useInstansiJenis();
   const tingkatHook = useInstansiTingkat();
-  const drillHook   = useInstansiDrillDown();
-  const pieActive   = usePieActive();
+  const drillHook = useInstansiDrillDown();
+  const pieActive = usePieActive();
 
   const [modal, setModal] = useState<{
     open: boolean;
@@ -60,9 +60,9 @@ const Kpi12WorkplaceDistributionChart = () => {
   };
 
   const isLoading = jenisHook.loading || tingkatHook.loading;
-  const hasError  = jenisHook.error || tingkatHook.error;
+  const hasError = jenisHook.error || tingkatHook.error;
 
-  const MAX_PIE_SLICES = 8;
+  // Pie data — jenis perusahaan (top N + Lainnya)
   const pieData = useMemo(() => {
     if (!jenisHook.data?.data) return [];
     const sorted = [...jenisHook.data.data].sort((a, b) => b.pct - a.pct);
@@ -85,6 +85,26 @@ const Kpi12WorkplaceDistributionChart = () => {
     return result;
   }, [jenisHook.data]);
 
+  // Tingkat pie — aggregate dari semua prodi → Lokal/Nasional/Internasional
+  const tingkatPieData = useMemo(() => {
+    if (!tingkatHook.data?.data) return [];
+    const totals: Record<string, number> = {};
+    tingkatHook.data.data.forEach((p) =>
+      p.tingkat.forEach((t) => {
+        totals[t.label] = (totals[t.label] ?? 0) + t.count;
+      })
+    );
+    const grandTotal = Object.values(totals).reduce((s, v) => s + v, 0) || 1;
+    return Object.entries(totals)
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, count]) => ({
+        name: label,
+        value: +(count / grandTotal * 100).toFixed(1),
+        count,
+        color: TINGKAT_COLOR[label] ?? C.gray,
+      }));
+  }, [tingkatHook.data]);
+
   // Bar data — tingkat per prodi (horizontal stacked)
   const barData = useMemo(() => {
     if (!tingkatHook.data?.data) return [];
@@ -97,6 +117,7 @@ const Kpi12WorkplaceDistributionChart = () => {
 
   const barChartHeight = Math.max(barData.length * 44 + 60, 288);
   const total = jenisHook.data?.total ?? 0;
+  const tingkatTotal = tingkatPieData.reduce((s, d) => s + d.count, 0);
 
   return (
     <>
@@ -112,7 +133,6 @@ const Kpi12WorkplaceDistributionChart = () => {
             <MethodologyBlock
               description="Proporsi lulusan menurut jenis perusahaan/instansi tempat bekerja."
               formula={<>% Jenis = (Lulusan Bekerja di Jenis X / Total Lulusan Bekerja) × 100%</>}
-              notes="Hanya mencakup lulusan dengan status bekerja (bukan wirausaha)."
             />
           }
         >
@@ -149,13 +169,62 @@ const Kpi12WorkplaceDistributionChart = () => {
           </div>
         </KpiCard>
 
-        {/* ── Bar: tingkat instansi per prodi ── */}
+        {/* ── Pie: sebaran level perusahaan (Lokal/Nasional/Internasional) ── */}
         <KpiCard
           loading={isLoading} error={hasError}
-          empty={!isLoading && barData.length === 0}
+          empty={!isLoading && tingkatPieData.length === 0}
+          title="Sebaran Level Perusahaan"
+          subtitle="Distribusi level perusahaan tempat kerja lulusan — periode terakhir"
+          compareType="tingkatInstansi"
+          methodology={
+            <MethodologyBlock
+              description="Proporsi lulusan menurut level perusahaan tempat bekerja (Lokal/Nasional/Internasional)."
+              formula={<>% Level = (Lulusan Bekerja di Level X / Total Lulusan Bekerja) × 100%</>}
+            />
+          }
+        >
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={tingkatPieData} dataKey="value" nameKey="name" outerRadius={100}
+                  label={(e: any) => `${e.name}: ${e.value}%`}
+                  activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
+                  onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
+                  cursor="pointer"
+                  onClick={(d: any) =>
+                    openModal(
+                      `${d.name} (${d.value}% · ${d.count} alumni)`,
+                      { tingkat_instansi: d.name },
+                      { key: "jenis_instansi", label: "Jenis Instansi" }
+                    )
+                  }
+                >
+                  {tingkatPieData.map((d, i) => (
+                    <Cell key={i} fill={d.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(v: number, n) => [
+                    formatPctCount(v, Math.round((v * tingkatTotal) / 100), tingkatTotal),
+                    n,
+                  ]}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </KpiCard>
+      </div>
+
+      {/* ── Bar: tingkat instansi per prodi ── */}
+      {barData.length > 0 && (
+        <KpiCard
+          loading={isLoading} error={hasError}
+          empty={false}
           title="Sebaran Tingkat Instansi per Prodi"
           subtitle="Distribusi Lokal / Nasional / Internasional per program studi"
-          compareType="tingkatInstansi"
           methodology={
             <MethodologyBlock
               description="Proporsi lulusan per prodi berdasarkan skala/tingkat instansi tempat bekerja."
@@ -170,27 +239,12 @@ const Kpi12WorkplaceDistributionChart = () => {
                 layout="vertical"
                 margin={{ top: 5, right: 20, left: 8, bottom: 5 }}
               >
-                <CartesianGrid
-                  strokeDasharray="3 3" stroke="hsl(var(--border))"
-                  opacity={0.4} horizontal={false}
-                />
-                <XAxis
-                  type="number" tickFormatter={(v) => `${v}%`}
-                  fontSize={12} domain={[0, 100]}
-                  stroke="hsl(var(--muted-foreground))"
-                />
-                <YAxis
-                  type="category" dataKey="prodi"
-                  width={150} fontSize={10}
-                  stroke="hsl(var(--muted-foreground))"
-                  tick={{ fill: "hsl(var(--foreground))" }}
-                />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(v: number, n) => [`${v}%`, n]}
-                />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} horizontal={false} />
+                <XAxis type="number" tickFormatter={(v) => `${v}%`} fontSize={12} domain={[0, 100]} stroke="hsl(var(--muted-foreground))" />
+                <YAxis type="category" dataKey="prodi" width={150} fontSize={10} stroke="hsl(var(--muted-foreground))" tick={{ fill: "hsl(var(--foreground))" }} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n) => [`${v}%`, n]} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                {TINGKAT_LABELS.map((label) => (
+                {["Lokal", "Nasional", "Internasional"].map((label) => (
                   <Bar
                     key={label} dataKey={label} stackId="a"
                     fill={TINGKAT_COLOR[label] ?? C.gray}
@@ -208,7 +262,7 @@ const Kpi12WorkplaceDistributionChart = () => {
             </ResponsiveContainer>
           </div>
         </KpiCard>
-      </div>
+      )}
 
       <DrillDownModal
         isOpen={modal.open}

@@ -21,20 +21,36 @@ import { useFilterOptions } from "@/hooks/useFilterOptions";
 import { apiClient } from "@/lib/apiClient";
 
 const DownloadDataButton = () => {
-  const { isApplying } = useGlobalFilters();
-  const filterOptions = useFilterOptions();
+  const { isApplying, prodi, filterOptions } = useGlobalFilters();
+  const filterOpts = useFilterOptions();
   const [open, setOpen] = useState(false);
   const [year, setYear] = useState<string>("");
   const [downloading, setDownloading] = useState(false);
 
-  const years = filterOptions.tahunLulus ?? [];
+  const years = filterOpts.tahunLulus ?? [];
+
+  const resolveProdiId = (): number | undefined => {
+    const prodiList = filterOptions.prodiList ?? [];
+    if (prodi && prodi !== "__all__" && prodi !== "") {
+      const found = prodiList.find(
+        (p) => p.nama_prodi === prodi || String(p.id) === String(prodi)
+      );
+      return found?.id;
+    }
+    if (prodiList.length === 1) return prodiList[0].id;
+    return undefined;
+  };
 
   const handleDownload = async () => {
     if (!year) return;
     setDownloading(true);
     try {
+      const params: Record<string, string> = { tahun_lulus: year };
+      const prodiId = resolveProdiId();
+      if (prodiId) params.prodi_id = String(prodiId);
+
       const response = await apiClient.get("/admin/reports/export-alumni", {
-        params: { tahun_lulus: year },
+        params,
         responseType: "blob",
       });
       const blob = new Blob([response.data], {
