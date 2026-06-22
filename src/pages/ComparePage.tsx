@@ -393,12 +393,18 @@ const ComparePage = () => {
   }, [incomeKelompokBandingkanHook.data]);
   const incomeKelompokColorMap = buildColorMap(incomeKelompokLabels);
 
-  // Jenis Instansi — transform data BE ke stacked bar per prodi
+  // Jenis Instansi — transform data BE ke stacked bar per prodi (top N + Lainnya)
+  const MAX_JENIS_SLICES = 8;
   const instansiJenisLabels = useMemo(() => {
     if (!instansiBandingkanHook.data?.data) return [] as string[];
-    const set = new Set<string>();
-    instansiBandingkanHook.data.data.forEach((d) => d.jenis.forEach((j) => set.add(j.label)));
-    return [...set];
+    const totals: Record<string, number> = {};
+    instansiBandingkanHook.data.data.forEach((d) =>
+      d.jenis.forEach((j) => { totals[j.label] = (totals[j.label] ?? 0) + j.count; })
+    );
+    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, MAX_JENIS_SLICES).map(([l]) => l);
+    if (sorted.length > MAX_JENIS_SLICES) top.push("Lainnya");
+    return top;
   }, [instansiBandingkanHook.data]);
 
   const instansiJenisColorMap = useMemo(
@@ -408,19 +414,30 @@ const ComparePage = () => {
 
   const instansiJenisChartData = useMemo(() => {
     if (!isJenisInstansi || !instansiBandingkanHook.data?.data) return [];
+    const topSet = new Set(instansiJenisLabels.filter((l) => l !== "Lainnya"));
     return instansiBandingkanHook.data.data.map((d) => {
       const row: Record<string, any> = {
         prodi:    d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
         fullProdi: d.nama_prodi,
         total:    d.total,
       };
+      let lainnyaPct = 0, lainnyaCount = 0;
       d.jenis.forEach((j) => {
-        row[j.label] = j.pct;
-        row[`${j.label}Count`] = j.count;
+        if (topSet.has(j.label)) {
+          row[j.label] = +(j.pct).toFixed(1);
+          row[`${j.label}Count`] = j.count;
+        } else {
+          lainnyaPct += j.pct;
+          lainnyaCount += j.count;
+        }
       });
+      if (instansiJenisLabels.includes("Lainnya")) {
+        row["Lainnya"] = +(lainnyaPct).toFixed(1);
+        row["LainnyaCount"] = lainnyaCount;
+      }
       return row;
     });
-  }, [isJenisInstansi, instansiBandingkanHook.data]);
+  }, [isJenisInstansi, instansiBandingkanHook.data, instansiJenisLabels]);
 
   // Tingkat Instansi — transform data BE ke stacked bar per prodi
   const instansiTingkatLabels = ["Lokal", "Nasional", "Internasional"];
@@ -446,12 +463,18 @@ const ComparePage = () => {
     });
   }, [isTingkatInstansi, instansiBandingkanHook.data]);
 
-  // Sumber Biaya — transform data BE ke stacked bar per prodi
+  // Sumber Biaya — transform data BE ke stacked bar per prodi (top N + Lainnya)
+  const MAX_BIAYA_SLICES = 8;
   const pembiayaanLabels = useMemo(() => {
     if (!pembiayaanBandingkanHook.data?.data) return [] as string[];
-    const set = new Set<string>();
-    pembiayaanBandingkanHook.data.data.forEach((d) => d.sumber.forEach((s) => set.add(s.label)));
-    return [...set];
+    const totals: Record<string, number> = {};
+    pembiayaanBandingkanHook.data.data.forEach((d) =>
+      d.sumber.forEach((s) => { totals[s.label] = (totals[s.label] ?? 0) + s.count; })
+    );
+    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, MAX_BIAYA_SLICES).map(([l]) => l);
+    if (sorted.length > MAX_BIAYA_SLICES) top.push("Lainnya");
+    return top;
   }, [pembiayaanBandingkanHook.data]);
 
   const pembiayaanColorMap = useMemo(
@@ -461,20 +484,31 @@ const ComparePage = () => {
 
   const pembiayaanChartData = useMemo(() => {
     if (!isSumberBiaya || !pembiayaanBandingkanHook.data?.data) return [];
+    const topSet = new Set(pembiayaanLabels.filter((l) => l !== "Lainnya"));
     return pembiayaanBandingkanHook.data.data.map((d) => {
-      const shortProdi = d.nama_prodi.length > 20 ? d.nama_prodi.slice(0, 18) + "…" : d.nama_prodi;
+      const shortProdi = d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi;
       const row: Record<string, any> = {
-        prodi: `${d.jenjang} ${shortProdi}`,
-        fullProdi: `${d.jenjang} ${d.nama_prodi}`,
+        prodi: shortProdi,
+        fullProdi: d.nama_prodi,
         total: d.total,
       };
+      let lainnyaPct = 0, lainnyaCount = 0;
       d.sumber.forEach((s) => {
-        row[s.label] = +(s.pct).toFixed(1);
-        row[`${s.label}Count`] = s.count;
+        if (topSet.has(s.label)) {
+          row[s.label] = +(s.pct).toFixed(1);
+          row[`${s.label}Count`] = s.count;
+        } else {
+          lainnyaPct += s.pct;
+          lainnyaCount += s.count;
+        }
       });
+      if (pembiayaanLabels.includes("Lainnya")) {
+        row["Lainnya"] = +(lainnyaPct).toFixed(1);
+        row["LainnyaCount"] = lainnyaCount;
+      }
       return row;
     });
-  }, [isSumberBiaya, pembiayaanBandingkanHook.data]);
+  }, [isSumberBiaya, pembiayaanBandingkanHook.data, pembiayaanLabels]);
 
   const [pembiayaanModal, setPembiayaanModal] = useState<{ open: boolean; title: string; sumber_biaya?: string }>({ open: false, title: "" });
 
@@ -694,23 +728,23 @@ const ComparePage = () => {
   );
 
   const pageTitle = isStatusDistrib
-    ? "Perbandingan Distribusi Status Alumni per Prodi"
+    ? "Perbandingan Distribusi Status Alumni Antar Program Studi"
     : isAbsorption
-    ? "Perbandingan Keterserapan Lulusan per Prodi"
+    ? "Perbandingan Keterserapan Lulusan Antar Program Studi"
     : isKesesuaian
-    ? "Perbandingan Kesesuaian Bidang per Prodi"
+    ? "Perbandingan Kesesuaian Bidang Antar Program Studi"
     : isWaktuTunggu
-    ? "Perbandingan Masa Tunggu Kerja per Prodi"
+    ? "Perbandingan Masa Tunggu Kerja Antar Program Studi"
     : isWirausaha
-    ? "Perbandingan Lulusan Wirausaha per Prodi"
+    ? "Perbandingan Lulusan Wirausaha Antar Program Studi"
     : isIncome
-    ? "Perbandingan Distribusi UMP per Prodi"
+    ? "Perbandingan Distribusi UMP Antar Program Studi"
     : isIncomeKelompok
-    ? "Perbandingan Kelompok Pendapatan per Prodi"
+    ? "Perbandingan Kelompok Pendapatan Antar Program Studi"
     : isJenisInstansi
-    ? "Perbandingan Jenis Instansi per Prodi"
+    ? "Perbandingan Jenis Instansi Antar Program Studi"
     : isTingkatInstansi
-    ? "Perbandingan Sebaran Level Perusahaan per Prodi"
+    ? "Perbandingan Sebaran Level Perusahaan Antar Program Studi"
     : isTrendType
     ? `Heatmap Trend ${indicatorParam} per Prodi`
     : config?.title ?? "";

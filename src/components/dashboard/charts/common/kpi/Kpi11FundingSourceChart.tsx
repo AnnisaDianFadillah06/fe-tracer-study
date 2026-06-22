@@ -53,15 +53,19 @@ const Kpi11FundingSourceChart = () => {
     : (antarResult.error as Error | null)?.message ?? null;
 
   // Ambil semua label unik dari pie (sudah urut by count desc) → warna konsisten
+  const fixLabel = (l: string) => (l === "0" || l === "" ? "Tidak Mengisi" : l);
+
   const allLabels = useMemo(() => {
     const arr: string[] = [];
     const seen = new Set<string>();
     pieResult.data?.data?.forEach((d) => {
-      if (!seen.has(d.sumber_biaya)) { arr.push(d.sumber_biaya); seen.add(d.sumber_biaya); }
+      const label = fixLabel(d.sumber_biaya);
+      if (!seen.has(label)) { arr.push(label); seen.add(label); }
     });
     antarResult.data?.data?.forEach((t) =>
       t.sumber.forEach((s) => {
-        if (!seen.has(s.label)) { arr.push(s.label); seen.add(s.label); }
+        const label = fixLabel(s.label);
+        if (!seen.has(label)) { arr.push(label); seen.add(label); }
       })
     );
     return arr;
@@ -77,7 +81,7 @@ const Kpi11FundingSourceChart = () => {
     const top = sorted.slice(0, MAX_PIE_SLICES);
     const rest = sorted.slice(MAX_PIE_SLICES);
     const result = top.map((d) => ({
-      name: d.sumber_biaya,
+      name: d.sumber_biaya === "0" || d.sumber_biaya === "" ? "Tidak Mengisi" : d.sumber_biaya,
       value: +(d.pct).toFixed(1),
       count: d.count,
     }));
@@ -91,31 +95,57 @@ const Kpi11FundingSourceChart = () => {
     return result;
   }, [pieResult.data]);
 
-  // Antar periode — grouped bar per tahun_lulus
+  // Antar periode — grouped bar per tahun_lulus (top N + Lainnya)
+  const antarTopLabels = useMemo(() => {
+    if (!antarResult.data?.data) return [] as string[];
+    const totals: Record<string, number> = {};
+    antarResult.data.data.forEach((t) =>
+      t.sumber.forEach((s) => { totals[s.label] = (totals[s.label] ?? 0) + s.count; })
+    );
+    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, MAX_PIE_SLICES).map(([l]) => l);
+    if (sorted.length > MAX_PIE_SLICES) top.push("Lainnya");
+    return top;
+  }, [antarResult.data]);
+
   const antarData = useMemo(() => {
     if (!antarResult.data?.data) return [];
+    const topSet = new Set(antarTopLabels.filter((l) => l !== "Lainnya"));
     return antarResult.data.data.map((t) => {
       const row: Record<string, any> = { tahun: t.tahun_lulus };
-      t.sumber.forEach((s) => { row[s.label] = +(s.pct).toFixed(1); });
+      let lainnyaPct = 0;
+      t.sumber.forEach((s) => {
+        if (topSet.has(s.label)) {
+          row[s.label] = +(s.pct).toFixed(1);
+        } else {
+          lainnyaPct += s.pct;
+        }
+      });
+      if (antarTopLabels.includes("Lainnya")) row["Lainnya"] = +(lainnyaPct).toFixed(1);
       return row;
     });
-  }, [antarResult.data]);
+  }, [antarResult.data, antarTopLabels]);
 
-  const antarLabels = useMemo(() => {
-    const set = new Set<string>();
-    antarResult.data?.data?.forEach((t) => t.sumber.forEach((s) => set.add(s.label)));
-    return [...set];
-  }, [antarResult.data]);
+  const antarLabels = antarTopLabels;
 
-  // Tooltip antar periode: tampilkan semua sumber untuk tahun itu
+  // Tooltip antar periode: tampilkan grouped sumber untuk tahun itu
   const antarTooltipData = useMemo(() => {
+    const topSet = new Set(antarTopLabels.filter((l) => l !== "Lainnya"));
     const map: Record<string, Record<string, number>> = {};
     antarResult.data?.data?.forEach((t) => {
       map[t.tahun_lulus] = {};
-      t.sumber.forEach((s) => { map[t.tahun_lulus][s.label] = s.pct; });
+      let lainnya = 0;
+      t.sumber.forEach((s) => {
+        if (topSet.has(s.label)) {
+          map[t.tahun_lulus][s.label] = s.pct;
+        } else {
+          lainnya += s.pct;
+        }
+      });
+      if (antarTopLabels.includes("Lainnya")) map[t.tahun_lulus]["Lainnya"] = +(lainnya).toFixed(1);
     });
     return map;
-  }, [antarResult.data]);
+  }, [antarResult.data, antarTopLabels]);
 
   const isEmpty = !loading && (view === "pie" ? pieData.length === 0 : antarData.length === 0);
   const total   = pieResult.data?.total ?? 0;

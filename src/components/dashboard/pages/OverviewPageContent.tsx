@@ -84,14 +84,14 @@ const OverviewPageContent = ({
               className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow rounded-lg px-4 py-2.5"
             >
               <ClipboardList className="w-4 h-4" />
-              Status Pengisian
+              Status Pengisian Survei Alumni
             </TabsTrigger>
             <TabsTrigger
               value="k3"
               className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow rounded-lg px-4 py-2.5"
             >
               <LineChartIcon className="w-4 h-4" />
-              Tren Partisipasi
+              Tren Partisipasi Pengisian
             </TabsTrigger>
           </TabsList>
           <TabsContent value="k1">

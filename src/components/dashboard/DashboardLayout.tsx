@@ -38,7 +38,7 @@ interface DashboardLayoutProps {
 // Navigation items — role-agnostic routes
 const navItems = [
   {
-    title: "Monitoring Operasional",
+    title: "Monitoring Partisipasi",
     icon: LayoutDashboard,
     href: "/dashboard/overview",
     description: "Pemantauan pengisian tracer study",
@@ -50,7 +50,7 @@ const navItems = [
     description: "Penempatan & karier alumni",
   },
   {
-    title: "Evaluasi Pendidikan",
+    title: "Analisis Capaian Lulusan",
     icon: BookOpen,
     href: "/dashboard/education",
     description: "Kompetensi & pembelajaran",

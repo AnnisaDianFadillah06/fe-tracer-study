@@ -28,21 +28,22 @@ const Kpi9CompetencyGapChart = () => {
   const [view, setView] = useState<"radar" | "bar">("radar");
 
   // Transform: radar membutuhkan skor_lulus & skor_dibutuhkan per indikator
+  const cleanLabel = (label: string) =>
+    label.replace(/\s*[—–-]\s*dikuasai saat lulus$/i, "").trim();
+
   const radarData = useMemo(() => {
     if (!data?.data) return [];
     return data.data.map((d) => ({
-      kompetensi: d.label,
+      kompetensi: cleanLabel(d.label),
       lulus:      d.skor_lulus,
       industri:   d.skor_dibutuhkan,
     }));
   }, [data]);
 
-  // Transform: bar gap = skor_lulus - skor_dibutuhkan
-  // (positif = lulus > dibutuhkan = hijau/aman, negatif = merah/perlu ditingkatkan)
   const gapData = useMemo(() => {
     if (!data?.data) return [];
     return data.data.map((d) => ({
-      kompetensi: d.label,
+      kompetensi: cleanLabel(d.label),
       gap:        +(d.skor_lulus - d.skor_dibutuhkan).toFixed(2),
     }));
   }, [data]);
