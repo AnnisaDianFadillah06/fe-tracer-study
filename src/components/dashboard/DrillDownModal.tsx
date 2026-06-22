@@ -37,7 +37,7 @@ interface Props {
   loading: boolean;
   error: string | null;
   /** Kolom tambahan sesuai konteks KPI */
-  contextColumn: ContextColumn | null;
+  contextColumn?: ContextColumn | null;
   /** Dipanggil saat user ganti halaman atau search */
   onPageChange: (page: number, search?: string) => void;
 }

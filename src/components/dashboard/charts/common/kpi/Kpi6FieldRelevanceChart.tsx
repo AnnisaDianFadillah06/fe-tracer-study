@@ -271,7 +271,7 @@ const Kpi6FieldRelevanceChart = () => {
         data={drillHook.data}
         loading={drillHook.loading}
         error={drillHook.error}
-        contextColumn={CONTEXT_COLUMN}
+        contextColumn={modal.alasan ? undefined : CONTEXT_COLUMN}
         onPageChange={handlePageChange}
       />
     </>
