@@ -70,14 +70,25 @@ const Kpi11FundingSourceChart = () => {
   const labelColor = (label: string) =>
     PIE_COLORS[allLabels.indexOf(label) % PIE_COLORS.length] ?? C.gray;
 
-  // Pie data
+  const MAX_PIE_SLICES = 8;
   const pieData = useMemo(() => {
     if (!pieResult.data?.data) return [];
-    return pieResult.data.data.map((d) => ({
-      name:  d.sumber_biaya,
-      value: d.pct,
+    const sorted = [...pieResult.data.data].sort((a, b) => b.pct - a.pct);
+    const top = sorted.slice(0, MAX_PIE_SLICES);
+    const rest = sorted.slice(MAX_PIE_SLICES);
+    const result = top.map((d) => ({
+      name: d.sumber_biaya,
+      value: +(d.pct).toFixed(1),
       count: d.count,
     }));
+    if (rest.length > 0) {
+      result.push({
+        name: "Lainnya",
+        value: +(rest.reduce((s, d) => s + d.pct, 0)).toFixed(1),
+        count: rest.reduce((s, d) => s + d.count, 0),
+      });
+    }
+    return result;
   }, [pieResult.data]);
 
   // Antar periode — grouped bar per tahun_lulus
@@ -177,7 +188,6 @@ const Kpi11FundingSourceChart = () => {
                   <PieChart>
                     <Pie
                       data={pieData} dataKey="value" nameKey="name" outerRadius={100}
-                      label={(e: any) => `${e.name}: ${e.value}%`}
                       activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                       onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                       cursor="pointer"
@@ -260,10 +270,10 @@ const Kpi11FundingSourceChart = () => {
                   Klik potongan pie untuk melihat daftar alumni dengan sumber pembiayaan tersebut.
                 </p>
                 <ul className="space-y-1.5 text-sm">
-                  {allLabels.map((label) => (
-                    <li key={label} className="flex items-center gap-2">
-                      <span className="inline-block w-4 h-4 rounded-sm shrink-0" style={{ background: labelColor(label) }} />
-                      <strong>{label}</strong>
+                  {pieData.map((d) => (
+                    <li key={d.name} className="flex items-center gap-2">
+                      <span className="inline-block w-4 h-4 rounded-sm shrink-0" style={{ background: labelColor(d.name) }} />
+                      <strong>{d.name}</strong>
                     </li>
                   ))}
                 </ul>
