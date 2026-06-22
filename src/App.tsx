@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { RoleProvider } from "@/contexts/RoleContext";
+import { GlobalFiltersProvider } from "@/contexts/GlobalFiltersContext";
 import { AuthProvider } from "@/contexts/AuthContext";        // ✅ tambah
 import ProtectedRoute from "@/components/ProtectedRoute";    // ✅ tambah
 import Landing from "./pages/Landing";
@@ -44,6 +45,7 @@ const App = () => (
         {/* ✅ AuthProvider di dalam BrowserRouter agar useNavigate bisa dipakai di context */}
         <AuthProvider>
           <RoleProvider>
+            <GlobalFiltersProvider>
             <Toaster />
             <Sonner />
             <Routes>
@@ -53,7 +55,7 @@ const App = () => (
               <Route path="/form/login" element={<StudentLoginPage />} />
               <Route path="/form" element={<FormPage />} />
 
-              {/* Protected — semua dashboard */}
+              {/* Protected — semua dashboard (GlobalFiltersProvider persists across pages) */}
               <Route path="/dashboard" element={<Navigate to="/dashboard/overview" replace />} />
               <Route path="/dashboard/overview"             element={<P><OverviewPage /></P>} />
               <Route path="/dashboard/employment"           element={<P><EmploymentPage /></P>} />
@@ -81,6 +83,7 @@ const App = () => (
 
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </GlobalFiltersProvider>
           </RoleProvider>
         </AuthProvider>
       </BrowserRouter>

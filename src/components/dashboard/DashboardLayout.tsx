@@ -74,7 +74,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const todayId = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 
   return (
-    <GlobalFiltersProvider>
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
       <motion.aside
@@ -295,7 +294,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </main>
       </div>
     </div>
-    </GlobalFiltersProvider>
   );
 };
 

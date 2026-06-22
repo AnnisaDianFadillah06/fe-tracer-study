@@ -54,7 +54,7 @@ import {
 } from "@/hooks/usePendapatan";
 import { useInstansiBandingkan, useInstansiDrillDown } from "@/hooks/useInstansi";
 import { usePembiayaanBandingkan, usePembiayaanDrillDown } from "@/hooks/usePembiayaan";
-import { useMetodePembelajaranBandingkan } from "@/hooks/useMetodePembelajaran";
+import { useMetodePembelajaranBandingkan, useMetodePembelajaranDrillDown } from "@/hooks/useMetodePembelajaran";
 import { useKompetensiGapBandingkan } from "@/hooks/useKompetensi";
 import { useResponseRateBandingkan, useResponseRateDrillDown, statusNameToKey } from "@/hooks/useResponseRate";
 import { buildColorMap, getShortLabel } from "@/lib/chartColors";
@@ -273,6 +273,7 @@ const ComparePage = () => {
   const instansiDrillHook            = useInstansiDrillDown();
   const pembiayaanBandingkanHook     = usePembiayaanBandingkan(isSumberBiaya);
   const metodeBandingkanHook         = useMetodePembelajaranBandingkan(isLearning);
+  const metodeDrillHook              = useMetodePembelajaranDrillDown();
   const kompetensiGapHook            = useKompetensiGapBandingkan(isCompetency);
   const pembiayaanDrillHook          = usePembiayaanDrillDown();
   const responseRateBarHook          = useResponseRateBandingkan(isCompletion || isParticipation);
@@ -569,6 +570,8 @@ const ComparePage = () => {
       };
     });
   }, [isLearning, metodeBandingkanHook.data]);
+
+  const [metodeModal, setMetodeModal] = useState<{ open: boolean; title: string; kode_field?: string }>({ open: false, title: "" });
 
   // Response Rate — for completion (KPI2) and participation-trend (KPI3)
   const rrLabels = isCompletion
@@ -2045,7 +2048,13 @@ const ComparePage = () => {
                       />
                       <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
                       {learningLevels.map((label) => (
-                        <Bar key={label} dataKey={label} stackId="a" fill={learningColorMap[label]} />
+                        <Bar key={label} dataKey={label} stackId="a" fill={learningColorMap[label]}
+                          cursor="pointer"
+                          onClick={(d: any) => {
+                            setMetodeModal({ open: true, title: `${label} — ${d.fullProdi ?? d.prodi}` });
+                            metodeDrillHook.fetch({ page: 1 });
+                          }}
+                        />
                       ))}
                     </BarChart>
                   </ResponsiveContainer>
@@ -2086,6 +2095,17 @@ const ComparePage = () => {
                 </div>
               </motion.div>
             )}
+
+            <DrillDownModal
+              isOpen={metodeModal.open}
+              onClose={() => setMetodeModal((m) => ({ ...m, open: false }))}
+              title={metodeModal.title}
+              data={metodeDrillHook.data}
+              loading={metodeDrillHook.loading}
+              error={metodeDrillHook.error}
+              contextColumn={{ key: "metode", label: "Metode" }}
+              onPageChange={(page, search) => metodeDrillHook.fetch({ kode_field: metodeModal.kode_field, page, search })}
+            />
           </>
         )}
 

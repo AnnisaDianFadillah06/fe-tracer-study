@@ -125,8 +125,8 @@ const Kpi9CompetencyGapChart = () => {
                   <PolarRadiusAxis
                     domain={[0, 5]}
                     tickCount={6}
-                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                    angle={72}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))", fontWeight: 600 }}
+                    angle={90}
                     axisLine={false}
                   />
                   <Radar
