@@ -100,7 +100,7 @@ const Kpi11FundingSourceChart = () => {
     if (!antarResult.data?.data) return [] as string[];
     const totals: Record<string, number> = {};
     antarResult.data.data.forEach((t) =>
-      t.sumber.forEach((s) => { totals[s.label] = (totals[s.label] ?? 0) + s.count; })
+      t.sumber.forEach((s) => { totals[fixLabel(s.label)] = (totals[fixLabel(s.label)] ?? 0) + s.count; })
     );
     const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
     const top = sorted.slice(0, MAX_PIE_SLICES).map(([l]) => l);
@@ -115,8 +115,9 @@ const Kpi11FundingSourceChart = () => {
       const row: Record<string, any> = { tahun: t.tahun_lulus };
       let lainnyaPct = 0;
       t.sumber.forEach((s) => {
-        if (topSet.has(s.label)) {
-          row[s.label] = +(s.pct).toFixed(1);
+        const label = fixLabel(s.label);
+        if (topSet.has(label)) {
+          row[label] = +(s.pct).toFixed(1);
         } else {
           lainnyaPct += s.pct;
         }
@@ -136,8 +137,9 @@ const Kpi11FundingSourceChart = () => {
       map[t.tahun_lulus] = {};
       let lainnya = 0;
       t.sumber.forEach((s) => {
-        if (topSet.has(s.label)) {
-          map[t.tahun_lulus][s.label] = s.pct;
+        const label = fixLabel(s.label);
+        if (topSet.has(label)) {
+          map[t.tahun_lulus][label] = s.pct;
         } else {
           lainnya += s.pct;
         }
@@ -213,11 +215,13 @@ const Kpi11FundingSourceChart = () => {
         <div className="grid lg:grid-cols-2 gap-5 items-stretch">
           <div className="min-w-0">
             {view === "pie" ? (
-              <div className="h-72">
+              <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={pieData} dataKey="value" nameKey="name" outerRadius={100}
+                      data={pieData} dataKey="value" nameKey="name" outerRadius={90} innerRadius={0}
+                      label={({ name, percent }) => percent > 0.05 ? `${name}: ${(percent * 100).toFixed(0)}%` : ""}
+                      labelLine={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1 }}
                       activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                       onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                       cursor="pointer"
@@ -244,11 +248,11 @@ const Kpi11FundingSourceChart = () => {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="h-80">
+              <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={antarData}
-                    margin={{ top: 10, right: 20, left: 0, bottom: 20 }}
+                    margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
                     barCategoryGap="20%"
                     barGap={2}
                   >
@@ -259,7 +263,6 @@ const Kpi11FundingSourceChart = () => {
                     <XAxis
                       dataKey="tahun" fontSize={12}
                       stroke="hsl(var(--muted-foreground))"
-                      label={{ value: "Tahun Kelulusan", position: "insideBottom", offset: -10, fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                     />
                     <YAxis
                       tickFormatter={(v) => `${v}%`} fontSize={12}
