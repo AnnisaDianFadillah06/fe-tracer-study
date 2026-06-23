@@ -114,15 +114,21 @@ const Kpi11FundingSourceChart = () => {
     return antarResult.data.data.map((t) => {
       const row: Record<string, any> = { tahun: t.tahun_lulus };
       let lainnyaPct = 0;
+      let lainnyaCount = 0;
       t.sumber.forEach((s) => {
         const label = fixLabel(s.label);
         if (topSet.has(label)) {
           row[label] = +(s.pct).toFixed(1);
+          row[`${label}_count`] = s.count;
         } else {
           lainnyaPct += s.pct;
+          lainnyaCount += s.count;
         }
       });
-      if (antarTopLabels.includes("Lainnya")) row["Lainnya"] = +(lainnyaPct).toFixed(1);
+      if (antarTopLabels.includes("Lainnya")) {
+        row["Lainnya"] = +(lainnyaPct).toFixed(1);
+        row["Lainnya_count"] = lainnyaCount;
+      }
       return row;
     });
   }, [antarResult.data, antarTopLabels]);
@@ -175,7 +181,7 @@ const Kpi11FundingSourceChart = () => {
         subtitle={
           view === "pie"
             ? "Proporsi sumber pembiayaan — periode terakhir"
-            : "Perubahan distribusi antar periode (grouped bar)"
+            : "Perubahan distribusi antar periode (stacked bar)"
         }
         compareType="sumberBiaya"
         headerExtra={
@@ -248,41 +254,42 @@ const Kpi11FundingSourceChart = () => {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="h-96">
+              <div style={{ height: Math.max(200, antarData.length * 52) }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={antarData}
-                    margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
-                    barCategoryGap="20%"
-                    barGap={2}
+                    layout="vertical"
+                    margin={{ top: 10, right: 30, left: 60, bottom: 10 }}
                   >
                     <CartesianGrid
                       strokeDasharray="3 3" stroke="hsl(var(--border))"
-                      opacity={0.4} vertical={false}
+                      horizontal={false}
                     />
                     <XAxis
-                      dataKey="tahun" fontSize={12}
-                      stroke="hsl(var(--muted-foreground))"
+                      type="number" domain={[0, 100]}
+                      tickFormatter={(v: number) => `${Math.round(v)}%`}
+                      fontSize={12} stroke="hsl(var(--muted-foreground))"
                     />
                     <YAxis
-                      tickFormatter={(v) => `${v}%`} fontSize={12}
-                      domain={[0, 100]}
-                      stroke="hsl(var(--muted-foreground))"
+                      dataKey="tahun" type="category" width={50}
+                      fontSize={12} stroke="hsl(var(--muted-foreground))"
+                      tickLine={false}
                     />
-                    <Tooltip content={<CustomAntarTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                      content={<CustomAntarTooltip />}
+                    />
+                    <Legend wrapperStyle={{ paddingTop: 10, fontSize: 11 }} />
                     {antarLabels.map((label) => (
                       <Bar
-                        key={label} dataKey={label}
-                        fill={labelColor(label)} radius={[3, 3, 0, 0]}
-                        maxBarSize={40} cursor="pointer"
+                        key={label} dataKey={label} stackId="a"
+                        fill={labelColor(label)} cursor="pointer"
                         onClick={(d: any) =>
                           openModal(
-                            `${label} — ${d.tahun} (${d[label]}%)`,
+                            `${label} — ${d.tahun} (${d[label]}% · ${d[`${label}_count`] ?? "?"} alumni)`,
                             { sumber_biaya: label, tahun_lulus: d.tahun }
                           )
                         }
-                        activeBar={{ stroke: "hsl(var(--foreground))", strokeWidth: 1.5 } as any}
                       />
                     ))}
                   </BarChart>
@@ -313,13 +320,13 @@ const Kpi11FundingSourceChart = () => {
               </>
             ) : (
               <>
-                <h4 className="font-semibold text-foreground text-[15px]">Cara Membaca Grouped Bar</h4>
+                <h4 className="font-semibold text-foreground text-[15px]">Cara Membaca Stacked Bar</h4>
                 <p className="text-muted-foreground">
-                  Tiap kelompok bar mewakili satu tahun kelulusan. Tinggi bar = persentase lulusan dengan sumber
+                  Tiap baris mewakili satu tahun kelulusan. Panjang segmen = persentase lulusan dengan sumber
                   pembiayaan tertentu pada tahun tersebut.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Bandingkan ketinggian bar antar tahun untuk melihat pergeseran tren: misalnya kenaikan porsi beasiswa atau
+                  Bandingkan proporsi segmen antar tahun untuk melihat pergeseran tren: misalnya kenaikan porsi beasiswa atau
                   penurunan porsi mandiri.
                 </p>
                 <p className="text-xs text-muted-foreground">

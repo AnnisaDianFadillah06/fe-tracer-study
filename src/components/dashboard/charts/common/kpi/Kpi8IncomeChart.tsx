@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -47,7 +47,9 @@ const Kpi8IncomeChart = () => {
       (barHook.data?.data ?? []).map((d) => ({
         year:     d.tahun_lulus,
         avg:      Math.round((d.avg_gaji / 1_000_000) * 100) / 100,
-        pctAbove: d.pct_above_ump ?? undefined,   // undefined → Recharts skip titik
+        pctAbove: d.pct_above_ump ?? undefined,
+        total:    d.total_alumni_ump,
+        countAbove: d.count_above_ump,
       })),
     [barHook.data]
   );
@@ -61,6 +63,9 @@ const Kpi8IncomeChart = () => {
         year:  d.tahun_lulus,
         below: d.pct_below_ump,
         above: d.pct_above_ump,
+        countBelow: d.count_below_ump,
+        countAbove: d.count_above_ump,
+        total: d.total_alumni_ump,
       })),
     [distHook.data]
   );
@@ -68,6 +73,18 @@ const Kpi8IncomeChart = () => {
   const showRefLine = !lam.isDisabled && !!lam.threshold;
   const isEmpty     = !barHook.loading  && !barHook.error  && avgData.length  === 0;
   const isEmpty2    = !distHook.loading && !distHook.error && distData.length === 0;
+
+  const VISIBLE_YEARS = 3;
+  const BAR_GROUP_WIDTH = 160;
+  const distChartWidth = Math.max(distData.length * BAR_GROUP_WIDTH, 400);
+  const distScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = distScrollRef.current;
+    if (el && distData.length > VISIBLE_YEARS) {
+      el.scrollLeft = el.scrollWidth - el.clientWidth;
+    }
+  }, [distData]);
 
   return (
     <>
@@ -144,7 +161,7 @@ const Kpi8IncomeChart = () => {
                   maxBarSize={60}
                   cursor="pointer"
                   onClick={(d: any) =>
-                    openModal(`Pendapatan Lulusan ${d.year}`, { tahun_lulus: d.year })
+                    openModal(`Pendapatan Lulusan ${d.year} (${d.total} alumni)`, { tahun_lulus: d.year })
                   }
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
@@ -204,52 +221,57 @@ const Kpi8IncomeChart = () => {
             />
           }
         >
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={distData} margin={{ top: 30, right: 20, left: 20, bottom: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-                <XAxis
-                  dataKey="year"
-                  fontSize={13}
-                  stroke="hsl(var(--muted-foreground))"
-                  label={{ value: "Tahun Kelulusan", position: "insideBottom", offset: -8, fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                />
-                <YAxis
-                  tickFormatter={(v) => `${v}%`}
-                  fontSize={13}
-                  domain={[0, 100]}
-                  label={{ value: "Persentase Lulusan (%)", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
-                <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
-                <Bar
-                  dataKey="below"
-                  name="< 1,2× UMP"
-                  fill={C.orange}
-                  radius={[3, 3, 0, 0]}
-                  cursor="pointer"
-                  onClick={(d: any) =>
-                    openModal(`Alumni < 1,2× UMP — ${d.year}`, { segmen_ump: "below_ump", tahun_lulus: d.year })
-                  }
-                  activeBar={{ stroke: "hsl(20 90% 45%)", strokeWidth: 2 } as any}
-                >
-                  <LabelList dataKey="below" position="center" fontSize={12} fontWeight={600} fill="#fff" formatter={(v: number) => `${v}%`} />
-                </Bar>
-                <Bar
-                  dataKey="above"
-                  name="≥ 1,2× UMP"
-                  fill={C.blue}
-                  radius={[3, 3, 0, 0]}
-                  cursor="pointer"
-                  onClick={(d: any) =>
-                    openModal(`Alumni ≥ 1,2× UMP — ${d.year}`, { segmen_ump: "above_ump", tahun_lulus: d.year })
-                  }
-                  activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
-                >
-                  <LabelList dataKey="above" position="center" fontSize={12} fontWeight={600} fill="#fff" formatter={(v: number) => `${v}%`} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div
+            ref={distScrollRef}
+            className="h-80 overflow-x-auto overflow-y-hidden"
+            style={{ scrollBehavior: "smooth" }}
+          >
+            <div style={{ width: distData.length > VISIBLE_YEARS ? distChartWidth : "100%", height: "100%" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={distData} margin={{ top: 30, right: 20, left: 20, bottom: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+                  <XAxis
+                    dataKey="year"
+                    fontSize={13}
+                    stroke="hsl(var(--muted-foreground))"
+                  />
+                  <YAxis
+                    tickFormatter={(v) => `${v}%`}
+                    fontSize={13}
+                    domain={[0, 100]}
+                    label={{ value: "Persentase Lulusan (%)", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                  />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
+                  <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
+                  <Bar
+                    dataKey="below"
+                    name="< 1,2× UMP"
+                    fill={C.orange}
+                    radius={[3, 3, 0, 0]}
+                    cursor="pointer"
+                    onClick={(d: any) =>
+                      openModal(`Alumni < 1,2× UMP — ${d.year} (${d.below}% · ${d.countBelow} alumni)`, { segmen_ump: "below_ump", tahun_lulus: d.year })
+                    }
+                    activeBar={{ stroke: "hsl(20 90% 45%)", strokeWidth: 2 } as any}
+                  >
+                    <LabelList dataKey="below" position="center" fontSize={12} fontWeight={600} fill="#fff" formatter={(v: number) => `${v}%`} />
+                  </Bar>
+                  <Bar
+                    dataKey="above"
+                    name="≥ 1,2× UMP"
+                    fill={C.blue}
+                    radius={[3, 3, 0, 0]}
+                    cursor="pointer"
+                    onClick={(d: any) =>
+                      openModal(`Alumni ≥ 1,2× UMP — ${d.year} (${d.above}% · ${d.countAbove} alumni)`, { segmen_ump: "above_ump", tahun_lulus: d.year })
+                    }
+                    activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
+                  >
+                    <LabelList dataKey="above" position="center" fontSize={12} fontWeight={600} fill="#fff" formatter={(v: number) => `${v}%`} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </KpiCard>
       </div>

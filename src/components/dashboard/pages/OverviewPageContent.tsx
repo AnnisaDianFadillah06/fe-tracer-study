@@ -21,6 +21,7 @@ import {
   Kpi3ParticipationTrendChart,
 } from "@/components/dashboard/charts/common";
 import { useOverviewSummary, OverviewSummaryCards } from "@/hooks/useSummaryCards";
+import { useRole } from "@/contexts/RoleContext";
 
 const FALLBACK_SUMMARY: SummaryCardItem[] = [
   { title: "Total Kuesioner", value: "—", hint: "Dikirim", icon: ClipboardList, color: "bg-primary/10 text-primary" },
@@ -56,7 +57,9 @@ const OverviewPageContent = ({
   emptyKpis = [],
 }: Props) => {
   const { tahunLulus } = useGlobalFilters();
+  const { currentRole } = useRole();
   const { data: cards, loading } = useOverviewSummary();
+  const isKaprodi = currentRole === "kaprodi";
   const summary = cards ? buildOverviewCards(cards) : FALLBACK_SUMMARY;
   const today = new Date().toLocaleDateString("id-ID", {
     day: "numeric",
@@ -70,15 +73,17 @@ const OverviewPageContent = ({
       <div className="space-y-4 max-w-[1400px] mx-auto">
         <SummaryCards items={summary} />
 
-        <Tabs defaultValue="k1" className="space-y-4">
+        <Tabs defaultValue={isKaprodi ? "k2" : "k1"} className="space-y-4">
           <TabsList className="flex flex-wrap h-auto bg-muted/40 p-1.5 rounded-xl gap-1.5">
-            <TabsTrigger
-              value="k1"
-              className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow rounded-lg px-4 py-2.5"
-            >
-              <ListChecks className="w-4 h-4" />
-              Respons Rate per Prodi
-            </TabsTrigger>
+            {!isKaprodi && (
+              <TabsTrigger
+                value="k1"
+                className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow rounded-lg px-4 py-2.5"
+              >
+                <ListChecks className="w-4 h-4" />
+                Respons Rate per Prodi
+              </TabsTrigger>
+            )}
             <TabsTrigger
               value="k2"
               className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow rounded-lg px-4 py-2.5"
@@ -94,9 +99,11 @@ const OverviewPageContent = ({
               Tren Partisipasi Pengisian
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="k1">
-            <Kpi1ParticipationChart />
-          </TabsContent>
+          {!isKaprodi && (
+            <TabsContent value="k1">
+              <Kpi1ParticipationChart />
+            </TabsContent>
+          )}
           <TabsContent value="k2">
             <Kpi2CompletionStatusChart />
           </TabsContent>

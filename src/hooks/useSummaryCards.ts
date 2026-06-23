@@ -1,4 +1,5 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { apiService } from "@/lib/apiClient";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 
@@ -30,37 +31,7 @@ function extractCards(res: any): any {
   return res?.data?.cards ?? res?.cards ?? null;
 }
 
-function useSummaryFetch<T>(url: string, params: Record<string, string>, updatedTs: number) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    if (abortRef.current) abortRef.current.abort();
-    abortRef.current = new AbortController();
-    setLoading(true);
-    setError(null);
-
-    apiService
-      .get<any>(url, { params, signal: abortRef.current.signal })
-      .then((res) => {
-        setData(extractCards(res));
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (err?.name === "CanceledError" || err?.name === "AbortError") return;
-        setError(err?.message ?? "Gagal memuat data");
-        setLoading(false);
-      });
-
-    return () => { abortRef.current?.abort(); };
-  }, [url, params, updatedTs]);
-
-  return { data, loading, error };
-}
-
-// ─── Overview / Monitoring Operasional ────────────────────────────────────────
+// ─── Overview / Monitoring Partisipasi ───────────────────────────────────────
 
 export interface OverviewSummaryCards {
   total_kuesioner: { value: number; hint: string };
@@ -74,10 +45,19 @@ export function useOverviewSummary() {
   const { degree, prodi, tahunLulus, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
   const params = useMemo(() => buildOverviewParams(degree, prodi, tahunLulus), [degree, prodi, tahunLulus]);
-  return useSummaryFetch<OverviewSummaryCards>("/dashboard/overview/summary", params, updatedTs);
+
+  const { data, isLoading: loading, error } = useQuery<OverviewSummaryCards | null>({
+    queryKey: ["summary", "overview", params, updatedTs],
+    queryFn: ({ signal }) =>
+      apiService
+        .get<any>("/dashboard/overview/summary", { params, signal })
+        .then(extractCards),
+  });
+
+  return { data: data ?? null, loading, error: error?.message ?? null };
 }
 
-// ─── Education / Evaluasi Pendidikan ──────────────────────────────────────────
+// ─── Education / Analisis Capaian Lulusan ────────────────────────────────────
 
 export interface EducationSummaryCards {
   skor_kompetensi: { value: number; hint: string };
@@ -92,10 +72,19 @@ export function useEducationSummary() {
   const { degree, prodi, tahunLulus, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
   const params = useMemo(() => buildEducationParams(degree, prodi, tahunLulus), [degree, prodi, tahunLulus]);
-  return useSummaryFetch<EducationSummaryCards>("/dashboard/education/summary", params, updatedTs);
+
+  const { data, isLoading: loading, error } = useQuery<EducationSummaryCards | null>({
+    queryKey: ["summary", "education", params, updatedTs],
+    queryFn: ({ signal }) =>
+      apiService
+        .get<any>("/dashboard/education/summary", { params, signal })
+        .then(extractCards),
+  });
+
+  return { data: data ?? null, loading, error: error?.message ?? null };
 }
 
-// ─── Employment / Luaran Pekerjaan ────────────────────────────────────────────
+// ─── Employment / Luaran Pekerjaan ───────────────────────────────────────────
 
 export interface EmploymentSummaryCards {
   keterserapan: { value: number; hint: string };
@@ -110,5 +99,14 @@ export function useEmploymentSummary() {
   const { degree, prodi, tahunLulus, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
   const params = useMemo(() => buildEducationParams(degree, prodi, tahunLulus), [degree, prodi, tahunLulus]);
-  return useSummaryFetch<EmploymentSummaryCards>("/dashboard/employment/summary", params, updatedTs);
+
+  const { data, isLoading: loading, error } = useQuery<EmploymentSummaryCards | null>({
+    queryKey: ["summary", "employment", params, updatedTs],
+    queryFn: ({ signal }) =>
+      apiService
+        .get<any>("/dashboard/employment/summary", { params, signal })
+        .then(extractCards),
+  });
+
+  return { data: data ?? null, loading, error: error?.message ?? null };
 }

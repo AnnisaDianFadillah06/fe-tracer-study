@@ -9,10 +9,11 @@ import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 
 export interface KompetensiGapItem {
   kode_field: string;
+  grup_gap: string;
   label: string;
   skor_lulus: number;
   skor_dibutuhkan: number;
-  gap: number;           // BE: skor_dibutuhkan - skor_lulus (positif = perlu ditingkatkan)
+  gap: number;
   count_responden: number;
 }
 

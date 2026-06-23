@@ -77,9 +77,9 @@ const Kpi5WaitingTimeChart = () => {
     const total = t03 + t36 + t6plus || 1;
     const colorMap = buildColorMap(["< 3 bulan", "3-6 bulan", "> 6 bulan"]);
     return [
-      { cat: "< 3 bulan", value: Math.round(t03    / total * 100 * 10) / 10, rentang: "0-3"  as const, color: colorMap["< 3 bulan"] },
-      { cat: "3-6 bulan", value: Math.round(t36    / total * 100 * 10) / 10, rentang: "3-6"  as const, color: colorMap["3-6 bulan"] },
-      { cat: "> 6 bulan", value: Math.round(t6plus / total * 100 * 10) / 10, rentang: ">6"   as const, color: colorMap["> 6 bulan"] },
+      { cat: "< 3 bulan", value: Math.round(t03    / total * 100 * 10) / 10, count: t03,    total, rentang: "0-3"  as const, color: colorMap["< 3 bulan"] },
+      { cat: "3-6 bulan", value: Math.round(t36    / total * 100 * 10) / 10, count: t36,    total, rentang: "3-6"  as const, color: colorMap["3-6 bulan"] },
+      { cat: "> 6 bulan", value: Math.round(t6plus / total * 100 * 10) / 10, count: t6plus, total, rentang: ">6"   as const, color: colorMap["> 6 bulan"] },
     ];
   }, [distribusiHook.data]);
 
@@ -180,7 +180,7 @@ const Kpi5WaitingTimeChart = () => {
                 <Bar
                   dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={40}
                   cursor="pointer"
-                  onClick={(d: any) => openModal(`Masa tunggu ${d.cat} (${d.value}%)`, d.rentang)}
+                  onClick={(d: any) => openModal(`Masa tunggu ${d.cat} (${d.value}% · ${d.count} alumni)`, d.rentang)}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
                   {distData.map((d, i) => <Cell key={i} fill={d.color} />)}

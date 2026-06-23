@@ -42,6 +42,8 @@ const Kpi9CompetencyGapChart = () => {
       kompetensi: cleanLabel(d.label),
       lulus:      d.skor_lulus,
       industri:   d.skor_dibutuhkan,
+      kodeField:  d.kode_field,
+      count:      d.count_responden,
     }));
   }, [data]);
 
@@ -50,6 +52,8 @@ const Kpi9CompetencyGapChart = () => {
     return data.data.map((d) => ({
       kompetensi: cleanLabel(d.label),
       gap:        +(d.skor_lulus - d.skor_dibutuhkan).toFixed(2),
+      kodeField:  d.kode_field,
+      count:      d.count_responden,
     }));
   }, [data]);
 
@@ -185,9 +189,8 @@ const Kpi9CompetencyGapChart = () => {
                   <Bar dataKey="gap" radius={[0, 6, 6, 0]} maxBarSize={30}
                     cursor="pointer"
                     onClick={(d: any) => {
-                      const item = data?.data?.find((x) => cleanLabel(x.label) === d.kompetensi);
-                      setModal({ open: true, title: `${d.kompetensi} (Gap: ${d.gap >= 0 ? "+" : ""}${d.gap.toFixed(2)})`, kode_field: item?.kode_field });
-                      drillHook.fetch({ kode_field: item?.kode_field, page: 1 });
+                      setModal({ open: true, title: `${d.kompetensi} (Gap: ${d.gap >= 0 ? "+" : ""}${d.gap.toFixed(2)} · ${d.count} responden)`, kode_field: d.kodeField });
+                      drillHook.fetch({ kode_field: d.kodeField, page: 1 });
                     }}>
                     {gapData.map((d, i) => (
                       <Cell key={i} fill={d.gap >= 0 ? C.green : C.red} />

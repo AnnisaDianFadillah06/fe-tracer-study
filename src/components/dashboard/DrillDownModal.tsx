@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 
 export interface DrillDownData {
   data: Record<string, any>[];
-  pagination: { page: number; per_page: number; total_on_page: number };
+  pagination: { page: number; per_page: number; total_on_page: number; total?: number };
 }
 
 export interface ContextColumn {
@@ -95,9 +95,15 @@ const DrillDownModal = ({
   const pagination = data?.pagination;
   const totalOnPage = pagination?.total_on_page ?? 0;
   const perPage = pagination?.per_page ?? 15;
-  // BE belum tentu kirim total keseluruhan → estimasi hasMore dari total_on_page
   const hasMore = totalOnPage === perPage;
   const hasPrev = currentPage > 1;
+
+  const displayTitle = (() => {
+    if (!data || loading) return title;
+    const actual = pagination?.total ?? (currentPage === 1 ? totalOnPage : null);
+    if (actual == null) return title;
+    return title.replace(/(\d+)(\s*(?:\/\d+\s*)?(?:alumni|responden|lulusan|data)\b)/, `${actual}$2`);
+  })();
 
   if (!isOpen) return null;
 
@@ -121,7 +127,7 @@ const DrillDownModal = ({
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card/60 shrink-0">
-            <h2 className="font-heading text-xl font-bold truncate max-w-[80%]">{title}</h2>
+            <h2 className="font-heading text-xl font-bold truncate max-w-[80%]">{displayTitle}</h2>
             <Button variant="ghost" size="icon" onClick={onClose}>
               <X className="w-5 h-5" />
             </Button>

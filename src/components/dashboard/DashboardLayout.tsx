@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useRole } from "@/contexts/RoleContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import GlobalFilters from "@/components/dashboard/GlobalFilters";
 import { GlobalFiltersProvider } from "@/contexts/GlobalFiltersContext";
@@ -66,6 +67,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { currentRole, selectedProdi, roleLabels } = useRole();
+  const { user } = useAuth();
 
   // Show GlobalFilters on dashboard data pages (overview/employment/education/kpi)
   const showGlobalFilters = /\/dashboard\/(overview|employment|education|kpi)/.test(location.pathname);
@@ -253,7 +255,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-orange-light flex items-center justify-center">
                     <User className="w-4 h-4 text-primary-foreground" />
                   </div>
-                  <span className="hidden md:inline">Admin</span>
+                  <span className="hidden md:inline">{user?.name ?? "User"}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 bg-card border-border">
