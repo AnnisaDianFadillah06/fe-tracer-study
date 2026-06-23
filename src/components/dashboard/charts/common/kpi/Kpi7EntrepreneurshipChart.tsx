@@ -41,13 +41,13 @@ const Kpi7EntrepreneurshipChart = () => {
     tahunLulus?: string;
   }>({ open: false, title: "" });
 
-  const openPieModal = (title: string, jabatan: string, jabatanValues?: string[]) => {
-    setModal({ open: true, title, jabatan, jabatanValues });
-    if (jabatanValues?.length) {
-      drillHook.fetch({ jabatan_values: jabatanValues, page: 1 });
-    } else {
-      drillHook.fetch({ jabatan, page: 1 });
-    }
+  const openPieModal = (title: string, tingkat: string, jabatanValues?: string[]) => {
+    setModal({ open: true, title, jabatan: tingkat, jabatanValues });
+    drillHook.fetch({
+      tingkat,
+      ...(jabatanValues?.length ? { jabatan_values: jabatanValues } : {}),
+      page: 1,
+    });
   };
 
   const openBarModal = (title: string, tahunLulus: string) => {
@@ -56,10 +56,12 @@ const Kpi7EntrepreneurshipChart = () => {
   };
 
   const handlePageChange = (page: number, search?: string) => {
-    if (modal.jabatanValues?.length) {
-      drillHook.fetch({ jabatan_values: modal.jabatanValues, page, search });
-    } else if (modal.jabatan) {
-      drillHook.fetch({ jabatan: modal.jabatan, page, search });
+    if (modal.jabatan) {
+      drillHook.fetch({
+        tingkat: modal.jabatan,
+        ...(modal.jabatanValues?.length ? { jabatan_values: modal.jabatanValues } : {}),
+        page, search,
+      });
     } else if (modal.tahunLulus) {
       drillHook.fetch({ tahun_lulus: modal.tahunLulus, page, search });
     }

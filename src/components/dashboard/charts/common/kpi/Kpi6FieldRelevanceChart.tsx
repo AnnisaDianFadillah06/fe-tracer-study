@@ -52,6 +52,7 @@ const Kpi6FieldRelevanceChart = () => {
     open: boolean;
     title: string;
     kesesuaian_sk?: number;
+    alasan?: string;
     tahun_lulus?: string;
   }>({ open: false, title: "" });
 
@@ -60,9 +61,19 @@ const Kpi6FieldRelevanceChart = () => {
     drillHook.fetch({ kesesuaian_sk, tahun_lulus, page: 1 });
   };
 
+  const openAlasanModal = (title: string, alasan: string) => {
+    setModal({ open: true, title, alasan, kesesuaian_sk: 5 });
+    drillHook.fetch({ kesesuaian_sk: 5, alasan, page: 1 });
+  };
+
   const handlePageChange = (page: number, search?: string) => {
-    if (!modal.kesesuaian_sk) return;
-    drillHook.fetch({ kesesuaian_sk: modal.kesesuaian_sk, tahun_lulus: modal.tahun_lulus, page, search });
+    drillHook.fetch({
+      ...(modal.kesesuaian_sk != null ? { kesesuaian_sk: modal.kesesuaian_sk } : {}),
+      ...(modal.alasan ? { alasan: modal.alasan } : {}),
+      tahun_lulus: modal.tahun_lulus,
+      page,
+      search,
+    });
   };
 
   // Aggregate bar: per-prodi/tahun → per tahun
@@ -155,7 +166,7 @@ const Kpi6FieldRelevanceChart = () => {
                   dataKey="value" name="Kesesuaian" radius={[6, 6, 0, 0]} maxBarSize={50}
                   cursor="pointer"
                   onClick={(d: any) => openModal(
-                    `Sangat Erat — ${d.year} (${d.value}% · ${d.n}/${d.total} lulusan)`, 1, d.year
+                    `Kesesuaian — ${d.year} (${d.value}% · ${d.n}/${d.total} lulusan)`, 1, d.year
                   )}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
@@ -239,7 +250,11 @@ const Kpi6FieldRelevanceChart = () => {
                 <XAxis type="number" fontSize={11} stroke="hsl(var(--muted-foreground))" />
                 <YAxis type="category" dataKey="reason" width={240} fontSize={11} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [v, "Responden"]} />
-                <Bar dataKey="value" fill={C.orange} radius={[0, 6, 6, 0]} maxBarSize={28}>
+                <Bar dataKey="value" fill={C.orange} radius={[0, 6, 6, 0]} maxBarSize={28}
+                  cursor="pointer"
+                  onClick={(d: any) => {
+                    openAlasanModal(`${d.reason} (${d.value} responden)`, d.reason);
+                  }}>
                   <LabelList dataKey="value" position="right" fontSize={11} fill="hsl(var(--foreground))" />
                 </Bar>
               </BarChart>
@@ -256,7 +271,7 @@ const Kpi6FieldRelevanceChart = () => {
         data={drillHook.data}
         loading={drillHook.loading}
         error={drillHook.error}
-        contextColumn={CONTEXT_COLUMN}
+        contextColumn={modal.alasan ? undefined : CONTEXT_COLUMN}
         onPageChange={handlePageChange}
       />
     </>

@@ -249,7 +249,17 @@ export function useResponseRateDrillDown() {
 
       apiService
         .get<any>("/dashboard/response-rate/drill-down", { params, signal: abortRef.current.signal })
-        .then((res) => { setData(res?.data ?? res); setLoading(false); })
+        .then((res) => {
+          const raw = res?.data ?? res;
+          if (raw?.data) {
+            raw.data = raw.data.map((item: any) => ({
+              ...item,
+              tahun_lulus: item.tahun_lulus ?? item.graduation_year ?? "",
+            }));
+          }
+          setData(raw);
+          setLoading(false);
+        })
         .catch((err: any) => {
           if (err?.name === "CanceledError" || err?.name === "AbortError") return;
           setError(err?.message ?? "Gagal memuat data");

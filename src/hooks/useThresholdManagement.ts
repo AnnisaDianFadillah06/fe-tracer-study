@@ -31,9 +31,10 @@ import {
 export const THRESHOLD_INDICATORS = [
   { id: 1, key: "employment_time",  name: "Lulusan Bekerja ≤ 6 Bulan",    unit: "%" },
   { id: 2, key: "entrepreneurship", name: "Lulusan Berwirausaha",           unit: "%" },
-  { id: 3, key: "job_relevance",    name: "Kesesuaian Bidang Kerja",        unit: "%" },
-  { id: 4, key: "user_satisfaction",name: "Kepuasan Pengguna Lulusan",      unit: "%" },
-  { id: 5, key: "income_level",     name: "Pendapatan ≥ 1.5× UMK",         unit: "%" },
+  { id: 3, key: "tracer_response",    name: "Respon Tracer Study Alumni",        unit: "%" },
+  { id: 4, key: "field_relevance",name: "Kesesuaian Bidang Kerja",      unit: "%" },
+  { id: 5, key: "salary_above_ump",     name: "Pendapatan ≥ 1.2× UMP",         unit: "%" },
+  { id: 6, key: "graduate_absorption",     name: "Keterserapan Alumni",         unit: "%" },
 ] as const;
 
 // ─────────────────────────────────────────────
@@ -568,10 +569,7 @@ export const useThresholdManagement = () => {
     if (!target) return;
 
     try {
-      // Backend belum punya dedicated DELETE /lam-versions/{id},
-      // tapi cascade hapus lewat DELETE /lams sudah cover.
-      // Jika backend expose endpoint-nya, ganti baris ini:
-      // await apiService.deleteLamVersion(target._versionId);
+      await apiService.deleteLamVersion(target._versionId); // ← uncomment ini
       setStandars((prev) => prev.filter((s) => s.id !== deletingStdId));
       toast({ title: "Standar dihapus", description: target.version_name });
     } catch (err: any) {

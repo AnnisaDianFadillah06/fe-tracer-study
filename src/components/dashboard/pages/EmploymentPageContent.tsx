@@ -4,7 +4,6 @@ import {
   Target,
   Rocket,
   DollarSign,
-  Camera,
   Building2,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
@@ -12,8 +11,6 @@ import SummaryCards, {
   SummaryCardItem,
 } from "@/components/dashboard/SummaryCards";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import {
   Kpi4AbsorptionChart,
   Kpi5WaitingTimeChart,
@@ -22,70 +19,36 @@ import {
   Kpi8IncomeChart,
   Kpi12WorkplaceDistributionChart,
 } from "@/components/dashboard/charts/common";
+import { useEmploymentSummary, EmploymentSummaryCards } from "@/hooks/useSummaryCards";
 
-const DEFAULT_SUMMARY: SummaryCardItem[] = [
-  {
-    title: "Keterserapan",
-    value: "84%",
-    hint: "Bekerja/usaha",
-    trend: "+3%",
-    trendUp: true,
-    icon: Briefcase,
-    color: "bg-blue-500/10 text-blue-500",
-  },
-  {
-    title: "Kerja ≤ 6 bln",
-    value: "85%",
-    hint: "Cepat terserap",
-    trend: "+7%",
-    trendUp: true,
-    icon: Clock,
-    color: "bg-amber-500/10 text-amber-500",
-  },
-  {
-    title: "Kesesuaian",
-    value: "79%",
-    hint: "Sangat erat + erat",
-    trend: "+3%",
-    trendUp: true,
-    icon: Target,
-    color: "bg-emerald-500/10 text-emerald-500",
-  },
-  {
-    title: "Wirausaha",
-    value: "11%",
-    hint: "Owner/co-founder",
-    trend: "+3%",
-    trendUp: true,
-    icon: Rocket,
-    color: "bg-green-500/10 text-green-500",
-  },
-  {
-    title: "Avg Pendapatan",
-    value: "Rp 9,1 jt",
-    hint: "71% ≥ 1,2× UMP",
-    trend: "+8%",
-    trendUp: true,
-    icon: DollarSign,
-    color: "bg-primary/10 text-primary",
-  },
-  {
-    title: "Level Nasional",
-    value: "47%",
-    hint: "Sebaran perusahaan",
-    icon: Building2,
-    color: "bg-purple-500/10 text-purple-500",
-  },
+const FALLBACK_SUMMARY: SummaryCardItem[] = [
+  { title: "Keterserapan", value: "—", hint: "Bekerja/usaha", icon: Briefcase, color: "bg-blue-500/10 text-blue-500" },
+  { title: "Kerja ≤ 6 bln", value: "—", hint: "Cepat terserap", icon: Clock, color: "bg-amber-500/10 text-amber-500" },
+  { title: "Kesesuaian", value: "—", hint: "Sangat erat + erat", icon: Target, color: "bg-emerald-500/10 text-emerald-500" },
+  { title: "Wirausaha", value: "—", hint: "Owner/co-founder", icon: Rocket, color: "bg-green-500/10 text-green-500" },
+  { title: "Avg Pendapatan", value: "—", hint: "Pendapatan rata-rata", icon: DollarSign, color: "bg-primary/10 text-primary" },
+  { title: "Level Nasional", value: "—", hint: "Sebaran perusahaan", icon: Building2, color: "bg-purple-500/10 text-purple-500" },
 ];
 
-interface Props {
-  summary?: SummaryCardItem[];
+function formatNumber(n: number): string {
+  return n.toLocaleString("id-ID", { maximumFractionDigits: 1 });
 }
 
-const EmploymentPageContent = ({
-  summary = DEFAULT_SUMMARY,
-}: Props) => {
-  const { tahunLulus } = useGlobalFilters();
+function buildEmploymentCards(cards: EmploymentSummaryCards): SummaryCardItem[] {
+  return [
+    { title: "Keterserapan", value: `${formatNumber(cards.keterserapan.value)}%`, hint: cards.keterserapan.hint, icon: Briefcase, color: "bg-blue-500/10 text-blue-500" },
+    { title: "Kerja ≤ 6 bln", value: `${formatNumber(cards.masa_tunggu_cepat.value)}%`, hint: cards.masa_tunggu_cepat.hint, icon: Clock, color: "bg-amber-500/10 text-amber-500" },
+    { title: "Kesesuaian", value: `${formatNumber(cards.kesesuaian.value)}%`, hint: cards.kesesuaian.hint, icon: Target, color: "bg-emerald-500/10 text-emerald-500" },
+    { title: "Wirausaha", value: `${formatNumber(cards.wirausaha.value)}%`, hint: cards.wirausaha.hint, icon: Rocket, color: "bg-green-500/10 text-green-500" },
+    { title: "Avg Pendapatan", value: cards.avg_pendapatan.label || `Rp ${formatNumber(cards.avg_pendapatan.value)}`, hint: cards.avg_pendapatan.hint, icon: DollarSign, color: "bg-primary/10 text-primary" },
+    { title: "Level Nasional", value: `${formatNumber(cards.level_nasional.value)}%`, hint: cards.level_nasional.hint, icon: Building2, color: "bg-purple-500/10 text-purple-500" },
+  ];
+}
+
+const EmploymentPageContent = () => {
+  const { data: cards } = useEmploymentSummary();
+  const hasExpectedShape = cards && cards.keterserapan && cards.masa_tunggu_cepat;
+  const summary = hasExpectedShape ? buildEmploymentCards(cards) : FALLBACK_SUMMARY;
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-[1400px] mx-auto">

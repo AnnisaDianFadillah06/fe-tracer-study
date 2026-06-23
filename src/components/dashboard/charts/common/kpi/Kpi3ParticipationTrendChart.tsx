@@ -60,10 +60,9 @@ const Kpi3ParticipationTrendChart = () => {
       }>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={marked} margin={{ top: 30, right: 30, left: 10, bottom: 25 }}>
+          <ComposedChart data={marked} margin={{ top: 30, right: 60, left: 10, bottom: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-            <XAxis dataKey="year" fontSize={13} stroke="hsl(var(--muted-foreground))"
-              label={{ value: "Tahun Kelulusan", position: "insideBottom", offset: -8, fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+            <XAxis dataKey="year" fontSize={13} stroke="hsl(var(--muted-foreground))" />
             <YAxis tickFormatter={(v) => `${v}%`} domain={[0, 100]} fontSize={13} stroke="hsl(var(--muted-foreground))"
               label={{ value: "Response Rate (%)", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
             <Tooltip contentStyle={tooltipStyle}
@@ -107,7 +106,7 @@ const Kpi3ParticipationTrendChart = () => {
                 label={{ value: `${lam.level === "baik" ? "Baik" : "Unggul"} ${lam.threshold}%`, fill: C.red, fontSize: 11, position: "insideTopRight" }} />
             )}
             <ReferenceLine y={avg} stroke={C.purple} strokeDasharray="4 2" strokeWidth={2}
-              label={{ value: `Rata-rata ${avg.toFixed(1)}%`, fill: C.purple, fontSize: 11, position: "insideBottomRight" }} />
+              label={{ value: `Rata-rata ${Number.isInteger(avg) ? avg : avg.toFixed(1)}%`, fill: C.purple, fontSize: 11, position: "insideTopRight" }} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>

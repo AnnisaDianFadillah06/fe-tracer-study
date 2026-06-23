@@ -187,7 +187,17 @@ export function usePendapatanDrillDown() {
 
       apiService
         .get<any>("/dashboard/pendapatan/drill-down", { params, signal: abortRef.current.signal })
-        .then((res) => { setData(res?.data ?? res); setLoading(false); })
+        .then((res) => {
+          const raw = res?.data ?? res;
+          if (raw?.data) {
+            raw.data = raw.data.map((item: any) => ({
+              ...item,
+              jenjang: item.jenjang ?? item.nama_prodi?.match(/^[A-Z]-?\d/)?.[0]?.replace("-", "") ?? "",
+            }));
+          }
+          setData(raw);
+          setLoading(false);
+        })
         .catch((err: any) => {
           if (err?.name === "CanceledError" || err?.name === "AbortError") return;
           setError(err?.message ?? "Gagal memuat data alumni");

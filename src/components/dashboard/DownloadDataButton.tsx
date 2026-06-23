@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,56 +16,58 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { MOCK_STUDENTS, TAHUN_LULUS, Student } from "@/lib/mockData";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
-
-const formatCurrency = (v: number) =>
-  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(v);
-
-function downloadCSV(students: Student[], year: number | "all") {
-  const cols: { key: keyof Student; label: string }[] = [
-    { key: "nama", label: "Nama" },
-    { key: "nim", label: "NIM" },
-    { key: "prodi", label: "Program Studi" },
-    { key: "jenjang", label: "Jenjang" },
-    { key: "tahunLulus", label: "Tahun Lulus" },
-    { key: "status", label: "Status" },
-    { key: "kesesuaianBidang", label: "Kesesuaian Bidang" },
-    { key: "waktuTunggu", label: "Waktu Tunggu (bln)" },
-    { key: "gaji", label: "Gaji" },
-  ];
-  const headers = cols.map((c) => c.label).join(",");
-  const rows = students
-    .map((s) =>
-      cols
-        .map((c) => {
-          const v = s[c.key];
-          if (c.key === "gaji") return formatCurrency(v as number);
-          return String(v ?? "").replace(/,/g, " ");
-        })
-        .join(",")
-    )
-    .join("\n");
-  const blob = new Blob([`${headers}\n${rows}`], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `tracer-study-${year === "all" ? "semua-tahun" : year}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+import { useFilterOptions } from "@/hooks/useFilterOptions";
+import { apiClient } from "@/lib/apiClient";
 
 const DownloadDataButton = () => {
-  const { isApplying } = useGlobalFilters();
+  const { isApplying, prodi, filterOptions } = useGlobalFilters();
+  const filterOpts = useFilterOptions();
   const [open, setOpen] = useState(false);
-  const [year, setYear] = useState<string>("all");
+  const [year, setYear] = useState<string>("");
+  const [downloading, setDownloading] = useState(false);
 
-  const handleDownload = () => {
-    const filtered = year === "all"
-      ? MOCK_STUDENTS
-      : MOCK_STUDENTS.filter((s) => s.tahunLulus === Number(year));
-    downloadCSV(filtered, year === "all" ? "all" : Number(year));
-    setOpen(false);
+  const years = filterOpts.tahunLulus ?? [];
+
+  const resolveProdiId = (): number | undefined => {
+    const prodiList = filterOptions.prodiList ?? [];
+    if (prodi && prodi !== "__all__" && prodi !== "") {
+      const found = prodiList.find(
+        (p) => p.nama_prodi === prodi || String(p.id) === String(prodi)
+      );
+      return found?.id;
+    }
+    if (prodiList.length === 1) return prodiList[0].id;
+    return undefined;
+  };
+
+  const handleDownload = async () => {
+    if (!year) return;
+    setDownloading(true);
+    try {
+      const params: Record<string, string> = { tahun_lulus: year };
+      const prodiId = resolveProdiId();
+      if (prodiId) params.prodi_id = String(prodiId);
+
+      const response = await apiClient.get("/admin/reports/export-alumni", {
+        params,
+        responseType: "blob",
+      });
+      const blob = new Blob([response.data], {
+        type: response.headers["content-type"] || "application/octet-stream",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `tracer-study-${year}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setOpen(false);
+    } catch {
+      alert("Gagal mengunduh data. Pastikan Anda memiliki akses.");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -76,7 +78,7 @@ const DownloadDataButton = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setOpen(true)}
+              onClick={() => { setOpen(true); if (!year && years.length > 0) setYear(years[0]); }}
               disabled={isApplying}
               aria-label="Unduh data alumni"
             >
@@ -93,18 +95,20 @@ const DownloadDataButton = () => {
             <DialogTitle>Unduh Data Alumni</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">Pilih tahun lulus yang ingin diunduh (format CSV).</p>
+            <p className="text-sm text-muted-foreground">Pilih tahun lulus yang ingin diunduh.</p>
             <Select value={year} onValueChange={setYear}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Pilih tahun" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Semua Tahun</SelectItem>
-                {TAHUN_LULUS.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                {years.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Batal</Button>
-            <Button onClick={handleDownload} className="gap-2"><Download className="w-4 h-4" />Unduh CSV</Button>
+            <Button onClick={handleDownload} disabled={!year || downloading} className="gap-2">
+              {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {downloading ? "Mengunduh..." : "Unduh"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

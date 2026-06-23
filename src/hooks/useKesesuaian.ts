@@ -65,8 +65,9 @@ export interface KesesuaianDrillDownResponse {
 }
 
 export interface KesesuaianDrillDownParams {
-  kesesuaian_sk: number;
-  tahun_lulus?: string;  // override global filter saat klik bar per tahun
+  kesesuaian_sk?: number;
+  alasan?: string;
+  tahun_lulus?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -269,9 +270,10 @@ export function useKesesuaianDrillDown() {
       const effectiveTahun = extra.tahun_lulus ?? tahunLulus;
       const params: Record<string, string> = {
         ...buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
-        kesesuaian_sk: String(extra.kesesuaian_sk),
         page:          String(extra.page ?? 1),
         per_page:      String(extra.per_page ?? 15),
+        ...(extra.kesesuaian_sk != null ? { kesesuaian_sk: String(extra.kesesuaian_sk) } : {}),
+        ...(extra.alasan ? { alasan: extra.alasan } : {}),
         ...(extra.search ? { search: extra.search } : {}),
       };
 

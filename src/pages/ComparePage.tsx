@@ -54,6 +54,8 @@ import {
 } from "@/hooks/usePendapatan";
 import { useInstansiBandingkan, useInstansiDrillDown } from "@/hooks/useInstansi";
 import { usePembiayaanBandingkan, usePembiayaanDrillDown } from "@/hooks/usePembiayaan";
+import { useMetodePembelajaranBandingkan, useMetodePembelajaranDrillDown } from "@/hooks/useMetodePembelajaran";
+import { useKompetensiGapBandingkan } from "@/hooks/useKompetensi";
 import { useResponseRateBandingkan, useResponseRateDrillDown, statusNameToKey } from "@/hooks/useResponseRate";
 import { buildColorMap, getShortLabel } from "@/lib/chartColors";
 import {
@@ -242,12 +244,14 @@ const ComparePage = () => {
   const isJenisInstansi   = chartType === "jenisInstansi";
   const isTingkatInstansi = chartType === "tingkatInstansi";
   const isSumberBiaya     = chartType === "sumberBiaya";
+  const isLearning        = chartType === "learning";
+  const isCompetency      = chartType === "competency";
   const isCompletion      = chartType === "completion";
   const isParticipation   = chartType === "participation-trend";
   const isTrendType       = chartType === "trend";
   const isKepuasanType    = chartType === "kepuasan";
   const isKeterserapanBE  = isAbsorption || isStatusDistrib;
-  const isBeType          = isKeterserapanBE || isKesesuaian || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok || isJenisInstansi || isTingkatInstansi || isSumberBiaya || isCompletion || isParticipation;
+  const isBeType          = isKeterserapanBE || isKesesuaian || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok || isJenisInstansi || isTingkatInstansi || isSumberBiaya || isCompletion || isParticipation || isLearning || isCompetency;
 
   // selectedProdi hanya untuk tampilan chip — tidak dipakai untuk fetch
   // (fetch dilakukan berdasarkan filter aktif di GlobalFiltersContext)
@@ -268,6 +272,9 @@ const ComparePage = () => {
   const instansiBandingkanHook       = useInstansiBandingkan(isJenisInstansi || isTingkatInstansi);
   const instansiDrillHook            = useInstansiDrillDown();
   const pembiayaanBandingkanHook     = usePembiayaanBandingkan(isSumberBiaya);
+  const metodeBandingkanHook         = useMetodePembelajaranBandingkan(isLearning);
+  const metodeDrillHook              = useMetodePembelajaranDrillDown();
+  const kompetensiGapHook            = useKompetensiGapBandingkan(isCompetency);
   const pembiayaanDrillHook          = usePembiayaanDrillDown();
   const responseRateBarHook          = useResponseRateBandingkan(isCompletion || isParticipation);
   const responseRateDrillHook        = useResponseRateDrillDown();
@@ -298,10 +305,10 @@ const ComparePage = () => {
   const ksChartData = useMemo(() => {
     if (!isKesesuaian || !ksBandingkanHook.data?.data) return [];
     return ksBandingkanHook.data.data.map((d) => {
-      const shortProdi = d.nama_prodi.length > 20 ? d.nama_prodi.slice(0, 18) + "…" : d.nama_prodi;
+      const shortProdi = d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi;
       return {
-        prodi: `${d.jenjang} ${shortProdi}`,
-        fullProdi: `${d.jenjang} ${d.nama_prodi}`,
+        prodi: shortProdi,
+        fullProdi: d.nama_prodi,
         total: d.total,
         "Sesuai Bidang": d.pct_sesuai,
         "Sesuai BidangCount": Math.round(d.total * d.pct_sesuai / 100),
@@ -327,7 +334,7 @@ const ComparePage = () => {
         "< 3 bulanCount": d.count_tunggu_0_3_bulan,
         "3-6 bulanCount": d.count_tunggu_3_6_bulan,
         "> 6 bulanCount": d.count_tunggu_lebih_6_bulan,
-        avg: d.avg_masa_tunggu_bekerja,
+        avg: Math.round(d.avg_masa_tunggu_bekerja),
       };
     });
   }, [isWaktuTunggu, mtBandingkanHook.data]);
@@ -393,12 +400,18 @@ const ComparePage = () => {
   }, [incomeKelompokBandingkanHook.data]);
   const incomeKelompokColorMap = buildColorMap(incomeKelompokLabels);
 
-  // Jenis Instansi — transform data BE ke stacked bar per prodi
+  // Jenis Instansi — transform data BE ke stacked bar per prodi (top N + Lainnya)
+  const MAX_JENIS_SLICES = 8;
   const instansiJenisLabels = useMemo(() => {
     if (!instansiBandingkanHook.data?.data) return [] as string[];
-    const set = new Set<string>();
-    instansiBandingkanHook.data.data.forEach((d) => d.jenis.forEach((j) => set.add(j.label)));
-    return [...set];
+    const totals: Record<string, number> = {};
+    instansiBandingkanHook.data.data.forEach((d) =>
+      d.jenis.forEach((j) => { totals[j.label] = (totals[j.label] ?? 0) + j.count; })
+    );
+    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, MAX_JENIS_SLICES).map(([l]) => l);
+    if (sorted.length > MAX_JENIS_SLICES) top.push("Lainnya");
+    return top;
   }, [instansiBandingkanHook.data]);
 
   const instansiJenisColorMap = useMemo(
@@ -408,19 +421,30 @@ const ComparePage = () => {
 
   const instansiJenisChartData = useMemo(() => {
     if (!isJenisInstansi || !instansiBandingkanHook.data?.data) return [];
+    const topSet = new Set(instansiJenisLabels.filter((l) => l !== "Lainnya"));
     return instansiBandingkanHook.data.data.map((d) => {
       const row: Record<string, any> = {
         prodi:    d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
         fullProdi: d.nama_prodi,
         total:    d.total,
       };
+      let lainnyaPct = 0, lainnyaCount = 0;
       d.jenis.forEach((j) => {
-        row[j.label] = j.pct;
-        row[`${j.label}Count`] = j.count;
+        if (topSet.has(j.label)) {
+          row[j.label] = +(j.pct).toFixed(1);
+          row[`${j.label}Count`] = j.count;
+        } else {
+          lainnyaPct += j.pct;
+          lainnyaCount += j.count;
+        }
       });
+      if (instansiJenisLabels.includes("Lainnya")) {
+        row["Lainnya"] = +(lainnyaPct).toFixed(1);
+        row["LainnyaCount"] = lainnyaCount;
+      }
       return row;
     });
-  }, [isJenisInstansi, instansiBandingkanHook.data]);
+  }, [isJenisInstansi, instansiBandingkanHook.data, instansiJenisLabels]);
 
   // Tingkat Instansi — transform data BE ke stacked bar per prodi
   const instansiTingkatLabels = ["Lokal", "Nasional", "Internasional"];
@@ -446,12 +470,19 @@ const ComparePage = () => {
     });
   }, [isTingkatInstansi, instansiBandingkanHook.data]);
 
-  // Sumber Biaya — transform data BE ke stacked bar per prodi
+  // Sumber Biaya — transform data BE ke stacked bar per prodi (top N + Lainnya)
+  const MAX_BIAYA_SLICES = 8;
   const pembiayaanLabels = useMemo(() => {
     if (!pembiayaanBandingkanHook.data?.data) return [] as string[];
-    const set = new Set<string>();
-    pembiayaanBandingkanHook.data.data.forEach((d) => d.sumber.forEach((s) => set.add(s.label)));
-    return [...set];
+    const totals: Record<string, number> = {};
+    const fixBiayaLabel = (l: string) => (l === "0" || l === "" ? "Tidak Mengisi" : l);
+    pembiayaanBandingkanHook.data.data.forEach((d) =>
+      d.sumber.forEach((s) => { const l = fixBiayaLabel(s.label); totals[l] = (totals[l] ?? 0) + s.count; })
+    );
+    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, MAX_BIAYA_SLICES).map(([l]) => l);
+    if (sorted.length > MAX_BIAYA_SLICES) top.push("Lainnya");
+    return top;
   }, [pembiayaanBandingkanHook.data]);
 
   const pembiayaanColorMap = useMemo(
@@ -461,22 +492,86 @@ const ComparePage = () => {
 
   const pembiayaanChartData = useMemo(() => {
     if (!isSumberBiaya || !pembiayaanBandingkanHook.data?.data) return [];
+    const topSet = new Set(pembiayaanLabels.filter((l) => l !== "Lainnya"));
     return pembiayaanBandingkanHook.data.data.map((d) => {
-      const shortProdi = d.nama_prodi.length > 20 ? d.nama_prodi.slice(0, 18) + "…" : d.nama_prodi;
+      const shortProdi = d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi;
       const row: Record<string, any> = {
-        prodi: `${d.jenjang} ${shortProdi}`,
-        fullProdi: `${d.jenjang} ${d.nama_prodi}`,
+        prodi: shortProdi,
+        fullProdi: d.nama_prodi,
         total: d.total,
       };
+      let lainnyaPct = 0, lainnyaCount = 0;
       d.sumber.forEach((s) => {
-        row[s.label] = +(s.pct).toFixed(1);
-        row[`${s.label}Count`] = s.count;
+        const label = s.label === "0" || s.label === "" ? "Tidak Mengisi" : s.label;
+        if (topSet.has(label)) {
+          row[label] = +(s.pct).toFixed(1);
+          row[`${label}Count`] = s.count;
+        } else {
+          lainnyaPct += s.pct;
+          lainnyaCount += s.count;
+        }
       });
+      if (pembiayaanLabels.includes("Lainnya")) {
+        row["Lainnya"] = +(lainnyaPct).toFixed(1);
+        row["LainnyaCount"] = lainnyaCount;
+      }
       return row;
     });
-  }, [isSumberBiaya, pembiayaanBandingkanHook.data]);
+  }, [isSumberBiaya, pembiayaanBandingkanHook.data, pembiayaanLabels]);
 
   const [pembiayaanModal, setPembiayaanModal] = useState<{ open: boolean; title: string; sumber_biaya?: string }>({ open: false, title: "" });
+
+  // Gap Kompetensi — stacked bar per prodi (level distribution based on gap)
+  const competencyLevels = ["Tinggi (>4)", "Sedang (3-4)", "Rendah (<3)"];
+  const competencyColorMap: Record<string, string> = { "Tinggi (>4)": "#10b981", "Sedang (3-4)": "#f59e0b", "Rendah (<3)": "#ef4444" };
+  const competencyChartData = useMemo(() => {
+    if (!isCompetency || !kompetensiGapHook.data?.data) return [];
+    return kompetensiGapHook.data.data.map((d) => {
+      const total = d.indikator.length || 1;
+      const tinggi = d.indikator.filter((m) => m.skor_lulus > 4).length;
+      const sedang = d.indikator.filter((m) => m.skor_lulus >= 3 && m.skor_lulus <= 4).length;
+      const rendah = d.indikator.filter((m) => m.skor_lulus < 3).length;
+      const shortProdi = d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi;
+      return {
+        prodi: shortProdi,
+        fullProdi: d.nama_prodi,
+        total,
+        "Tinggi (>4)": +(tinggi / total * 100).toFixed(1),
+        "Tinggi (>4)Count": tinggi,
+        "Sedang (3-4)": +(sedang / total * 100).toFixed(1),
+        "Sedang (3-4)Count": sedang,
+        "Rendah (<3)": +(rendah / total * 100).toFixed(1),
+        "Rendah (<3)Count": rendah,
+      };
+    });
+  }, [isCompetency, kompetensiGapHook.data]);
+
+  // Persepsi Metode Pembelajaran — avg skor per metode per prodi → stacked bar (level distribution)
+  const learningLevels = ["Tinggi (>4)", "Sedang (3-4)", "Rendah (<3)"];
+  const learningColorMap: Record<string, string> = { "Tinggi (>4)": "#10b981", "Sedang (3-4)": "#f59e0b", "Rendah (<3)": "#ef4444" };
+  const learningChartData = useMemo(() => {
+    if (!isLearning || !metodeBandingkanHook.data?.data) return [];
+    return metodeBandingkanHook.data.data.map((d) => {
+      const total = d.metode.length || 1;
+      const tinggi = d.metode.filter((m) => m.avg_skor > 4).length;
+      const sedang = d.metode.filter((m) => m.avg_skor >= 3 && m.avg_skor <= 4).length;
+      const rendah = d.metode.filter((m) => m.avg_skor < 3).length;
+      const shortProdi = d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi;
+      return {
+        prodi: shortProdi,
+        fullProdi: d.nama_prodi,
+        total,
+        "Tinggi (>4)": +(tinggi / total * 100).toFixed(1),
+        "Tinggi (>4)Count": tinggi,
+        "Sedang (3-4)": +(sedang / total * 100).toFixed(1),
+        "Sedang (3-4)Count": sedang,
+        "Rendah (<3)": +(rendah / total * 100).toFixed(1),
+        "Rendah (<3)Count": rendah,
+      };
+    });
+  }, [isLearning, metodeBandingkanHook.data]);
+
+  const [metodeModal, setMetodeModal] = useState<{ open: boolean; title: string; kode_field?: string }>({ open: false, title: "" });
 
   // Response Rate — for completion (KPI2) and participation-trend (KPI3)
   const rrLabels = isCompletion
@@ -517,23 +612,27 @@ const ComparePage = () => {
   const [rrModal, setRrModal] = useState<{ open: boolean; title: string; status: string }>({ open: false, title: "", status: "" });
 
   // Wirausaha — transform data BE ke stacked bar per prodi
-  const wsLabels   = ["Lokal", "Nasional", "Internasional"];
-  const wsColorMap: Record<string, string> = {
-    "Lokal":         "#6ee7b7",
-    "Nasional":      "#3b82f6",
-    "Internasional": "#1e3a8a",
-  };
+  const wsLabels = useMemo(() => {
+    if (!wsBandingkanHook.data?.chart) return [] as string[];
+    const set = new Set<string>();
+    wsBandingkanHook.data.chart.forEach((d) => d.tingkat.forEach((t) => set.add(t.label)));
+    return [...set];
+  }, [wsBandingkanHook.data]);
+
+  const wsColorMap = useMemo(() => buildColorMap(wsLabels), [wsLabels]);
+
   const wsChartData = useMemo(() => {
     if (!isWirausaha || !wsBandingkanHook.data?.chart) return [];
     return wsBandingkanHook.data.chart.map((d) => {
       const row: Record<string, any> = {
         prodi:        d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
         fullProdi:    d.nama_prodi,
+        total:        d.count_wirausaha,
         pct_wirausaha: d.pct_wirausaha,
         count_wirausaha: d.count_wirausaha,
       };
       d.tingkat.forEach((t) => {
-        row[t.label]              = t.pct;
+        row[t.label]              = +(t.pct).toFixed(1);
         row[`${t.label}Count`]   = t.count;
       });
       return row;
@@ -694,23 +793,33 @@ const ComparePage = () => {
   );
 
   const pageTitle = isStatusDistrib
-    ? "Perbandingan Distribusi Status Alumni per Prodi"
+    ? "Perbandingan Distribusi Status Alumni Antar Program Studi"
     : isAbsorption
-    ? "Perbandingan Keterserapan Lulusan per Prodi"
+    ? "Perbandingan Keterserapan Lulusan Antar Program Studi"
     : isKesesuaian
-    ? "Perbandingan Kesesuaian Bidang per Prodi"
+    ? "Perbandingan Kesesuaian Bidang Antar Program Studi"
     : isWaktuTunggu
-    ? "Perbandingan Masa Tunggu Kerja per Prodi"
+    ? "Perbandingan Masa Tunggu Kerja Antar Program Studi"
     : isWirausaha
-    ? "Perbandingan Lulusan Wirausaha per Prodi"
+    ? "Perbandingan Posisi Wirausaha Antar Program Studi"
     : isIncome
-    ? "Perbandingan Distribusi UMP per Prodi"
+    ? "Perbandingan Distribusi UMP Antar Program Studi"
     : isIncomeKelompok
-    ? "Perbandingan Kelompok Pendapatan per Prodi"
+    ? "Perbandingan Kelompok Pendapatan Antar Program Studi"
     : isJenisInstansi
-    ? "Perbandingan Jenis Instansi per Prodi"
+    ? "Perbandingan Jenis Instansi Antar Program Studi"
     : isTingkatInstansi
-    ? "Perbandingan Sebaran Level Perusahaan per Prodi"
+    ? "Perbandingan Sebaran Level Perusahaan Antar Program Studi"
+    : isSumberBiaya
+    ? "Perbandingan Sumber Pembiayaan Kuliah Antar Program Studi"
+    : isLearning
+    ? "Perbandingan Persepsi Metode Pembelajaran Antar Program Studi"
+    : isCompetency
+    ? "Perbandingan Profil Kompetensi Antar Program Studi"
+    : isCompletion
+    ? "Perbandingan Status Pengisian Survei Antar Program Studi"
+    : isParticipation
+    ? "Perbandingan Tren Partisipasi Antar Program Studi"
     : isTrendType
     ? `Heatmap Trend ${indicatorParam} per Prodi`
     : config?.title ?? "";
@@ -724,7 +833,7 @@ const ComparePage = () => {
     : isWaktuTunggu
     ? "Distribusi rentang masa tunggu mendapatkan pekerjaan per prodi"
     : isWirausaha
-    ? "Distribusi tingkat wirausaha (Lokal / Nasional / Internasional) per prodi"
+    ? "Distribusi posisi alumni yang berwirausaha per program studi"
     : isIncome
     ? "Proporsi alumni ≥ 1,2× UMP vs < 1,2× UMP per program studi"
     : isIncomeKelompok
@@ -733,6 +842,12 @@ const ComparePage = () => {
     ? "Distribusi jenis instansi tempat alumni bekerja per program studi"
     : isTingkatInstansi
     ? "Distribusi Lokal / Nasional / Internasional per program studi"
+    : isSumberBiaya
+    ? "Distribusi sumber pembiayaan kuliah mahasiswa per program studi"
+    : isLearning
+    ? "Distribusi tingkat persepsi alumni terhadap metode pembelajaran"
+    : isCompetency
+    ? "Distribusi level kompetensi alumni per program studi"
     : isTrendType
     ? "Visualisasi persentase indikator per prodi per tahun"
     : config?.description ?? "";
@@ -806,7 +921,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={beChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -907,7 +1022,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={ksChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1014,7 +1129,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={mtChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1118,7 +1233,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={wsChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1221,7 +1336,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={incomeChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1336,7 +1451,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={incomeKelompokChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1449,7 +1564,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={instansiJenisChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1554,7 +1669,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={instansiTingkatChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1659,7 +1774,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={rrChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1763,7 +1878,7 @@ const ComparePage = () => {
                     <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={pembiayaanChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
@@ -1848,6 +1963,157 @@ const ComparePage = () => {
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
+            GAP KOMPETENSI — data dari BE
+        ══════════════════════════════════════════════════════════════════ */}
+        {isCompetency && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
+            {kompetensiGapHook.loading ? (
+              <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
+                <Loader2 className="w-5 h-5 animate-spin" /><span>Memuat data…</span>
+              </div>
+            ) : kompetensiGapHook.error ? (
+              <div className="flex items-center justify-center h-64 text-destructive">{kompetensiGapHook.error}</div>
+            ) : competencyChartData.length === 0 ? (
+              <div className="flex items-center justify-center h-64 text-muted-foreground">Tidak ada data</div>
+            ) : (
+              <div style={{ minHeight: chartHeight }}>
+                <ResponsiveContainer width="100%" height={chartHeight}>
+                  <BarChart data={competencyChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                    <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                    <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload) return null;
+                        const row = competencyChartData.find((d) => d.prodi === label);
+                        return (
+                          <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
+                            <p className="font-semibold mb-1">{row?.fullProdi ?? label}</p>
+                            <p className="text-xs text-muted-foreground mb-2">Total: {row?.total} indikator</p>
+                            {payload.map((e: any) => (
+                              <p key={e.dataKey} style={{ color: e.color }} className="text-xs">
+                                {e.dataKey}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count`]})
+                              </p>
+                            ))}
+                          </div>
+                        );
+                      }}
+                    />
+                    <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
+                    {competencyLevels.map((label) => (
+                      <Bar key={label} dataKey={label} stackId="a" fill={competencyColorMap[label]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            PERSEPSI METODE PEMBELAJARAN — data dari BE
+        ══════════════════════════════════════════════════════════════════ */}
+        {isLearning && (
+          <>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
+              {metodeBandingkanHook.loading ? (
+                <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" /><span>Memuat data…</span>
+                </div>
+              ) : metodeBandingkanHook.error ? (
+                <div className="flex items-center justify-center h-64 text-destructive">{metodeBandingkanHook.error}</div>
+              ) : learningChartData.length === 0 ? (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">Tidak ada data</div>
+              ) : (
+                <div style={{ minHeight: chartHeight }}>
+                  <ResponsiveContainer width="100%" height={chartHeight}>
+                    <BarChart data={learningChartData} layout="vertical" margin={{ top: 20, right: 30, left: 180, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                      <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                      <YAxis dataKey="prodi" type="category" width={170} fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload) return null;
+                          const row = learningChartData.find((d) => d.prodi === label);
+                          return (
+                            <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
+                              <p className="font-semibold mb-1">{row?.fullProdi ?? label}</p>
+                              <p className="text-xs text-muted-foreground mb-2">Total: {row?.total} metode</p>
+                              {payload.map((e: any) => (
+                                <p key={e.dataKey} style={{ color: e.color }} className="text-xs">
+                                  {e.dataKey}: <strong>{e.value}%</strong> ({row?.[`${e.dataKey}Count`]} metode)
+                                </p>
+                              ))}
+                            </div>
+                          );
+                        }}
+                      />
+                      <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
+                      {learningLevels.map((label) => (
+                        <Bar key={label} dataKey={label} stackId="a" fill={learningColorMap[label]}
+                          cursor="pointer"
+                          onClick={(d: any) => {
+                            setMetodeModal({ open: true, title: `${label} — ${d.fullProdi ?? d.prodi}` });
+                            metodeDrillHook.fetch({ page: 1 });
+                          }}
+                        />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </motion.div>
+
+            {learningChartData.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+                <h3 className="font-heading font-semibold mb-4">Ringkasan Data</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
+                        <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Total Alumni</th>
+                        {learningLevels.map((l) => (
+                          <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{l}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {learningChartData.map((row) => (
+                        <tr key={row.fullProdi} className="border-t border-border/30 hover:bg-secondary/20">
+                          <td className="py-2 px-3 font-medium">{row.fullProdi}</td>
+                          <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
+                          {learningLevels.map((l) => (
+                            <td key={l} className="py-2 px-3">
+                              <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: learningColorMap[l] }}>
+                                {row[l]}% ({row[`${l}Count`]})
+                              </span>
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+
+            <DrillDownModal
+              isOpen={metodeModal.open}
+              onClose={() => setMetodeModal((m) => ({ ...m, open: false }))}
+              title={metodeModal.title}
+              data={metodeDrillHook.data}
+              loading={metodeDrillHook.loading}
+              error={metodeDrillHook.error}
+              contextColumn={{ key: "metode", label: "Metode" }}
+              onPageChange={(page, search) => metodeDrillHook.fetch({ kode_field: metodeModal.kode_field, page, search })}
+            />
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
             TREND HEATMAP — mock
         ══════════════════════════════════════════════════════════════════ */}
         {isTrendType && (
@@ -1925,7 +2191,7 @@ const ComparePage = () => {
                   <ResponsiveContainer width="100%" height={chartHeight}>
                     <BarChart data={mockChartData} layout="vertical" margin={{ top: 20, right: 30, left: 150, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 22%)" horizontal={false} />
-                      <XAxis type="number" stroke="hsl(215 20% 55%)" fontSize={12} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                      <XAxis type="number" stroke="hsl(215 20% 55%)" fontSize={12} domain={[0, 100]} tickFormatter={(v: number) => `${Math.round(v)}%`} />
                       <YAxis dataKey="prodi" type="category" stroke="hsl(215 20% 55%)" fontSize={11} width={140} tickLine={false} />
                       <Tooltip
                         contentStyle={{ backgroundColor: "hsl(222 47% 11%)", border: "1px solid hsl(217 33% 22%)", borderRadius: "8px" }}

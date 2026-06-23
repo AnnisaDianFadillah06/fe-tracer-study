@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiService } from "@/lib/apiClient";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
@@ -9,10 +9,11 @@ import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 
 export interface KompetensiGapItem {
   kode_field: string;
+  grup_gap: string;
   label: string;
   skor_lulus: number;
   skor_dibutuhkan: number;
-  gap: number;           // BE: skor_dibutuhkan - skor_lulus (positif = perlu ditingkatkan)
+  gap: number;
   count_responden: number;
 }
 
@@ -138,4 +139,67 @@ export function useKompetensiGapBandingkan(enabled: boolean) {
   }, [enabled, paramKey]);
 
   return { data, loading, error };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types & Hook: DrillDown
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface KompetensiDrillDownParams {
+  kode_field?: string;
+  page?: number;
+  per_page?: number;
+  search?: string;
+}
+
+export interface KompetensiDrillDownResponse {
+  filters: Record<string, string>;
+  pagination: { page: number; per_page: number; total_on_page: number };
+  data: Array<{
+    nama: string;
+    nim: string;
+    nama_prodi: string;
+    jenjang: string;
+    tahun_lulus: string;
+    skor_lulus: number;
+    skor_dibutuhkan: number;
+  }>;
+}
+
+export function useKompetensiGapDrillDown() {
+  const { degree, jurusan, prodi, tahunLulus, weekKey } = useGlobalFilters();
+
+  const [data, setData] = useState<KompetensiDrillDownResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const fetch = useCallback(
+    (extra: KompetensiDrillDownParams) => {
+      if (abortRef.current) abortRef.current.abort();
+      abortRef.current = new AbortController();
+      setLoading(true);
+      setError(null);
+
+      const params: Record<string, string> = {
+        ...buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
+        page: String(extra.page ?? 1),
+        per_page: String(extra.per_page ?? 15),
+        ...(extra.kode_field ? { kode_field: extra.kode_field } : {}),
+        ...(extra.search ? { search: extra.search } : {}),
+      };
+
+      apiService
+        .get<any>("/dashboard/kompetensi/gap/drill-down", { params, signal: abortRef.current.signal })
+        .then((res) => { setData(res?.data ?? res); setLoading(false); })
+        .catch((err: any) => {
+          if (err?.name === "CanceledError" || err?.name === "AbortError") return;
+          setError(err?.message ?? "Gagal memuat data");
+          setLoading(false);
+        });
+    },
+    [degree, jurusan, prodi, tahunLulus, weekKey]
+  );
+
+  return { data, loading, error, fetch };
 }

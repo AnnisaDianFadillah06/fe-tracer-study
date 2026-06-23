@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useThresholds, KPI_INDICATOR_MAP, ThresholdVersion } from "@/hooks/useFilterThresholds";
 import { useGlobalFilters, ALL } from "@/contexts/GlobalFiltersContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -32,9 +33,6 @@ export interface LamFilterState {
  * 1. Prodi dipilih eksplisit (bukan ALL) → cari ID-nya di prodiList
  * 2. prodiList hanya punya 1 item (kaprodi/scope server) → pakai otomatis
  * 3. Selain itu → null (mode multi-prodi, controls disabled)
- *
- * PENTING: kembalikan null kalau prodiList masih loading (length === 0 dan prodi = ALL)
- * supaya tidak salah trigger fetch.
  */
 function resolveProdiId(
   prodi: string,
@@ -47,7 +45,7 @@ function resolveProdiId(
     );
     return found?.id ?? null;
   }
-  // Auto-scope kaprodi: hanya 1 prodi tersedia
+  // Auto-scope: hanya 1 prodi tersedia
   if (prodiList.length === 1) return prodiList[0].id;
   return null;
 }
@@ -58,17 +56,21 @@ function resolveProdiId(
 
 export function useLamFilter(kpiKey: string): LamFilterState {
   const { prodi, filterOptions } = useGlobalFilters();
+  const { user } = useAuth();
 
   const indicatorKey = KPI_INDICATOR_MAP[kpiKey] ?? null;
 
-  const prodiId = useMemo(
-    () =>
-      resolveProdiId(
-        prodi,
-        filterOptions.prodiList as { id: number; nama_prodi: string }[]
-      ),
-    [prodi, filterOptions.prodiList]
-  );
+  const prodiId = useMemo(() => {
+    // Kaprodi: langsung pakai program_id dari data user, tidak perlu resolve filter global
+    if (user?.role === "kaprodi" && user?.program_id) {
+      return user.program_id;
+    }
+
+    return resolveProdiId(
+      prodi,
+      filterOptions.prodiList as { id: number; nama_prodi: string }[]
+    );
+  }, [user, prodi, filterOptions.prodiList]);
 
   const isDisabled = prodiId === null;
 

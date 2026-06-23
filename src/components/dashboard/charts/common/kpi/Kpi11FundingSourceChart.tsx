@@ -53,15 +53,19 @@ const Kpi11FundingSourceChart = () => {
     : (antarResult.error as Error | null)?.message ?? null;
 
   // Ambil semua label unik dari pie (sudah urut by count desc) → warna konsisten
+  const fixLabel = (l: string) => (l === "0" || l === "" ? "Tidak Mengisi" : l);
+
   const allLabels = useMemo(() => {
     const arr: string[] = [];
     const seen = new Set<string>();
     pieResult.data?.data?.forEach((d) => {
-      if (!seen.has(d.sumber_biaya)) { arr.push(d.sumber_biaya); seen.add(d.sumber_biaya); }
+      const label = fixLabel(d.sumber_biaya);
+      if (!seen.has(label)) { arr.push(label); seen.add(label); }
     });
     antarResult.data?.data?.forEach((t) =>
       t.sumber.forEach((s) => {
-        if (!seen.has(s.label)) { arr.push(s.label); seen.add(s.label); }
+        const label = fixLabel(s.label);
+        if (!seen.has(label)) { arr.push(label); seen.add(label); }
       })
     );
     return arr;
@@ -70,41 +74,86 @@ const Kpi11FundingSourceChart = () => {
   const labelColor = (label: string) =>
     PIE_COLORS[allLabels.indexOf(label) % PIE_COLORS.length] ?? C.gray;
 
-  // Pie data
+  const MAX_PIE_SLICES = 8;
   const pieData = useMemo(() => {
     if (!pieResult.data?.data) return [];
-    return pieResult.data.data.map((d) => ({
-      name:  d.sumber_biaya,
-      value: d.pct,
+    const sorted = [...pieResult.data.data].sort((a, b) => b.pct - a.pct);
+    const top = sorted.slice(0, MAX_PIE_SLICES);
+    const rest = sorted.slice(MAX_PIE_SLICES);
+    const result = top.map((d) => ({
+      name: d.sumber_biaya === "0" || d.sumber_biaya === "" ? "Tidak Mengisi" : d.sumber_biaya,
+      value: +(d.pct).toFixed(1),
       count: d.count,
     }));
+    if (rest.length > 0) {
+      result.push({
+        name: "Lainnya",
+        value: +(rest.reduce((s, d) => s + d.pct, 0)).toFixed(1),
+        count: rest.reduce((s, d) => s + d.count, 0),
+      });
+    }
+    return result;
   }, [pieResult.data]);
 
-  // Antar periode — grouped bar per tahun_lulus
+  // Antar periode — grouped bar per tahun_lulus (top N + Lainnya)
+  const antarTopLabels = useMemo(() => {
+    if (!antarResult.data?.data) return [] as string[];
+    const totals: Record<string, number> = {};
+    antarResult.data.data.forEach((t) =>
+      t.sumber.forEach((s) => { totals[fixLabel(s.label)] = (totals[fixLabel(s.label)] ?? 0) + s.count; })
+    );
+    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, MAX_PIE_SLICES).map(([l]) => l);
+    if (sorted.length > MAX_PIE_SLICES) top.push("Lainnya");
+    return top;
+  }, [antarResult.data]);
+
   const antarData = useMemo(() => {
     if (!antarResult.data?.data) return [];
+    const topSet = new Set(antarTopLabels.filter((l) => l !== "Lainnya"));
     return antarResult.data.data.map((t) => {
       const row: Record<string, any> = { tahun: t.tahun_lulus };
-      t.sumber.forEach((s) => { row[s.label] = +(s.pct).toFixed(1); });
+      let lainnyaPct = 0;
+      let lainnyaCount = 0;
+      t.sumber.forEach((s) => {
+        const label = fixLabel(s.label);
+        if (topSet.has(label)) {
+          row[label] = +(s.pct).toFixed(1);
+          row[`${label}_count`] = s.count;
+        } else {
+          lainnyaPct += s.pct;
+          lainnyaCount += s.count;
+        }
+      });
+      if (antarTopLabels.includes("Lainnya")) {
+        row["Lainnya"] = +(lainnyaPct).toFixed(1);
+        row["Lainnya_count"] = lainnyaCount;
+      }
       return row;
     });
-  }, [antarResult.data]);
+  }, [antarResult.data, antarTopLabels]);
 
-  const antarLabels = useMemo(() => {
-    const set = new Set<string>();
-    antarResult.data?.data?.forEach((t) => t.sumber.forEach((s) => set.add(s.label)));
-    return [...set];
-  }, [antarResult.data]);
+  const antarLabels = antarTopLabels;
 
-  // Tooltip antar periode: tampilkan semua sumber untuk tahun itu
+  // Tooltip antar periode: tampilkan grouped sumber untuk tahun itu
   const antarTooltipData = useMemo(() => {
+    const topSet = new Set(antarTopLabels.filter((l) => l !== "Lainnya"));
     const map: Record<string, Record<string, number>> = {};
     antarResult.data?.data?.forEach((t) => {
       map[t.tahun_lulus] = {};
-      t.sumber.forEach((s) => { map[t.tahun_lulus][s.label] = s.pct; });
+      let lainnya = 0;
+      t.sumber.forEach((s) => {
+        const label = fixLabel(s.label);
+        if (topSet.has(label)) {
+          map[t.tahun_lulus][label] = s.pct;
+        } else {
+          lainnya += s.pct;
+        }
+      });
+      if (antarTopLabels.includes("Lainnya")) map[t.tahun_lulus]["Lainnya"] = +(lainnya).toFixed(1);
     });
     return map;
-  }, [antarResult.data]);
+  }, [antarResult.data, antarTopLabels]);
 
   const isEmpty = !loading && (view === "pie" ? pieData.length === 0 : antarData.length === 0);
   const total   = pieResult.data?.total ?? 0;
@@ -132,7 +181,7 @@ const Kpi11FundingSourceChart = () => {
         subtitle={
           view === "pie"
             ? "Proporsi sumber pembiayaan — periode terakhir"
-            : "Perubahan distribusi antar periode (grouped bar)"
+            : "Perubahan distribusi antar periode (stacked bar)"
         }
         compareType="sumberBiaya"
         headerExtra={
@@ -172,12 +221,13 @@ const Kpi11FundingSourceChart = () => {
         <div className="grid lg:grid-cols-2 gap-5 items-stretch">
           <div className="min-w-0">
             {view === "pie" ? (
-              <div className="h-72">
+              <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={pieData} dataKey="value" nameKey="name" outerRadius={100}
-                      label={(e: any) => `${e.name}: ${e.value}%`}
+                      data={pieData} dataKey="value" nameKey="name" outerRadius={90} innerRadius={0}
+                      label={({ name, percent }) => percent > 0.05 ? `${name}: ${(percent * 100).toFixed(0)}%` : ""}
+                      labelLine={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1 }}
                       activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                       onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                       cursor="pointer"
@@ -204,42 +254,42 @@ const Kpi11FundingSourceChart = () => {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="h-80">
+              <div style={{ height: Math.max(200, antarData.length * 52) }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={antarData}
-                    margin={{ top: 10, right: 20, left: 0, bottom: 20 }}
-                    barCategoryGap="20%"
-                    barGap={2}
+                    layout="vertical"
+                    margin={{ top: 10, right: 30, left: 60, bottom: 10 }}
                   >
                     <CartesianGrid
                       strokeDasharray="3 3" stroke="hsl(var(--border))"
-                      opacity={0.4} vertical={false}
+                      horizontal={false}
                     />
                     <XAxis
-                      dataKey="tahun" fontSize={12}
-                      stroke="hsl(var(--muted-foreground))"
-                      label={{ value: "Tahun Kelulusan", position: "insideBottom", offset: -10, fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                      type="number" domain={[0, 100]}
+                      tickFormatter={(v: number) => `${Math.round(v)}%`}
+                      fontSize={12} stroke="hsl(var(--muted-foreground))"
                     />
                     <YAxis
-                      tickFormatter={(v) => `${v}%`} fontSize={12}
-                      domain={[0, 100]}
-                      stroke="hsl(var(--muted-foreground))"
+                      dataKey="tahun" type="category" width={50}
+                      fontSize={12} stroke="hsl(var(--muted-foreground))"
+                      tickLine={false}
                     />
-                    <Tooltip content={<CustomAntarTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                      content={<CustomAntarTooltip />}
+                    />
+                    <Legend wrapperStyle={{ paddingTop: 10, fontSize: 11 }} />
                     {antarLabels.map((label) => (
                       <Bar
-                        key={label} dataKey={label}
-                        fill={labelColor(label)} radius={[3, 3, 0, 0]}
-                        maxBarSize={40} cursor="pointer"
+                        key={label} dataKey={label} stackId="a"
+                        fill={labelColor(label)} cursor="pointer"
                         onClick={(d: any) =>
                           openModal(
-                            `${label} — ${d.tahun} (${d[label]}%)`,
+                            `${label} — ${d.tahun} (${d[label]}% · ${d[`${label}_count`] ?? "?"} alumni)`,
                             { sumber_biaya: label, tahun_lulus: d.tahun }
                           )
                         }
-                        activeBar={{ stroke: "hsl(var(--foreground))", strokeWidth: 1.5 } as any}
                       />
                     ))}
                   </BarChart>
@@ -260,23 +310,23 @@ const Kpi11FundingSourceChart = () => {
                   Klik potongan pie untuk melihat daftar alumni dengan sumber pembiayaan tersebut.
                 </p>
                 <ul className="space-y-1.5 text-sm">
-                  {allLabels.map((label) => (
-                    <li key={label} className="flex items-center gap-2">
-                      <span className="inline-block w-4 h-4 rounded-sm shrink-0" style={{ background: labelColor(label) }} />
-                      <strong>{label}</strong>
+                  {pieData.map((d) => (
+                    <li key={d.name} className="flex items-center gap-2">
+                      <span className="inline-block w-4 h-4 rounded-sm shrink-0" style={{ background: labelColor(d.name) }} />
+                      <strong>{d.name}</strong>
                     </li>
                   ))}
                 </ul>
               </>
             ) : (
               <>
-                <h4 className="font-semibold text-foreground text-[15px]">Cara Membaca Grouped Bar</h4>
+                <h4 className="font-semibold text-foreground text-[15px]">Cara Membaca Stacked Bar</h4>
                 <p className="text-muted-foreground">
-                  Tiap kelompok bar mewakili satu tahun kelulusan. Tinggi bar = persentase lulusan dengan sumber
+                  Tiap baris mewakili satu tahun kelulusan. Panjang segmen = persentase lulusan dengan sumber
                   pembiayaan tertentu pada tahun tersebut.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Bandingkan ketinggian bar antar tahun untuk melihat pergeseran tren: misalnya kenaikan porsi beasiswa atau
+                  Bandingkan proporsi segmen antar tahun untuk melihat pergeseran tren: misalnya kenaikan porsi beasiswa atau
                   penurunan porsi mandiri.
                 </p>
                 <p className="text-xs text-muted-foreground">

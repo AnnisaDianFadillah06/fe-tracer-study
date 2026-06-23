@@ -19,37 +19,48 @@ import {
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import { MethodologyBlock } from "./Methodology";
-import { useKompetensiGap } from "@/hooks/useKompetensi";
+import { useKompetensiGap, useKompetensiGapDrillDown } from "@/hooks/useKompetensi";
+import DrillDownModal from "@/components/dashboard/DrillDownModal";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Radar as RadarIcon, BarChart3 } from "lucide-react";
 
+const CONTEXT_COLUMN = { key: "gap", label: "Gap" };
+
 const Kpi9CompetencyGapChart = () => {
   const { data, loading, error } = useKompetensiGap();
+  const drillHook = useKompetensiGapDrillDown();
   const [view, setView] = useState<"radar" | "bar">("radar");
+  const [modal, setModal] = useState<{ open: boolean; title: string; kode_field?: string }>({ open: false, title: "" });
 
   // Transform: radar membutuhkan skor_lulus & skor_dibutuhkan per indikator
+  const cleanLabel = (label: string) =>
+    label.replace(/\s*[—–-]\s*dikuasai saat lulus$/i, "").trim();
+
   const radarData = useMemo(() => {
     if (!data?.data) return [];
     return data.data.map((d) => ({
-      kompetensi: d.label,
+      kompetensi: cleanLabel(d.label),
       lulus:      d.skor_lulus,
       industri:   d.skor_dibutuhkan,
+      kodeField:  d.kode_field,
+      count:      d.count_responden,
     }));
   }, [data]);
 
-  // Transform: bar gap = skor_lulus - skor_dibutuhkan
-  // (positif = lulus > dibutuhkan = hijau/aman, negatif = merah/perlu ditingkatkan)
   const gapData = useMemo(() => {
     if (!data?.data) return [];
     return data.data.map((d) => ({
-      kompetensi: d.label,
+      kompetensi: cleanLabel(d.label),
       gap:        +(d.skor_lulus - d.skor_dibutuhkan).toFixed(2),
+      kodeField:  d.kode_field,
+      count:      d.count_responden,
     }));
   }, [data]);
 
   const isEmpty = !loading && radarData.length === 0;
 
   return (
+    <>
     <KpiCard
       loading={loading}
       error={error}
@@ -118,8 +129,8 @@ const Kpi9CompetencyGapChart = () => {
                   <PolarRadiusAxis
                     domain={[0, 5]}
                     tickCount={6}
-                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                    angle={72}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))", fontWeight: 600 }}
+                    angle={90}
                     axisLine={false}
                   />
                   <Radar
@@ -175,7 +186,12 @@ const Kpi9CompetencyGapChart = () => {
                     ]}
                   />
                   <ReferenceLine x={0} stroke="hsl(var(--foreground))" strokeWidth={1.5} />
-                  <Bar dataKey="gap" radius={[0, 6, 6, 0]} maxBarSize={30}>
+                  <Bar dataKey="gap" radius={[0, 6, 6, 0]} maxBarSize={30}
+                    cursor="pointer"
+                    onClick={(d: any) => {
+                      setModal({ open: true, title: `${d.kompetensi} (Gap: ${d.gap >= 0 ? "+" : ""}${d.gap.toFixed(2)} · ${d.count} responden)`, kode_field: d.kodeField });
+                      drillHook.fetch({ kode_field: d.kodeField, page: 1 });
+                    }}>
                     {gapData.map((d, i) => (
                       <Cell key={i} fill={d.gap >= 0 ? C.green : C.red} />
                     ))}
@@ -264,6 +280,18 @@ const Kpi9CompetencyGapChart = () => {
         </aside>
       </div>
     </KpiCard>
+
+    <DrillDownModal
+      isOpen={modal.open}
+      onClose={() => setModal((m) => ({ ...m, open: false }))}
+      title={modal.title}
+      data={drillHook.data}
+      loading={drillHook.loading}
+      error={drillHook.error}
+      contextColumn={CONTEXT_COLUMN}
+      onPageChange={(page, search) => drillHook.fetch({ kode_field: modal.kode_field, page, search })}
+    />
+    </>
   );
 };
 

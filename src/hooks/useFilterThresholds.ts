@@ -9,8 +9,9 @@ export const KPI_INDICATOR_MAP: Record<string, string> = {
   waitingTime:      "employment_time",
   entrepreneurship: "entrepreneurship",
   fieldRelevance:   "field_relevance",
-  absorption:       "tracer_response",
+  participation:       "tracer_response",
   incomePct:        "salary_above_ump",
+  absorption:        "graduate_absorption",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

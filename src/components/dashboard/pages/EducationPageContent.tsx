@@ -7,21 +7,35 @@ import {
   Kpi10LearningPerceptionChart,
   Kpi11FundingSourceChart,
 } from "@/components/dashboard/charts/common";
+import { useEducationSummary, EducationSummaryCards } from "@/hooks/useSummaryCards";
 
-const DEFAULT_SUMMARY: SummaryCardItem[] = [
-  { title: "Skor Kompetensi", value: "4,1", hint: "Avg Likert", icon: Award, color: "bg-blue-500/10 text-blue-500" },
-  { title: "Gap Terbesar", value: "B. Inggris", hint: "-1,1 poin", icon: Activity, color: "bg-destructive/10 text-destructive" },
-  { title: "Metode Terbaik", value: "Magang", hint: "Skor 4,5", icon: Sparkles, color: "bg-emerald-500/10 text-emerald-500" },
-  { title: "Avg Persepsi", value: "4,0", hint: "Semua metode", icon: BookOpen, color: "bg-purple-500/10 text-purple-500" },
-  { title: "Mandiri/Keluarga", value: "58%", hint: "Sumber utama", icon: Wallet, color: "bg-amber-500/10 text-amber-500" },
-  { title: "Beasiswa", value: "36%", hint: "Pem. + Swasta", icon: GraduationCap, color: "bg-primary/10 text-primary" },
+const FALLBACK_SUMMARY: SummaryCardItem[] = [
+  { title: "Skor Kompetensi", value: "—", hint: "Avg Likert", icon: Award, color: "bg-blue-500/10 text-blue-500" },
+  { title: "Gap Terbesar", value: "—", hint: "—", icon: Activity, color: "bg-destructive/10 text-destructive" },
+  { title: "Metode Terbaik", value: "—", hint: "—", icon: Sparkles, color: "bg-emerald-500/10 text-emerald-500" },
+  { title: "Avg Persepsi", value: "—", hint: "Semua metode", icon: BookOpen, color: "bg-purple-500/10 text-purple-500" },
+  { title: "Mandiri/Keluarga", value: "—", hint: "Sumber utama", icon: Wallet, color: "bg-amber-500/10 text-amber-500" },
+  { title: "Beasiswa", value: "—", hint: "Pem. + Swasta", icon: GraduationCap, color: "bg-primary/10 text-primary" },
 ];
 
-interface Props {
-  summary?: SummaryCardItem[];
+function formatNumber(n: number): string {
+  return n.toLocaleString("id-ID", { maximumFractionDigits: 1 });
 }
 
-const EducationPageContent = ({ summary = DEFAULT_SUMMARY }: Props) => {
+function buildEducationCards(cards: EducationSummaryCards): SummaryCardItem[] {
+  return [
+    { title: "Skor Kompetensi", value: formatNumber(cards.skor_kompetensi.value), hint: cards.skor_kompetensi.hint, icon: Award, color: "bg-blue-500/10 text-blue-500" },
+    { title: "Gap Terbesar", value: cards.gap_terbesar.label, hint: cards.gap_terbesar.hint, icon: Activity, color: "bg-destructive/10 text-destructive" },
+    { title: "Metode Terbaik", value: cards.metode_terbaik.label, hint: cards.metode_terbaik.hint, icon: Sparkles, color: "bg-emerald-500/10 text-emerald-500" },
+    { title: "Avg Persepsi", value: formatNumber(cards.avg_persepsi.value), hint: cards.avg_persepsi.hint, icon: BookOpen, color: "bg-purple-500/10 text-purple-500" },
+    { title: "Mandiri/Keluarga", value: `${cards.mandiri_keluarga.pct}%`, hint: cards.mandiri_keluarga.hint, icon: Wallet, color: "bg-amber-500/10 text-amber-500" },
+    { title: "Beasiswa", value: `${cards.beasiswa.pct}%`, hint: cards.beasiswa.hint, icon: GraduationCap, color: "bg-primary/10 text-primary" },
+  ];
+}
+
+const EducationPageContent = () => {
+  const { data: cards, loading } = useEducationSummary();
+  const summary = cards ? buildEducationCards(cards) : FALLBACK_SUMMARY;
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-[1400px] mx-auto">
