@@ -100,9 +100,13 @@ const DrillDownModal = ({
 
   const displayTitle = (() => {
     if (!data || loading) return title;
-    const actual = pagination?.total ?? (currentPage === 1 ? totalOnPage : null);
-    if (actual == null) return title;
-    return title.replace(/(\d+)(\s*(?:\/\d+\s*)?(?:alumni|responden|lulusan|data)\b)/, `${actual}$2`);
+    if (pagination?.total != null) {
+      return title.replace(/(\d+)(\s*(?:\/\d+\s*)?(?:alumni|responden|lulusan|data)\b)/, `${pagination.total}$2`);
+    }
+    if (currentPage === 1 && totalOnPage < perPage) {
+      return title.replace(/(\d+)(\s*(?:\/\d+\s*)?(?:alumni|responden|lulusan|data)\b)/, `${totalOnPage}$2`);
+    }
+    return title;
   })();
 
   if (!isOpen) return null;

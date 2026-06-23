@@ -55,7 +55,7 @@ import {
 import { useInstansiBandingkan, useInstansiDrillDown } from "@/hooks/useInstansi";
 import { usePembiayaanBandingkan, usePembiayaanDrillDown } from "@/hooks/usePembiayaan";
 import { useMetodePembelajaranBandingkan, useMetodePembelajaranDrillDown } from "@/hooks/useMetodePembelajaran";
-import { useKompetensiGapBandingkan } from "@/hooks/useKompetensi";
+import { useKompetensiGapBandingkan, useKompetensiGapDrillDown } from "@/hooks/useKompetensi";
 import { useResponseRateBandingkan, useResponseRateDrillDown, statusNameToKey } from "@/hooks/useResponseRate";
 import { buildColorMap, getShortLabel } from "@/lib/chartColors";
 import {
@@ -275,6 +275,7 @@ const ComparePage = () => {
   const metodeBandingkanHook         = useMetodePembelajaranBandingkan(isLearning);
   const metodeDrillHook              = useMetodePembelajaranDrillDown();
   const kompetensiGapHook            = useKompetensiGapBandingkan(isCompetency);
+  const kompetensiDrillHook          = useKompetensiGapDrillDown();
   const pembiayaanDrillHook          = usePembiayaanDrillDown();
   const responseRateBarHook          = useResponseRateBandingkan(isCompletion || isParticipation);
   const responseRateDrillHook        = useResponseRateDrillDown();
@@ -572,6 +573,7 @@ const ComparePage = () => {
   }, [isLearning, metodeBandingkanHook.data]);
 
   const [metodeModal, setMetodeModal] = useState<{ open: boolean; title: string; kode_field?: string }>({ open: false, title: "" });
+  const [kompModal, setKompModal] = useState<{ open: boolean; title: string; kode_field?: string }>({ open: false, title: "" });
 
   // Response Rate — for completion (KPI2) and participation-trend (KPI3)
   const rrLabels = isCompletion
@@ -1966,6 +1968,7 @@ const ComparePage = () => {
             GAP KOMPETENSI — data dari BE
         ══════════════════════════════════════════════════════════════════ */}
         {isCompetency && (
+          <>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
             {kompetensiGapHook.loading ? (
               <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
@@ -2002,13 +2005,70 @@ const ComparePage = () => {
                     />
                     <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
                     {competencyLevels.map((label) => (
-                      <Bar key={label} dataKey={label} stackId="a" fill={competencyColorMap[label]} />
+                      <Bar key={label} dataKey={label} stackId="a" fill={competencyColorMap[label]}
+                        cursor="pointer"
+                        onClick={(d: any) => {
+                          const prodiRow = kompetensiGapHook.data?.data?.find((p) => p.nama_prodi === d.fullProdi || p.nama_prodi.startsWith(d.prodi));
+                          const indicators = prodiRow?.indikator?.filter((m) =>
+                            label === "Tinggi (>4)" ? m.skor_lulus > 4 : label === "Sedang (3-4)" ? m.skor_lulus >= 3 && m.skor_lulus <= 4 : m.skor_lulus < 3
+                          );
+                          const kf = indicators?.[0]?.kode_field;
+                          setKompModal({ open: true, title: `${label} — ${d.fullProdi ?? d.prodi}`, kode_field: kf });
+                          kompetensiDrillHook.fetch({ kode_field: kf, page: 1 });
+                        }}
+                      />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             )}
           </motion.div>
+
+          {competencyChartData.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+              <h3 className="font-heading font-semibold mb-4">Ringkasan Data</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
+                      <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Total Indikator</th>
+                      {competencyLevels.map((l) => (
+                        <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{l}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {competencyChartData.map((row) => (
+                      <tr key={row.fullProdi} className="border-t border-border/30 hover:bg-secondary/20">
+                        <td className="py-2 px-3 font-medium">{row.fullProdi}</td>
+                        <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
+                        {competencyLevels.map((l) => (
+                          <td key={l} className="py-2 px-3">
+                            <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: competencyColorMap[l] }}>
+                              {row[l]}% ({row[`${l}Count`]})
+                            </span>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+
+          <DrillDownModal
+            isOpen={kompModal.open}
+            onClose={() => setKompModal((m) => ({ ...m, open: false }))}
+            title={kompModal.title}
+            data={kompetensiDrillHook.data}
+            loading={kompetensiDrillHook.loading}
+            error={kompetensiDrillHook.error}
+            contextColumn={{ key: "gap", label: "Gap" }}
+            onPageChange={(page, search) => kompetensiDrillHook.fetch({ kode_field: kompModal.kode_field, page, search })}
+          />
+          </>
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
@@ -2055,8 +2115,13 @@ const ComparePage = () => {
                         <Bar key={label} dataKey={label} stackId="a" fill={learningColorMap[label]}
                           cursor="pointer"
                           onClick={(d: any) => {
-                            setMetodeModal({ open: true, title: `${label} — ${d.fullProdi ?? d.prodi}` });
-                            metodeDrillHook.fetch({ page: 1 });
+                            const prodiRow = metodeBandingkanHook.data?.data?.find((p) => p.nama_prodi === d.fullProdi || p.nama_prodi.startsWith(d.prodi));
+                            const methods = prodiRow?.metode?.filter((m) =>
+                              label === "Tinggi (>4)" ? m.avg_skor > 4 : label === "Sedang (3-4)" ? m.avg_skor >= 3 && m.avg_skor <= 4 : m.avg_skor < 3
+                            );
+                            const kf = methods?.[0]?.kode_field;
+                            setMetodeModal({ open: true, title: `${label} — ${d.fullProdi ?? d.prodi}`, kode_field: kf });
+                            metodeDrillHook.fetch({ kode_field: kf, page: 1 });
                           }}
                         />
                       ))}

@@ -85,8 +85,8 @@ const Kpi3ParticipationTrendChart = () => {
               onClick={(d: any) => {
                 const total = d.total ?? 0;
                 const n = Math.round((d.rate / 100) * total);
-                setModal({ open: true, title: `Alumni Merespons — ${d.year} (${n}/${total})`, status: "selesai" });
-                drillHook.fetch({ status: "selesai", page: 1 });
+                setModal({ open: true, title: `Alumni Merespons — ${d.year} (${n}/${total})`, status: "submitted" });
+                drillHook.fetch({ status: "submitted", page: 1 });
               }}
               activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
               {marked.map((d: any) => (
