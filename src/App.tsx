@@ -28,7 +28,15 @@ import StudentLoginPage from "./pages/StudentLoginPage";
 import FormPage from "./pages/FormPage";
 import MasterUmpPage from "./pages/MasterUmpPage";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 10 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 // ✅ Helper agar tidak repeat ProtectedRoute di tiap route
 const P = ({ children }: { children: React.ReactNode }) => (

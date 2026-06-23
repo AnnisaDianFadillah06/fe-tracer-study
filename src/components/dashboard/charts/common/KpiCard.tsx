@@ -203,9 +203,21 @@ export const KpiCard = ({
       </div>
     </div>
     {loading ? (
-      <div className="flex flex-col items-center justify-center h-72 text-muted-foreground gap-2">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        <p className="text-xs">Memuat data...</p>
+      <div className="h-72 flex flex-col gap-3 p-4 animate-pulse">
+        <div className="flex items-end gap-2 flex-1">
+          {[65, 80, 45, 90, 55, 70, 40, 85].map((h, i) => (
+            <div key={i} className="flex-1 bg-muted/60 rounded-t-md" style={{ height: `${h}%` }} />
+          ))}
+        </div>
+        <div className="flex justify-between">
+          {[1,2,3,4].map((i) => (
+            <div key={i} className="h-2 w-10 bg-muted/40 rounded" />
+          ))}
+        </div>
+        <div className="flex items-center justify-center gap-2 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          <p className="text-xs">Memuat data...</p>
+        </div>
       </div>
     ) : error ? (
       <div className="flex flex-col items-center justify-center h-72 text-destructive gap-2 px-4 text-center">
