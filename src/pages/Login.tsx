@@ -147,17 +147,17 @@ const Login = () => {
               Dashboard <span className="gradient-text">Analitik</span>
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto mb-8">
-              Akses data tracer study secara real-time dengan visualisasi interaktif
-              dan analisis clustering untuk penjaminan mutu
+              Analisis multidimensi data tracer study dengan
+              visualisasi interaktif berbasis OLAP
             </p>
 
             {/* Feature Cards */}
             <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
               {[
-                { title: "Real-time Data", desc: "Monitor langsung" },
-                { title: "Clustering", desc: "8 domain analisis" },
-                { title: "Survival Analysis", desc: "Pola masa tunggu" },
-                { title: "Multi-Prodi", desc: "37 program studi" },
+                { title: "OLAP Analytics", desc: "Analisis multidimensi" },
+                { title: "13 Indikator", desc: "Tracer study lengkap" },
+                { title: "Drill-Down", desc: "Detail per alumni" },
+                { title: "38 Prodi", desc: "Lintas program studi" },
               ].map((item, i) => (
                 <motion.div
                   key={item.title}

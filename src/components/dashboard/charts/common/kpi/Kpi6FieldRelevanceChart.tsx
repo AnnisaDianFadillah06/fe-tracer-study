@@ -123,7 +123,9 @@ const Kpi6FieldRelevanceChart = () => {
   }, [alasanHook.data]);
 
   const latestYear = comboData.length > 0 ? comboData[comboData.length - 1].year : undefined;
-  const distTahun = tahunLulus === "all" ? latestYear : tahunLulus;
+  const isAllYear = tahunLulus === "all";
+  const displayTahun = isAllYear ? undefined : tahunLulus;
+  const drillTahun = isAllYear ? latestYear : tahunLulus;
 
   const isLoading   = barHook.loading || pieHook.loading || alasanHook.loading;
   const hasError    = barHook.error || pieHook.error || alasanHook.error;
@@ -193,7 +195,7 @@ const Kpi6FieldRelevanceChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && pieData.length === 0}
           title="Distribusi Tingkat Kesesuaian"
-          subtitle={distTahun ? `Tahun kelulusan ${distTahun} — klik slice untuk lihat alumni` : "Semua periode — klik slice untuk lihat alumni"}
+          subtitle={displayTahun ? `Tahun kelulusan ${displayTahun} — klik slice untuk lihat alumni` : "Semua periode — klik slice untuk lihat alumni"}
           compareType="kesesuaian"
           methodology={
             <MethodologyBlock
@@ -212,7 +214,7 @@ const Kpi6FieldRelevanceChart = () => {
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                   cursor="pointer"
                   onClick={(d: any) => {
-                    openModal(`${d.name} (${d.value}% · ${d.count} alumni)`, d.name, distTahun);
+                    openModal(`${d.name} (${d.value}% · ${d.count} alumni)`, d.name, drillTahun);
                   }}
                 >
                   {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
@@ -229,7 +231,7 @@ const Kpi6FieldRelevanceChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && reasonsData.length === 0}
           title="Frekuensi Alasan Ketidaksesuaian"
-          subtitle={distTahun ? `Tahun kelulusan ${distTahun} — jumlah responden per alasan (multi-pilih)` : "Semua periode — jumlah responden per alasan (multi-pilih)"}
+          subtitle={displayTahun ? `Tahun kelulusan ${displayTahun} — jumlah responden per alasan (multi-pilih)` : "Semua periode — jumlah responden per alasan (multi-pilih)"}
           className="lg:col-span-2"
           compareType="kesesuaian"
           methodology={
@@ -247,10 +249,10 @@ const Kpi6FieldRelevanceChart = () => {
                 <XAxis type="number" fontSize={11} stroke="hsl(var(--muted-foreground))" />
                 <YAxis type="category" dataKey="reason" width={240} fontSize={11} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [v, "Responden"]} />
-                <Bar dataKey="value" fill={C.orange} radius={[0, 6, 6, 0]} maxBarSize={28}
+                <Bar dataKey="value" fill={C.orange} radius={[0, 6, 6, 0]} maxBarSize={28} minPointSize={8}
                   cursor="pointer"
                   onClick={(d: any) => {
-                    openAlasanModal(`${d.reason} (${d.value} responden)`, d.reason, distTahun);
+                    openAlasanModal(`${d.reason} (${d.value} responden)`, d.reason, drillTahun);
                   }}>
                   <LabelList dataKey="value" position="right" fontSize={11} fill="hsl(var(--foreground))" />
                 </Bar>
