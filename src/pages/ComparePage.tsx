@@ -2008,13 +2008,14 @@ const ComparePage = () => {
                       <Bar key={label} dataKey={label} stackId="a" fill={competencyColorMap[label]}
                         cursor="pointer"
                         onClick={(d: any) => {
-                          const prodiRow = kompetensiGapHook.data?.data?.find((p) => p.nama_prodi === d.fullProdi || p.nama_prodi.startsWith(d.prodi));
-                          const indicators = prodiRow?.indikator?.filter((m) =>
+                          const allProdi = kompetensiGapHook.data?.data ?? [];
+                          const prodiRow = allProdi.find((p) => p.nama_prodi === d.fullProdi) ?? allProdi.find((p) => p.nama_prodi.includes(d.prodi?.replace("…", "")));
+                          const levelIndicators = prodiRow?.indikator?.filter((m) =>
                             label === "Tinggi (>4)" ? m.skor_lulus > 4 : label === "Sedang (3-4)" ? m.skor_lulus >= 3 && m.skor_lulus <= 4 : m.skor_lulus < 3
                           );
-                          const kf = indicators?.[0]?.kode_field;
+                          const kf = levelIndicators?.[0]?.kode_field ?? prodiRow?.indikator?.[0]?.kode_field ?? allProdi[0]?.indikator?.[0]?.kode_field;
                           setKompModal({ open: true, title: `${label} — ${d.fullProdi ?? d.prodi}`, kode_field: kf });
-                          kompetensiDrillHook.fetch({ kode_field: kf, page: 1 });
+                          if (kf) kompetensiDrillHook.fetch({ kode_field: kf, page: 1 });
                         }}
                       />
                     ))}
