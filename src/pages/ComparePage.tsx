@@ -617,7 +617,9 @@ const ComparePage = () => {
   const wsLabels = useMemo(() => {
     if (!wsBandingkanHook.data?.chart) return [] as string[];
     const set = new Set<string>();
-    wsBandingkanHook.data.chart.forEach((d) => d.tingkat.forEach((t) => set.add(t.label)));
+    wsBandingkanHook.data.chart.forEach((d) =>
+      (d.jabatan ?? []).forEach((t: any) => { if (t.label) set.add(t.label); })  // jabatan, skip label kosong
+    );
     return [...set];
   }, [wsBandingkanHook.data]);
 
@@ -625,17 +627,18 @@ const ComparePage = () => {
 
   const wsChartData = useMemo(() => {
     if (!isWirausaha || !wsBandingkanHook.data?.chart) return [];
-    return wsBandingkanHook.data.chart.map((d) => {
+    return wsBandingkanHook.data.chart.map((d: any) => {
       const row: Record<string, any> = {
-        prodi:        d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
-        fullProdi:    d.nama_prodi,
-        total:        d.count_wirausaha,
-        pct_wirausaha: d.pct_wirausaha,
+        prodi:           d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
+        fullProdi:       d.nama_prodi,
+        total:           d.count_wirausaha,
+        pct_wirausaha:   d.pct_wirausaha,
         count_wirausaha: d.count_wirausaha,
       };
-      d.tingkat.forEach((t) => {
-        row[t.label]              = +(t.pct).toFixed(1);
-        row[`${t.label}Count`]   = t.count;
+      (d.jabatan ?? []).forEach((t: any) => {
+        if (!t.label) return;                           // ← skip label kosong ""
+        row[t.label]           = +(t.pct).toFixed(1);
+        row[`${t.label}Count`] = t.count;
       });
       return row;
     });
@@ -1261,7 +1264,7 @@ const ComparePage = () => {
                             key={label} dataKey={label} stackId="a" fill={wsColorMap[label]} cursor="pointer"
                             onClick={(d: any) => {
                               setWsModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}`, tingkat: label });
-                              wsDrillHook.fetch({ tingkat: label });
+                              wsDrillHook.fetch({ jabatan: label });
                             }}
                           />
                         ))}
@@ -1313,7 +1316,7 @@ const ComparePage = () => {
               loading={wsDrillHook.loading}
               error={wsDrillHook.error}
               contextColumn={{ key: "tingkat_instansi", label: "Tingkat" }}
-              onPageChange={(page, search) => wsDrillHook.fetch({ tingkat: wsModal.tingkat!, page, search })}
+              onPageChange={(page, search) => wsDrillHook.fetch({ jabatan: wsModal.tingkat!, page, search })}
             />
           </>
         )}
