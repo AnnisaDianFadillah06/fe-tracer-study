@@ -197,6 +197,7 @@ export function useResponseRateBar() {
 
 export interface ResponseRateDrillDownParams {
   status: string;
+  nama_prodi?: string;
   tahun_lulus?: string;
   page?: number;
   per_page?: number;
@@ -251,7 +252,11 @@ export function useResponseRateDrillDown() {
         ...(searchUpper ? { search: searchUpper } : {}),
       };
       if (degree && degree !== "__all__") params.jenjang = degree;
-      if (prodi && prodi !== "__all__") params.nama_prodi = prodi;
+      if (extra.nama_prodi) {
+        params.nama_prodi = extra.nama_prodi;
+      } else if (prodi && prodi !== "__all__") {
+        params.nama_prodi = prodi;
+      }
       if (extra.tahun_lulus) {
         params.graduation_year = extra.tahun_lulus;
       } else if (tahunLulus && tahunLulus !== "all") {

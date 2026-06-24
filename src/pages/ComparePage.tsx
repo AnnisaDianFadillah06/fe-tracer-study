@@ -573,7 +573,7 @@ const ComparePage = () => {
   }, [isLearning, metodeBandingkanHook.data]);
 
   const [metodeModal, setMetodeModal] = useState<{ open: boolean; title: string; kode_field?: string }>({ open: false, title: "" });
-  const [kompModal, setKompModal] = useState<{ open: boolean; title: string; kode_field?: string }>({ open: false, title: "" });
+  const [kompModal, setKompModal] = useState<{ open: boolean; title: string; grup_gap?: string }>({ open: false, title: "" });
 
   // Response Rate — for completion (KPI2) and participation-trend (KPI3)
   const rrLabels = isCompletion
@@ -593,14 +593,17 @@ const ComparePage = () => {
         total: d.total,
       };
       if (isCompletion) {
-        const b = d.breakdown;
+        const b = d.breakdown ?? {} as any;
         const t = d.total || 1;
-        row["Selesai"] = +(b.selesai / t * 100).toFixed(1);
-        row["SelesaiCount"] = b.selesai;
-        row["Sedang Mengisi"] = +(b.on_going / t * 100).toFixed(1);
-        row["Sedang MengisiCount"] = b.on_going;
-        row["Belum Mengisi"] = +(b.belum_mengisi / t * 100).toFixed(1);
-        row["Belum MengisiCount"] = b.belum_mengisi;
+        const submitted = b.submitted ?? b.selesai ?? 0;
+        const ongoing = b.ongoing ?? b.on_going ?? 0;
+        const started = b.started ?? b.belum_mengisi ?? 0;
+        row["Selesai"] = +(submitted / t * 100).toFixed(1);
+        row["SelesaiCount"] = submitted;
+        row["Sedang Mengisi"] = +(ongoing / t * 100).toFixed(1);
+        row["Sedang MengisiCount"] = ongoing;
+        row["Belum Mengisi"] = +(started / t * 100).toFixed(1);
+        row["Belum MengisiCount"] = started;
       } else {
         row["Sudah Merespons"] = d.responded;
         row["Sudah MeresponsCount"] = Math.round(d.responded / 100 * d.total);
@@ -618,7 +621,7 @@ const ComparePage = () => {
     if (!wsBandingkanHook.data?.chart) return [] as string[];
     const set = new Set<string>();
     wsBandingkanHook.data.chart.forEach((d) =>
-      (d.jabatan ?? []).forEach((t: any) => { if (t.label) set.add(t.label); })  // jabatan, skip label kosong
+      (d.jabatan ?? []).forEach((t: any) => { set.add(t.label || "Lainnya"); })
     );
     return [...set];
   }, [wsBandingkanHook.data]);
@@ -636,9 +639,9 @@ const ComparePage = () => {
         count_wirausaha: d.count_wirausaha,
       };
       (d.jabatan ?? []).forEach((t: any) => {
-        if (!t.label) return;                           // ← skip label kosong ""
-        row[t.label]           = +(t.pct).toFixed(1);
-        row[`${t.label}Count`] = t.count;
+        const lbl = t.label || "Lainnya";
+        row[lbl]           = +((row[lbl] ?? 0) + t.pct).toFixed(1);
+        row[`${lbl}Count`] = (row[`${lbl}Count`] ?? 0) + t.count;
       });
       return row;
     });
@@ -1315,7 +1318,7 @@ const ComparePage = () => {
               data={wsDrillHook.data}
               loading={wsDrillHook.loading}
               error={wsDrillHook.error}
-              contextColumn={{ key: "tingkat_instansi", label: "Tingkat" }}
+              contextColumn={null}
               onPageChange={(page, search) => wsDrillHook.fetch({ jabatan: wsModal.tingkat!, page, search })}
             />
           </>
@@ -2016,9 +2019,9 @@ const ComparePage = () => {
                           const levelIndicators = prodiRow?.indikator?.filter((m) =>
                             label === "Tinggi (>4)" ? m.skor_lulus > 4 : label === "Sedang (3-4)" ? m.skor_lulus >= 3 && m.skor_lulus <= 4 : m.skor_lulus < 3
                           );
-                          const kf = levelIndicators?.[0]?.kode_field ?? prodiRow?.indikator?.[0]?.kode_field ?? allProdi[0]?.indikator?.[0]?.kode_field;
-                          setKompModal({ open: true, title: `${label} — ${d.fullProdi ?? d.prodi}`, kode_field: kf });
-                          if (kf) kompetensiDrillHook.fetch({ kode_field: kf, page: 1 });
+                          const gg = levelIndicators?.[0]?.grup_gap ?? prodiRow?.indikator?.[0]?.grup_gap ?? allProdi[0]?.indikator?.[0]?.grup_gap;
+                          setKompModal({ open: true, title: `${label} — ${d.fullProdi ?? d.prodi}`, grup_gap: gg });
+                          if (gg) kompetensiDrillHook.fetch({ grup_gap: gg, page: 1 });
                         }}
                       />
                     ))}
@@ -2070,7 +2073,7 @@ const ComparePage = () => {
             loading={kompetensiDrillHook.loading}
             error={kompetensiDrillHook.error}
             contextColumn={{ key: "gap", label: "Gap" }}
-            onPageChange={(page, search) => kompetensiDrillHook.fetch({ kode_field: kompModal.kode_field, page, search })}
+            onPageChange={(page, search) => kompetensiDrillHook.fetch({ grup_gap: kompModal.grup_gap, page, search })}
           />
           </>
         )}

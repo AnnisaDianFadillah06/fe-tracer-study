@@ -48,6 +48,7 @@ const Kpi1ParticipationChart = () => {
     open: boolean;
     title: string;
     status: string;
+    nama_prodi?: string;
   }>({ open: false, title: "", status: "" });
 
   const sortedData = useMemo(() => {
@@ -74,8 +75,9 @@ const Kpi1ParticipationChart = () => {
       open: true,
       title: `${label} — ${row.prodi} (${count}/${total})`,
       status: statusKey,
+      nama_prodi: row.prodi,
     });
-    drillHook.fetch({ status: statusKey, page: 1 });
+    drillHook.fetch({ status: statusKey, nama_prodi: row.prodi, page: 1 });
   };
 
   return (
@@ -209,7 +211,7 @@ const Kpi1ParticipationChart = () => {
         error={drillHook.error}
         contextColumn={{ key: "status", label: "Status" }}
         onPageChange={(page, search) =>
-          drillHook.fetch({ status: modal.status, page, search })
+          drillHook.fetch({ status: modal.status, nama_prodi: modal.nama_prodi, page, search })
         }
       />
     </>

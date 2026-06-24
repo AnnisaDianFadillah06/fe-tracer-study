@@ -24,6 +24,7 @@ export interface KompetensiGapResponse {
 
 export interface KompetensiIndikatorItem {
   kode_field: string;
+  grup_gap: string;
   label: string;
   skor_lulus: number;
   skor_dibutuhkan: number;
@@ -146,7 +147,7 @@ export function useKompetensiGapBandingkan(enabled: boolean) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface KompetensiDrillDownParams {
-  kode_field?: string;
+  grup_gap?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -185,7 +186,7 @@ export function useKompetensiGapDrillDown() {
         ...buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
         page: String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),
-        ...(extra.kode_field ? { kode_field: extra.kode_field } : {}),
+        ...(extra.grup_gap ? { grup_gap: extra.grup_gap } : {}),
         ...(extra.search ? { search: extra.search } : {}),
       };
 
