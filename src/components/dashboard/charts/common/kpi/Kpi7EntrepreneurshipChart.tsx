@@ -20,9 +20,8 @@ import { MethodologyBlock } from "./Methodology";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { useWirausahaBar, useWirausahaPie, useWirausahaDrillDown } from "@/hooks/useWirausaha";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
-
-const CONTEXT_COLUMN = { key: "tingkat_instansi", label: "Tingkat Wirausaha" };
 
 const PIE_COLORS = [C.green, C.greenLight, C.blueLight, C.blue, C.orange];
 
@@ -99,6 +98,10 @@ const Kpi7EntrepreneurshipChart = () => {
       color:      PIE_COLORS[i % PIE_COLORS.length],
     }));
   }, [pieHook.data]);
+
+  const { tahunLulus } = useGlobalFilters();
+  const latestYear = comboData.length > 0 ? comboData[comboData.length - 1].year : undefined;
+  const pieTahun = tahunLulus === "all" ? latestYear : tahunLulus;
 
   const isLoading   = barHook.loading || pieHook.loading;
   const hasError    = barHook.error || pieHook.error;
@@ -179,7 +182,7 @@ const Kpi7EntrepreneurshipChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && pieData.length === 0}
           title="Distribusi Posisi Wirausaha"
-          subtitle="Periode terakhir"
+          subtitle={pieTahun ? `Tahun kelulusan ${pieTahun}` : "Semua periode"}
           compareType="entrepreneurship"
           methodology={
             <MethodologyBlock
@@ -219,7 +222,7 @@ const Kpi7EntrepreneurshipChart = () => {
         data={drillHook.data}
         loading={drillHook.loading}
         error={drillHook.error}
-        contextColumn={CONTEXT_COLUMN}
+        contextColumn={null}
         onPageChange={handlePageChange}
       />
     </>
