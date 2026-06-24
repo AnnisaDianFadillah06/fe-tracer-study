@@ -86,7 +86,7 @@ export interface WirausahaBandingkanItem {
   count_wirausaha: number;
   pct_wirausaha: number;
   avg_masa_tunggu_wirausaha: number;
-  tingkat: WirausahaBandingkanTingkat[];
+  jabatan: { label: string; count: number; pct: number }[];
 }
 
 export interface WirausahaBandingkanResponse {
