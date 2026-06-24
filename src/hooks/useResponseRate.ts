@@ -197,6 +197,7 @@ export function useResponseRateBar() {
 
 export interface ResponseRateDrillDownParams {
   status: string;
+  tahun_lulus?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -251,8 +252,11 @@ export function useResponseRateDrillDown() {
       };
       if (degree && degree !== "__all__") params.jenjang = degree;
       if (prodi && prodi !== "__all__") params.nama_prodi = prodi;
-      if (tahunLulus && tahunLulus !== "all")
+      if (extra.tahun_lulus) {
+        params.graduation_year = extra.tahun_lulus;
+      } else if (tahunLulus && tahunLulus !== "all") {
         params.graduation_year = tahunLulus;
+      }
 
       apiService
         .get<any>("/dashboard/response-rate/drill-down", {

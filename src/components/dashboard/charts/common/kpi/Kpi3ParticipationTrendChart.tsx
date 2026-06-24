@@ -27,7 +27,7 @@ const Kpi3ParticipationTrendChart = () => {
   const { data, loading, error } = useResponseRateTrend();
   const drillHook = useResponseRateDrillDown();
   const lam = useLamFilter("participation");
-  const [modal, setModal] = useState<{ open: boolean; title: string; status: string }>({ open: false, title: "", status: "" });
+  const [modal, setModal] = useState<{ open: boolean; title: string; status: string; tahun_lulus?: string }>({ open: false, title: "", status: "" });
 
   const chartData = useMemo(() => {
     if (!data?.data) return [];
@@ -85,8 +85,8 @@ const Kpi3ParticipationTrendChart = () => {
               onClick={(d: any) => {
                 const total = d.total ?? 0;
                 const n = Math.round((d.rate / 100) * total);
-                setModal({ open: true, title: `Alumni Merespons — ${d.year} (${n}/${total})`, status: "submitted" });
-                drillHook.fetch({ status: "submitted", page: 1 });
+                setModal({ open: true, title: `Alumni Merespons — ${d.year} (${n}/${total})`, status: "submitted", tahun_lulus: d.year });
+                drillHook.fetch({ status: "submitted", tahun_lulus: d.year, page: 1 });
               }}
               activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
               {marked.map((d: any) => (
@@ -120,7 +120,7 @@ const Kpi3ParticipationTrendChart = () => {
         loading={drillHook.loading}
         error={drillHook.error}
         contextColumn={{ key: "status", label: "Status" }}
-        onPageChange={(page, search) => drillHook.fetch({ status: modal.status, page, search })}
+        onPageChange={(page, search) => drillHook.fetch({ status: modal.status, tahun_lulus: modal.tahun_lulus, page, search })}
       />
     </>
   );

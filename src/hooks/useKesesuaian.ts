@@ -65,7 +65,7 @@ export interface KesesuaianDrillDownResponse {
 }
 
 export interface KesesuaianDrillDownParams {
-  kesesuaian_sk?: number;
+  kesesuaian_label?: string;
   alasan?: string;
   tahun_lulus?: string;
   page?: number;
@@ -272,8 +272,8 @@ export function useKesesuaianDrillDown() {
         ...buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
         page:          String(extra.page ?? 1),
         per_page:      String(extra.per_page ?? 15),
-        ...(extra.kesesuaian_sk != null ? { kesesuaian_sk: String(extra.kesesuaian_sk) } : {}),
-        ...(extra.alasan ? { alasan: extra.alasan } : {}),
+        ...(extra.kesesuaian_label ? { kesesuaian_label: extra.kesesuaian_label } : {}),
+        ...(extra.alasan ? { label_pertanyaan: extra.alasan } : {}),
         ...(extra.search ? { search: extra.search } : {}),
       };
 

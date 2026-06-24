@@ -112,13 +112,17 @@ function buildParams(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useMasaTungguBar() {
-  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, weekKey, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
-  const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-    [degree, jurusan, prodi, tahunLulus, weekKey]
-  );
+  const params = useMemo(() => {
+    const p: Record<string, string> = {};
+    if (degree  && degree  !== "__all__") p.jenjang         = degree;
+    if (jurusan && jurusan !== "__all__") p.jurusan         = jurusan;
+    if (prodi   && prodi   !== "__all__") p.nama_prodi      = prodi;
+    if (weekKey)                          p.minggu_snapshot = weekKey;
+    return p;
+  }, [degree, jurusan, prodi, weekKey]);
 
   const result = useQuery<MasaTungguBarResponse>({
     queryKey: ["masa-tunggu", "bar", params, updatedTs],
@@ -169,6 +173,7 @@ export function useMasaTungguDistribusi() {
 
 export interface MasaTungguDrillDownParams {
   rentang: "0-3" | "3-6" | ">6";
+  tahun_lulus?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -195,8 +200,10 @@ export function useMasaTungguDrillDown() {
       setLoading(true);
       setError(null);
 
+      const baseParams = buildParams(degree, jurusan, prodi, tahunLulus, weekKey);
+      if (extra.tahun_lulus) baseParams.tahun_lulus = extra.tahun_lulus;
       const params: Record<string, string> = {
-        ...buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
+        ...baseParams,
         rentang:  extra.rentang,
         page:     String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),

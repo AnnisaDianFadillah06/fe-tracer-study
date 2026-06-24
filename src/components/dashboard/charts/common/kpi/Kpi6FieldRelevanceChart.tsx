@@ -27,18 +27,11 @@ import {
   useKesesuaianAlasan,
   useKesesuaianDrillDown,
 } from "@/hooks/useKesesuaian";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 import { buildColorMap } from "@/lib/chartColors";
 
 const CONTEXT_COLUMN = { key: "kesesuaian_bidang", label: "Kesesuaian Bidang" };
-
-const KESESUAIAN_SK: Record<string, number> = {
-  "Sangat Erat": 1,
-  "Erat": 2,
-  "Cukup Erat": 3,
-  "Kurang Erat": 4,
-  "Tidak Sama Sekali": 5,
-};
 
 const Kpi6FieldRelevanceChart = () => {
   const barHook    = useKesesuaianBar();
@@ -48,27 +41,29 @@ const Kpi6FieldRelevanceChart = () => {
   const lam        = useLamFilter("fieldRelevance");
   const pieActive  = usePieActive();
 
+  const { tahunLulus } = useGlobalFilters();
+
   const [modal, setModal] = useState<{
     open: boolean;
     title: string;
-    kesesuaian_sk?: number;
+    kesesuaian_label?: string;
     alasan?: string;
     tahun_lulus?: string;
   }>({ open: false, title: "" });
 
-  const openModal = (title: string, kesesuaian_sk: number, tahun_lulus?: string) => {
-    setModal({ open: true, title, kesesuaian_sk, tahun_lulus });
-    drillHook.fetch({ kesesuaian_sk, tahun_lulus, page: 1 });
+  const openModal = (title: string, kesesuaian_label: string, tahun_lulus?: string) => {
+    setModal({ open: true, title, kesesuaian_label, tahun_lulus });
+    drillHook.fetch({ kesesuaian_label, tahun_lulus, page: 1 });
   };
 
-  const openAlasanModal = (title: string, alasan: string) => {
-    setModal({ open: true, title, alasan, kesesuaian_sk: 5 });
-    drillHook.fetch({ kesesuaian_sk: 5, alasan, page: 1 });
+  const openAlasanModal = (title: string, alasan: string, tahun_lulus?: string) => {
+    setModal({ open: true, title, alasan, tahun_lulus });
+    drillHook.fetch({ alasan, tahun_lulus, page: 1 });
   };
 
   const handlePageChange = (page: number, search?: string) => {
     drillHook.fetch({
-      ...(modal.kesesuaian_sk != null ? { kesesuaian_sk: modal.kesesuaian_sk } : {}),
+      ...(modal.kesesuaian_label ? { kesesuaian_label: modal.kesesuaian_label } : {}),
       ...(modal.alasan ? { alasan: modal.alasan } : {}),
       tahun_lulus: modal.tahun_lulus,
       page,
@@ -127,6 +122,9 @@ const Kpi6FieldRelevanceChart = () => {
     }));
   }, [alasanHook.data]);
 
+  const latestYear = comboData.length > 0 ? comboData[comboData.length - 1].year : undefined;
+  const distTahun = tahunLulus === "all" ? latestYear : tahunLulus;
+
   const isLoading   = barHook.loading || pieHook.loading || alasanHook.loading;
   const hasError    = barHook.error || pieHook.error || alasanHook.error;
   const showRefLine = !lam.isDisabled && !!lam.threshold;
@@ -166,7 +164,7 @@ const Kpi6FieldRelevanceChart = () => {
                   dataKey="value" name="Kesesuaian" radius={[6, 6, 0, 0]} maxBarSize={50}
                   cursor="pointer"
                   onClick={(d: any) => openModal(
-                    `Kesesuaian — ${d.year} (${d.value}% · ${d.n}/${d.total} lulusan)`, 1, d.year
+                    `Kesesuaian — ${d.year} (${d.value}% · ${d.n}/${d.total} lulusan)`, "Sangat Erat,Erat", d.year
                   )}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
@@ -195,7 +193,7 @@ const Kpi6FieldRelevanceChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && pieData.length === 0}
           title="Distribusi Tingkat Kesesuaian"
-          subtitle="Periode aktif — klik slice untuk lihat alumni"
+          subtitle={distTahun ? `Tahun kelulusan ${distTahun} — klik slice untuk lihat alumni` : "Semua periode — klik slice untuk lihat alumni"}
           compareType="kesesuaian"
           methodology={
             <MethodologyBlock
@@ -214,8 +212,7 @@ const Kpi6FieldRelevanceChart = () => {
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                   cursor="pointer"
                   onClick={(d: any) => {
-                    const sk = KESESUAIAN_SK[d.name];
-                    if (sk) openModal(`${d.name} (${d.value}% · ${d.count} alumni)`, sk);
+                    openModal(`${d.name} (${d.value}% · ${d.count} alumni)`, d.name, distTahun);
                   }}
                 >
                   {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
@@ -232,7 +229,7 @@ const Kpi6FieldRelevanceChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && reasonsData.length === 0}
           title="Frekuensi Alasan Ketidaksesuaian"
-          subtitle="Jumlah responden per alasan (multi-pilih)"
+          subtitle={distTahun ? `Tahun kelulusan ${distTahun} — jumlah responden per alasan (multi-pilih)` : "Semua periode — jumlah responden per alasan (multi-pilih)"}
           className="lg:col-span-2"
           compareType="kesesuaian"
           methodology={
@@ -253,7 +250,7 @@ const Kpi6FieldRelevanceChart = () => {
                 <Bar dataKey="value" fill={C.orange} radius={[0, 6, 6, 0]} maxBarSize={28}
                   cursor="pointer"
                   onClick={(d: any) => {
-                    openAlasanModal(`${d.reason} (${d.value} responden)`, d.reason);
+                    openAlasanModal(`${d.reason} (${d.value} responden)`, d.reason, distTahun);
                   }}>
                   <LabelList dataKey="value" position="right" fontSize={11} fill="hsl(var(--foreground))" />
                 </Bar>

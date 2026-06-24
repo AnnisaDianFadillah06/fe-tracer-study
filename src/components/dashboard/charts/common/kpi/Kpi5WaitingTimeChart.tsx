@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -17,6 +17,7 @@ import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import { MethodologyBlock } from "./Methodology";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { useMasaTungguBar, useMasaTungguDistribusi, useMasaTungguDrillDown } from "@/hooks/useMasaTunggu";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 import { buildColorMap } from "@/lib/chartColors";
 
@@ -28,21 +29,24 @@ const Kpi5WaitingTimeChart = () => {
   const drillHook      = useMasaTungguDrillDown();
   const lam            = useLamFilter("waitingTime");
 
+  const { tahunLulus } = useGlobalFilters();
+
   const [modal, setModal] = useState<{
     open: boolean;
     title: string;
     rentang?: "0-3" | "3-6" | ">6";
+    tahun_lulus?: string;
   }>({ open: false, title: "" });
 
-  const openModal = (title: string, rentang: "0-3" | "3-6" | ">6") => {
-    setModal({ open: true, title, rentang });
-    drillHook.fetch({ rentang, page: 1 });
+  const openModal = (title: string, rentang: "0-3" | "3-6" | ">6", tahun?: string) => {
+    setModal({ open: true, title, rentang, tahun_lulus: tahun });
+    drillHook.fetch({ rentang, tahun_lulus: tahun, page: 1 });
   };
 
-  const handlePageChange = (page: number, search?: string) => {
+  const handlePageChange = useCallback((page: number, search?: string) => {
     if (!modal.rentang) return;
-    drillHook.fetch({ rentang: modal.rentang, page, search });
-  };
+    drillHook.fetch({ rentang: modal.rentang, tahun_lulus: modal.tahun_lulus, page, search });
+  }, [modal.rentang, modal.tahun_lulus, drillHook]);
 
   // Aggregate bar data: per-prodi/tahun → per tahun (sum count, hitung pct)
   const comboData = useMemo(() => {
@@ -82,6 +86,9 @@ const Kpi5WaitingTimeChart = () => {
       { cat: "> 6 bulan", value: Math.round(t6plus / total * 100 * 10) / 10, count: t6plus, total, rentang: ">6"   as const, color: colorMap["> 6 bulan"] },
     ];
   }, [distribusiHook.data]);
+
+  const latestYear = comboData.length > 0 ? comboData[comboData.length - 1].year : undefined;
+  const distTahun = tahunLulus === "all" ? latestYear : tahunLulus;
 
   const showRefLine = !lam.isDisabled && !!lam.threshold;
   const isLoading   = barHook.loading || distribusiHook.loading;
@@ -129,7 +136,7 @@ const Kpi5WaitingTimeChart = () => {
                   dataKey="pct" name="% ≤ 6 bln" radius={[6, 6, 0, 0]} maxBarSize={60}
                   cursor="pointer"
                   onClick={(d: any) => openModal(
-                    `Lulusan ≤ 6 bln — ${d.year} (${d.pct}% • ${d.n}/${d.total})`, "0-3"
+                    `Lulusan ≤ 6 bln — ${d.year} (${d.pct}% • ${d.n}/${d.total})`, "0-3", d.year
                   )}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
@@ -158,7 +165,7 @@ const Kpi5WaitingTimeChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && distData.length === 0}
           title="Distribusi Kategori Masa Tunggu"
-          subtitle="Semua periode aktif — sumbu X: % lulusan"
+          subtitle={distTahun ? `Tahun kelulusan ${distTahun} — sumbu X: % lulusan` : "Semua periode aktif — sumbu X: % lulusan"}
           compareType="waktuTunggu"
           methodology={
             <MethodologyBlock
@@ -180,7 +187,7 @@ const Kpi5WaitingTimeChart = () => {
                 <Bar
                   dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={40}
                   cursor="pointer"
-                  onClick={(d: any) => openModal(`Masa tunggu ${d.cat} (${d.value}% · ${d.count} alumni)`, d.rentang)}
+                  onClick={(d: any) => openModal(`Masa tunggu ${d.cat} (${d.value}% · ${d.count} alumni)`, d.rentang, distTahun)}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
                   {distData.map((d, i) => <Cell key={i} fill={d.color} />)}
