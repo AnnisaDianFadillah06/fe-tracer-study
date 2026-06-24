@@ -11,16 +11,16 @@ export interface SummaryCardItem {
   trendUp?: boolean;
 }
 
-const SummaryCards = ({ items }: { items: SummaryCardItem[] }) => {
+const SummaryCards = ({ items, className }: { items: SummaryCardItem[]; className?: string }) => {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div className={`flex flex-wrap justify-center gap-3 ${className ?? ""}`}>
       {items.map((it, i) => (
         <motion.div
           key={it.title}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.04 }}
-          className="glass-card p-3 flex flex-col gap-1 cursor-default select-none"
+          className="glass-card p-3 flex flex-col gap-1 cursor-default select-none w-[calc(50%-0.375rem)] sm:w-[calc(33.333%-0.5rem)] xl:w-[calc(16.666%-0.625rem)] min-w-[140px]"
           title="Ringkasan KPI — hanya bersifat informatif"
         >
           <div className="flex items-center justify-between">
