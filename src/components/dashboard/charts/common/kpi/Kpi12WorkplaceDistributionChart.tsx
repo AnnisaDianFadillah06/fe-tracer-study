@@ -21,8 +21,37 @@ import {
   useInstansiDrillDown,
   InstansiDrillDownParams,
 } from "@/hooks/useInstansi";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 import { buildColorMap } from "@/lib/chartColors";
+
+const OFFICIAL_JENIS_MAP: Record<string, string> = {
+  "instansi pemerintah": "Instansi Pemerintah",
+  "lembaga pemerintah": "Instansi Pemerintah",
+  "organisasi non-profit/lembaga swadaya masyarakat": "Organisasi Non-profit",
+  "perusahaan swasta": "Perusahaan Swasta",
+  "wiraswasta/perusahaan sendiri": "Wiraswasta",
+  "bumn/bumd": "BUMN/BUMD",
+  "institusi/organisasi multilateral": "Institusi/Organisasi Multilateral",
+};
+const JENIS_DISPLAY = [
+  "Instansi Pemerintah", "Organisasi Non-profit", "Perusahaan Swasta",
+  "Wiraswasta", "BUMN/BUMD", "Institusi/Organisasi Multilateral", "Lainnya",
+];
+const JENIS_COLORS: Record<string, string> = {
+  "Instansi Pemerintah": "#3b82f6",
+  "Organisasi Non-profit": "#f59e0b",
+  "Perusahaan Swasta": "#f97316",
+  "Wiraswasta": "#8b5cf6",
+  "BUMN/BUMD": "#10b981",
+  "Institusi/Organisasi Multilateral": "#06b6d4",
+  "Lainnya": "#9ca3af",
+};
+const normalizeJenis = (l: string): string => {
+  if (!l || l === "0" || l === "Lainnya, tuliskan") return "Lainnya";
+  const key = l.toLowerCase().trim();
+  return OFFICIAL_JENIS_MAP[key] ?? "Lainnya";
+};
 
 const DEFAULT_GROUPED = [
   { year: "2019", lokal: 45, nasional: 40, multi: 15 },
@@ -40,6 +69,7 @@ const VISIBLE_YEARS = 3;
 const BAR_GROUP_WIDTH = 180;
 
 const Kpi12WorkplaceDistributionChart = () => {
+  const { tahunLulus } = useGlobalFilters();
   const jenisHook = useInstansiJenis();
   const drillHook = useInstansiDrillDown();
   const pieActive = usePieActive();
@@ -57,17 +87,32 @@ const Kpi12WorkplaceDistributionChart = () => {
 
   const pieData = useMemo(() => {
     if (!jenisHook.data?.data) return [];
-    const labels = jenisHook.data.data.map((d) => d.jenis);
-    const colorMap = buildColorMap(labels);
-    return jenisHook.data.data.map((d) => ({
-      name: d.jenis,
-      value: d.pct,
-      count: d.count,
-      color: colorMap[d.jenis],
-    }));
+    const merged: Record<string, { pct: number; count: number }> = {};
+    jenisHook.data.data.forEach((d) => {
+      const label = normalizeJenis(d.jenis);
+      if (!merged[label]) merged[label] = { pct: 0, count: 0 };
+      merged[label].pct += d.pct;
+      merged[label].count += d.count;
+    });
+    return JENIS_DISPLAY
+      .filter((l) => merged[l])
+      .map((l) => ({
+        name: l,
+        value: +(merged[l].pct).toFixed(1),
+        count: merged[l].count,
+        color: JENIS_COLORS[l] ?? "#9ca3af",
+      }));
+  }, [jenisHook.data]);
+
+  const lainnyaRawLabels = useMemo(() => {
+    if (!jenisHook.data?.data) return [] as string[];
+    return jenisHook.data.data
+      .filter((d) => normalizeJenis(d.jenis) === "Lainnya" && d.jenis && d.jenis !== "0")
+      .map((d) => d.jenis);
   }, [jenisHook.data]);
 
   const pieTotal = jenisHook.data?.total ?? pieData.reduce((s, d) => s + d.count, 0);
+  const displayTahun = tahunLulus === "all" ? undefined : tahunLulus;
 
   const barChartWidth = Math.max(DEFAULT_GROUPED.length * BAR_GROUP_WIDTH, 400);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -89,7 +134,7 @@ const Kpi12WorkplaceDistributionChart = () => {
           error={jenisHook.error}
           empty={pieEmpty}
           title="Sebaran Jenis Perusahaan"
-          subtitle="Distribusi jenis perusahaan tempat kerja lulusan — periode terakhir"
+          subtitle={displayTahun ? `Tahun kelulusan ${displayTahun}` : "Semua periode"}
           compareType="jenisInstansi"
           methodology={
             <MethodologyBlock
@@ -108,12 +153,12 @@ const Kpi12WorkplaceDistributionChart = () => {
                   activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                   cursor="pointer"
-                  onClick={(d: any) =>
-                    openModal(
-                      `${d.name} (${d.value}% · ${d.count} alumni)`,
-                      { jenis_instansi: d.name }
-                    )
-                  }
+                  onClick={(d: any) => {
+                    const params: InstansiDrillDownParams = d.name === "Lainnya"
+                      ? { jenis_instansi: lainnyaRawLabels }
+                      : { jenis_instansi: d.name };
+                    openModal(`${d.name} (${d.value}% · ${d.count} alumni)`, params);
+                  }}
                 >
                   {pieData.map((d, i) => (
                     <Cell key={i} fill={d.color} />

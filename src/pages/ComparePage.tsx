@@ -401,18 +401,32 @@ const ComparePage = () => {
   }, [incomeKelompokBandingkanHook.data]);
   const incomeKelompokColorMap = buildColorMap(incomeKelompokLabels);
 
-  // Jenis Instansi — transform data BE ke stacked bar per prodi (top N + Lainnya)
-  const MAX_JENIS_SLICES = 8;
+  // Jenis Instansi — 6 kategori resmi + "Lainnya"
+  const JENIS_MAP: Record<string, string> = {
+    "instansi pemerintah": "Instansi Pemerintah",
+    "lembaga pemerintah": "Instansi Pemerintah",
+    "organisasi non-profit/lembaga swadaya masyarakat": "Organisasi Non-profit",
+    "perusahaan swasta": "Perusahaan Swasta",
+    "wiraswasta/perusahaan sendiri": "Wiraswasta",
+    "bumn/bumd": "BUMN/BUMD",
+    "institusi/organisasi multilateral": "Institusi/Organisasi Multilateral",
+  };
+  const JENIS_ORDER_CMP = [
+    "Instansi Pemerintah", "Organisasi Non-profit", "Perusahaan Swasta",
+    "Wiraswasta", "BUMN/BUMD", "Institusi/Organisasi Multilateral", "Lainnya",
+  ];
+  const normJenis = (l: string): string => {
+    if (!l || l === "0" || l === "Lainnya, tuliskan") return "Lainnya";
+    return JENIS_MAP[l.toLowerCase().trim()] ?? "Lainnya";
+  };
+
   const instansiJenisLabels = useMemo(() => {
     if (!instansiBandingkanHook.data?.data) return [] as string[];
-    const totals: Record<string, number> = {};
+    const seen = new Set<string>();
     instansiBandingkanHook.data.data.forEach((d) =>
-      d.jenis.forEach((j) => { totals[j.label] = (totals[j.label] ?? 0) + j.count; })
+      d.jenis.forEach((j) => seen.add(normJenis(j.label)))
     );
-    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-    const top = sorted.slice(0, MAX_JENIS_SLICES).map(([l]) => l);
-    if (sorted.length > MAX_JENIS_SLICES) top.push("Lainnya");
-    return top;
+    return JENIS_ORDER_CMP.filter((l) => seen.has(l));
   }, [instansiBandingkanHook.data]);
 
   const instansiJenisColorMap = useMemo(
@@ -422,30 +436,20 @@ const ComparePage = () => {
 
   const instansiJenisChartData = useMemo(() => {
     if (!isJenisInstansi || !instansiBandingkanHook.data?.data) return [];
-    const topSet = new Set(instansiJenisLabels.filter((l) => l !== "Lainnya"));
     return instansiBandingkanHook.data.data.map((d) => {
       const row: Record<string, any> = {
         prodi:    d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
         fullProdi: d.nama_prodi,
         total:    d.total,
       };
-      let lainnyaPct = 0, lainnyaCount = 0;
       d.jenis.forEach((j) => {
-        if (topSet.has(j.label)) {
-          row[j.label] = +(j.pct).toFixed(1);
-          row[`${j.label}Count`] = j.count;
-        } else {
-          lainnyaPct += j.pct;
-          lainnyaCount += j.count;
-        }
+        const label = normJenis(j.label);
+        row[label] = +((row[label] ?? 0) + j.pct).toFixed(1);
+        row[`${label}Count`] = (row[`${label}Count`] ?? 0) + j.count;
       });
-      if (instansiJenisLabels.includes("Lainnya")) {
-        row["Lainnya"] = +(lainnyaPct).toFixed(1);
-        row["LainnyaCount"] = lainnyaCount;
-      }
       return row;
     });
-  }, [isJenisInstansi, instansiBandingkanHook.data, instansiJenisLabels]);
+  }, [isJenisInstansi, instansiBandingkanHook.data]);
 
   // Tingkat Instansi — transform data BE ke stacked bar per prodi
   const instansiTingkatLabels = ["Lokal", "Nasional", "Internasional"];
@@ -1620,12 +1624,13 @@ const ComparePage = () => {
                           <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
                           <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                           {instansiJenisLabels.map((l) => {
-                            const j = row.jenis.find((x) => x.label === l);
+                            let pct = 0, count = 0;
+                            row.jenis.forEach((x) => { if (normJenis(x.label) === l) { pct += x.pct; count += x.count; } });
                             return (
                               <td key={l} className="py-2 px-3">
-                                {j ? (
+                                {count > 0 ? (
                                   <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: instansiJenisColorMap[l] }}>
-                                    {j.pct}% ({j.count})
+                                    {pct.toFixed(1)}% ({count})
                                   </span>
                                 ) : <span className="text-muted-foreground text-xs">—</span>}
                               </td>
