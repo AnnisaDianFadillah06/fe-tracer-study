@@ -307,13 +307,17 @@ const ComparePage = () => {
     if (!isKesesuaian || !ksBandingkanHook.data?.data) return [];
     return ksBandingkanHook.data.data.map((d) => {
       const shortProdi = d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi;
+      const rawSum = d.pct_sesuai + d.pct_tidak_sesuai;
+      const scale = rawSum > 0 ? 100 / rawSum : 1;
+      const sesuaiNorm = +(d.pct_sesuai * scale).toFixed(1);
+      const tidakNorm = +(100 - sesuaiNorm).toFixed(1);
       return {
         prodi: shortProdi,
         fullProdi: d.nama_prodi,
         total: d.total,
-        "Sesuai Bidang": d.pct_sesuai,
+        "Sesuai Bidang": sesuaiNorm,
         "Sesuai BidangCount": Math.round(d.total * d.pct_sesuai / 100),
-        "Tidak Sesuai": d.pct_tidak_sesuai,
+        "Tidak Sesuai": tidakNorm,
         "Tidak SesuaiCount": Math.round(d.total * d.pct_tidak_sesuai / 100),
       };
     });

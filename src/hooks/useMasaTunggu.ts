@@ -112,7 +112,7 @@ function buildParams(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useMasaTungguBar() {
-  const { degree, jurusan, prodi, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
   const params = useMemo(() => {
@@ -120,9 +120,11 @@ export function useMasaTungguBar() {
     if (degree  && degree  !== "__all__") p.jenjang         = degree;
     if (jurusan && jurusan !== "__all__") p.jurusan         = jurusan;
     if (prodi   && prodi   !== "__all__") p.nama_prodi      = prodi;
+    if (tahunLulus && tahunLulus !== "all") p.tahun_lulus    = tahunLulus;
+    else p.tahun_lulus = "2024";
     if (weekKey)                          p.minggu_snapshot = weekKey;
     return p;
-  }, [degree, jurusan, prodi, weekKey]);
+  }, [degree, jurusan, prodi, tahunLulus, weekKey]);
 
   const result = useQuery<MasaTungguBarResponse>({
     queryKey: ["masa-tunggu", "bar", params, updatedTs],
@@ -147,10 +149,11 @@ export function useMasaTungguDistribusi() {
   const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
-  const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-    [degree, jurusan, prodi, tahunLulus, weekKey]
-  );
+  const params = useMemo(() => {
+    const p = buildParams(degree, jurusan, prodi, tahunLulus, weekKey);
+    if (!p.tahun_lulus) p.tahun_lulus = "2024";
+    return p;
+  }, [degree, jurusan, prodi, tahunLulus, weekKey]);
 
   const result = useQuery<MasaTungguDistribusiResponse>({
     queryKey: ["masa-tunggu", "distribusi", params, updatedTs],

@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import { MethodologyBlock } from "./Methodology";
+import { markMax } from "./format";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { formatPctCount } from "./format";
@@ -116,7 +117,7 @@ const Kpi4AbsorptionChart = () => {
         >
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={comboData} margin={{ top: 20, right: 20, left: 10, bottom: 25 }}>
+              <ComposedChart data={markMax(comboData, "value")} margin={{ top: 30, right: 20, left: 10, bottom: 25 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
                 <XAxis dataKey="year" fontSize={13}
                   label={{ value: "Tahun Kelulusan", position: "insideBottom", offset: -8, fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
@@ -136,21 +137,28 @@ const Kpi4AbsorptionChart = () => {
                     stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3"
                   />
                 )}
+                {markMax(comboData, "value").filter((d) => d.isMax).map((d) => (
+                  <ReferenceArea key={`max-${d.year}`} x1={d.year} x2={d.year}
+                    fill="hsl(45 95% 55%)" fillOpacity={0.14}
+                    stroke="hsl(45 95% 45%)" strokeOpacity={0.55} strokeDasharray="4 2" />
+                ))}
                 <Bar dataKey="value" name="Keterserapan" radius={[6, 6, 0, 0]} maxBarSize={50}
                   cursor="pointer"
-                  // fix #2: selalu buka dengan status=terserap
                   onClick={(d: any) => openFromBar(
                     `Terserap ${d.year} — ${d.value}% (${d.n}/${d.total} alumni)`,
                     d.year
                   )}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
-                  {comboData.map((d) => (
+                  {markMax(comboData, "value").map((d) => (
                     <Cell key={d.year}
                       fill={showRefLine && lam.threshold ? (d.value >= lam.threshold ? C.blue : C.orange) : C.blue}
                     />
                   ))}
                   <LabelList dataKey="value" position="center" fill="#fff" fontSize={11} formatter={(v: number) => `${v}%`} />
+                  <LabelList dataKey="isMax" position="top" content={(p: any) =>
+                    p.value ? <text x={p.x + p.width / 2} y={p.y - 6} fontSize={11} fontWeight={700} fill="hsl(38 92% 38%)" textAnchor="middle">★ Tertinggi</text> : null
+                  } />
                 </Bar>
                 <Line type="monotone" dataKey="value" name="Tren" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
                 {showRefLine && (

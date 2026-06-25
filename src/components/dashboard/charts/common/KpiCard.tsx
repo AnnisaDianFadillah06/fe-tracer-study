@@ -105,7 +105,11 @@ export const KpiCard = ({
     // walau GlobalFiltersProvider tidak wrap halaman compare
     if (degree && degree !== "__all__") params.set("jenjang", degree);
     if (jurusan && jurusan !== "__all__") params.set("jurusan", jurusan);
-    if (tahunLulus && tahunLulus !== "all") params.set("tahun_lulus", tahunLulus);
+    if (tahunLulus && tahunLulus !== "all") {
+      params.set("tahun_lulus", tahunLulus);
+    } else {
+      params.set("tahun_lulus", "2024");
+    }
     if (weekKey) params.set("minggu_snapshot", weekKey);
   
     navigate(`/dashboard/compare?${params.toString()}`);
