@@ -471,19 +471,25 @@ const ComparePage = () => {
     });
   }, [isTingkatInstansi, instansiBandingkanHook.data]);
 
-  // Sumber Biaya — transform data BE ke stacked bar per prodi (top N + Lainnya)
-  const MAX_BIAYA_SLICES = 8;
+  // Sumber Biaya — 7 kategori resmi + "Lainnya" (merge Beasiswa Polban, dll)
+  const BIAYA_OFFICIAL = new Set([
+    "Biaya Sendiri/Keluarga", "Beasiswa BIDIKMISI", "Beasiswa PPA",
+    "Beasiswa Perusahaan/Swasta", "Beasiswa AFIRMASI", "Beasiswa ADIK", "Tidak Mengisi",
+  ]);
+  const BIAYA_ORDER = [...BIAYA_OFFICIAL, "Lainnya"];
+  const normBiaya = (l: string): string => {
+    if (l === "0" || l === "") return "Tidak Mengisi";
+    if (BIAYA_OFFICIAL.has(l)) return l;
+    return "Lainnya";
+  };
+
   const pembiayaanLabels = useMemo(() => {
     if (!pembiayaanBandingkanHook.data?.data) return [] as string[];
-    const totals: Record<string, number> = {};
-    const fixBiayaLabel = (l: string) => (l === "0" || l === "" ? "Tidak Mengisi" : l);
+    const seen = new Set<string>();
     pembiayaanBandingkanHook.data.data.forEach((d) =>
-      d.sumber.forEach((s) => { const l = fixBiayaLabel(s.label); totals[l] = (totals[l] ?? 0) + s.count; })
+      d.sumber.forEach((s) => seen.add(normBiaya(s.label)))
     );
-    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-    const top = sorted.slice(0, MAX_BIAYA_SLICES).map(([l]) => l);
-    if (sorted.length > MAX_BIAYA_SLICES) top.push("Lainnya");
-    return top;
+    return BIAYA_ORDER.filter((l) => seen.has(l));
   }, [pembiayaanBandingkanHook.data]);
 
   const pembiayaanColorMap = useMemo(
@@ -493,7 +499,6 @@ const ComparePage = () => {
 
   const pembiayaanChartData = useMemo(() => {
     if (!isSumberBiaya || !pembiayaanBandingkanHook.data?.data) return [];
-    const topSet = new Set(pembiayaanLabels.filter((l) => l !== "Lainnya"));
     return pembiayaanBandingkanHook.data.data.map((d) => {
       const shortProdi = d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi;
       const row: Record<string, any> = {
@@ -501,24 +506,14 @@ const ComparePage = () => {
         fullProdi: d.nama_prodi,
         total: d.total,
       };
-      let lainnyaPct = 0, lainnyaCount = 0;
       d.sumber.forEach((s) => {
-        const label = s.label === "0" || s.label === "" ? "Tidak Mengisi" : s.label;
-        if (topSet.has(label)) {
-          row[label] = +(s.pct).toFixed(1);
-          row[`${label}Count`] = s.count;
-        } else {
-          lainnyaPct += s.pct;
-          lainnyaCount += s.count;
-        }
+        const label = normBiaya(s.label);
+        row[label] = +((row[label] ?? 0) + s.pct).toFixed(1);
+        row[`${label}Count`] = (row[`${label}Count`] ?? 0) + s.count;
       });
-      if (pembiayaanLabels.includes("Lainnya")) {
-        row["Lainnya"] = +(lainnyaPct).toFixed(1);
-        row["LainnyaCount"] = lainnyaCount;
-      }
       return row;
     });
-  }, [isSumberBiaya, pembiayaanBandingkanHook.data, pembiayaanLabels]);
+  }, [isSumberBiaya, pembiayaanBandingkanHook.data]);
 
   const [pembiayaanModal, setPembiayaanModal] = useState<{ open: boolean; title: string; sumber_biaya?: string }>({ open: false, title: "" });
 
@@ -1942,10 +1937,11 @@ const ComparePage = () => {
                           <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
                           <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                           {pembiayaanLabels.map((l) => {
-                            const s = row.sumber.find((x) => x.label === l);
+                            let pct = 0, count = 0;
+                            row.sumber.forEach((x) => { if (normBiaya(x.label) === l) { pct += x.pct; count += x.count; } });
                             return (
                               <td key={l} className="py-2 px-3">
-                                {s ? <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: pembiayaanColorMap[l] }}>{s.pct}% ({s.count})</span> : <span className="text-muted-foreground text-xs">—</span>}
+                                {count > 0 ? <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: pembiayaanColorMap[l] }}>{pct.toFixed(1)}% ({count})</span> : <span className="text-muted-foreground text-xs">—</span>}
                               </td>
                             );
                           })}
