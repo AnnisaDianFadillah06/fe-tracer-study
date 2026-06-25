@@ -148,8 +148,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             );
           })}
 
-          {/* Admin section — hidden for kaprodi */}
-          {currentRole !== "kaprodi" && (
+          {/* Admin section — only visible for kotc (admin) */}
+          {currentRole === "kotc" && (
             <>
               {!collapsed && (
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-4 pb-1">
