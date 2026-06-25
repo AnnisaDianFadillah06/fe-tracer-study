@@ -11,10 +11,12 @@ import {
   Tooltip,
   Legend,
   ReferenceLine,
+  ReferenceArea,
   LabelList,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import { MethodologyBlock } from "./Methodology";
+import { markMax } from "./format";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import {
   usePendapatanBar,
@@ -22,9 +24,11 @@ import {
   usePendapatanDrillDown,
   PendapatanDrillDownParams,
 } from "@/hooks/usePendapatan";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 
 const Kpi8IncomeChart = () => {
+  const { tahunLulus } = useGlobalFilters();
   const barHook   = usePendapatanBar();
   const distHook  = usePendapatanDistribusi();
   const drillHook = usePendapatanDrillDown();
@@ -118,8 +122,17 @@ const Kpi8IncomeChart = () => {
           )}
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={avgData} margin={{ top: 30, right: hasUmpData ? 50 : 20, left: 20, bottom: 30 }}>
+              <ComposedChart data={markMax(avgData, "avg")} margin={{ top: 30, right: hasUmpData ? 50 : 20, left: 20, bottom: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+                {tahunLulus !== "all" && (
+                  <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill="hsl(var(--foreground))" fillOpacity={0.06}
+                    stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3" />
+                )}
+                {markMax(avgData, "avg").filter((d) => d.isMax).map((d) => (
+                  <ReferenceArea key={`max-${d.year}`} x1={d.year} x2={d.year}
+                    fill="hsl(45 95% 55%)" fillOpacity={0.14}
+                    stroke="hsl(45 95% 45%)" strokeOpacity={0.55} strokeDasharray="4 2" />
+                ))}
                 <XAxis
                   dataKey="year"
                   fontSize={13}
@@ -173,6 +186,9 @@ const Kpi8IncomeChart = () => {
                     fontWeight={600}
                     formatter={(v: number) => `${v.toFixed(1)}jt`}
                   />
+                  <LabelList dataKey="isMax" position="top" content={(p: any) =>
+                    p.value ? <text x={p.x + p.width / 2} y={p.y - 6} fontSize={11} fontWeight={700} fill="hsl(38 92% 38%)" textAnchor="middle">★ Tertinggi</text> : null
+                  } />
                 </Bar>
                 {hasUmpData && (
                   <Line

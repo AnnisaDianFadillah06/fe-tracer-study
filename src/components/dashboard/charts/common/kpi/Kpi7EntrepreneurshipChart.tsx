@@ -13,10 +13,12 @@ import {
   Tooltip,
   Legend,
   ReferenceLine,
+  ReferenceArea,
   LabelList,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import { MethodologyBlock } from "./Methodology";
+import { markMax } from "./format";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { useWirausahaBar, useWirausahaPie, useWirausahaDrillDown } from "@/hooks/useWirausaha";
@@ -128,7 +130,7 @@ const Kpi7EntrepreneurshipChart = () => {
         >
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={comboData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+              <ComposedChart data={markMax(comboData, "value")} margin={{ top: 30, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
                 <XAxis dataKey="year" fontSize={12} stroke="hsl(var(--muted-foreground))" />
                 <YAxis domain={[0, 20]} tickFormatter={(v) => `${v}%`} fontSize={12} stroke="hsl(var(--muted-foreground))" />
@@ -149,6 +151,15 @@ const Kpi7EntrepreneurshipChart = () => {
                     );
                   }}
                 />
+                {tahunLulus !== "all" && (
+                  <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill="hsl(var(--foreground))" fillOpacity={0.06}
+                    stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3" />
+                )}
+                {markMax(comboData, "value").filter((d) => d.isMax).map((d) => (
+                  <ReferenceArea key={`max-${d.year}`} x1={d.year} x2={d.year}
+                    fill="hsl(45 95% 55%)" fillOpacity={0.14}
+                    stroke="hsl(45 95% 45%)" strokeOpacity={0.55} strokeDasharray="4 2" />
+                ))}
                 <Bar
                   dataKey="value" name="Wirausaha" radius={[6, 6, 0, 0]} maxBarSize={50}
                   cursor="pointer"
@@ -157,13 +168,16 @@ const Kpi7EntrepreneurshipChart = () => {
                   )}
                   activeBar={{ stroke: C.greenDark, strokeWidth: 2 } as any}
                 >
-                  {comboData.map((d) => (
+                  {markMax(comboData, "value").map((d) => (
                     <Cell
                       key={d.year}
                       fill={showRefLine && lam.threshold ? (d.value >= lam.threshold ? C.green : C.orange) : C.green}
                     />
                   ))}
                   <LabelList dataKey="value" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => `${v}%`} />
+                  <LabelList dataKey="isMax" position="top" content={(p: any) =>
+                    p.value ? <text x={p.x + p.width / 2} y={p.y - 6} fontSize={11} fontWeight={700} fill="hsl(38 92% 38%)" textAnchor="middle">★ Tertinggi</text> : null
+                  } />
                 </Bar>
                 <Line type="monotone" dataKey="value" stroke={C.greenDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
                 {showRefLine && (

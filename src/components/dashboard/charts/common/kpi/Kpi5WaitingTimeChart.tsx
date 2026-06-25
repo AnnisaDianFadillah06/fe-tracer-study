@@ -10,11 +10,13 @@ import {
   CartesianGrid,
   Tooltip,
   ReferenceLine,
+  ReferenceArea,
   LabelList,
   Cell,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import { MethodologyBlock } from "./Methodology";
+import { markMax } from "./format";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { useMasaTungguBar, useMasaTungguDistribusi, useMasaTungguDrillDown } from "@/hooks/useMasaTunggu";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
@@ -115,7 +117,7 @@ const Kpi5WaitingTimeChart = () => {
         >
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={comboData} margin={{ top: 30, right: 30, left: 20, bottom: 30 }}>
+              <ComposedChart data={markMax(comboData, "pct")} margin={{ top: 30, right: 30, left: 20, bottom: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
                 <XAxis
                   dataKey="year" fontSize={13} stroke="hsl(var(--muted-foreground))"
@@ -132,6 +134,15 @@ const Kpi5WaitingTimeChart = () => {
                     [`${v}% (${p.payload.n}/${p.payload.total} lulusan)`, "≤ 6 bulan"]
                   }
                 />
+                {tahunLulus !== "all" && (
+                  <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill="hsl(var(--foreground))" fillOpacity={0.06}
+                    stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3" />
+                )}
+                {markMax(comboData, "pct").filter((d) => d.isMax).map((d) => (
+                  <ReferenceArea key={`max-${d.year}`} x1={d.year} x2={d.year}
+                    fill="hsl(45 95% 55%)" fillOpacity={0.14}
+                    stroke="hsl(45 95% 45%)" strokeOpacity={0.55} strokeDasharray="4 2" />
+                ))}
                 <Bar
                   dataKey="pct" name="% ≤ 6 bln" radius={[6, 6, 0, 0]} maxBarSize={60}
                   cursor="pointer"
@@ -140,13 +151,16 @@ const Kpi5WaitingTimeChart = () => {
                   )}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
-                  {comboData.map((d) => (
+                  {markMax(comboData, "pct").map((d) => (
                     <Cell
                       key={d.year}
                       fill={showRefLine && lam.threshold ? (d.pct >= lam.threshold ? C.blue : C.orange) : C.blue}
                     />
                   ))}
                   <LabelList dataKey="pct" position="center" fill="#fff" fontSize={12} fontWeight={600} formatter={(v: number) => `${v}%`} />
+                  <LabelList dataKey="isMax" position="top" content={(p: any) =>
+                    p.value ? <text x={p.x + p.width / 2} y={p.y - 6} fontSize={11} fontWeight={700} fill="hsl(38 92% 38%)" textAnchor="middle">★ Tertinggi</text> : null
+                  } />
                 </Bar>
                 <Line type="monotone" dataKey="pct" name="Tren" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
                 {showRefLine && (
