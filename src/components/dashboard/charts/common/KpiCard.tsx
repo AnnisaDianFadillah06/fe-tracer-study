@@ -107,8 +107,6 @@ export const KpiCard = ({
     if (jurusan && jurusan !== "__all__") params.set("jurusan", jurusan);
     if (tahunLulus && tahunLulus !== "all") {
       params.set("tahun_lulus", tahunLulus);
-    } else {
-      params.set("tahun_lulus", "2024");
     }
     if (weekKey) params.set("minggu_snapshot", weekKey);
   
