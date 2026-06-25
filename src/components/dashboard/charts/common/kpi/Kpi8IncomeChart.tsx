@@ -227,7 +227,7 @@ const Kpi8IncomeChart = () => {
           loading={distHook.loading}
           error={distHook.error}
           empty={isEmpty2}
-          title="Proporsi Lulusan Berdasar UMP"
+          title="Proporsi Lulusan Berdasarkan UMP"
           subtitle="Dua kelompok: < 1,2× UMP vs ≥ 1,2× UMP per tahun"
           compareType="income"
           methodology={
