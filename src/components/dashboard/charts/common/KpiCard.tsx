@@ -188,7 +188,7 @@ export const KpiCard = ({
                     onClick={handleCompareClick}
                   >
                     <ArrowRightLeft className="w-3 h-3" />
-                    Bandingkan
+                    Bandingkan per Prodi
                   </Button>
                 </span>
               </TooltipTrigger>
