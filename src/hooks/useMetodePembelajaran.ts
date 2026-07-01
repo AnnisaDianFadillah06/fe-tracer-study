@@ -135,6 +135,7 @@ export function useMetodePembelajaranBandingkan(enabled: boolean) {
 
 export interface MetodeDrillDownParams {
   kode_field?: string;
+  nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -174,6 +175,7 @@ export function useMetodePembelajaranDrillDown() {
         page: String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),
         ...(extra.kode_field ? { kode_field: extra.kode_field } : {}),
+        ...(extra.nama_prodi ? { nama_prodi: extra.nama_prodi } : {}),
         ...(extra.search ? { search: extra.search } : {}),
       };
 

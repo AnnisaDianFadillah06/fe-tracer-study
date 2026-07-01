@@ -61,6 +61,7 @@ export interface InstansiDrillDownParams {
   jenis_instansi?: string | string[];
   tingkat_instansi?: string;
   tahun_lulus?: string;
+  nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -177,6 +178,7 @@ export function useInstansiDrillDown() {
 
       const baseParams = buildParams(degree, jurusan, prodi, tahunLulus, weekKey);
       if (extra.tahun_lulus) baseParams.tahun_lulus = extra.tahun_lulus;
+      if (extra.nama_prodi) baseParams.nama_prodi = extra.nama_prodi;
       const params: Record<string, string> = {
         ...baseParams,
         page:     String(extra.page ?? 1),

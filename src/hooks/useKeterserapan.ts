@@ -185,6 +185,7 @@ export function useKeterserapanPie() {
 export interface DrillDownParams {
   status?: string;
   tahun_lulus?: string | number;
+  nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -212,6 +213,8 @@ export function useKeterserapanDrillDown() {
         // default selalu terserap kecuali di-override eksplisit
         status: extra.status ?? "terserap",
         ...(extra.tahun_lulus ? { tahun_lulus: String(extra.tahun_lulus) } : {}),
+        // override nama_prodi dari filter global — dipakai saat drill-down dari chart Bandingkan (per-bar)
+        ...(extra.nama_prodi ? { nama_prodi: extra.nama_prodi } : {}),
         page: String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),
         ...(extra.search ? { search: extra.search } : {}),

@@ -68,6 +68,7 @@ export interface WirausahaDrillDownParams {
   jabatan?: string;
   jabatan_values?: string[];
   tahun_lulus?: string;
+  nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -196,6 +197,7 @@ export function useWirausahaDrillDown() {
         ...(extra.tingkat ? { tingkat: extra.tingkat } : {}),
         ...(extra.jabatan ? { jabatan: extra.jabatan } : {}),
         ...(extra.jabatan_values?.length ? { jabatan_values: extra.jabatan_values.join(',') } : {}),
+        ...(extra.nama_prodi ? { nama_prodi: extra.nama_prodi } : {}),
         page:     String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),
         ...(extra.search ? { search: extra.search } : {}),

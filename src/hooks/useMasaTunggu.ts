@@ -174,6 +174,7 @@ export function useMasaTungguDistribusi() {
 export interface MasaTungguDrillDownParams {
   rentang: "0-3" | "3-6" | ">6";
   tahun_lulus?: string;
+  nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -202,6 +203,7 @@ export function useMasaTungguDrillDown() {
 
       const baseParams = buildParams(degree, jurusan, prodi, tahunLulus, weekKey);
       if (extra.tahun_lulus) baseParams.tahun_lulus = extra.tahun_lulus;
+      if (extra.nama_prodi) baseParams.nama_prodi = extra.nama_prodi;
       const params: Record<string, string> = {
         ...baseParams,
         rentang:  extra.rentang,

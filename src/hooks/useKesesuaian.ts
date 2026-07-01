@@ -68,6 +68,7 @@ export interface KesesuaianDrillDownParams {
   kesesuaian_label?: string;
   alasan?: string;
   tahun_lulus?: string;
+  nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -274,6 +275,7 @@ export function useKesesuaianDrillDown() {
         per_page:      String(extra.per_page ?? 15),
         ...(extra.kesesuaian_label ? { kesesuaian_label: extra.kesesuaian_label } : {}),
         ...(extra.alasan ? { label_pertanyaan: extra.alasan } : {}),
+        ...(extra.nama_prodi ? { nama_prodi: extra.nama_prodi } : {}),
         ...(extra.search ? { search: extra.search } : {}),
       };
 

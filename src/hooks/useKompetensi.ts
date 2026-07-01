@@ -148,6 +148,7 @@ export function useKompetensiGapBandingkan(enabled: boolean) {
 
 export interface KompetensiDrillDownParams {
   grup_gap?: string;
+  nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -187,6 +188,7 @@ export function useKompetensiGapDrillDown() {
         page: String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),
         ...(extra.grup_gap ? { grup_gap: extra.grup_gap } : {}),
+        ...(extra.nama_prodi ? { nama_prodi: extra.nama_prodi } : {}),
         ...(extra.search ? { search: extra.search } : {}),
       };
 
