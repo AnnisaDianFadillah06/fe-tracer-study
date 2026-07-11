@@ -88,11 +88,26 @@ export interface ThresholdValue {
   value: number;
 }
 
+export interface DynamicParam {
+  value: number | null;
+  unit: string; // 'bulan' | 'x_ump' | ...
+}
+
+export interface CalculationMeta {
+  total_lulusan: number;
+  margin_error: number;
+  min_responden: number;
+  formula: string;
+}
+
 export interface ThresholdItem {
   indicator_id: number;
-  indicator_name: string;
+  indicator_name: string;          // sudah terinterpolasi dari BE
   baik: ThresholdValue;
   unggul: ThresholdValue;
+  dynamic_param: DynamicParam | null;      // baru
+  is_system_calculated: boolean;           // baru
+  calculation_meta?: CalculationMeta;      // baru — hanya ada kalau is_system_calculated
 }
 
 export interface Lam {
@@ -119,37 +134,52 @@ export interface Program {
   degree?: string;
 }
 
-export interface ThresholdIndicator {
+// Ganti nama jadi *Meta biar tidak bentrok konsep dengan ThresholdItem,
+// dan tambahkan field baru dari BE.
+export interface ThresholdIndicatorMeta {
   id: number;
   key: string;
-  name: string;
-  unit?: string;
-  operator?: string;
+  name: string;                    // template, bisa mengandung {value}
+  unit: string;
+  operator: string;
+  description: string | null;
+  dynamic_param_unit: string | null;  // baru — 'bulan' | 'x_ump' | null
+  is_system_calculated: boolean;      // baru
 }
+
+/** @deprecated pakai ThresholdIndicatorMeta */
+export type ThresholdIndicator = ThresholdIndicatorMeta;
 
 export interface ThresholdBulkCreateItem {
   indicator_id: number;
-  baik: number;
-  unggul: number;
+  // optional sekarang — wajib diisi KECUALI indikator is_system_calculated (tracer_response)
+  baik?: number;
+  unggul?: number;
+  // wajib diisi kalau indikator ini punya dynamic_param_unit (employment_time / salary_above_ump)
+  param_value?: number | null;
 }
 
 export interface ThresholdBulkUpdateItem {
   indicator_id: number;
   baik_id: number;
-  baik_value: number;
+  baik_value?: number;
   unggul_id: number;
-  unggul_value: number;
+  unggul_value?: number;
+  param_value?: number | null;
 }
 
 export interface LamVersionThresholdChart {
   indicator_id: number;
   indicator_key: string;
+  indicator_name: string;          // baru — sudah terinterpolasi
   unit: string;
   operator: string;
   baik: { value: number };
   unggul: { value: number };
+  dynamic_param: DynamicParam | null;   // baru
+  is_system_calculated: boolean;        // baru
+  calculation_meta?: CalculationMeta;   // baru
 }
-
 // ─────────────────────────────────────────────
 // Axios instance
 // ─────────────────────────────────────────────
@@ -466,11 +496,24 @@ export const apiService = {
 
   /**
    * GET /threshold-indicators
-   * Fetch 5 indikator (nama statis) — dipakai modal tambah LAM.
-   * Di sisi hooks, staleTime di-set panjang karena data ini jarang berubah.
+   * Fetch master indikator (sekarang termasuk indikator dinamis & system-calculated).
+   * FIX: response BE dibungkus { success, data }, bukan array langsung —
+   * sebelumnya method ini salah tipe & tidak unwrap .data.
    */
-  getThresholdIndicators: async (): Promise<ThresholdIndicator[]> => {
+  getThresholdIndicators: async (): Promise<ApiResponse<ThresholdIndicatorMeta[]>> => {
     const response = await apiClient.get("/threshold-indicators");
+    return response.data;
+  },
+
+  /**
+   * PUT /threshold-indicators/{id}
+   * Baru — edit template nama/deskripsi/unit/operator indikator (admin only).
+   */
+  updateThresholdIndicator: async (
+    id: number,
+    data: Partial<Pick<ThresholdIndicatorMeta, "name" | "unit" | "operator" | "description" | "dynamic_param_unit">>
+  ): Promise<ApiResponse<ThresholdIndicatorMeta>> => {
+    const response = await apiClient.put(`/threshold-indicators/${id}`, data);
     return response.data;
   },
 

@@ -1,39 +1,54 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { apiService } from "@/lib/apiClient";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const KPI_INDICATOR_MAP: Record<string, string> = {
   waitingTime:      "employment_time",
   entrepreneurship: "entrepreneurship",
   fieldRelevance:   "field_relevance",
-  participation:       "tracer_response",
+  participation:    "tracer_response",
   incomePct:        "salary_above_ump",
-  absorption:        "graduate_absorption",
+  absorption:       "graduate_absorption",
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+export interface DynamicParam {
+  value: number | null;
+  unit: string; // 'bulan' | 'x_ump' | ...
+}
+
+export interface CalculationMeta {
+  total_lulusan: number;
+  margin_error: number;
+  min_responden: number;
+  formula: string;
+}
 
 export interface ThresholdVersion {
   id: number;
   year: number;
+  version_name: string;
   label: string;
   is_active: boolean;
+  indicator_name: string;
   thresholds: {
     baik:   { threshold_id: number; value: number };
     unggul: { threshold_id: number; value: number };
   };
+  dynamic_param: DynamicParam | null;
+  calculation_meta?: CalculationMeta;
 }
 
 export interface ThresholdResponse {
   success: boolean;
-  context: "prodi" | "all";
-  lam: { id: number; name: string; code: string };
-  indicator: { key: string; name: string; unit: string; operator: string };
+  context: "prodi" | "all_prodi";
+  lam: { id: number; name: string; code: string } | null;
+  indicator: {
+    key: string;
+    name: string;
+    unit: string;
+    operator: string;
+    dynamic_param_unit: string | null;
+    is_system_calculated: boolean;
+  };
   versions: ThresholdVersion[];
 }
 
@@ -44,10 +59,6 @@ export interface UseThresholdsResult {
   versionOptions: { id: number; label: string; is_active: boolean }[];
   getThreshold: (versionId: number, level: "baik" | "unggul") => number | null;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Hook
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function useThresholds(
   prodiId: string | number | undefined | null,
@@ -62,7 +73,6 @@ export function useThresholds(
   useEffect(() => {
     if (!enabled || !indicator) return;
 
-    // Hitung di dalam effect — tidak perlu jadi dependency
     const isAllProdi = !prodiId || prodiId === "all" || prodiId === "__all__";
 
     if (abortRef.current) abortRef.current.abort();
@@ -77,8 +87,6 @@ export function useThresholds(
     apiService
       .get<any>("/dashboard/thresholds", { params, signal: abortRef.current.signal })
       .then((res) => {
-        // Handle kemungkinan wrapper { success, data: ThresholdResponse }
-        // atau response langsung sebagai ThresholdResponse
         const payload: ThresholdResponse = res?.versions ? res : res?.data ?? res;
         setData(payload);
         setLoading(false);
@@ -92,14 +100,8 @@ export function useThresholds(
     return () => { abortRef.current?.abort(); };
   }, [prodiId, indicator, enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // useMemo → referensi array stabil, tidak trigger re-render anak tiap render
   const versionOptions = useMemo(
-    () =>
-      (data?.versions ?? []).map((v) => ({
-        id:        v.id,
-        label:     v.label,
-        is_active: v.is_active,
-      })),
+    () => (data?.versions ?? []).map((v) => ({ id: v.id, label: v.label, is_active: v.is_active })),
     [data]
   );
 

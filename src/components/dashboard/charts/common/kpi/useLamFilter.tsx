@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { useThresholds, KPI_INDICATOR_MAP, ThresholdVersion } from "@/hooks/useFilterThresholds";
 import { useGlobalFilters, ALL } from "@/contexts/GlobalFiltersContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useThresholds, KPI_INDICATOR_MAP, ThresholdVersion, DynamicParam } from "@/hooks/useFilterThresholds";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -15,6 +15,8 @@ export interface LamFilterState {
   level: LamLevel;
   threshold: number;
   unit?: string;
+  indicatorName?: string;          // baru — sudah terinterpolasi, mis. "Lulusan Bekerja ≤ 4 Bulan"
+  dynamicParam?: DynamicParam | null; // baru
   versionOptions: { id: number; label: string; is_active: boolean }[];
   setVersionId: (id: number) => void;
   setLevel: (l: LamLevel) => void;
@@ -109,12 +111,14 @@ export function useLamFilter(kpiKey: string): LamFilterState {
   const threshold = selectedVersion?.thresholds[level]?.value ?? 0;
   const versionLabel = selectedVersion?.label ?? versionOptions[0]?.label ?? "—";
 
-  return {
+ return {
     versionId,
     versionLabel,
     level,
     threshold,
     unit: data?.indicator?.unit,
+    indicatorName: selectedVersion?.indicator_name ?? data?.indicator?.name,
+    dynamicParam: selectedVersion?.dynamic_param ?? null,
     versionOptions,
     setVersionId: setUserSelectedVersionId,
     setLevel,
@@ -205,7 +209,9 @@ export const lamSubtitle = (lam: LamFilterState): string => {
   if (lam.isDisabled) return "Pilih satu prodi untuk melihat threshold akreditasi";
   if (lam.isLoading) return "Memuat threshold…";
   if (!lam.threshold) return `Standar: ${lam.versionLabel}`;
-  return `Standar: ${lam.versionLabel} — Level ${
+
+  const label = lam.indicatorName ? ` — ${lam.indicatorName}` : "";
+  return `Standar: ${lam.versionLabel}${label} — Level ${
     lam.level === "baik" ? "Baik" : "Unggul"
   } (${lam.threshold}${lam.unit ? ` ${lam.unit}` : "%"})`;
 };

@@ -42,10 +42,7 @@ import {
 import { Plus, Edit, Trash2, Search, X, Building2, FileBadge } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  useThresholdManagement,
-  THRESHOLD_INDICATORS,
-} from "@/hooks/useThresholdManagement";
+import { useThresholdManagement } from "@/hooks/useThresholdManagement";
 
 const ThresholdManagementPage = () => {
   const {
@@ -61,6 +58,7 @@ const ThresholdManagementPage = () => {
     setFilterStatus,
     filterLam,
     setFilterLam,
+    indicators,
 
     // LAM
     isLamDialogOpen,
@@ -83,6 +81,7 @@ const ThresholdManagementPage = () => {
     deleteLam,
     isLamDeleteOpen,
     setIsLamDeleteOpen,
+    updateThresholdParam,
 
     // Standar
     isStdDialogOpen,
@@ -563,14 +562,45 @@ const ThresholdManagementPage = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {THRESHOLD_INDICATORS.map((ind) => {
+                    {indicators.map((ind) => {
                       const row = stdForm.thresholds.find((x) => x.indicator_id === ind.id);
                       const tErr = stdFormErrors.thresholds?.[ind.id];
+
+                      if (ind.is_system_calculated) {
+                        return (
+                          <TableRow key={ind.id}>
+                            <TableCell className="text-sm">
+                              <div className="font-medium">{ind.name}</div>
+                              <div className="text-[10px] text-muted-foreground">{ind.key} • {ind.unit}</div>
+                            </TableCell>
+                            <TableCell colSpan={2}>
+                              <Badge variant="outline" className="text-[11px]">
+                                Otomatis dihitung sistem (formula Slovin) saat disimpan
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+
                       return (
                         <TableRow key={ind.id}>
                           <TableCell className="text-sm">
-                            <div className="font-medium">{ind.name}</div>
+                            <div className="font-medium">{ind.name.replace("{value}", String(row?.param_value ?? "…"))}</div>
                             <div className="text-[10px] text-muted-foreground">{ind.key} • {ind.unit}</div>
+
+                            {ind.dynamic_param_unit && (
+                              <div className="mt-2 flex items-center gap-2">
+                                <Label className="text-[10px] shrink-0">
+                                  Parameter ({ind.dynamic_param_unit === "bulan" ? "bulan" : "x UMP/UMK"})
+                                </Label>
+                                <Input
+                                  type="number" min={0} step="0.1"
+                                  value={row?.param_value ?? ""}
+                                  onChange={(e) => updateThresholdParam(ind.id, Number(e.target.value))}
+                                  className="h-7 w-24"
+                                />
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Input
