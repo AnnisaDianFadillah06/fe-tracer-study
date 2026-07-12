@@ -1,114 +1,209 @@
 import { useMemo, useState } from "react";
 import {
-  ResponsiveContainer,
-  ComposedChart,
+  BarChart,
   Bar,
-  Cell,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
-  ReferenceLine,
+  ResponsiveContainer,
+  Cell,
   LabelList,
-  ReferenceArea,
 } from "recharts";
+import { Check, X } from "lucide-react";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
-import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
-import { formatPctCount, markMax, nFromPct } from "./format";
-import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
+import { useLamFilter } from "./useLamFilter";
+import { useThresholds } from "@/hooks/useFilterThresholds";
+import { formatPctCount, nFromPct } from "./format";
 import { MethodologyBlock } from "./Methodology";
 import { useResponseRateTrend, useResponseRateDrillDown } from "@/hooks/useResponseRate";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 
+interface TrendRow {
+  year: string;
+  positive: number; // response rate (%) tahun tsb.
+  negative: number; // 100 - positive
+  total: number;
+  threshold: number | null; // beda tiap tahun (formula Slovin), null = belum ada data
+}
+
+// Label persentase di tengah tiap segmen bar
+const SegmentLabel = (props: any) => {
+  const { x, y, width, height, value } = props;
+  if (width < 28) return null;
+  return (
+    <text x={x + width / 2} y={y + height / 2} fill="#fff" fontSize={11} fontWeight={600}
+      textAnchor="middle" dominantBaseline="central">
+      {Number(value).toFixed(1)}%
+    </text>
+  );
+};
+
 const Kpi3ParticipationTrendChart = () => {
-  const { tahunLulus } = useGlobalFilters();
   const { data, loading, error } = useResponseRateTrend();
   const drillHook = useResponseRateDrillDown();
+  // useLamFilter dipakai HANYA utk resolve prodiId (kaprodi-aware) — jangan pakai
+  // lam.allVersions/lam.isDisabled langsung, karena hook itu sengaja tidak fetch
+  // sama sekali saat mode "Semua Prodi" (didesain utk kartu 1-nilai-tunggal).
+  // Grafik tren ini butuh threshold tetap muncul walau prodi="Semua" (BE sudah
+  // mendukung agregat semua prodi utk tracer_response), makanya fetch sendiri
+  // lewat useThresholds langsung dengan enabled=true selalu.
   const lam = useLamFilter("participation");
+  const { data: thresholdData, loading: thresholdLoading } = useThresholds(
+    lam.prodiId,
+    "tracer_response",
+    true,
+  );
+
+  // Threshold response rate berbeda tiap tahun angkatan — mengikuti jumlah lulusan
+  // angkatan tsb (formula Slovin), bukan 1 nilai tetap seperti indikator lain.
+  // Jadi tiap baris (tahun) dibandingkan ke threshold tahunnya sendiri-sendiri,
+  // tidak ada satu garis threshold global yang berlaku utk semua tahun.
+  const thresholdByYear = useMemo(
+    () => new Map((thresholdData?.versions ?? []).map((v) => [String(v.year), v.thresholds.baik.value])),
+    [thresholdData],
+  );
+
   const [modal, setModal] = useState<{ open: boolean; title: string; status: string; tahun_lulus?: string }>({ open: false, title: "", status: "" });
 
-  const chartData = useMemo(() => {
+  const chartData: TrendRow[] = useMemo(() => {
     if (!data?.data) return [];
     return data.data.map((d) => ({
       year: String(d.year),
-      rate: d.rate,
+      positive: d.rate,
+      negative: Math.max(0, 100 - d.rate),
       total: d.total,
+      threshold: thresholdByYear.get(String(d.year)) ?? null,
     }));
-  }, [data]);
+  }, [data, thresholdByYear]);
 
-  const marked = markMax(chartData, "rate");
   const isEmpty = !loading && chartData.length === 0;
-  const avg = chartData.length > 0
-    ? chartData.reduce((s, d) => s + d.rate, 0) / chartData.length
-    : 0;
+
+  const subtitle = thresholdLoading
+    ? "Memuat data…"
+    : thresholdByYear.size === 0
+    ? "Threshold belum tersedia — akan muncul otomatis setelah ada data lulusan"
+    : "Threshold minimum dihitung otomatis per tahun angkatan (formula Slovin)";
+
+  // Icon centang/silang di ujung segmen hijau/merah — menandai tercapai/tidaknya
+  // threshold KHUSUS tahun tsb (beda dari komponen serupa lain yg statik 1 threshold).
+  const CheckIcon = (props: any) => {
+    const { x, y, width, height, index } = props;
+    const entry = chartData[index];
+    if (!entry || entry.threshold == null || width < 30) return null;
+    const met = entry.positive >= entry.threshold;
+    const iconX = x + width - 16;
+    const iconY = y + height / 2 - 6;
+    return (
+      <foreignObject x={iconX} y={iconY} width={12} height={12}>
+        <div style={{ color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {met ? (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          )}
+        </div>
+      </foreignObject>
+    );
+  };
+
+  // Nilai threshold tahun tsb, dicetak di luar ujung bar (setelah 100%)
+  const ThresholdLabel = (props: any) => {
+    const { x, y, width, height, index } = props;
+    const entry = chartData[index];
+    if (!entry || entry.threshold == null) return null;
+    const met = entry.positive >= entry.threshold;
+    return (
+      <text x={x + width + 6} y={y + height / 2} fill={met ? C.green : C.red} fontSize={10} fontWeight={600}
+        textAnchor="start" dominantBaseline="central">
+        {entry.threshold.toFixed(1)}%
+      </text>
+    );
+  };
+
+  const chartHeight = Math.max(chartData.length * 40 + 20, 180);
 
   return (
     <>
     <KpiCard loading={loading} error={error} empty={isEmpty}
       title="Tren Response Rate Antar Periode"
-      subtitle={lamSubtitle(lam)}
+      subtitle={subtitle}
       compareType="participation-trend"
-      headerExtra={<LamFilterControls lam={lam} />}
       methodology={
-        <MethodologyBlock
-          description="Response Rate Tracer Study — proporsi lulusan yang mengisi kuesioner tracer dalam satu periode kelulusan."
-          formula={<>Response Rate (%) = (Jumlah Lulusan Merespons / Total Lulusan Periode) × 100%</>}
-          notes="Periode dihitung berdasarkan tahun kelulusan terpilih pada filter global."
-        />
+        <>
+          <MethodologyBlock
+            description="Response Rate Tracer Study — proporsi lulusan yang mengisi kuesioner tracer dalam satu periode kelulusan."
+            formula={<>Response Rate (%) = (Jumlah Lulusan Merespons / Total Lulusan Periode) × 100%</>}
+            notes="Periode dihitung berdasarkan tahun kelulusan."
+          />
+          <MethodologyBlock
+            description="Threshold minimum tiap tahun dihitung otomatis dari jumlah lulusan angkatan tsb — bukan nilai tetap, karena tiap angkatan punya jumlah lulusan berbeda."
+            formula={<>n = N / (1 + N·e²)</>}
+            notes="n = responden minimum (threshold), N = total lulusan angkatan tsb., e = margin of error (2,3%)."
+          />
+        </>
       }>
-      <div className="h-80">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={marked} margin={{ top: 30, right: 60, left: 10, bottom: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-            <XAxis dataKey="year" fontSize={13} stroke="hsl(var(--muted-foreground))" />
-            <YAxis tickFormatter={(v) => `${v}%`} domain={[0, 100]} fontSize={13} stroke="hsl(var(--muted-foreground))"
-              label={{ value: "Response Rate (%)", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
-            <Tooltip contentStyle={tooltipStyle}
-              formatter={(v: number, _n: any, p: any) => {
-                const total = p?.payload?.total ?? 0;
-                return [formatPctCount(v, nFromPct(v, total), total), "Response Rate"];
-              }} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            {tahunLulus !== "all" && (
-              <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill="hsl(var(--foreground))" fillOpacity={0.06}
-                stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3" />
-            )}
-            {marked.filter((d: any) => d.isMax).map((d: any) => (
-              <ReferenceArea key={`max-${d.year}`} x1={d.year} x2={d.year}
-                fill="hsl(45 95% 55%)" fillOpacity={0.14}
-                stroke="hsl(45 95% 45%)" strokeOpacity={0.55} strokeDasharray="4 2" />
-            ))}
-            <Bar dataKey="rate" name="Response Rate" radius={[6, 6, 0, 0]} maxBarSize={60}
-              cursor="pointer"
-              onClick={(d: any) => {
-                const total = d.total ?? 0;
-                const n = Math.round((d.rate / 100) * total);
-                setModal({ open: true, title: `Alumni Merespons — ${d.year} (${n}/${total})`, status: "submitted", tahun_lulus: d.year });
-                drillHook.fetch({ status: "submitted", tahun_lulus: d.year, page: 1 });
-              }}
-              activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}>
-              {marked.map((d: any) => (
-                <Cell key={d.year} fill={d.rate >= lam.threshold ? C.blue : C.orange} />
-              ))}
-              <LabelList dataKey="rate" position="center" formatter={(v: number) => `${v}%`}
-                style={{ fontSize: 13, fontWeight: 700, fill: "#fff" }} />
-              <LabelList dataKey="isMax" position="top" content={(p: any) =>
-                p.value ? <text x={p.x + p.width / 2} y={p.y - 6} fontSize={11} fontWeight={700} fill="hsl(38 92% 38%)" textAnchor="middle">★ Tertinggi</text> : null
-              } />
-            </Bar>
-            <Line type="monotone" dataKey="rate" name="Tren" stroke="#06b6d4" strokeWidth={2}
-              dot={{ r: 5, fill: "#06b6d4", strokeWidth: 2, stroke: "hsl(var(--card))" } as any}
-              activeDot={{ r: 7 } as any} />
-            {!lam.isDisabled && !!lam.threshold && (
-              <ReferenceLine y={lam.threshold} stroke={C.red} strokeDasharray="6 3" strokeWidth={2}
-                label={{ value: `${lam.level === "baik" ? "Baik" : "Unggul"} ${lam.threshold}%`, fill: C.red, fontSize: 11, position: "insideTopRight" }} />
-            )}
-            <ReferenceLine y={avg} stroke={C.purple} strokeDasharray="4 2" strokeWidth={2}
-              label={{ value: `Rata-rata ${Number.isInteger(avg) ? avg : avg.toFixed(1)}%`, fill: C.purple, fontSize: 11, position: "insideTopRight" }} />
-          </ComposedChart>
-        </ResponsiveContainer>
+      <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+        <div style={{ height: chartHeight }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 50, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} horizontal={false} />
+              <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`}
+                stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
+              <YAxis type="category" dataKey="year" width={60}
+                stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle}
+                formatter={(value: number, name: string, p: any) => {
+                  if (name !== "Response Rate") return [`${Number(value).toFixed(1)}%`, name];
+                  const total = p?.payload?.total ?? 0;
+                  return [formatPctCount(value, nFromPct(value, total), total), "Response Rate"];
+                }}
+                labelFormatter={(label: string, payload: any) => {
+                  const th = payload?.[0]?.payload?.threshold;
+                  return th != null ? `Angkatan ${label} — Min. threshold: ${th.toFixed(1)}%` : `Angkatan ${label}`;
+                }} />
+
+              <Bar dataKey="positive" stackId="a" name="Response Rate" cursor="pointer"
+                onClick={(d: any) => {
+                  const total = d.total ?? 0;
+                  const n = Math.round((d.positive / 100) * total);
+                  setModal({ open: true, title: `Alumni Merespons — ${d.year} (${n}/${total})`, status: "submitted", tahun_lulus: d.year });
+                  drillHook.fetch({ status: "submitted", tahun_lulus: d.year, page: 1 });
+                }}>
+                {chartData.map((d, i) => {
+                  const met = d.threshold == null ? null : d.positive >= d.threshold;
+                  const fill = met === null ? C.gray : met ? C.green : C.red;
+                  return <Cell key={i} fill={fill} />;
+                })}
+                <LabelList content={SegmentLabel} />
+                <LabelList content={CheckIcon} />
+              </Bar>
+              <Bar dataKey="negative" stackId="a" fill={C.grayDark} radius={[0, 4, 4, 0]} name="Belum Mengisi">
+                <LabelList content={SegmentLabel} />
+                <LabelList content={ThresholdLabel} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 mt-3 justify-center flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: C.green }} />
+          <span className="text-xs text-muted-foreground">Sudah Mengisi (%)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: C.grayDark }} />
+          <span className="text-xs text-muted-foreground">Belum Mengisi (%)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Check className="w-3 h-3 text-emerald-500" />
+          <span className="text-xs text-muted-foreground">Tercapai (threshold tahun tsb.)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <X className="w-3 h-3 text-red-500" />
+          <span className="text-xs text-muted-foreground">Belum tercapai</span>
+        </div>
       </div>
     </KpiCard>
 

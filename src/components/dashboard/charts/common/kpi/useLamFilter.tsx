@@ -22,6 +22,8 @@ export interface LamFilterState {
   setLevel: (l: LamLevel) => void;
   isDisabled: boolean;
   isLoading: boolean;
+  prodiId: number | null;          // baru — dipakai chart yang butuh histori penuh, bukan cuma 1 versi terpilih
+  allVersions: ThresholdVersion[]; // baru — mis. tracer_response: 1 entri per tahun angkatan, tiap tahun beda threshold
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -124,6 +126,8 @@ export function useLamFilter(kpiKey: string): LamFilterState {
     setLevel,
     isDisabled,
     isLoading: loading,
+    prodiId,
+    allVersions: data?.versions ?? [],
   };
 }
 
