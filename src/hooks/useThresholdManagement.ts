@@ -20,6 +20,7 @@ import {
   type ThresholdIndicatorMeta,
   type ThresholdBulkCreateItem,
   type ThresholdBulkUpdateItem,
+  type TracerResponseBreakdown,
 } from "@/lib/apiClient";
 
 // ─────────────────────────────────────────────
@@ -35,6 +36,8 @@ export type IndicatorThreshold = {
   unggul: number;
   /** hanya relevan kalau indikator punya dynamic_param_unit (employment_time / salary_above_ump) */
   param_value?: number | null;
+  /** true untuk tracer_response — nilainya dihitung sistem, bukan dari kolom baik/unggul di sini */
+  is_system_calculated?: boolean;
 };
 
 export interface Lam {
@@ -53,22 +56,31 @@ export interface Standar {
   _lamNumId: number;
   version_name: string;
   year: number;
+  year_end: number | null; // null = versi ini masih berlaku sampai sekarang
   is_active: boolean;
   thresholds: IndicatorThreshold[];
 }
+
+/** "2021–2022" kalau sudah digantikan versi berikutnya, "2026–sekarang" kalau masih berlaku */
+export const formatVersionRange = (year: number, yearEnd: number | null): string =>
+  yearEnd ? `${year}–${yearEnd}` : `${year}–sekarang`;
 
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
 
+// Indikator system-calculated (tracer_response) tidak pernah punya baris di sini —
+// BE menolak (422) kalau indicator_id-nya ikut terkirim di payload bulk create/update.
 const makeDefaultThresholds = (indicators: ThresholdIndicatorMeta[]): IndicatorThreshold[] =>
-  indicators.map((i) => ({
-    indicator_id: i.id,
-    indicator_name: i.name,
-    baik: 0,
-    unggul: 0,
-    param_value: i.dynamic_param_unit ? 0 : undefined,
-  }));
+  indicators
+    .filter((i) => !i.is_system_calculated)
+    .map((i) => ({
+      indicator_id: i.id,
+      indicator_name: i.name,
+      baik: 0,
+      unggul: 0,
+      param_value: i.dynamic_param_unit ? 0 : undefined,
+    }));
 
 function mapApiLam(apiLam: ApiLam): Lam {
   return {
@@ -89,6 +101,7 @@ function mapApiStandar(apiLam: ApiLam, version: LamVersion): Standar {
     _lamNumId: apiLam.id,
     version_name: version.version_name ?? `Standar ${version.year}`,
     year: version.year,
+    year_end: version.year_end ?? null,
     is_active: version.is_active,
     thresholds: apiLam.thresholds.map((t) => ({
       indicator_id: t.indicator_id,
@@ -98,6 +111,7 @@ function mapApiStandar(apiLam: ApiLam, version: LamVersion): Standar {
       unggul_threshold_id: t.unggul.threshold_id,
       unggul: t.unggul.value,
       param_value: t.dynamic_param?.value ?? undefined,
+      is_system_calculated: t.is_system_calculated,
     })),
   };
 }
@@ -210,6 +224,11 @@ export const useThresholdManagement = () => {
   const [submittingStd, setSubmittingStd] = useState(false);
   const [isStdDeleteOpen, setIsStdDeleteOpen] = useState(false);
   const [deletingStdId, setDeletingStdId] = useState<string | null>(null);
+
+  /* Breakdown tracer_response (system-calculated) — dibaca langsung dari data yang
+     sudah dihitung sistem sebelumnya, bukan dihitung ulang saat modal dibuka. */
+  const [tracerBreakdown, setTracerBreakdown] = useState<TracerResponseBreakdown[]>([]);
+  const [tracerBreakdownLoading, setTracerBreakdownLoading] = useState(false);
 
   // ── initial fetch ──
   useEffect(() => {
@@ -467,6 +486,43 @@ export const useThresholdManagement = () => {
     [indicators],
   );
 
+  const hasSystemCalculatedIndicator = useMemo(
+    () => indicators.some((i) => i.is_system_calculated),
+    [indicators],
+  );
+
+  // Breakdown tracer_response langsung dimuat begitu modal Standar dibuka & LAM dipilih —
+  // tidak menunggu submit, karena nilainya sudah dihitung sistem sebelumnya (event-driven).
+  useEffect(() => {
+    if (!isStdDialogOpen || !stdForm.lam_id || !hasSystemCalculatedIndicator) {
+      setTracerBreakdown([]);
+      return;
+    }
+    const lamNumId = lamById[stdForm.lam_id]?._numId;
+    if (!lamNumId) {
+      setTracerBreakdown([]);
+      return;
+    }
+
+    let cancelled = false;
+    setTracerBreakdownLoading(true);
+    apiService
+      .getTracerResponseByLam(lamNumId)
+      .then((res) => {
+        if (!cancelled) setTracerBreakdown(res.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setTracerBreakdown([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTracerBreakdownLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isStdDialogOpen, stdForm.lam_id, hasSystemCalculatedIndicator, lamById]);
+
   const submitStandar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isStdFormValid) {
@@ -488,18 +544,21 @@ export const useThresholdManagement = () => {
           await apiService.updateLamVersionStatus(editingStandar._versionId, stdForm.is_active);
         }
 
-        const bulkPayload: ThresholdBulkUpdateItem[] = stdForm.thresholds.map((t) => {
-          const meta = indicatorById[t.indicator_id];
-          return {
-            indicator_id: t.indicator_id,
-            baik_id: t.baik_threshold_id!,
-            // untuk indikator system-calculated, value diabaikan BE — tetap kirim baik_id/unggul_id
-            baik_value: meta?.is_system_calculated ? 0 : t.baik,
-            unggul_id: t.unggul_threshold_id!,
-            unggul_value: meta?.is_system_calculated ? 0 : t.unggul,
-            param_value: meta?.dynamic_param_unit ? t.param_value ?? null : undefined,
-          };
-        });
+        // Indikator system-calculated (tracer_response) tidak dikirim sama sekali —
+        // BE menolak (422) request bulk update yang menyertakan indicator_id-nya.
+        const bulkPayload: ThresholdBulkUpdateItem[] = stdForm.thresholds
+          .filter((t) => !indicatorById[t.indicator_id]?.is_system_calculated)
+          .map((t) => {
+            const meta = indicatorById[t.indicator_id];
+            return {
+              indicator_id: t.indicator_id,
+              baik_id: t.baik_threshold_id!,
+              baik_value: t.baik,
+              unggul_id: t.unggul_threshold_id!,
+              unggul_value: t.unggul,
+              param_value: meta?.dynamic_param_unit ? t.param_value ?? null : undefined,
+            };
+          });
         const res = await apiService.bulkUpdateThresholds(editingStandar._versionId, bulkPayload);
 
         setStandars((prev) =>
@@ -518,6 +577,7 @@ export const useThresholdManagement = () => {
                     unggul_threshold_id: t.unggul.threshold_id,
                     unggul: t.unggul.value,
                     param_value: t.dynamic_param?.value ?? undefined,
+                    is_system_calculated: t.is_system_calculated,
                   })),
                 }
               : s,
@@ -532,15 +592,19 @@ export const useThresholdManagement = () => {
         });
         const versionId = verRes.data!.id;
 
-        const bulkPayload: ThresholdBulkCreateItem[] = stdForm.thresholds.map((t) => {
-          const meta = indicatorById[t.indicator_id];
-          return {
-            indicator_id: t.indicator_id,
-            baik: meta?.is_system_calculated ? undefined : t.baik,
-            unggul: meta?.is_system_calculated ? undefined : t.unggul,
-            param_value: meta?.dynamic_param_unit ? t.param_value ?? null : undefined,
-          };
-        });
+        // Indikator system-calculated (tracer_response) tidak dikirim sama sekali —
+        // BE menolak (422) request bulk create yang menyertakan indicator_id-nya.
+        const bulkPayload: ThresholdBulkCreateItem[] = stdForm.thresholds
+          .filter((t) => !indicatorById[t.indicator_id]?.is_system_calculated)
+          .map((t) => {
+            const meta = indicatorById[t.indicator_id];
+            return {
+              indicator_id: t.indicator_id,
+              baik: t.baik,
+              unggul: t.unggul,
+              param_value: meta?.dynamic_param_unit ? t.param_value ?? null : undefined,
+            };
+          });
         const bulkRes = await apiService.bulkCreateThresholds(versionId, bulkPayload);
 
         const newStandar: Standar = {
@@ -550,6 +614,7 @@ export const useThresholdManagement = () => {
           _lamNumId: selectedLam._numId,
           version_name: stdForm.version_name,
           year: stdForm.year,
+          year_end: verRes.data!.year_end ?? null,
           is_active: verRes.data!.is_active,
           thresholds: (bulkRes.data?.thresholds ?? []).map((t) => ({
             indicator_id: t.indicator_id,
@@ -559,6 +624,7 @@ export const useThresholdManagement = () => {
             unggul_threshold_id: t.unggul.threshold_id,
             unggul: t.unggul.value,
             param_value: t.dynamic_param?.value ?? undefined,
+            is_system_calculated: t.is_system_calculated,
           })),
         };
         setStandars((prev) => [...prev, newStandar]);
@@ -676,6 +742,8 @@ export const useThresholdManagement = () => {
     submitStandar,
     updateThreshold,
     updateThresholdParam,   // baru
+    tracerBreakdown,        // baru — breakdown per prodi utk indikator system-calculated
+    tracerBreakdownLoading, // baru
     confirmDeleteStandar,
     deleteStandar,
     isStdDeleteOpen,

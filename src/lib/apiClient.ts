@@ -123,8 +123,25 @@ export interface LamVersion {
   id: number;
   lam_id?: number;
   year: number;
+  year_end: number | null; // null = versi ini masih berlaku sampai sekarang
   version_name?: string;
   is_active: boolean;
+}
+
+export interface TracerResponseHistoryItem {
+  graduated_year: number;
+  threshold_value: number;
+  total_lulusan: number;
+  min_responden: number;
+  margin_error: number;
+  calculated_at: string;
+}
+
+export interface TracerResponseBreakdown {
+  program_id: number;
+  program_name: string;
+  program_code: string;
+  history: TracerResponseHistoryItem[];
 }
 
 export interface Program {
@@ -489,6 +506,21 @@ export const apiService = {
       `/lam-versions/${lamVersionId}/thresholds/bulk`,
       { thresholds }
     );
+    return response.data;
+  },
+
+  // ── Tracer Response (system-calculated, formula Slovin) ───
+
+  /**
+   * GET /lams/{lamId}/thresholds/tracer-response
+   * Breakdown nilai response-rate per prodi & angkatan di bawah LAM ini.
+   * Dihitung otomatis oleh BE (event-driven saat alumni submit + job harian) —
+   * endpoint ini hanya baca, tidak ada trigger hitung ulang dari sini.
+   */
+  getTracerResponseByLam: async (
+    lamId: number
+  ): Promise<ApiResponse<TracerResponseBreakdown[]>> => {
+    const response = await apiClient.get(`/lams/${lamId}/thresholds/tracer-response`);
     return response.data;
   },
 

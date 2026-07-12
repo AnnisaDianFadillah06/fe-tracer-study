@@ -25,6 +25,7 @@ export interface CalculationMeta {
 export interface ThresholdVersion {
   id: number;
   year: number;
+  year_end: number | null; // null = versi ini masih berlaku sampai sekarang
   version_name: string;
   label: string;
   is_active: boolean;
