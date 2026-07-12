@@ -15,6 +15,7 @@ import {
   Target,
   Radio,
   Wallet,
+  Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +62,7 @@ const navItems = [
 const adminItems = [
   { href: "/dashboard/threshold-management", icon: Target, title: "Threshold", desc: "Nilai LAM/BAN-PT" },
   { href: "/dashboard/master-ump", icon: Wallet, title: "Master UMP", desc: "Data UMP per provinsi" },
+  { href: "/dashboard/question-mapping", icon: Link2, title: "Pemetaan Pertanyaan", desc: "Mapping kode → semantic role" },
 ];
 
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
