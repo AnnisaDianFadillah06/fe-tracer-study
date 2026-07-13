@@ -35,6 +35,7 @@ import {
   type CreateKpiCategoryMappingPayload,
   type EtlAnomalyLogEntry,
   type LaravelPaginated,
+  type EtlRunStatus,
 } from "@/lib/apiClient";
 
 // ─────────────────────────────────────────────
@@ -243,7 +244,7 @@ export function useCreateQuestionSemanticMapping() {
       queryClient.invalidateQueries({ queryKey: ["question-semantic-mappings"] });
       toast({
         title: "Mapping diaktifkan",
-        description: `${res.data?.question_code} → ${res.data?.semantic_role}. Berlaku untuk ETL run berikutnya.`,
+        description: `${res.data?.question_code} → ${res.data?.semantic_role}. ETL berjalan otomatis di background.`,
       });
     },
     onError: (err: any) => {
@@ -274,6 +275,33 @@ export function useDeactivateQuestionSemanticMapping() {
       toast({ title: "Gagal menonaktifkan mapping", description: msg, variant: "destructive" });
     },
   });
+}
+
+/**
+ * Poll status ETL yang otomatis ter-trigger setelah simpan/nonaktifkan
+ * mapping Langkah 1 (RunEtlJob di backend, lihat QuestionSemanticMappingService).
+ * Berhenti polling begitu status jadi completed/failed. Dipakai untuk
+ * menampilkan UI loading "ETL sedang berjalan..." alih-alih diam tanpa info.
+ */
+export function useEtlRunStatus(etlRunId: number | null) {
+  const result = useQuery({
+    queryKey: ["etl-runs", etlRunId],
+    queryFn: () => apiService.getEtlRunStatus(etlRunId as number),
+    enabled: etlRunId !== null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.data?.status;
+      return status === "completed" || status === "failed" ? false : 2000;
+    },
+  });
+
+  const status: EtlRunStatus | undefined = result.data?.data;
+
+  return {
+    status: status?.status ?? null,
+    summary: status?.summary ?? null,
+    errorMessage: status?.error_message ?? null,
+    isDone: status?.status === "completed" || status?.status === "failed",
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -337,6 +365,34 @@ export function useKpiCategoryTaxonomy(semanticRole: string | null) {
   return {
     taxonomy: result.data?.data ?? [],
     loading: semanticRole != null && result.isLoading,
+    error: (result.error as Error | null)?.message ?? null,
+  };
+}
+
+/**
+ * Taksonomi SEMUA role sekaligus -> Map<semantic_role, digunakan_oleh[]>.
+ * Dipakai selector "role yang sudah aktif" di Langkah 1 supaya admin langsung
+ * lihat KPI apa yang dipakai tiap role (mis. status_pekerjaan -> IKU 2
+ * Keterserapan) — ini yang menjawab kebingungan "f8 sudah termapping ke
+ * status_pekerjaan, saya mau petakan ke keterserapan": keterserapan bukan
+ * role terpisah, dia salah satu KPI yang dipakai status_pekerjaan.
+ */
+export function useKpiCategoryTaxonomyAll() {
+  const result = useQuery({
+    queryKey: ["kpi-category-mappings", "taxonomy-all"],
+    queryFn: () => apiService.getKpiCategoryTaxonomyAll(),
+    staleTime: 60 * 1000,
+  });
+
+  const byRole = useMemo(() => {
+    const map = new Map<string, string[]>();
+    (result.data?.data ?? []).forEach((t) => map.set(t.semantic_role, t.digunakan_oleh));
+    return map;
+  }, [result.data]);
+
+  return {
+    byRole,
+    loading: result.isLoading,
     error: (result.error as Error | null)?.message ?? null,
   };
 }

@@ -47,12 +47,6 @@ const navItems = [
     description: "Pemantauan pengisian tracer study",
   },
   {
-    title: "Log Anomali ETL",
-    icon: AlertTriangle,
-    href: "/dashboard/etl-anomaly-log",
-    description: "Jawaban gagal dinormalisasi saat ETL",
-  },
-  {
     title: "Luaran Pekerjaan",
     icon: Briefcase,
     href: "/dashboard/employment",
@@ -70,6 +64,7 @@ const adminItems = [
   { href: "/dashboard/threshold-management", icon: Target, title: "Threshold", desc: "Nilai LAM/BAN-PT" },
   { href: "/dashboard/master-ump", icon: Wallet, title: "Master UMP", desc: "Data UMP per provinsi" },
   { href: "/dashboard/question-mapping", icon: Link2, title: "Pemetaan Pertanyaan", desc: "Mapping kode → semantic role" },
+  { href: "/dashboard/etl-anomaly-log", icon: AlertTriangle, title: "Log Anomali ETL", desc: "Jawaban gagal dinormalisasi saat ETL" },
 ];
 
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {

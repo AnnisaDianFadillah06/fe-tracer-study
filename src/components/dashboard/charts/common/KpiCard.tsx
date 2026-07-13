@@ -141,12 +141,12 @@ export const KpiCard = ({
     : "Jangan filter hingga prodi — butuh lebih dari 1 prodi untuk fitur ini.";
   return (
   <div className={`glass-card p-5 ${className}`} aria-busy={showSkeleton}>
-    <div className="mb-4 flex items-start justify-between gap-3">
-      <div className="min-w-0">
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0 flex-1 basis-[200px]">
         <h3 className="font-heading font-semibold text-base">{title}</h3>
         {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center flex-wrap gap-2 shrink-0">
         {headerExtra}
         {methodology && (
           <TooltipProvider delayDuration={150}>

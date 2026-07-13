@@ -47,6 +47,7 @@ import {
   RefreshCcw,
   Ban,
   Pencil,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -57,11 +58,13 @@ import {
   useQuestionSemanticMappings,
   useKpiCategoryMappings,
   useKpiCategoryTaxonomy,
+  useKpiCategoryTaxonomyAll,
   useAllKpiCategoryMappings,
   useCreateKpiCategoryMapping,
   useDeactivateKpiCategoryMapping,
   useOptionCandidates,
   useMappableQuestionnaires,
+  useEtlRunStatus,
   categoryLabel,
   digunakanOlehLabel,
   formatExpectedKind,
@@ -109,6 +112,11 @@ const QuestionMappingPage = () => {
   const [selectedRole, setSelectedRole] = useState<string>("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activatedRole, setActivatedRole] = useState<string | null>(null);
+  // ETL otomatis ter-trigger begitu Langkah 1 disimpan (lihat RunEtlJob di
+  // backend) -- id ini dipoll supaya admin tahu kapan jawaban historis
+  // selesai ditata ulang, bukan diam tanpa info seperti sebelumnya.
+  const [activeEtlRunId, setActiveEtlRunId] = useState<number | null>(null);
+  const etlRun = useEtlRunStatus(activeEtlRunId);
   const [typeMismatchError, setTypeMismatchError] = useState<{ expected_kind: string; samples: string[] } | null>(null);
   const [conflictDialog, setConflictDialog] = useState<{
     open: boolean;
@@ -163,6 +171,7 @@ const QuestionMappingPage = () => {
       setActivatedRole(res.data?.semantic_role ?? selectedRole);
       setTypeMismatchError(null);
       setConflictDialog({ open: false, conflicting_mapping: null });
+      if (res.data?.etl_run_id) setActiveEtlRunId(res.data.etl_run_id);
     } catch (err: any) {
       const status = err?.response?.status;
       const body = err?.response?.data;
@@ -217,11 +226,20 @@ const QuestionMappingPage = () => {
   // option_code adalah identitas yang dicocokkan Cube.js (SPLIT_PART id_status_alumni),
   // jadi harus dari sini, tidak boleh dikarang di klien (lihat catatan apiClient.ts).
   const { candidates: optionCandidates } = useOptionCandidates(activatedRole);
-  const candidateOptions = useMemo(() => {
-    if (!activatedRole) return [];
-    const known = new Set(kpiRows.map((r) => r.option_code));
+
+  // "Status baru" HARUS dihitung PER digunakan_oleh, bukan sekali secara global
+  // untuk seluruh role — kalau tidak, option_code yang sudah aktif di SATU
+  // grouping (mis. "1" aktif di masa_tunggu_valid_status) akan ikut
+  // tersembunyi sebagai kandidat di grouping LAIN yang belum punya baris aktif
+  // untuk option_code itu (mis. iku2_keterserapan setelah dinonaktifkan) --
+  // padahal harusnya tetap bisa dipetakan ulang di situ. Bug ini pernah
+  // membuat status "Bekerja"/"Wiraswasta"/dst hilang total dari section
+  // Keterserapan: bukan aktif (sudah dinonaktifkan) DAN bukan kandidat baru
+  // (dianggap "sudah dipakai" karena aktif di grouping lain).
+  const candidateOptionsForUsage = (usage: string) => {
+    const known = new Set((usageGroups.get(usage) ?? []).map((r) => r.option_code));
     return optionCandidates.filter((c) => !known.has(c.option_code));
-  }, [activatedRole, kpiRows, optionCandidates]);
+  };
 
   const [pendingKategori, setPendingKategori] = useState<Record<string, string>>({});
   const setKategoriFor = (usage: string, optionCode: string, kpiCategory: string) =>
@@ -230,7 +248,7 @@ const QuestionMappingPage = () => {
   const createKpiCategory = useCreateKpiCategoryMapping();
 
   const onSaveKategori = async (usage: string) => {
-    const rowsToSave = candidateOptions
+    const rowsToSave = candidateOptionsForUsage(usage)
       .map((c) => ({ ...c, kpiCategory: pendingKategori[`${usage}::${c.option_code}`] }))
       .filter((r) => !!r.kpiCategory);
 
@@ -342,6 +360,12 @@ const QuestionMappingPage = () => {
     return map;
   }, [savedCodes]);
 
+  // KPI apa saja yang dipakai tiap role (mis. status_pekerjaan -> iku2_keterserapan) --
+  // ditampilkan inline di daftar "role aktif" di bawah, supaya jelas TANPA perlu
+  // klik apa pun bahwa "keterserapan" bukan role terpisah, tapi kategori KPI
+  // yang sudah dipakai role yang sama dengan yang sedang dicari.
+  const { byRole: kpiTaxonomyByRole } = useKpiCategoryTaxonomyAll();
+
   // Role aktif untuk kuesioner yang sedang dipilih di Langkah 1 (dedupe per
   // semantic_role — role wide-grain bisa punya banyak kode aktif, cukup
   // tampilkan salah satu sebagai contoh). Dipakai jalur "kelola Langkah 2
@@ -445,6 +469,41 @@ const QuestionMappingPage = () => {
             </p>
           </div>
         </div>
+
+        {/* ETL status banner -- muncul begitu Langkah 1 disimpan, sampai job
+            background (RunEtlJob) selesai menata ulang jawaban historis ke
+            fact table. Tanpa ini admin tidak tahu kapan boleh cek dashboard. */}
+        {activeEtlRunId !== null && etlRun.status !== null && (
+          <div
+            className={
+              "rounded-lg border px-4 py-3 flex items-center gap-3 text-sm " +
+              (etlRun.status === "completed"
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                : etlRun.status === "failed"
+                ? "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-400"
+                : "border-primary/40 bg-primary/5 text-foreground")
+            }
+          >
+            {(etlRun.status === "queued" || etlRun.status === "running") && (
+              <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+            )}
+            <div className="flex-1">
+              {etlRun.status === "queued" && "ETL menunggu giliran diproses — jawaban historis akan ditata ulang mengikuti mapping baru."}
+              {etlRun.status === "running" && "ETL sedang berjalan — menata ulang jawaban historis ke fact table sesuai mapping baru. Jangan tutup halaman ini."}
+              {etlRun.status === "completed" && "ETL selesai. Data di dashboard sudah mengikuti mapping terbaru — silakan cek grafiknya."}
+              {etlRun.status === "failed" && `ETL gagal: ${etlRun.errorMessage ?? "penyebab tidak diketahui"}. Mapping tetap tersimpan, tapi data historis belum ditata ulang — coba jalankan ulang ETL manual atau hubungi admin sistem.`}
+            </div>
+            {etlRun.isDone && (
+              <button
+                type="button"
+                className="text-xs underline shrink-0"
+                onClick={() => setActiveEtlRunId(null)}
+              >
+                Tutup
+              </button>
+            )}
+          </div>
+        )}
 
         <Tabs defaultValue="setup" className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-2">
@@ -577,31 +636,65 @@ const QuestionMappingPage = () => {
                     mutasi apa pun di sini, cuma set activatedRole langsung karena mapping-nya memang
                     sudah aktif. */}
                 {questionnaireId !== null && activeRolesForQuestionnaire.length > 0 && (
-                  <div className="rounded-lg border border-dashed border-border px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-                    <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                      <ListChecks className="w-3.5 h-3.5 shrink-0" />
-                      Role yang sudah punya kode aktif — langsung atur Langkah 2 tanpa perlu memetakan kode baru:
+                  <div className="rounded-lg border border-primary/40 bg-primary/5 px-3 py-3 space-y-2">
+                    <div className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                      <ListChecks className="w-3.5 h-3.5 shrink-0 text-primary" />
+                      Role yang sudah punya kode aktif — untuk atur KPI (Langkah 2), klik "Kelola" di
+                      bawah. Jangan cari kodenya lagi di selector "Kode pertanyaan terdeteksi" — kode
+                      yang sudah aktif memang sengaja tidak muncul di situ.
                     </div>
-                    <Select
-                      value=""
-                      onValueChange={(role) => {
-                        setActivatedRole(role);
-                        setSelectedCode("");
-                      }}
-                    >
-                      <SelectTrigger className="w-[260px] h-8 text-xs">
-                        <SelectValue placeholder="Pilih role aktif…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {activeRolesForQuestionnaire.map((r) => (
-                          <SelectItem key={r.semantic_role} value={r.semantic_role}>
-                            <span className="font-mono">{r.semantic_role}</span>
-                            <span className="text-muted-foreground mx-1.5">·</span>
-                            <span className="text-muted-foreground">via {r.question_code}</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-1.5">
+                      {activeRolesForQuestionnaire.map((r) => {
+                        const usages = kpiTaxonomyByRole.get(r.semantic_role) ?? [];
+                        const roleMeta = roleByKey[r.semantic_role];
+                        // Langkah 2 (kategori KPI) cuma berlaku untuk role categorical/boolean --
+                        // role numerik/teks/dimensi-langsung (mis. pendapatan, nama_perusahaan)
+                        // memang TIDAK PERNAH butuh pengelompokan ini, jadi jangan ditampilkan
+                        // seolah "belum selesai" -- itu bikin admin bingung mengira ada yang salah.
+                        const eligibleForGrouping =
+                          roleMeta?.expected_kind === "categorical" || roleMeta?.expected_kind === "boolean";
+                        return (
+                          <div
+                            key={r.semantic_role}
+                            className="flex items-center justify-between gap-3 rounded-md bg-card border border-border px-2.5 py-2 flex-wrap"
+                          >
+                            <div className="min-w-0 text-xs">
+                              <span className="font-mono font-medium text-foreground">{r.semantic_role}</span>
+                              <span className="text-muted-foreground mx-1.5">· via {r.question_code}</span>
+                              {usages.length > 0 ? (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  <span className="text-muted-foreground">Dipakai untuk:</span>
+                                  {usages.map((u) => (
+                                    <Badge key={u} variant="outline" className="text-[10px] py-0 border-primary/30 bg-primary/10 text-primary">
+                                      {digunakanOlehLabel(u)}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : eligibleForGrouping ? (
+                                <div className="mt-1 text-muted-foreground italic">Belum dipakai KPI kategori manapun</div>
+                              ) : (
+                                <div className="mt-1 text-muted-foreground italic">
+                                  Tidak perlu kategori KPI — nilai {roleMeta ? formatExpectedKind(roleMeta) : "role ini"} dipakai langsung, bukan dikelompokkan
+                                </div>
+                              )}
+                            </div>
+                            {eligibleForGrouping && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs shrink-0"
+                                onClick={() => {
+                                  setActivatedRole(r.semantic_role);
+                                  setSelectedCode("");
+                                }}
+                              >
+                                Kelola →
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -875,6 +968,7 @@ const QuestionMappingPage = () => {
 
                   {taxonomy.map(({ digunakan_oleh: usage, categories }) => {
                     const rows = usageGroups.get(usage) ?? [];
+                    const candidateOptions = candidateOptionsForUsage(usage);
                     return (
                       <div key={usage} className="space-y-2.5">
                         <p className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">

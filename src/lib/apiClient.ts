@@ -234,6 +234,20 @@ export interface QuestionSemanticMapping {
   is_active: boolean;
   mapped_by: { id: number; name: string } | null;
   deactivated_at: string | null;
+  /** ETL otomatis ter-trigger begitu Langkah 1 berubah -- lihat useEtlRunStatus(). */
+  etl_run_id?: number;
+}
+
+/** GET /etl-runs/{id} -- dipoll setelah simpan/nonaktifkan mapping Langkah 1. */
+export interface EtlRunStatus {
+  id: number;
+  status: "queued" | "running" | "completed" | "failed";
+  reason: string;
+  id_waktu: number | null;
+  summary: { id_waktu: number; stages: Array<{ stage: string; processed: number; inserted: number; skipped: number }> } | null;
+  error_message: string | null;
+  started_at: string | null;
+  finished_at: string | null;
 }
 
 export interface UnmappedQuestion {
@@ -824,8 +838,19 @@ export const apiService = {
    */
   deactivateQuestionSemanticMapping: async (
     id: number
-  ): Promise<ApiResponse<QuestionSemanticMapping>> => {
+  ): Promise<ApiResponse<{ etl_run_id: number }>> => {
     const response = await apiClient.post(`/question-semantic-mappings/${id}/deactivate`);
+    return response.data;
+  },
+
+  /**
+   * GET /etl-runs/{id}
+   * Dipoll FE setelah simpan/nonaktifkan mapping Langkah 1 (ETL otomatis
+   * ter-trigger di background lewat queue) untuk menampilkan status
+   * queued/running/completed/failed alih-alih diam tanpa info.
+   */
+  getEtlRunStatus: async (id: number): Promise<ApiResponse<EtlRunStatus>> => {
+    const response = await apiClient.get(`/etl-runs/${id}`);
     return response.data;
   },
 
@@ -855,6 +880,20 @@ export const apiService = {
     const response = await apiClient.get("/kpi-category-mappings/taxonomy", {
       params: { semantic_role },
     });
+    return response.data;
+  },
+
+  /**
+   * GET /kpi-category-mappings/taxonomy-all
+   * Sama seperti taxonomy, tapi untuk SEMUA role sekaligus (satu request,
+   * bukan N+1) — dipakai selector "role yang sudah aktif" di Langkah 1 supaya
+   * admin langsung lihat KPI apa yang dipakai tiap role (mis. status_pekerjaan
+   * -> iku2_keterserapan) tanpa perlu menebak istilah digunakan_oleh.
+   */
+  getKpiCategoryTaxonomyAll: async (): Promise<
+    ApiResponse<{ semantic_role: string; digunakan_oleh: string[] }[]>
+  > => {
+    const response = await apiClient.get("/kpi-category-mappings/taxonomy-all");
     return response.data;
   },
 
