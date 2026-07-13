@@ -12,14 +12,23 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiService, type KpiFormulaGroup, type KpiFormulaResponse } from "@/lib/apiClient";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 
 export function useKpiFormula(semanticRole: string, digunakanOleh: string) {
+  // Tooltip HARUS point-in-time terhadap snapshot yang sedang dipilih user
+  // (weekKey = id_waktu, lihat GlobalFiltersContext) -- tanpa weekKey di
+  // query key, pindah snapshot tidak memicu refetch dan tooltip diam-diam
+  // menampilkan definisi snapshot SEBELUMNYA (tampak "kadang benar kadang
+  // salah" seolah cache basi, padahal query-nya memang tidak pernah re-run).
+  const { weekKey } = useGlobalFilters();
+
   const result = useQuery<KpiFormulaResponse>({
-    queryKey: ["kpi-category-mappings", "formula", semanticRole, digunakanOleh],
+    queryKey: ["kpi-category-mappings", "formula", semanticRole, digunakanOleh, weekKey],
     queryFn: () =>
       apiService.getKpiCategoryMappingFormula({
         semantic_role: semanticRole,
         digunakan_oleh: digunakanOleh,
+        ...(weekKey ? { minggu_snapshot: weekKey } : {}),
       }),
     enabled: !!semanticRole && !!digunakanOleh,
     staleTime: 5 * 60 * 1000,

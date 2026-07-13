@@ -150,12 +150,19 @@ export function useWirausahaBar() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useWirausahaPie() {
-  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt, filterOptions } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
+  // Pie adalah snapshot SATU kohort, bukan tren lintas tahun -- kalau tidak
+  // ada tahun dipilih ("all"), agregasi lintas SEMUA tahun_lulus akan
+  // mencampur kohort berbeda jadi satu potongan pie yang tidak jelas
+  // mewakili tahun mana. Default ke tahun_lulus TERBARU (filterOptions
+  // sudah terurut desc dari backend), bukan mengirim tanpa filter tahun.
+  const effectiveTahun = tahunLulus !== "all" ? tahunLulus : (filterOptions.tahunLulus[0] ?? "all");
+
   const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-    [degree, jurusan, prodi, tahunLulus, weekKey]
+    () => buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
+    [degree, jurusan, prodi, effectiveTahun, weekKey]
   );
 
   const result = useQuery<WirausahaPieResponse>({

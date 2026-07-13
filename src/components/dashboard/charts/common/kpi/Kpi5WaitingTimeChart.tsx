@@ -44,19 +44,26 @@ const Kpi5WaitingTimeChart = () => {
   const [modal, setModal] = useState<{
     open: boolean;
     title: string;
-    rentang?: "0-3" | "3-6" | ">6";
+    rentang?: "cepat" | "0-3" | "3-6" | ">6";
     tahun_lulus?: string;
+    batas_cepat_bulan?: number;
   }>({ open: false, title: "" });
 
-  const openModal = (title: string, rentang: "0-3" | "3-6" | ">6", tahun?: string) => {
-    setModal({ open: true, title, rentang, tahun_lulus: tahun });
-    drillHook.fetch({ rentang, tahun_lulus: tahun, page: 1 });
+  const openModal = (title: string, rentang: "cepat" | "0-3" | "3-6" | ">6", tahun?: string, batasCepat?: number) => {
+    setModal({ open: true, title, rentang, tahun_lulus: tahun, batas_cepat_bulan: batasCepat });
+    drillHook.fetch({ rentang, tahun_lulus: tahun, page: 1, batas_cepat_bulan: batasCepat });
   };
 
   const handlePageChange = useCallback((page: number, search?: string) => {
     if (!modal.rentang) return;
-    drillHook.fetch({ rentang: modal.rentang, tahun_lulus: modal.tahun_lulus, page, search });
-  }, [modal.rentang, modal.tahun_lulus, drillHook]);
+    drillHook.fetch({
+      rentang: modal.rentang,
+      tahun_lulus: modal.tahun_lulus,
+      page,
+      search,
+      batas_cepat_bulan: modal.batas_cepat_bulan,
+    });
+  }, [modal.rentang, modal.tahun_lulus, modal.batas_cepat_bulan, drillHook]);
 
   // Aggregate bar data: per-prodi/tahun → per tahun (sum count, hitung pct)
   const comboData = useMemo(() => {
@@ -98,7 +105,10 @@ const Kpi5WaitingTimeChart = () => {
   }, [distribusiHook.data]);
 
   const latestYear = comboData.length > 0 ? comboData[comboData.length - 1].year : undefined;
-  const distTahun = tahunLulus === "all" ? latestYear : tahunLulus;
+  const isAllYear = tahunLulus === "all";
+  // Distribusi (useMasaTungguDistribusi) sekarang default ke tahun_lulus
+  // terbaru kalau "all" -- subtitle harus konsisten dengan itu.
+  const distTahun = isAllYear ? latestYear : tahunLulus;
 
   const showRefLine = !lam.isDisabled && !!lam.threshold;
   const isLoading   = barHook.loading || distribusiHook.loading;
@@ -173,7 +183,7 @@ const Kpi5WaitingTimeChart = () => {
                   dataKey="pct" name={`% ≤ ${batasLabel} bln`} radius={[6, 6, 0, 0]} maxBarSize={60}
                   cursor="pointer"
                   onClick={(d: any) => openModal(
-                    `Lulusan ≤ ${batasLabel} bln — ${d.year} (${d.pct}% • ${d.n}/${d.total})`, "0-3", d.year
+                    `Lulusan ≤ ${batasLabel} bln — ${d.year} (${d.pct}% • ${d.n}/${d.total})`, "cepat", d.year, batasCepatBulan
                   )}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
@@ -205,7 +215,7 @@ const Kpi5WaitingTimeChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && distData.length === 0}
           title="Distribusi Kategori Masa Tunggu"
-          subtitle={distTahun ? `Tahun kelulusan ${distTahun} — sumbu X: % lulusan` : "Semua periode aktif — sumbu X: % lulusan"}
+          subtitle={distTahun ? `Tahun kelulusan ${distTahun}${isAllYear ? " (default: terbaru)" : ""} — sumbu X: % lulusan` : "Memuat…"}
           compareType="waktuTunggu"
           methodology={
             <MethodologyBlock

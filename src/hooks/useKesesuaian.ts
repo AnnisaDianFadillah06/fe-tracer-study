@@ -142,12 +142,17 @@ export function useKesesuaianBar() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useKesesuaianPie() {
-  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt, filterOptions } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
+  // Pie adalah snapshot SATU kohort -- kalau tidak ada tahun dipilih ("all"),
+  // default ke tahun_lulus TERBARU, bukan menjumlah semua tahun (lihat pola
+  // yang sama di useWirausahaPie/useMasaTungguDistribusi).
+  const effectiveTahun = tahunLulus !== "all" ? tahunLulus : (filterOptions.tahunLulus[0] ?? "all");
+
   const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-    [degree, jurusan, prodi, tahunLulus, weekKey]
+    () => buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
+    [degree, jurusan, prodi, effectiveTahun, weekKey]
   );
 
   const result = useQuery<KesesuaianPieResponse>({
@@ -170,12 +175,16 @@ export function useKesesuaianPie() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useKesesuaianAlasan() {
-  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt, filterOptions } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
+  // Sama seperti useKesesuaianPie -- default ke tahun_lulus terbaru kalau
+  // belum ada tahun dipilih, bukan "semua periode".
+  const effectiveTahun = tahunLulus !== "all" ? tahunLulus : (filterOptions.tahunLulus[0] ?? "all");
+
   const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-    [degree, jurusan, prodi, tahunLulus, weekKey]
+    () => buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
+    [degree, jurusan, prodi, effectiveTahun, weekKey]
   );
 
   const result = useQuery<KesesuaianAlasanResponse>({

@@ -920,17 +920,29 @@ export const apiService = {
   },
 
   /**
-   * GET /kpi-category-mappings/formula?semantic_role=&digunakan_oleh=
+   * GET /kpi-category-mappings/formula?semantic_role=&digunakan_oleh=&minggu_snapshot=
    * Endpoint tooltip dinamis — dipakai chart KPI hilir (Kpi4Absorption dkk, lewat
    * useKpiFormula) supaya formula di UI selalu sinkron dengan pengelompokan status
-   * terbaru tanpa perlu deploy FE baru. Respons TIDAK dibungkus { data }.
+   * terbaru tanpa perlu deploy FE baru. Respons SAMA seperti endpoint lain --
+   * dibungkus { success, data } oleh KpiCategoryMappingController::formula() --
+   * comment lama di sini salah dan menyebabkan `groups` selalu undefined
+   * (butuh response.data.data, bukan response.data), sehingga tooltip diam-diam
+   * SELALU jatuh ke teks fallback statis walau kategori KPI sudah dipetakan.
+   *
+   * minggu_snapshot (id_waktu) WAJIB dikirim kalau ada -- endpoint ini
+   * point-in-time terhadap snapshot itu (lihat KpiCategoryMappingRepository::
+   * formulaRows()), bukan lagi selalu definisi hari ini. Tanpa ini, tooltip
+   * tampak "kadang benar kadang salah" tergantung snapshot mana yang sedang
+   * dipilih user di filter global, karena chart datanya sendiri point-in-time
+   * tapi tooltip-nya dulu tidak.
    */
   getKpiCategoryMappingFormula: async (params: {
     semantic_role: string;
     digunakan_oleh: string;
+    minggu_snapshot?: string;
   }): Promise<KpiFormulaResponse> => {
     const response = await apiClient.get("/kpi-category-mappings/formula", { params });
-    return response.data;
+    return response.data.data;
   },
 
   // ── ETL Anomaly Log ───────────────────────

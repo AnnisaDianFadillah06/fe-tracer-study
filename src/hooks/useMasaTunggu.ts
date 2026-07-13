@@ -151,12 +151,19 @@ export function useMasaTungguBar(batasCepatBulan?: number) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useMasaTungguDistribusi() {
-  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt, filterOptions } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
+  // Distribusi adalah snapshot SATU kohort (subtitle-nya di Kpi5WaitingTimeChart
+  // menampilkan "Tahun kelulusan X"), bukan tren lintas tahun -- kalau tidak ada
+  // tahun dipilih ("all"), tanpa ini datanya diam-diam menjumlah SEMUA tahun
+  // sementara subtitle mengklaim cuma satu tahun (tahun terbaru). Default ke
+  // tahun_lulus TERBARU supaya subtitle dan data benar-benar konsisten.
+  const effectiveTahun = tahunLulus !== "all" ? tahunLulus : (filterOptions.tahunLulus[0] ?? "all");
+
   const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-    [degree, jurusan, prodi, tahunLulus, weekKey]
+    () => buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
+    [degree, jurusan, prodi, effectiveTahun, weekKey]
   );
 
   const result = useQuery<MasaTungguDistribusiResponse>({
@@ -179,12 +186,14 @@ export function useMasaTungguDistribusi() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface MasaTungguDrillDownParams {
-  rentang: "0-3" | "3-6" | ">6";
+  /** 'cepat' = <= batas_cepat_bulan dinamis (dipakai bar "% Lulusan <= N Bulan"), BUKAN bucket tetap 0-3. */
+  rentang: "cepat" | "0-3" | "3-6" | ">6";
   tahun_lulus?: string;
   nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
+  batas_cepat_bulan?: number;
 }
 
 export function useMasaTungguDrillDown() {
@@ -217,6 +226,7 @@ export function useMasaTungguDrillDown() {
         page:     String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),
         ...(extra.search ? { search: extra.search } : {}),
+        ...(extra.batas_cepat_bulan != null ? { batas_cepat_bulan: String(extra.batas_cepat_bulan) } : {}),
       };
 
       apiService

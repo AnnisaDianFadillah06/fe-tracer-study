@@ -76,12 +76,11 @@ function buildJurusanMap(prodiList: RawProdi[]): JurusanMap {
   }, {});
 }
 
-// v4: beberapa cache v3 yang sempat ditulis SEBELUM label snapshot diperbaiki
-// (tahun/bulan/tanggal) ikut tersimpan dengan `label`/`value` kosong dan
-// tersangkut selamanya di sessionStorage tab lama -- menaikkan versi lagi
-// memastikan SEMUA tab lama (bukan cuma yang snapshot-nya kosong total)
-// dipaksa fetch ulang, bukan cuma yang lolos deteksi heuristik di bawah.
-const CACHE_KEY = "filterOptions_v4";
+// v5: `snapshot[].value` sekarang berisi id_waktu (unik per ETL run), BUKAN
+// lagi minggu_snapshot mentah (mis. "29") -- lihat FilterMetaRepository::
+// getSnapshot(). Cache v4 lama menyimpan value versi minggu_snapshot yang
+// sudah tidak valid dipakai sebagai filter, harus dipaksa fetch ulang.
+const CACHE_KEY = "filterOptions_v5";
 
 function readCache(): RawFilterOptionsData | null {
   try {

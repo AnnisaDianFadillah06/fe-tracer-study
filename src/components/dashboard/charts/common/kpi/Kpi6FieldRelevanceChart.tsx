@@ -126,8 +126,12 @@ const Kpi6FieldRelevanceChart = () => {
 
   const latestYear = comboData.length > 0 ? comboData[comboData.length - 1].year : undefined;
   const isAllYear = tahunLulus === "all";
-  const displayTahun = isAllYear ? undefined : tahunLulus;
-  const drillTahun = isAllYear ? latestYear : tahunLulus;
+  // Pie & bar alasan sekarang default ke tahun_lulus TERBARU kalau "all"
+  // (lihat useKesesuaianPie/useKesesuaianAlasan) -- subtitle harus konsisten
+  // dengan itu, bukan mengklaim "semua periode" sementara datanya sudah
+  // dipersempit ke satu tahun.
+  const displayTahun = isAllYear ? latestYear : tahunLulus;
+  const drillTahun = displayTahun;
 
   const isLoading   = barHook.loading || pieHook.loading || alasanHook.loading;
   const hasError    = barHook.error || pieHook.error || alasanHook.error;
@@ -220,7 +224,7 @@ const Kpi6FieldRelevanceChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && pieData.length === 0}
           title="Distribusi Tingkat Kesesuaian"
-          subtitle={displayTahun ? `Tahun kelulusan ${displayTahun} — klik slice untuk lihat alumni` : "Semua periode — klik slice untuk lihat alumni"}
+          subtitle={displayTahun ? `Tahun kelulusan ${displayTahun}${isAllYear ? " (default: terbaru)" : ""} — klik slice untuk lihat alumni` : "Memuat…"}
           compareType="kesesuaian"
           methodology={
             <MethodologyBlock
@@ -256,7 +260,7 @@ const Kpi6FieldRelevanceChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && reasonsData.length === 0}
           title="Frekuensi Alasan Ketidaksesuaian"
-          subtitle={displayTahun ? `Tahun kelulusan ${displayTahun} — jumlah responden per alasan (multi-pilih)` : "Semua periode — jumlah responden per alasan (multi-pilih)"}
+          subtitle={displayTahun ? `Tahun kelulusan ${displayTahun}${isAllYear ? " (default: terbaru)" : ""} — jumlah responden per alasan (multi-pilih)` : "Memuat…"}
           className="lg:col-span-2"
           compareType="kesesuaian"
           methodology={

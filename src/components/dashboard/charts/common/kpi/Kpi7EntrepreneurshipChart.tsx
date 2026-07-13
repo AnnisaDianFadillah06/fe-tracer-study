@@ -103,7 +103,10 @@ const Kpi7EntrepreneurshipChart = () => {
 
   const { tahunLulus } = useGlobalFilters();
   const latestYear = comboData.length > 0 ? comboData[comboData.length - 1].year : undefined;
-  const pieTahun = tahunLulus === "all" ? latestYear : tahunLulus;
+  const isAllYear = tahunLulus === "all";
+  // useWirausahaPie() sekarang default ke tahun_lulus terbaru kalau "all" --
+  // subtitle harus konsisten dengan itu, bukan mengklaim "semua periode".
+  const pieTahun = isAllYear ? latestYear : tahunLulus;
 
   const isLoading   = barHook.loading || pieHook.loading;
   const hasError    = barHook.error || pieHook.error;
@@ -196,7 +199,7 @@ const Kpi7EntrepreneurshipChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && pieData.length === 0}
           title="Distribusi Posisi Wirausaha"
-          subtitle={pieTahun ? `Tahun kelulusan ${pieTahun}` : "Semua periode"}
+          subtitle={pieTahun ? `Tahun kelulusan ${pieTahun}${isAllYear ? " (default: terbaru)" : ""}` : "Memuat…"}
           compareType="entrepreneurship"
           methodology={
             <MethodologyBlock

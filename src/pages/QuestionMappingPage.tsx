@@ -332,7 +332,7 @@ const QuestionMappingPage = () => {
       });
       toast({
         title: "Kategori diperbarui",
-        description: `"${row.option_label_snapshot}" dipindah ke kategori "${cat.label}". Baris lama tetap tersimpan (nonaktif) untuk audit.`,
+        description: `"${row.option_label_snapshot}" dipindah ke kategori "${cat.label}". Baris lama tetap tersimpan (nonaktif) untuk audit. Berlaku langsung ke seluruh data historis (tidak perlu ETL) — Cube.js membaca tabel ini setiap query.`,
       });
       setEditStatusDialog({ open: false, row: null, newCategory: "" });
     } catch {
