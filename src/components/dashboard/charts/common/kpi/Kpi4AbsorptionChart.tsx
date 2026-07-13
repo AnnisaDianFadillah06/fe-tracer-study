@@ -12,6 +12,7 @@ import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { formatPctCount } from "./format";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import { useKeterserapanBar, useKeterserapanPie, useKeterserapanDrillDown } from "@/hooks/useKeterserapan";
+import { useKpiFormula, findFormulaGroup, joinOptions } from "@/hooks/useKpiFormula";
 import { buildColorMap, getShortLabel } from "@/lib/chartColors";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 
@@ -22,6 +23,14 @@ const Kpi4AbsorptionChart = () => {
   const barHook   = useKeterserapanBar();
   const pieHook   = useKeterserapanPie();
   const drillHook = useKeterserapanDrillDown();
+
+  // Formula dinamis — label status "terserap"/"tidak terserap" saat ini, bukan
+  // teks statis "A + B + C". Otomatis update begitu admin ubah pengelompokan
+  // status di halaman Pemetaan Pertanyaan (Langkah 2), tanpa deploy FE baru.
+  const formulaHook   = useKpiFormula("status_pekerjaan", "iku2_keterserapan");
+  const terserapGroup = findFormulaGroup(formulaHook.groups, "terserap");
+  const tidakGroup    = findFormulaGroup(formulaHook.groups, "tidak");
+  const keterserapanNumerator = joinOptions(terserapGroup, "A + B + C");
 
   // ── Modal state — simpan juga apakah dari bar atau pie ─────────────────────
   const [modal, setModal] = useState<{
@@ -109,9 +118,13 @@ const Kpi4AbsorptionChart = () => {
           headerExtra={<LamFilterControls lam={lam} />}
           methodology={
             <MethodologyBlock
-              description="Mengukur lulusan S1/Diploma yang berhasil bekerja (A), melanjutkan studi (B), atau berwirausaha (C) dalam satu periode."
-              formula={<>Keterserapan (%) = ((A + B + C) × 100) / Total Lulusan S1 &amp; Diploma dalam Satu Periode</>}
-              notes="A = bekerja, B = lanjut studi, C = wiraswasta. Sumber: BAN-PT / IAPS 4.0."
+              description="Mengukur lulusan S1/Diploma yang berhasil bekerja, melanjutkan studi, atau berwirausaha dalam satu periode."
+              formula={<>Keterserapan (%) = (({keterserapanNumerator}) × 100) / Total Lulusan S1 &amp; Diploma dalam Satu Periode</>}
+              notes={
+                terserapGroup
+                  ? <>Termasuk terserap: {terserapGroup.options.join(", ")}.{tidakGroup && <> Tidak terserap: {tidakGroup.options.join(", ")}.</>} Sumber: BAN-PT / IAPS 4.0.</>
+                  : "A = bekerja, B = lanjut studi, C = wiraswasta. Sumber: BAN-PT / IAPS 4.0."
+              }
             />
           }
         >

@@ -31,6 +31,7 @@ import {
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 import { buildColorMap } from "@/lib/chartColors";
+import { useKpiFormula, findFormulaGroup } from "@/hooks/useKpiFormula";
 
 const CONTEXT_COLUMN = { key: "kesesuaian_bidang", label: "Kesesuaian Bidang" };
 
@@ -130,6 +131,13 @@ const Kpi6FieldRelevanceChart = () => {
 
   const isLoading   = barHook.loading || pieHook.loading || alasanHook.loading;
   const hasError    = barHook.error || pieHook.error || alasanHook.error;
+
+  // Kategori "sesuai" saat ini (mis. Sangat Erat, Erat) — dikonfigurasi di halaman
+  // Pemetaan Pertanyaan Langkah 2 (digunakan_oleh = kesesuaian_bidang_relevance).
+  // Menggantikan teks statis "Sangat Erat dan Erat" supaya tetap akurat kalau
+  // kategori berubah tanpa perlu deploy FE baru.
+  const relevanceFormula = useKpiFormula("relevansi_bidang", "kesesuaian_bidang_relevance");
+  const sesuaiGroup = findFormulaGroup(relevanceFormula.groups, "sesuai");
   const showRefLine = !lam.isDisabled && !!lam.threshold;
 
   return (
@@ -147,7 +155,11 @@ const Kpi6FieldRelevanceChart = () => {
             <MethodologyBlock
               description="Mengukur kesesuaian bidang pekerjaan lulusan terhadap bidang studi."
               formula={<>Kesesuaian (%) = (Lulusan Sesuai Bidang / Total Lulusan Bekerja) × 100%</>}
-              notes="Kategori sesuai mencakup: Sangat Erat dan Erat."
+              notes={
+                sesuaiGroup
+                  ? `Kategori sesuai mencakup: ${sesuaiGroup.options.join(", ")}.`
+                  : "Kategori sesuai mencakup: Sangat Erat dan Erat."
+              }
             />
           }
         >

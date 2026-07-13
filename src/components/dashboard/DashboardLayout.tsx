@@ -16,6 +16,7 @@ import {
   Radio,
   Wallet,
   Link2,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +45,12 @@ const navItems = [
     icon: LayoutDashboard,
     href: "/dashboard/overview",
     description: "Pemantauan pengisian tracer study",
+  },
+  {
+    title: "Log Anomali ETL",
+    icon: AlertTriangle,
+    href: "/dashboard/etl-anomaly-log",
+    description: "Jawaban gagal dinormalisasi saat ETL",
   },
   {
     title: "Luaran Pekerjaan",

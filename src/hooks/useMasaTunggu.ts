@@ -111,7 +111,13 @@ function buildParams(
 // Hook: useMasaTungguBar
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function useMasaTungguBar() {
+/**
+ * batasCepatBulan: ambang "cepat" dinamis (dulu selalu 6 bulan) -- sumbernya
+ * useLamFilter("waitingTime").dynamicParam?.value (indikator employment_time
+ * per LAM version terpilih). undefined = BE pakai default 6 bulan (standar
+ * DIKTI, dipakai saat belum ada konteks LAM/prodi terpilih).
+ */
+export function useMasaTungguBar(batasCepatBulan?: number) {
   const { degree, jurusan, prodi, weekKey, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
@@ -121,8 +127,9 @@ export function useMasaTungguBar() {
     if (jurusan && jurusan !== "__all__") p.jurusan         = jurusan;
     if (prodi   && prodi   !== "__all__") p.nama_prodi      = prodi;
     if (weekKey)                          p.minggu_snapshot = weekKey;
+    if (batasCepatBulan != null)          p.batas_cepat_bulan = String(batasCepatBulan);
     return p;
-  }, [degree, jurusan, prodi, weekKey]);
+  }, [degree, jurusan, prodi, weekKey, batasCepatBulan]);
 
   const result = useQuery<MasaTungguBarResponse>({
     queryKey: ["masa-tunggu", "bar", params, updatedTs],

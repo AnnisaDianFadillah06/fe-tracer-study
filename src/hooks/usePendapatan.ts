@@ -104,14 +104,21 @@ function buildParams(
 // Hook: usePendapatanBar
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function usePendapatanBar() {
+/**
+ * ambangMultiplier: ambang "≥ ambang UMP" dinamis (dulu selalu 1.2x) --
+ * sumbernya useLamFilter("incomePct").dynamicParam?.value (indikator
+ * salary_above_ump per LAM version terpilih). undefined = BE pakai default
+ * 1.2x (dipakai saat belum ada konteks LAM/prodi terpilih).
+ */
+export function usePendapatanBar(ambangMultiplier?: number) {
   const { degree, jurusan, prodi, weekKey, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
-  const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, weekKey),
-    [degree, jurusan, prodi, weekKey]
-  );
+  const params = useMemo(() => {
+    const p = buildParams(degree, jurusan, prodi, weekKey);
+    if (ambangMultiplier != null) p.ambang_ump_multiplier = String(ambangMultiplier);
+    return p;
+  }, [degree, jurusan, prodi, weekKey, ambangMultiplier]);
 
   const result = useQuery<PendapatanBarResponse>({
     queryKey: ["pendapatan", "bar", params, updatedTs],
@@ -132,14 +139,15 @@ export function usePendapatanBar() {
 // Hook: usePendapatanDistribusi
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function usePendapatanDistribusi() {
+export function usePendapatanDistribusi(ambangMultiplier?: number) {
   const { degree, jurusan, prodi, weekKey, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
-  const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, weekKey),
-    [degree, jurusan, prodi, weekKey]
-  );
+  const params = useMemo(() => {
+    const p = buildParams(degree, jurusan, prodi, weekKey);
+    if (ambangMultiplier != null) p.ambang_ump_multiplier = String(ambangMultiplier);
+    return p;
+  }, [degree, jurusan, prodi, weekKey, ambangMultiplier]);
 
   const result = useQuery<PendapatanDistribusiResponse>({
     queryKey: ["pendapatan", "distribusi", params, updatedTs],
@@ -160,7 +168,7 @@ export function usePendapatanDistribusi() {
 // Hook: usePendapatanDrillDown  (lazy)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function usePendapatanDrillDown() {
+export function usePendapatanDrillDown(ambangMultiplier?: number) {
   const { degree, jurusan, prodi, weekKey } = useGlobalFilters();
 
   const [data, setData]       = useState<PendapatanDrillDownResponse | null>(null);
@@ -183,6 +191,7 @@ export function usePendapatanDrillDown() {
         ...(extra.segmen_ump  ? { segmen_ump:  extra.segmen_ump  } : {}),
         ...(extra.tahun_lulus ? { tahun_lulus: extra.tahun_lulus } : {}),
         ...(extra.search      ? { search:      extra.search      } : {}),
+        ...(ambangMultiplier != null ? { ambang_ump_multiplier: String(ambangMultiplier) } : {}),
       };
 
       apiService
@@ -204,7 +213,7 @@ export function usePendapatanDrillDown() {
           setLoading(false);
         });
     },
-    [degree, jurusan, prodi, weekKey]
+    [degree, jurusan, prodi, weekKey, ambangMultiplier]
   );
 
   return { data, loading, error, fetch };

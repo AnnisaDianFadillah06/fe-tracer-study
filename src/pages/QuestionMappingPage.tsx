@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -21,12 +23,19 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Eye,
   Check,
   Link2,
   ListChecks,
   Info,
-  History,
   FileText,
   ArrowRight,
   CircleHelp,
@@ -34,163 +43,46 @@ import {
   ChevronLeft,
   ChevronRight,
   FilterX,
+  AlertTriangle,
+  RefreshCcw,
+  Ban,
+  Pencil,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  useSemanticRoles,
+  useUnmappedQuestions,
+  useSimilarQuestions,
+  useCreateQuestionSemanticMapping,
+  useQuestionSemanticMappings,
+  useKpiCategoryMappings,
+  useKpiCategoryTaxonomy,
+  useAllKpiCategoryMappings,
+  useCreateKpiCategoryMapping,
+  useDeactivateKpiCategoryMapping,
+  useOptionCandidates,
+  useMappableQuestionnaires,
+  categoryLabel,
+  digunakanOlehLabel,
+  formatExpectedKind,
+} from "@/hooks/useQuestionMappingManagement";
+import type { SemanticRole, UnmappedQuestion, KpiCategoryMapping } from "@/lib/apiClient";
 
-// ---------- Mock domain data ----------
-type UnmappedCode = {
-  code: string; // e.g. "f8_new"
-  label: string;         // internal label (badge in the list)
-  questionText: string;  // full question text as displayed to alumni
-  sampleAnswers: string[];
-  suggestedRole?: string;
-};
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
 
-const KUESIONER = [
-  { id: "ts2026", name: "Tracer Study 2026" },
-  { id: "ts2025", name: "Tracer Study 2025" },
-  { id: "ts2024", name: "Tracer Study 2024" },
-];
-
-const SEMANTIC_ROLES = [
-  { id: "status_pekerjaan", label: "status_pekerjaan", desc: "Status utama pekerjaan lulusan" },
-  { id: "jenis_pekerjaan", label: "jenis_pekerjaan", desc: "Kategori/jenis pekerjaan" },
-  { id: "masa_tunggu", label: "masa_tunggu", desc: "Waktu tunggu memperoleh pekerjaan" },
-  { id: "pendapatan", label: "pendapatan", desc: "Besaran gaji/pendapatan bulanan" },
-  { id: "relevansi_bidang", label: "relevansi_bidang", desc: "Kesesuaian pekerjaan dengan bidang studi" },
-  { id: "lokasi_kerja", label: "lokasi_kerja", desc: "Provinsi / kota tempat bekerja" },
-  { id: "sumber_biaya", label: "sumber_biaya", desc: "Sumber pembiayaan kuliah" },
-];
-
-const UNMAPPED: Record<string, UnmappedCode[]> = {
-  ts2026: [
-    {
-      code: "f8_new",
-      label: "f8 new — belum termapping",
-      questionText:
-        "Apa status Anda saat ini terkait pekerjaan? (Pilih salah satu yang paling menggambarkan kondisi Anda saat ini)",
-      sampleAnswers: ["Bekerja penuh waktu", "Wiraswasta / usaha sendiri", "Sedang mencari kerja"],
-      suggestedRole: "status_pekerjaan",
-    },
-    {
-      code: "f12_v2",
-      label: "f12 v2 — belum termapping",
-      questionText:
-        "Berapa lama waktu yang Anda butuhkan sejak lulus hingga mendapatkan pekerjaan pertama?",
-      sampleAnswers: ["< 3 bulan", "3–6 bulan", "> 12 bulan"],
-      suggestedRole: "masa_tunggu",
-    },
-    {
-      code: "f21_new",
-      label: "f21 new — belum termapping",
-      questionText:
-        "Seberapa sesuai pekerjaan Anda saat ini dengan bidang studi yang Anda ambil semasa kuliah?",
-      sampleAnswers: ["Sangat sesuai", "Sesuai", "Tidak sesuai"],
-      suggestedRole: "relevansi_bidang",
-    },
-  ],
-  ts2025: [],
-  ts2024: [],
-};
-
-// ---------- Panel 2: status → kategori KPI ----------
-// Dynamic per semantic_role. Only roles that need bucketing into KPI categories
-// appear in Panel 2. For roles yang bersifat numerik/ordinal murni (masa_tunggu,
-// pendapatan) tidak perlu grouping — Panel 2 memberikan info khusus.
-type Kategori = string;
-type StatusRow = { label: string; kategori: Kategori; isNew?: boolean };
-
-type RoleGrouping = {
-  needsGrouping: boolean;
-  kpiName?: string;
-  categories?: { id: string; label: string; tone: "good" | "bad" | "neutral" }[];
-  rows?: StatusRow[];
-  hint?: string;
-};
-
-const ROLE_GROUPINGS: Record<string, RoleGrouping> = {
-  status_pekerjaan: {
-    needsGrouping: true,
-    kpiName: "IKU 2 — Keterserapan Lulusan",
-    categories: [
-      { id: "terserap", label: "masuk terserap", tone: "good" },
-      { id: "tidak", label: "tidak terserap", tone: "bad" },
-      { id: "belum", label: "belum dikelompokkan", tone: "neutral" },
-    ],
-    rows: [
-      { label: "Bekerja penuh waktu", kategori: "terserap" },
-      { label: "Wiraswasta / usaha sendiri", kategori: "terserap" },
-      { label: "Melanjutkan pendidikan", kategori: "terserap" },
-      { label: "Freelance / kerja lepas", kategori: "belum", isNew: true },
-      { label: "Sedang mencari kerja", kategori: "tidak" },
-    ],
-  },
-  relevansi_bidang: {
-    needsGrouping: true,
-    kpiName: "Relevansi Bidang Kerja",
-    categories: [
-      { id: "sesuai", label: "relevan", tone: "good" },
-      { id: "tidak", label: "tidak relevan", tone: "bad" },
-      { id: "belum", label: "belum dikelompokkan", tone: "neutral" },
-    ],
-    rows: [
-      { label: "Sangat sesuai", kategori: "sesuai" },
-      { label: "Sesuai", kategori: "sesuai" },
-      { label: "Kurang sesuai", kategori: "belum", isNew: true },
-      { label: "Tidak sesuai", kategori: "tidak" },
-    ],
-  },
-  masa_tunggu: {
-    needsGrouping: false,
-    hint:
-      "Semantic role ini bersifat ordinal — nilai akan diproses langsung sebagai rentang waktu. Tidak perlu pengelompokan kategori.",
-  },
-  pendapatan: {
-    needsGrouping: false,
-    hint:
-      "Semantic role ini bersifat numerik — nilai akan diagregasi langsung sebagai besaran pendapatan. Tidak perlu pengelompokan kategori.",
-  },
-  jenis_pekerjaan: {
-    needsGrouping: true,
-    kpiName: "Distribusi Jenis Pekerjaan",
-    categories: [
-      { id: "formal", label: "sektor formal", tone: "good" },
-      { id: "informal", label: "sektor informal", tone: "neutral" },
-      { id: "belum", label: "belum dikelompokkan", tone: "neutral" },
-    ],
-    rows: [
-      { label: "Karyawan swasta", kategori: "formal" },
-      { label: "PNS / ASN", kategori: "formal" },
-      { label: "Buruh harian", kategori: "informal" },
-      { label: "Content creator", kategori: "belum", isNew: true },
-    ],
-  },
-  lokasi_kerja: {
-    needsGrouping: false,
-    hint:
-      "Semantic role ini menggunakan referensi wilayah (Master Provinsi/Kota). Tidak perlu pengelompokan kategori manual.",
-  },
-  sumber_biaya: {
-    needsGrouping: true,
-    kpiName: "Distribusi Sumber Pembiayaan",
-    categories: [
-      { id: "mandiri", label: "mandiri", tone: "neutral" },
-      { id: "beasiswa", label: "beasiswa", tone: "good" },
-      { id: "belum", label: "belum dikelompokkan", tone: "neutral" },
-    ],
-    rows: [
-      { label: "Biaya sendiri / keluarga", kategori: "mandiri" },
-      { label: "Beasiswa KIP-K", kategori: "beasiswa" },
-      { label: "Beasiswa perusahaan", kategori: "beasiswa" },
-      { label: "Pinjaman pendidikan", kategori: "belum", isNew: true },
-    ],
-  },
+/** Tone badge kategori KPI — API tidak mengirim "tone", jadi ditebak dari nama kategori. */
+const inferTone = (kpiCategory: string): "good" | "bad" | "neutral" => {
+  const k = kpiCategory.toLowerCase();
+  if (k.includes("tidak") || k.includes("invalid") || k.includes("gagal")) return "bad";
+  if (k.includes("valid") || k.includes("terserap") || k.includes("sesuai") || k.includes("baik") || k.includes("unggul") || k.includes("beasiswa"))
+    return "good";
+  return "neutral";
 };
 
 const toneClass = (tone: "good" | "bad" | "neutral") => {
   const map = {
-    terserap:
-      "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     good: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     bad: "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400",
     neutral: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400",
@@ -198,249 +90,298 @@ const toneClass = (tone: "good" | "bad" | "neutral") => {
   return map[tone];
 };
 
-const KategoriBadge = ({
-  k,
-  grouping,
-}: {
-  k: Kategori;
-  grouping: RoleGrouping;
-}) => {
-  const cat = grouping.categories?.find((c) => c.id === k);
-  if (!cat) return null;
-  return (
-    <Badge variant="outline" className={toneClass(cat.tone)}>
-      {cat.label}
-    </Badge>
-  );
-};
-
-// ---------- Mock "already saved" data for Tab 2 ----------
-type SavedCodeMapping = {
-  kuesioner: string;
-  code: string;
-  questionText: string;
-  semanticRole: string;
-  tipeData: string;
-  kolomOlap: string;
-  lamVersion: string;
-  activatedAt: string;
-  status: "Aktif" | "Nonaktif";
-  dipetakanOleh: string;
-};
-type SavedStatusMapping = {
-  semanticRole: string;
-  sumberKode: string;
-  status: string;
-  kategori: string;
-  kpi: string;
-  lamVersion: string;
-  activatedAt: string;
-  statusAktif: "Aktif" | "Nonaktif";
-  dikelompokkanOleh: string;
-};
-
-const SAVED_CODES: SavedCodeMapping[] = [
-  {
-    kuesioner: "Tracer Study 2025",
-    code: "f8",
-    questionText: "Status Anda saat ini terkait pekerjaan?",
-    semanticRole: "status_pekerjaan",
-    tipeData: "kategorikal",
-    kolomOlap: "fact_tracer_study.status_pekerjaan",
-    lamVersion: "2025",
-    activatedAt: "2025-01-14",
-    status: "Aktif",
-    dipetakanOleh: "Annisa (Pelaksana TS)",
-  },
-  {
-    kuesioner: "Tracer Study 2025",
-    code: "f12",
-    questionText: "Berapa lama waktu tunggu Anda mendapatkan pekerjaan pertama?",
-    semanticRole: "masa_tunggu",
-    tipeData: "integer (bulan) · 0–60",
-    kolomOlap: "fact_tracer_study.masa_tunggu_bekerjaan",
-    lamVersion: "2025",
-    activatedAt: "2025-01-14",
-    status: "Aktif",
-    dipetakanOleh: "Annisa (Pelaksana TS)",
-  },
-  {
-    kuesioner: "Tracer Study 2025",
-    code: "f18",
-    questionText: "Berapa pendapatan bulanan Anda saat ini?",
-    semanticRole: "pendapatan",
-    tipeData: "numeric (IDR) · ≥ 0",
-    kolomOlap: "fact_tracer_study.pendapatan_bulanan",
-    lamVersion: "2025",
-    activatedAt: "2025-01-14",
-    status: "Aktif",
-    dipetakanOleh: "Annisa (Pelaksana TS)",
-  },
-  {
-    kuesioner: "Tracer Study 2024",
-    code: "q7",
-    questionText: "Apa jenis pekerjaan utama Anda?",
-    semanticRole: "jenis_pekerjaan",
-    tipeData: "kategorikal",
-    kolomOlap: "fact_tracer_study.jenis_pekerjaan",
-    lamVersion: "2024",
-    activatedAt: "2024-02-03",
-    status: "Aktif",
-    dipetakanOleh: "Budi (Pelaksana TS)",
-  },
-  {
-    kuesioner: "Tracer Study 2024",
-    code: "q21",
-    questionText: "Sumber pembiayaan kuliah Anda selama menempuh studi?",
-    semanticRole: "sumber_biaya",
-    tipeData: "kategorikal (multi-select)",
-    kolomOlap: "fact_tracer_study.sumber_biaya",
-    lamVersion: "2024",
-    activatedAt: "2024-02-03",
-    status: "Nonaktif",
-    dipetakanOleh: "Budi (Pelaksana TS)",
-  },
-];
-
-const SAVED_STATUS: SavedStatusMapping[] = [
-  {
-    semanticRole: "status_pekerjaan",
-    sumberKode: "f8, f8_new",
-    status: "Bekerja penuh waktu",
-    kategori: "masuk terserap",
-    kpi: "IKU 2 — Keterserapan",
-    lamVersion: "2025",
-    activatedAt: "2025-01-14",
-    statusAktif: "Aktif",
-    dikelompokkanOleh: "Pa Ade (Kaprodi)",
-  },
-  {
-    semanticRole: "status_pekerjaan",
-    sumberKode: "f8",
-    status: "Wiraswasta",
-    kategori: "masuk terserap",
-    kpi: "IKU 2 — Keterserapan",
-    lamVersion: "2025",
-    activatedAt: "2025-01-14",
-    statusAktif: "Aktif",
-    dikelompokkanOleh: "Pa Ade (Kaprodi)",
-  },
-  {
-    semanticRole: "status_pekerjaan",
-    sumberKode: "f8",
-    status: "Sedang mencari kerja",
-    kategori: "tidak terserap",
-    kpi: "IKU 2 — Keterserapan",
-    lamVersion: "2025",
-    activatedAt: "2025-01-14",
-    statusAktif: "Aktif",
-    dikelompokkanOleh: "Pa Ade (Kaprodi)",
-  },
-  {
-    semanticRole: "sumber_biaya",
-    sumberKode: "q21",
-    status: "Beasiswa KIP-K",
-    kategori: "beasiswa",
-    kpi: "Distribusi Sumber Pembiayaan",
-    lamVersion: "2024",
-    activatedAt: "2024-02-03",
-    statusAktif: "Aktif",
-    dikelompokkanOleh: "Bu Sinta (P2MPP)",
-  },
-  {
-    semanticRole: "jenis_pekerjaan",
-    sumberKode: "q7",
-    status: "PNS / ASN",
-    kategori: "sektor formal",
-    kpi: "Distribusi Jenis Pekerjaan",
-    lamVersion: "2024",
-    activatedAt: "2024-02-03",
-    statusAktif: "Aktif",
-    dikelompokkanOleh: "Bu Sinta (P2MPP)",
-  },
-];
-
 const QuestionMappingPage = () => {
   const { toast } = useToast();
 
-  // Panel 1 state
-  const [kuesioner, setKuesioner] = useState<string>("ts2026");
-  const unmapped = UNMAPPED[kuesioner] ?? [];
-  const [selectedCode, setSelectedCode] = useState<string>(unmapped[0]?.code ?? "");
-  const activeCode = useMemo(
-    () => unmapped.find((u) => u.code === selectedCode) ?? unmapped[0],
+  // ── Panel 1 state ──
+  const { questionnaires, loading: questionnairesLoading } = useMappableQuestionnaires();
+  const [kuesioner, setKuesioner] = useState<number | null>(null);
+  const questionnaireId = kuesioner;
+
+  // Default ke kuesioner pertama (periode terbaru, lihat urutan di BE) begitu daftar termuat.
+  useEffect(() => {
+    if (kuesioner === null && questionnaires.length > 0) {
+      setKuesioner(questionnaires[0].id);
+    }
+  }, [kuesioner, questionnaires]);
+
+  const [selectedCode, setSelectedCode] = useState<string>("");
+  const [selectedRole, setSelectedRole] = useState<string>("");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [activatedRole, setActivatedRole] = useState<string | null>(null);
+  const [typeMismatchError, setTypeMismatchError] = useState<{ expected_kind: string; samples: string[] } | null>(null);
+  const [conflictDialog, setConflictDialog] = useState<{
+    open: boolean;
+    conflicting_mapping: { id: number; question_code: string; question_text_snapshot: string } | null;
+  }>({ open: false, conflicting_mapping: null });
+
+  // ── Data hooks — Panel 1 ──
+  const { groupedRoles, roleByKey, loading: rolesLoading } = useSemanticRoles();
+  const { unmapped, loading: unmappedLoading } = useUnmappedQuestions(questionnaireId);
+  const createMapping = useCreateQuestionSemanticMapping();
+
+  const activeCode: UnmappedQuestion | undefined = useMemo(
+    () => unmapped.find((u) => u.question_code === selectedCode) ?? unmapped[0],
     [unmapped, selectedCode],
   );
-  const [selectedRole, setSelectedRole] = useState<string>(
-    activeCode?.suggestedRole ?? SEMANTIC_ROLES[0].id,
+
+  const { similar, loading: similarLoading } = useSimilarQuestions({
+    questionnaire_id: questionnaireId,
+    question_text: activeCode?.question_text,
+    exclude_code: activeCode?.question_code,
+  });
+
+  // Sinkronkan pilihan kode saat daftar unmapped berubah (ganti kuesioner, atau kode
+  // yang tadi dipilih baru saja diaktifkan & hilang dari daftar).
+  useEffect(() => {
+    if (unmapped.length === 0) {
+      if (selectedCode !== "") setSelectedCode("");
+      return;
+    }
+    if (!unmapped.some((u) => u.question_code === selectedCode)) {
+      setSelectedCode(unmapped[0].question_code);
+    }
+  }, [unmapped, selectedCode]);
+
+  // Saat kode aktif berganti: ikuti saran heuristik role kalau ada, reset error type-mismatch.
+  useEffect(() => {
+    if (activeCode?.suggested_role) setSelectedRole(activeCode.suggested_role);
+    setTypeMismatchError(null);
+  }, [activeCode?.question_code]);
+
+  const selectedRoleMeta: SemanticRole | undefined = roleByKey[selectedRole];
+
+  const onActivate = async (forceReplace = false) => {
+    if (!activeCode || !questionnaireId) return;
+    try {
+      const res = await createMapping.mutateAsync({
+        questionnaire_id: questionnaireId,
+        question_code: activeCode.question_code,
+        semantic_role: selectedRole,
+        force_replace: forceReplace || undefined,
+      });
+      setActivatedRole(res.data?.semantic_role ?? selectedRole);
+      setTypeMismatchError(null);
+      setConflictDialog({ open: false, conflicting_mapping: null });
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const body = err?.response?.data;
+      if (status === 409 && body?.error === "role_already_mapped") {
+        setConflictDialog({ open: true, conflicting_mapping: body.conflicting_mapping });
+      } else if (status === 422 && body?.error === "type_mismatch") {
+        setTypeMismatchError({ expected_kind: body.expected_kind, samples: body.samples ?? [] });
+      }
+      // Error lain sudah di-toast generik oleh useCreateQuestionSemanticMapping.
+    }
+  };
+
+  // ── Panel 2 (kelompokkan status → kategori KPI) ──
+  const activeRoleMeta: SemanticRole | undefined = activatedRole ? roleByKey[activatedRole] : undefined;
+  const needsGrouping = !!activeRoleMeta && (activeRoleMeta.expected_kind === "categorical" || activeRoleMeta.expected_kind === "boolean");
+
+  const { mappings: kpiRows, loading: kpiRowsLoading } = useKpiCategoryMappings(
+    activatedRole ? { semantic_role: activatedRole } : undefined,
   );
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [mappedCodes, setMappedCodes] = useState<string[]>([]);
-  const [activatedRole, setActivatedRole] = useState<string | null>(null);
 
-  const remainingUnmapped = unmapped.filter((u) => !mappedCodes.includes(u.code));
+  // Section (digunakan_oleh) apa saja yang PERNAH dikonfigurasi untuk role ini,
+  // aktif atau tidak. Sumber kebenaran untuk section mana yang dirender — BUKAN
+  // usageGroups (di bawah), karena usageGroups cuma baris AKTIF: kalau semua
+  // baris satu digunakan_oleh kebetulan nonaktif (mis. dinonaktifkan semua utk
+  // demo ulang), usageGroups-nya kosong dan section itu akan hilang total dari
+  // Langkah 2 tanpa ini — persis skenario yang bikin "Tren Keterserapan" tidak
+  // bisa dipetakan ulang lewat UI.
+  const { taxonomy, loading: taxonomyLoading } = useKpiCategoryTaxonomy(activatedRole);
 
-  const onActivate = () => {
-    if (!activeCode) return;
-    setMappedCodes((prev) => [...prev, activeCode.code]);
-    setActivatedRole(selectedRole);
-    // seed Panel 2 rows for this role (only if grouping is needed)
-    const g = ROLE_GROUPINGS[selectedRole];
-    if (g?.needsGrouping && g.rows) {
-      setStatusRows(g.rows);
-    }
-    toast({
-      title: "Mapping diaktifkan",
-      description: `${activeCode.code} → ${selectedRole}. Berlaku untuk ETL run berikutnya.`,
+  // Grup baris existing (AKTIF saja) per digunakan_oleh — dipakai utk badge
+  // "sudah dikategorikan" & mengecualikan option_code dari daftar kandidat.
+  const usageGroups = useMemo(() => {
+    const map = new Map<string, KpiCategoryMapping[]>();
+    kpiRows.forEach((r) => {
+      if (!map.has(r.digunakan_oleh)) map.set(r.digunakan_oleh, []);
+      map.get(r.digunakan_oleh)!.push(r);
     });
-    // move focus to next unmapped
-    const next = unmapped.find(
-      (u) => u.code !== activeCode.code && !mappedCodes.includes(u.code),
-    );
-    if (next) {
-      setSelectedCode(next.code);
-      setSelectedRole(next.suggestedRole ?? SEMANTIC_ROLES[0].id);
+    return map;
+  }, [kpiRows]);
+
+  // Opsi kategori per digunakan_oleh, dari taksonomi (bukan dari baris aktif) —
+  // supaya tetap tersedia walau 0 baris aktif untuk usage tsb.
+  const categoriesByUsage = useMemo(() => {
+    const map = new Map<string, { id: string; label: string }[]>();
+    taxonomy.forEach((t) => map.set(t.digunakan_oleh, t.categories));
+    return map;
+  }, [taxonomy]);
+
+  // Opsi status kandidat baru (belum masuk kpi_category_mapping di digunakan_oleh
+  // manapun) — bersumber dari option-candidates (option_code+option_label ASLI dari
+  // questionnaire_options via kode aktif role ini), BUKAN dari label jawaban semata.
+  // option_code adalah identitas yang dicocokkan Cube.js (SPLIT_PART id_status_alumni),
+  // jadi harus dari sini, tidak boleh dikarang di klien (lihat catatan apiClient.ts).
+  const { candidates: optionCandidates } = useOptionCandidates(activatedRole);
+  const candidateOptions = useMemo(() => {
+    if (!activatedRole) return [];
+    const known = new Set(kpiRows.map((r) => r.option_code));
+    return optionCandidates.filter((c) => !known.has(c.option_code));
+  }, [activatedRole, kpiRows, optionCandidates]);
+
+  const [pendingKategori, setPendingKategori] = useState<Record<string, string>>({});
+  const setKategoriFor = (usage: string, optionCode: string, kpiCategory: string) =>
+    setPendingKategori((prev) => ({ ...prev, [`${usage}::${optionCode}`]: kpiCategory }));
+
+  const createKpiCategory = useCreateKpiCategoryMapping();
+
+  const onSaveKategori = async (usage: string) => {
+    const rowsToSave = candidateOptions
+      .map((c) => ({ ...c, kpiCategory: pendingKategori[`${usage}::${c.option_code}`] }))
+      .filter((r) => !!r.kpiCategory);
+
+    if (rowsToSave.length === 0) {
+      toast({ title: "Belum ada kategori dipilih", variant: "destructive" });
+      return;
+    }
+
+    const categoryOptions = categoriesByUsage.get(usage) ?? [];
+    try {
+      for (const row of rowsToSave) {
+        const cat = categoryOptions.find((c) => c.id === row.kpiCategory);
+        if (!cat) continue;
+        await createKpiCategory.mutateAsync({
+          semantic_role: activatedRole as string,
+          option_code: row.option_code,
+          option_label_snapshot: row.option_label,
+          kpi_category: cat.id,
+          kpi_category_label: cat.label,
+          digunakan_oleh: usage,
+        });
+      }
+      toast({
+        title: "Kelompok disimpan",
+        description:
+          "Berlaku langsung ke seluruh data historis (tidak perlu ETL) — Cube.js membaca tabel ini setiap query. Kalau dashboard belum berubah, kemungkinan itu cache pre-aggregation Cube.js yang belum menangkap perubahan, bukan mapping-nya.",
+      });
+      setPendingKategori({});
+    } catch {
+      // error sudah di-toast oleh useCreateKpiCategoryMapping
     }
   };
 
-  // Panel 2 state
-  const [statusRows, setStatusRows] = useState<StatusRow[]>([]);
-  const setKategori = (label: string, k: Kategori) =>
-    setStatusRows((prev) => prev.map((r) => (r.label === label ? { ...r, kategori: k } : r)));
-  const onSaveKategori = () => {
-    toast({
-      title: "Kelompok disimpan",
-      description: "Berlaku untuk LAM version 2026. Histori minggu sebelumnya tidak berubah.",
-    });
+  function distinctCategories(rows: KpiCategoryMapping[]) {
+    const map = new Map<string, string>();
+    rows.forEach((r) => map.set(r.kpi_category, r.kpi_category_label));
+    return Array.from(map.entries()).map(([id, label]) => ({ id, label }));
+  }
+
+  // ── Tab 2 — Data Tersimpan ──
+  const { mappings: savedCodes, loading: savedCodesLoading } = useQuestionSemanticMappings();
+  const { mappings: savedStatus, loading: savedStatusLoading } = useAllKpiCategoryMappings();
+
+  // ── Edit mapping status → kategori KPI yang sudah tersimpan ──
+  // Forward-only (konsisten dengan seluruh fitur ini): "edit" BUKAN mutasi baris
+  // in-place — itu akan menghapus jejak audit yang justru jadi alasan utama
+  // pola is_active dipakai di sini. "Edit" = nonaktifkan baris lama, lalu buat
+  // baris baru dengan (semantic_role, option_code, digunakan_oleh) yang SAMA
+  // tapi kpi_category baru.
+  const deactivateKpiCategory = useDeactivateKpiCategoryMapping();
+  const [editStatusDialog, setEditStatusDialog] = useState<{
+    open: boolean;
+    row: KpiCategoryMapping | null;
+    newCategory: string;
+  }>({ open: false, row: null, newCategory: "" });
+
+  const editCategoryOptions = useMemo(() => {
+    if (!editStatusDialog.row) return [];
+    return distinctCategories(savedStatus.filter((s) => s.digunakan_oleh === editStatusDialog.row!.digunakan_oleh));
+  }, [editStatusDialog.row, savedStatus]);
+
+  const handleSaveEditStatus = async () => {
+    const { row, newCategory } = editStatusDialog;
+    if (!row || !newCategory) return;
+
+    const cat = editCategoryOptions.find((c) => c.id === newCategory);
+    if (!cat) return;
+
+    try {
+      // Urutan penting: nonaktifkan dulu baru buat baris baru — kalau dibalik,
+      // constraint unik (semantic_role, option_code, digunakan_oleh) WHERE
+      // is_active akan menolak baris baru selama baris lama masih aktif.
+      await deactivateKpiCategory.mutateAsync(row.id);
+      await createKpiCategory.mutateAsync({
+        semantic_role: row.semantic_role,
+        option_code: row.option_code,
+        option_label_snapshot: row.option_label_snapshot,
+        kpi_category: cat.id,
+        kpi_category_label: cat.label,
+        digunakan_oleh: row.digunakan_oleh,
+      });
+      toast({
+        title: "Kategori diperbarui",
+        description: `"${row.option_label_snapshot}" dipindah ke kategori "${cat.label}". Baris lama tetap tersimpan (nonaktif) untuk audit.`,
+      });
+      setEditStatusDialog({ open: false, row: null, newCategory: "" });
+    } catch {
+      // error sudah di-toast oleh masing-masing mutation
+    }
   };
 
-  const activeGrouping = activatedRole ? ROLE_GROUPINGS[activatedRole] : null;
+  const questionnaireNameById = useMemo(
+    () => Object.fromEntries(questionnaires.map((q) => [q.id, q.title])),
+    [questionnaires],
+  );
 
-  // Tab 2 — global search + per-column filters + pagination
+  // Sumber kode aktif per semantic_role — dipakai kolom "Sumber Kode" tabel kategori KPI
+  // (di-derive dari data mapping kode yang sudah dimuat, kpi_category_mapping sendiri
+  // tidak menyimpan referensi question_code).
+  const codesByRole = useMemo(() => {
+    const map = new Map<string, string[]>();
+    savedCodes
+      .filter((s) => s.is_active)
+      .forEach((s) => {
+        if (!map.has(s.semantic_role)) map.set(s.semantic_role, []);
+        const arr = map.get(s.semantic_role)!;
+        if (!arr.includes(s.question_code)) arr.push(s.question_code);
+      });
+    return map;
+  }, [savedCodes]);
+
+  // Role aktif untuk kuesioner yang sedang dipilih di Langkah 1 (dedupe per
+  // semantic_role — role wide-grain bisa punya banyak kode aktif, cukup
+  // tampilkan salah satu sebagai contoh). Dipakai jalur "kelola Langkah 2
+  // langsung" di atas.
+  const activeRolesForQuestionnaire = useMemo(() => {
+    if (questionnaireId === null) return [];
+    const seen = new Set<string>();
+    const result: { semantic_role: string; question_code: string }[] = [];
+    savedCodes
+      .filter((s) => s.questionnaire_id === questionnaireId && s.is_active)
+      .forEach((s) => {
+        if (seen.has(s.semantic_role)) return;
+        seen.add(s.semantic_role);
+        result.push({ semantic_role: s.semantic_role, question_code: s.question_code });
+      });
+    return result;
+  }, [savedCodes, questionnaireId]);
+
   const [q, setQ] = useState("");
 
   const uniq = (arr: string[]) => Array.from(new Set(arr)).sort();
   const opts1 = useMemo(
     () => ({
-      kuesioner: uniq(SAVED_CODES.map((s) => s.kuesioner)),
-      semanticRole: uniq(SAVED_CODES.map((s) => s.semanticRole)),
-      lamVersion: uniq(SAVED_CODES.map((s) => s.lamVersion)),
-      status: uniq(SAVED_CODES.map((s) => s.status)),
+      kuesioner: uniq(savedCodes.map((s) => questionnaireNameById[s.questionnaire_id] ?? String(s.questionnaire_id))),
+      semanticRole: uniq(savedCodes.map((s) => s.semantic_role)),
+      status: uniq(savedCodes.map((s) => (s.is_active ? "Aktif" : "Nonaktif"))),
     }),
-    [],
+    [savedCodes, questionnaireNameById],
   );
   const opts2 = useMemo(
     () => ({
-      semanticRole: uniq(SAVED_STATUS.map((s) => s.semanticRole)),
-      kpi: uniq(SAVED_STATUS.map((s) => s.kpi)),
-      lamVersion: uniq(SAVED_STATUS.map((s) => s.lamVersion)),
-      statusAktif: uniq(SAVED_STATUS.map((s) => s.statusAktif)),
+      semanticRole: uniq(savedStatus.map((s) => s.semantic_role)),
+      kpi: uniq(savedStatus.map((s) => s.digunakan_oleh)),
+      statusAktif: uniq(savedStatus.map((s) => (s.is_active ? "Aktif" : "Nonaktif"))),
     }),
-    [],
+    [savedStatus],
   );
 
-  const [f1, setF1] = useState({ kuesioner: "all", semanticRole: "all", lamVersion: "all", status: "all" });
-  const [f2, setF2] = useState({ semanticRole: "all", kpi: "all", lamVersion: "all", statusAktif: "all" });
+  const [f1, setF1] = useState({ kuesioner: "all", semanticRole: "all", status: "all" });
+  const [f2, setF2] = useState({ semanticRole: "all", kpi: "all", statusAktif: "all" });
   const [pageSize1, setPageSize1] = useState(10);
   const [pageSize2, setPageSize2] = useState(10);
   const [page1, setPage1] = useState(1);
@@ -448,31 +389,31 @@ const QuestionMappingPage = () => {
 
   const filteredCodes = useMemo(() => {
     const qq = q.toLowerCase();
-    return SAVED_CODES.filter((s) => {
-      const blob = (s.code + s.questionText + s.semanticRole + s.kuesioner + s.lamVersion + s.tipeData + s.kolomOlap + s.dipetakanOleh + s.status).toLowerCase();
+    return savedCodes.filter((s) => {
+      const kuesionerName = questionnaireNameById[s.questionnaire_id] ?? String(s.questionnaire_id);
+      const statusLabel = s.is_active ? "Aktif" : "Nonaktif";
+      const blob = (s.question_code + s.question_text_snapshot + s.semantic_role + kuesionerName + statusLabel + (s.mapped_by?.name ?? "")).toLowerCase();
       if (qq && !blob.includes(qq)) return false;
-      if (f1.kuesioner !== "all" && s.kuesioner !== f1.kuesioner) return false;
-      if (f1.semanticRole !== "all" && s.semanticRole !== f1.semanticRole) return false;
-      if (f1.lamVersion !== "all" && s.lamVersion !== f1.lamVersion) return false;
-      if (f1.status !== "all" && s.status !== f1.status) return false;
+      if (f1.kuesioner !== "all" && kuesionerName !== f1.kuesioner) return false;
+      if (f1.semanticRole !== "all" && s.semantic_role !== f1.semanticRole) return false;
+      if (f1.status !== "all" && statusLabel !== f1.status) return false;
       return true;
     });
-  }, [q, f1]);
+  }, [q, f1, savedCodes, questionnaireNameById]);
 
   const filteredStatus = useMemo(() => {
     const qq = q.toLowerCase();
-    return SAVED_STATUS.filter((s) => {
-      const blob = (s.semanticRole + s.status + s.kategori + s.kpi + s.lamVersion + s.sumberKode + s.dikelompokkanOleh + s.statusAktif).toLowerCase();
+    return savedStatus.filter((s) => {
+      const statusLabel = s.is_active ? "Aktif" : "Nonaktif";
+      const blob = (s.semantic_role + s.option_label_snapshot + s.kpi_category_label + s.digunakan_oleh + statusLabel).toLowerCase();
       if (qq && !blob.includes(qq)) return false;
-      if (f2.semanticRole !== "all" && s.semanticRole !== f2.semanticRole) return false;
-      if (f2.kpi !== "all" && s.kpi !== f2.kpi) return false;
-      if (f2.lamVersion !== "all" && s.lamVersion !== f2.lamVersion) return false;
-      if (f2.statusAktif !== "all" && s.statusAktif !== f2.statusAktif) return false;
+      if (f2.semanticRole !== "all" && s.semantic_role !== f2.semanticRole) return false;
+      if (f2.kpi !== "all" && s.digunakan_oleh !== f2.kpi) return false;
+      if (f2.statusAktif !== "all" && statusLabel !== f2.statusAktif) return false;
       return true;
     });
-  }, [q, f2]);
+  }, [q, f2, savedStatus]);
 
-  // Reset page when filters change
   const total1 = filteredCodes.length;
   const total2 = filteredStatus.length;
   const pageCount1 = Math.max(1, Math.ceil(total1 / pageSize1));
@@ -496,17 +437,13 @@ const QuestionMappingPage = () => {
               Pemetaan Data Pertanyaan
             </h1>
             <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-              Setup kuesioner baru: mapping kode & label pertanyaan ke <em>semantic role</em>, lalu
+              Setup kuesioner baru: mapping kode &amp; label pertanyaan ke <em>semantic role</em>, lalu
               — jika role-nya memerlukan — tentukan kategori KPI dari label status yang dihasilkan.
               Perubahan bersifat{" "}
-              <span className="font-medium">forward-only</span> — histori minggu sebelumnya tidak
+              <span className="font-medium">forward-only</span> — histori periode sebelumnya tidak
               tergeser.
             </p>
           </div>
-          <Badge variant="outline" className="gap-1.5">
-            <History className="w-3.5 h-3.5" />
-            LAM version 2026
-          </Badge>
         </div>
 
         <Tabs defaultValue="setup" className="w-full">
@@ -551,279 +488,470 @@ const QuestionMappingPage = () => {
               </div>
             </div>
 
-        {/* ============= PANEL 1 ============= */}
-        <Card className="border-border">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-            <div>
-              <CardTitle className="text-base font-semibold">
-                Langkah 1 — mapping kode & label pertanyaan → semantic role
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Dikerjakan oleh Pelaksana Tracer Study saat setup kuesioner baru.
-              </p>
-            </div>
-            {remainingUnmapped.length > 0 ? (
-              <Badge className="bg-primary/15 text-primary border-primary/30" variant="outline">
-                Belum ada {remainingUnmapped.length} pertanyaan termapping
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                Semua pertanyaan sudah termapping
-              </Badge>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                  Kuesioner
-                </label>
-                <Select
-                  value={kuesioner}
-                  onValueChange={(v) => {
-                    setKuesioner(v);
-                    const list = UNMAPPED[v] ?? [];
-                    setSelectedCode(list[0]?.code ?? "");
-                    setSelectedRole(list[0]?.suggestedRole ?? SEMANTIC_ROLES[0].id);
-                    setMappedCodes([]);
-                    setActivatedRole(null);
-                    setStatusRows([]);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {KUESIONER.map((k) => (
-                      <SelectItem key={k.id} value={k.id}>
-                        {k.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                  Kode pertanyaan terdeteksi
-                </label>
-                <Select
-                  value={activeCode?.code ?? ""}
-                  onValueChange={(v) => {
-                    setSelectedCode(v);
-                    const c = unmapped.find((u) => u.code === v);
-                    if (c?.suggestedRole) setSelectedRole(c.suggestedRole);
-                  }}
-                  disabled={remainingUnmapped.length === 0}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tidak ada kode belum termapping" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {unmapped.map((u) => (
-                      <SelectItem key={u.code} value={u.code} disabled={mappedCodes.includes(u.code)}>
-                        <span className="font-mono">{u.code}</span>
-                        <span className="text-muted-foreground mx-1.5">·</span>
-                        <span className="truncate">{u.questionText.slice(0, 50)}…</span>
-                        {mappedCodes.includes(u.code) ? " ✓" : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Question detail card: nama pertanyaan + contoh jawaban */}
-            {activeCode && (
-              <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 space-y-3">
+            {/* ============= PANEL 1 ============= */}
+            <Card className="border-border">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
                 <div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                    <CircleHelp className="w-3.5 h-3.5" />
-                    Nama / teks pertanyaan
-                    <Badge variant="outline" className="ml-1 font-mono text-[10px] py-0">
-                      {activeCode.code}
-                    </Badge>
-                  </div>
-                  <p className="text-sm font-medium leading-snug">
-                    "{activeCode.questionText}"
+                  <CardTitle className="text-base font-semibold">
+                    Langkah 1 — mapping kode & label pertanyaan → semantic role
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Dikerjakan oleh Pelaksana Tracer Study saat setup kuesioner baru.
                   </p>
                 </div>
-                <div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                    <Eye className="w-3.5 h-3.5" />
-                    Contoh jawaban dari OLTP (preview, belum masuk OLAP)
-                  </div>
-                  <div className="flex flex-wrap gap-x-2 gap-y-1 text-sm">
-                    {activeCode.sampleAnswers.map((a, i) => (
-                      <span key={i} className="font-medium">
-                        "{a}"
-                        {i < activeCode.sampleAnswers.length - 1 && (
-                          <span className="text-muted-foreground mx-1">·</span>
-                        )}
-                      </span>
-                    ))}
-                  </div>
+                {unmapped.length > 0 ? (
+                  <Badge className="bg-primary/15 text-primary border-primary/30" variant="outline">
+                    Belum ada {unmapped.length} pertanyaan termapping
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    {unmappedLoading ? "Memuat…" : "Semua pertanyaan sudah termapping"}
+                  </Badge>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start gap-2 rounded-lg border border-sky-500/30 bg-sky-500/5 px-3 py-2.5 text-xs text-muted-foreground">
+                  <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-sky-600 dark:text-sky-400" />
+                  <span>
+                    Mapping di Langkah 1 hanya berlaku untuk jawaban yang diproses ETL{" "}
+                    <span className="font-medium text-foreground">setelah</span> mapping diaktifkan —
+                    data yang sudah pernah masuk fact table tidak diproses ulang otomatis. ETL berjalan
+                    terjadwal (setiap 5 menit di mode testing), jadi perubahan biasanya terlihat pada
+                    data baru dalam beberapa menit.
+                  </span>
                 </div>
-              </div>
-            )}
-
-            {/* Petakan ke role */}
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Petakan ke semantic role
-              </label>
-              <Select value={selectedRole} onValueChange={setSelectedRole} disabled={!activeCode}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SEMANTIC_ROLES.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{r.label}</span>
-                        <span className="text-xs text-muted-foreground">{r.desc}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Preview & Aktifkan */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
-              <Button
-                variant="outline"
-                onClick={() => setPreviewOpen((v) => !v)}
-                disabled={!activeCode}
-                className="gap-2"
-              >
-                <Eye className="w-4 h-4" />
-                Preview hasil resolve
-              </Button>
-              <Button onClick={onActivate} disabled={!activeCode} className="gap-2">
-                <Check className="w-4 h-4" />
-                Aktifkan mapping
-              </Button>
-            </div>
-
-            {previewOpen && activeCode && (
-              <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-3 text-sm space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
-                  <Info className="w-3.5 h-3.5" />
-                  Preview resolve (read-only ke OLTP)
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Jika mapping <code className="text-foreground">{activeCode.code}</code> →{" "}
-                  <code className="text-foreground">{selectedRole}</code> diaktifkan, contoh jawaban
-                  akan dinormalisasi menjadi:
-                </p>
-                <ul className="text-xs space-y-0.5 mt-1">
-                  {activeCode.sampleAnswers.map((a, i) => (
-                    <li key={i} className="flex items-center gap-2">
-                      <span className="text-muted-foreground">"{a}"</span>
-                      <span className="text-muted-foreground">→</span>
-                      <code className="text-primary font-mono">{selectedRole}</code>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ============= PANEL 2 (dinamis) ============= */}
-        {!activatedRole ? (
-          <Card className="border-dashed border-border bg-muted/20">
-            <CardContent className="py-8 text-center space-y-2">
-              <ListChecks className="w-8 h-8 text-muted-foreground mx-auto" />
-              <p className="text-sm font-medium">Langkah 2 belum aktif</p>
-              <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                Selesaikan Langkah 1 terlebih dahulu — aktifkan minimal satu mapping kode
-                pertanyaan. Isi Langkah 2 akan menyesuaikan dengan <em>semantic role</em> yang
-                baru dipetakan.
-              </p>
-            </CardContent>
-          </Card>
-        ) : !activeGrouping?.needsGrouping ? (
-          <Card className="border-border">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <ListChecks className="w-4 h-4 text-primary" />
-                Langkah 2 — untuk role{" "}
-                <code className="font-mono text-sm">{activatedRole}</code>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-lg border border-border bg-muted/40 px-3 py-3 flex items-start gap-2 text-sm">
-                <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                <p className="text-muted-foreground">{activeGrouping?.hint}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border-border">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <ListChecks className="w-4 h-4 text-primary" />
-                Langkah 2 — kelompokkan status untuk role{" "}
-                <code className="font-mono text-sm">{activatedRole}</code>
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Digunakan oleh:{" "}
-                <span className="font-medium">{activeGrouping.kpiName}</span>. Dikerjakan oleh
-                Kaprodi / P2MPP — keputusan bisnis, bukan teknis. Status baru muncul di sini
-                setelah lolos Langkah 1.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-2.5">
-              {statusRows.map((row) => (
-                <div
-                  key={row.label}
-                  className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 ${
-                    row.isNew ? "border-primary/60 bg-primary/5" : "border-border bg-card"
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <div className="font-medium text-sm truncate">{row.label}</div>
-                    {row.isNew && (
-                      <div className="text-xs text-primary mt-0.5">(status baru)</div>
-                    )}
-                  </div>
-                  {row.isNew || row.kategori === "belum" ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                      Kuesioner
+                    </label>
                     <Select
-                      value={row.kategori}
-                      onValueChange={(v) => setKategori(row.label, v)}
+                      value={kuesioner !== null ? String(kuesioner) : ""}
+                      onValueChange={(v) => {
+                        setKuesioner(Number(v));
+                        setActivatedRole(null);
+                        setPendingKategori({});
+                      }}
                     >
-                      <SelectTrigger className="w-[220px]">
-                        <SelectValue />
+                      <SelectTrigger>
+                        <SelectValue placeholder={questionnairesLoading ? "Memuat…" : "Pilih kuesioner"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {activeGrouping.categories?.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.label}
+                        {questionnaires.map((q) => (
+                          <SelectItem key={q.id} value={String(q.id)}>
+                            {q.title}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  ) : (
-                    <KategoriBadge k={row.kategori} grouping={activeGrouping} />
-                  )}
-                </div>
-              ))}
+                  </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-border">
-                <p className="text-xs text-muted-foreground max-w-md">
-                  Berlaku untuk LAM version 2026 · perubahan tidak mengubah histori minggu
-                  sebelumnya.
-                </p>
-                <Button onClick={onSaveKategori} className="gap-2">
-                  <Check className="w-4 h-4" />
-                  Simpan kelompok
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                      Kode pertanyaan terdeteksi
+                    </label>
+                    <Select
+                      value={activeCode?.question_code ?? ""}
+                      onValueChange={setSelectedCode}
+                      disabled={unmapped.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={unmappedLoading ? "Memuat…" : "Tidak ada kode belum termapping"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {unmapped.map((u) => (
+                          <SelectItem key={u.question_code} value={u.question_code}>
+                            <span className="font-mono">{u.question_code}</span>
+                            <span className="text-muted-foreground mx-1.5">·</span>
+                            <span className="truncate">{u.question_text.slice(0, 50)}…</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Jalur alternatif: role yang SUDAH punya kode aktif tidak pernah muncul di selector
+                    "Kode pertanyaan terdeteksi" di atas (memang sudah termapping, itu benar) — tapi
+                    itu berarti tidak ada cara masuk ke Langkah 2 untuk role tsb tanpa ini. Tidak perlu
+                    mutasi apa pun di sini, cuma set activatedRole langsung karena mapping-nya memang
+                    sudah aktif. */}
+                {questionnaireId !== null && activeRolesForQuestionnaire.length > 0 && (
+                  <div className="rounded-lg border border-dashed border-border px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <ListChecks className="w-3.5 h-3.5 shrink-0" />
+                      Role yang sudah punya kode aktif — langsung atur Langkah 2 tanpa perlu memetakan kode baru:
+                    </div>
+                    <Select
+                      value=""
+                      onValueChange={(role) => {
+                        setActivatedRole(role);
+                        setSelectedCode("");
+                      }}
+                    >
+                      <SelectTrigger className="w-[260px] h-8 text-xs">
+                        <SelectValue placeholder="Pilih role aktif…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeRolesForQuestionnaire.map((r) => (
+                          <SelectItem key={r.semantic_role} value={r.semantic_role}>
+                            <span className="font-mono">{r.semantic_role}</span>
+                            <span className="text-muted-foreground mx-1.5">·</span>
+                            <span className="text-muted-foreground">via {r.question_code}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Question detail card: nama pertanyaan + contoh jawaban */}
+                {activeCode && (
+                  <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 space-y-3">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                        <CircleHelp className="w-3.5 h-3.5" />
+                        Nama / teks pertanyaan
+                        <Badge variant="outline" className="ml-1 font-mono text-[10px] py-0">
+                          {activeCode.question_code}
+                        </Badge>
+                      </div>
+                      <p className="text-sm font-medium leading-snug">
+                        "{activeCode.question_text}"
+                      </p>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                        <Eye className="w-3.5 h-3.5" />
+                        Contoh jawaban dari OLTP (preview, belum masuk OLAP)
+                      </div>
+                      <div className="flex flex-wrap gap-x-2 gap-y-1 text-sm">
+                        {activeCode.sample_answers.map((a, i) => (
+                          <span key={i} className="font-medium">
+                            "{a}"
+                            {i < activeCode.sample_answers.length - 1 && (
+                              <span className="text-muted-foreground mx-1">·</span>
+                            )}
+                          </span>
+                        ))}
+                        {activeCode.sample_answers.length === 0 && (
+                          <span className="text-muted-foreground italic">Belum ada jawaban masuk</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Similar-question warning box — Constraint D */}
+                {activeCode && similarLoading && (
+                  <p className="text-xs text-muted-foreground">Memeriksa pertanyaan mirip…</p>
+                )}
+                {activeCode && !similarLoading && similar.length > 0 && (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-sm space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      Ditemukan {similar.length} pertanyaan mirip di kuesioner ini
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Periksa apakah pertanyaan ini duplikat/pecahan dari kode lain sebelum melanjutkan.
+                    </p>
+                    <ul className="space-y-1.5">
+                      {similar.slice(0, 5).map((s) => (
+                        <li key={s.question_code} className="flex items-start justify-between gap-2 text-xs bg-background/60 rounded-md px-2 py-1.5">
+                          <div className="min-w-0">
+                            <span className="font-mono font-medium">{s.question_code}</span>
+                            <span className="text-muted-foreground mx-1">·</span>
+                            <span className="truncate">{s.question_text.slice(0, 60)}{s.question_text.length > 60 ? "…" : ""}</span>
+                            {s.current_semantic_role && (
+                              <span className="block text-muted-foreground mt-0.5">
+                                sudah dipetakan ke <code className="text-foreground">{s.current_semantic_role}</code>
+                              </span>
+                            )}
+                          </div>
+                          <Badge variant="outline" className="shrink-0 text-[10px]">
+                            {Math.round(s.similarity * 100)}% mirip
+                          </Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Petakan ke role — dikelompokkan per kategori KPI supaya lintas-domain kelihatan jelas */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                    Petakan ke semantic role
+                  </label>
+                  <Select
+                    value={selectedRole}
+                    onValueChange={(v) => { setSelectedRole(v); setTypeMismatchError(null); }}
+                    disabled={!activeCode || rolesLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={rolesLoading ? "Memuat role…" : "Pilih semantic role"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groupedRoles.map((g) => (
+                        <SelectGroup key={g.category}>
+                          <SelectLabel>{categoryLabel(g.category)}</SelectLabel>
+                          {g.roles.map((r) => (
+                            <SelectItem key={r.role_key} value={r.role_key}>
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-medium">{r.label}</span>
+                                  <Badge variant="outline" className="font-mono text-[10px] py-0 h-4">
+                                    {formatExpectedKind(r)}
+                                  </Badge>
+                                </div>
+                                {r.description && (
+                                  <span className="text-xs text-muted-foreground">{r.description}</span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Side-by-side sample comparison — role vs jawaban asli, sebelum commit */}
+                {activeCode && selectedRoleMeta && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-border bg-muted/40 px-3 py-3">
+                      <div className="text-xs font-medium text-muted-foreground mb-1.5">
+                        Role dipilih — <code className="text-foreground">{selectedRoleMeta.role_key}</code>
+                      </div>
+                      <Badge variant="outline" className="font-mono text-[10px] mb-1.5">
+                        {formatExpectedKind(selectedRoleMeta)}
+                      </Badge>
+                      <p className="text-sm">
+                        Contoh jawaban valid:{" "}
+                        <span className="font-medium">
+                          {selectedRoleMeta.sample_valid_answer ?? <span className="text-muted-foreground italic">tidak tersedia</span>}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-muted/40 px-3 py-3">
+                      <div className="text-xs font-medium text-muted-foreground mb-1.5">
+                        Jawaban asli pertanyaan ini
+                      </div>
+                      <div className="flex flex-wrap gap-x-1.5 gap-y-1 text-sm">
+                        {activeCode.sample_answers.length > 0
+                          ? activeCode.sample_answers.map((a, i) => (
+                              <span key={i} className="font-medium">"{a}"{i < activeCode.sample_answers.length - 1 && ","}</span>
+                            ))
+                          : <span className="text-muted-foreground italic">tidak tersedia</span>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Hard-block: type mismatch dari BE (422) */}
+                {typeMismatchError && (
+                  <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-3 text-sm space-y-1">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                      <Ban className="w-3.5 h-3.5" />
+                      Tipe data tidak cocok — mapping ditolak
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Role ini mengharapkan <code className="text-foreground">{typeMismatchError.expected_kind}</code>, tapi
+                      contoh jawaban yang ditemukan: {typeMismatchError.samples.map((s, i) => (
+                        <span key={i}>
+                          <code className="text-foreground">"{s}"</code>
+                          {i < typeMismatchError.samples.length - 1 && ", "}
+                        </span>
+                      ))}. Pilih role lain yang sesuai.
+                    </p>
+                  </div>
+                )}
+
+                {/* Preview & Aktifkan */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    onClick={() => setPreviewOpen((v) => !v)}
+                    disabled={!activeCode}
+                    className="gap-2"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Preview hasil resolve
+                  </Button>
+                  <Button
+                    onClick={() => onActivate(false)}
+                    disabled={!activeCode || !selectedRole || !!typeMismatchError || createMapping.isPending}
+                    className="gap-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    {createMapping.isPending ? "Menyimpan…" : "Aktifkan mapping"}
+                  </Button>
+                </div>
+
+                {previewOpen && activeCode && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-3 text-sm space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                      <Info className="w-3.5 h-3.5" />
+                      Preview resolve (read-only ke OLTP)
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Jika mapping <code className="text-foreground">{activeCode.question_code}</code> →{" "}
+                      <code className="text-foreground">{selectedRole}</code> diaktifkan, contoh jawaban
+                      akan dinormalisasi menjadi:
+                    </p>
+                    <ul className="text-xs space-y-0.5 mt-1">
+                      {activeCode.sample_answers.map((a, i) => (
+                        <li key={i} className="flex items-center gap-2">
+                          <span className="text-muted-foreground">"{a}"</span>
+                          <span className="text-muted-foreground">→</span>
+                          <code className="text-primary font-mono">{selectedRole}</code>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ============= PANEL 2 (dinamis) ============= */}
+            {!activatedRole ? (
+              <Card className="border-dashed border-border bg-muted/20">
+                <CardContent className="py-8 text-center space-y-2">
+                  <ListChecks className="w-8 h-8 text-muted-foreground mx-auto" />
+                  <p className="text-sm font-medium">Langkah 2 belum aktif</p>
+                  <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                    Selesaikan Langkah 1 terlebih dahulu — aktifkan minimal satu mapping kode
+                    pertanyaan. Isi Langkah 2 akan menyesuaikan dengan <em>semantic role</em> yang
+                    baru dipetakan.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : !needsGrouping ? (
+              <Card className="border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <ListChecks className="w-4 h-4 text-primary" />
+                    Langkah 2 — untuk role{" "}
+                    <code className="font-mono text-sm">{activatedRole}</code>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-lg border border-border bg-muted/40 px-3 py-3 flex items-start gap-2 text-sm">
+                    <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <p className="text-muted-foreground">
+                      Semantic role ini bersifat {activeRoleMeta?.expected_kind ?? "numerik/ordinal"} — nilai akan
+                      diproses langsung tanpa pengelompokan kategori manual.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <ListChecks className="w-4 h-4 text-primary" />
+                    Langkah 2 — kelompokkan status untuk role{" "}
+                    <code className="font-mono text-sm">{activatedRole}</code>
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Dikerjakan oleh Kaprodi / P2MPP — keputusan bisnis, bukan teknis. Status baru
+                    muncul di sini setelah lolos Langkah 1.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {(kpiRowsLoading || taxonomyLoading) && (
+                    <p className="text-xs text-muted-foreground">Memuat kategori KPI…</p>
+                  )}
+
+                  {!kpiRowsLoading && !taxonomyLoading && taxonomy.length === 0 && (
+                    <div className="rounded-lg border border-border bg-muted/40 px-3 py-3 flex items-start gap-2 text-sm">
+                      <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                      <p className="text-muted-foreground">
+                        Belum ada kategori KPI yang dikonfigurasi untuk role ini. Hubungi tim
+                        teknis untuk menentukan KPI hilir (<code>digunakan_oleh</code>) &amp;
+                        kategori awal sebelum status bisa dikelompokkan dari sini.
+                      </p>
+                    </div>
+                  )}
+
+                  {taxonomy.map(({ digunakan_oleh: usage, categories }) => {
+                    const rows = usageGroups.get(usage) ?? [];
+                    return (
+                      <div key={usage} className="space-y-2.5">
+                        <p className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                          Digunakan oleh: <span className="font-medium text-foreground">{digunakanOlehLabel(usage)}</span>
+                          {rows.length === 0 && (
+                            <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] py-0">
+                              belum ada status aktif — kelompok ini kosong
+                            </Badge>
+                          )}
+                        </p>
+
+                        {rows.map((row) => (
+                          <div
+                            key={row.id}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5"
+                          >
+                            <div className="min-w-0">
+                              <div className="font-medium text-sm truncate">{row.option_label_snapshot}</div>
+                            </div>
+                            <Badge variant="outline" className={toneClass(inferTone(row.kpi_category))}>
+                              {row.kpi_category_label}
+                            </Badge>
+                          </div>
+                        ))}
+
+                        {candidateOptions.map((c) => (
+                          <div
+                            key={`${usage}-${c.option_code}`}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-primary/60 bg-primary/5 px-3 py-2.5"
+                          >
+                            <div className="min-w-0">
+                              <div className="font-medium text-sm truncate">{c.option_label}</div>
+                              <div className="text-xs text-primary mt-0.5">
+                                (status baru · option_code {c.option_code})
+                              </div>
+                            </div>
+                            <Select
+                              value={pendingKategori[`${usage}::${c.option_code}`] ?? ""}
+                              onValueChange={(v) => setKategoriFor(usage, c.option_code, v)}
+                            >
+                              <SelectTrigger className="w-[220px]">
+                                <SelectValue placeholder="Pilih kategori" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {categories.map((c) => (
+                                  <SelectItem key={c.id} value={c.id}>
+                                    {c.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ))}
+
+                        {candidateOptions.length > 0 && (
+                          <div className="flex items-center justify-end pt-1">
+                            <Button
+                              size="sm"
+                              onClick={() => onSaveKategori(usage)}
+                              disabled={createKpiCategory.isPending}
+                              className="gap-2"
+                            >
+                              <Check className="w-4 h-4" />
+                              Simpan kelompok
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  <p className="text-xs text-muted-foreground pt-2 border-t border-border">
+                    Perubahan bersifat forward-only — tidak mengubah histori periode sebelumnya.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* ============= TAB 2 — DATA TERSIMPAN ============= */}
@@ -834,7 +962,7 @@ const QuestionMappingPage = () => {
                 <Input
                   value={q}
                   onChange={(e) => { setQ(e.target.value); setPage1(1); setPage2(1); }}
-                  placeholder="Cari kode, peran data, status, LAM version…"
+                  placeholder="Cari kode, peran data, status…"
                   className="pl-9"
                 />
               </div>
@@ -844,8 +972,8 @@ const QuestionMappingPage = () => {
                   size="sm"
                   onClick={() => {
                     setQ("");
-                    setF1({ kuesioner: "all", semanticRole: "all", lamVersion: "all", status: "all" });
-                    setF2({ semanticRole: "all", kpi: "all", lamVersion: "all", statusAktif: "all" });
+                    setF1({ kuesioner: "all", semanticRole: "all", status: "all" });
+                    setF2({ semanticRole: "all", kpi: "all", statusAktif: "all" });
                     setPage1(1); setPage2(1);
                   }}
                   className="gap-1.5 text-xs"
@@ -863,14 +991,11 @@ const QuestionMappingPage = () => {
                   Pemetaan Kode & Label Pertanyaan → Peran Data
                 </CardTitle>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Semua mapping aktif per kuesioner &amp; LAM version. Perubahan pada versi baru
-                  tidak mengubah baris di versi lama.
+                  Semua mapping per kuesioner. Perubahan pada versi baru tidak mengubah baris lama.
                 </p>
-                {/* Column filters */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pt-3">
                   <ColFilter label="Kuesioner" value={f1.kuesioner} options={opts1.kuesioner} onChange={(v) => { setF1({ ...f1, kuesioner: v }); setPage1(1); }} />
                   <ColFilter label="Peran Data" value={f1.semanticRole} options={opts1.semanticRole} onChange={(v) => { setF1({ ...f1, semanticRole: v }); setPage1(1); }} />
-                  <ColFilter label="LAM Version" value={f1.lamVersion} options={opts1.lamVersion} onChange={(v) => { setF1({ ...f1, lamVersion: v }); setPage1(1); }} />
                   <ColFilter label="Status" value={f1.status} options={opts1.status} onChange={(v) => { setF1({ ...f1, status: v }); setPage1(1); }} />
                 </div>
               </CardHeader>
@@ -885,60 +1010,61 @@ const QuestionMappingPage = () => {
                         <TableHead>Peran Data</TableHead>
                         <TableHead>Tipe Data</TableHead>
                         <TableHead>Kolom Tujuan OLAP</TableHead>
-                        <TableHead>LAM Version</TableHead>
                         <TableHead>Berlaku Sejak</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Dipetakan Oleh</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {pagedCodes.map((r, i) => (
-                        <TableRow key={i}>
-                          <TableCell className="text-sm">{r.kuesioner}</TableCell>
-                          <TableCell className="font-mono text-xs">{r.code}</TableCell>
-                          <TableCell className="text-sm max-w-md">{r.questionText}</TableCell>
-                          <TableCell>
-                            <code className="text-xs font-mono text-primary">
-                              {r.semanticRole}
-                            </code>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs font-mono">
-                              {r.tipeData}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <code className="text-[11px] font-mono text-muted-foreground">
-                              {r.kolomOlap}
-                            </code>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="gap-1">
-                              <History className="w-3 h-3" />
-                              {r.lamVersion}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {r.activatedAt}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={
-                                r.status === "Aktif"
-                                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                  : "border-muted-foreground/30 bg-muted text-muted-foreground"
-                              }
-                            >
-                              {r.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs">{r.dipetakanOleh}</TableCell>
-                        </TableRow>
-                      ))}
-                      {pagedCodes.length === 0 && (
+                      {savedCodesLoading && (
                         <TableRow>
-                          <TableCell colSpan={10} className="text-center text-sm text-muted-foreground py-6">
+                          <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-6">
+                            Memuat data…
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {!savedCodesLoading && pagedCodes.map((r) => {
+                        const roleMeta = roleByKey[r.semantic_role];
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell className="text-sm">{questionnaireNameById[r.questionnaire_id] ?? r.questionnaire_id}</TableCell>
+                            <TableCell className="font-mono text-xs">{r.question_code}</TableCell>
+                            <TableCell className="text-sm max-w-md">{r.question_text_snapshot}</TableCell>
+                            <TableCell>
+                              <code className="text-xs font-mono text-primary">{r.semantic_role}</code>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs font-mono">
+                                {roleMeta ? formatExpectedKind(roleMeta) : "—"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <code className="text-[11px] font-mono text-muted-foreground">
+                                {roleMeta ? `${roleMeta.target_table}.${roleMeta.target_column}` : "—"}
+                              </code>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {r.effective_date}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={
+                                  r.is_active
+                                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                    : "border-muted-foreground/30 bg-muted text-muted-foreground"
+                                }
+                              >
+                                {r.is_active ? "Aktif" : "Nonaktif"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs">{r.mapped_by?.name ?? "—"}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {!savedCodesLoading && pagedCodes.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-6">
                             Tidak ada baris yang cocok
                           </TableCell>
                         </TableRow>
@@ -966,10 +1092,9 @@ const QuestionMappingPage = () => {
                 <p className="text-xs text-muted-foreground mt-1">
                   Aturan pengelompokan label status per peran data, digunakan oleh KPI hilir.
                 </p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pt-3">
                   <ColFilter label="Peran Data" value={f2.semanticRole} options={opts2.semanticRole} onChange={(v) => { setF2({ ...f2, semanticRole: v }); setPage2(1); }} />
                   <ColFilter label="Digunakan Oleh (KPI)" value={f2.kpi} options={opts2.kpi} onChange={(v) => { setF2({ ...f2, kpi: v }); setPage2(1); }} />
-                  <ColFilter label="LAM Version" value={f2.lamVersion} options={opts2.lamVersion} onChange={(v) => { setF2({ ...f2, lamVersion: v }); setPage2(1); }} />
                   <ColFilter label="Status" value={f2.statusAktif} options={opts2.statusAktif} onChange={(v) => { setF2({ ...f2, statusAktif: v }); setPage2(1); }} />
                 </div>
               </CardHeader>
@@ -983,55 +1108,71 @@ const QuestionMappingPage = () => {
                         <TableHead>Label Status</TableHead>
                         <TableHead>Kategori KPI</TableHead>
                         <TableHead>Digunakan Oleh</TableHead>
-                        <TableHead>LAM Version</TableHead>
                         <TableHead>Berlaku Sejak</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Dikelompokkan Oleh</TableHead>
+                        <TableHead className="text-right">Aksi</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {pagedStatus.map((r, i) => (
-                        <TableRow key={i}>
+                      {savedStatusLoading && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-6">
+                            Memuat data…
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {!savedStatusLoading && pagedStatus.map((r) => (
+                        <TableRow key={r.id}>
                           <TableCell>
-                            <code className="text-xs font-mono text-primary">
-                              {r.semanticRole}
-                            </code>
+                            <code className="text-xs font-mono text-primary">{r.semantic_role}</code>
                           </TableCell>
                           <TableCell>
                             <code className="text-[11px] font-mono text-muted-foreground">
-                              {r.sumberKode}
+                              {(codesByRole.get(r.semantic_role) ?? []).join(", ") || "—"}
                             </code>
                           </TableCell>
-                          <TableCell className="text-sm">{r.status}</TableCell>
-                          <TableCell className="text-sm">{r.kategori}</TableCell>
-                          <TableCell className="text-sm">{r.kpi}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="gap-1">
-                              <History className="w-3 h-3" />
-                              {r.lamVersion}
+                          <TableCell className="text-sm">{r.option_label_snapshot}</TableCell>
+                          <TableCell className="text-sm">
+                            <Badge variant="outline" className={toneClass(inferTone(r.kpi_category))}>
+                              {r.kpi_category_label}
                             </Badge>
                           </TableCell>
+                          <TableCell className="text-sm">{digunakanOlehLabel(r.digunakan_oleh)}</TableCell>
                           <TableCell className="text-xs text-muted-foreground">
-                            {r.activatedAt}
+                            {r.effective_date}
                           </TableCell>
                           <TableCell>
                             <Badge
                               variant="outline"
                               className={
-                                r.statusAktif === "Aktif"
+                                r.is_active
                                   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                                   : "border-muted-foreground/30 bg-muted text-muted-foreground"
                               }
                             >
-                              {r.statusAktif}
+                              {r.is_active ? "Aktif" : "Nonaktif"}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-xs">{r.dikelompokkanOleh}</TableCell>
+                          <TableCell className="text-right">
+                            {r.is_active ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="gap-1.5 h-8"
+                                onClick={() => setEditStatusDialog({ open: true, row: r, newCategory: r.kpi_category })}
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                                Edit
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
-                      {pagedStatus.length === 0 && (
+                      {!savedStatusLoading && pagedStatus.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-6">
+                          <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-6">
                             Tidak ada baris yang cocok
                           </TableCell>
                         </TableRow>
@@ -1052,6 +1193,134 @@ const QuestionMappingPage = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* ===== Constraint-A conflict dialog ===== */}
+      <Dialog
+        open={conflictDialog.open}
+        onOpenChange={(open) => setConflictDialog((d) => ({ ...d, open }))}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Role ini sudah dipetakan
+            </DialogTitle>
+            <DialogDescription>
+              Role <code className="text-foreground">{selectedRole}</code> sudah aktif dipegang kode
+              lain di kuesioner ini. Satu role hanya boleh punya satu kode aktif per kuesioner.
+            </DialogDescription>
+          </DialogHeader>
+
+          {conflictDialog.conflicting_mapping && (
+            <div className="rounded-lg border border-border bg-muted/40 px-3 py-3 text-sm space-y-1">
+              <div>
+                Kode aktif saat ini:{" "}
+                <code className="font-mono text-foreground">{conflictDialog.conflicting_mapping.question_code}</code>
+              </div>
+              <div className="text-muted-foreground">
+                "{conflictDialog.conflicting_mapping.question_text_snapshot}"
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConflictDialog({ open: false, conflicting_mapping: null })}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={() => onActivate(true)}
+              disabled={createMapping.isPending}
+              className="gap-2"
+            >
+              <RefreshCcw className="w-4 h-4" />
+              Ganti mapping lama
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== Edit kategori KPI status tersimpan ===== */}
+      <Dialog
+        open={editStatusDialog.open}
+        onOpenChange={(open) => setEditStatusDialog((d) => (open ? d : { open: false, row: null, newCategory: "" }))}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-primary" />
+              Ubah kategori KPI
+            </DialogTitle>
+            <DialogDescription>
+              Baris lama akan dinonaktifkan (bukan dihapus) dan baris baru dibuat dengan kategori yang
+              dipilih — riwayat tetap tersimpan untuk audit. Berlaku langsung ke seluruh data historis,
+              tidak perlu ETL.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editStatusDialog.row && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-border bg-muted/40 px-3 py-3 text-sm space-y-1">
+                <div className="font-medium">{editStatusDialog.row.option_label_snapshot}</div>
+                <div className="text-xs text-muted-foreground">
+                  <code className="font-mono">{editStatusDialog.row.semantic_role}</code> ·{" "}
+                  {digunakanOlehLabel(editStatusDialog.row.digunakan_oleh)} · kode opsi{" "}
+                  <code className="font-mono">{editStatusDialog.row.option_code}</code>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Kategori KPI baru
+                </label>
+                <Select
+                  value={editStatusDialog.newCategory}
+                  onValueChange={(v) => setEditStatusDialog((d) => ({ ...d, newCategory: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih kategori" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {editCategoryOptions.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditStatusDialog({ open: false, row: null, newCategory: "" })}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveEditStatus}
+              disabled={
+                deactivateKpiCategory.isPending ||
+                createKpiCategory.isPending ||
+                !editStatusDialog.newCategory ||
+                editStatusDialog.newCategory === editStatusDialog.row?.kpi_category
+              }
+              className="gap-2"
+            >
+              <Check className="w-4 h-4" />
+              Simpan perubahan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

@@ -198,6 +198,184 @@ export interface LamVersionThresholdChart {
   calculation_meta?: CalculationMeta;   // baru
 }
 // ─────────────────────────────────────────────
+// Types — Semantic Role Mapping (Pemetaan Pertanyaan)
+// ─────────────────────────────────────────────
+
+export type SemanticExpectedKind =
+  | "integer"
+  | "decimal"
+  | "categorical"
+  | "boolean"
+  | "text"
+  | "date";
+
+export interface SemanticRole {
+  role_key: string;
+  label: string;
+  category: string;
+  description: string | null;
+  expected_kind: SemanticExpectedKind;
+  value_min: number | null;
+  value_max: number | null;
+  sample_valid_answer: string | null;
+  target_table: string;
+  target_column: string;
+  grain: "narrow" | "wide";
+}
+
+export interface QuestionSemanticMapping {
+  id: number;
+  questionnaire_id: number;
+  question_code: string;
+  question_text_snapshot: string;
+  semantic_role: string;
+  grain: "narrow" | "wide";
+  effective_date: string;
+  is_active: boolean;
+  mapped_by: { id: number; name: string } | null;
+  deactivated_at: string | null;
+}
+
+export interface UnmappedQuestion {
+  question_code: string;
+  question_text: string;
+  question_type: string;
+  /** hingga 5 nilai answer_text distinct terbaru — preview, belum masuk OLAP */
+  sample_answers: string[];
+  /** saran heuristik (keyword match label/description role) — never auto-applied */
+  suggested_role: string | null;
+}
+
+/**
+ * Pasangan (option_code, option_label) NYATA dari questionnaire_options milik
+ * kode aktif yang memegang role ini. Satu-satunya sumber sah untuk option_code
+ * saat membuat KpiCategoryMapping baru (Langkah 2) — JANGAN pernah mengarang
+ * option_code (mis. slug dari label): Cube.js mencocokkan option_code ini
+ * persis dengan SPLIT_PART(id_status_alumni, ':', 3), kode karangan tidak akan
+ * pernah match apapun dan kategorisasinya gagal senyap.
+ */
+export interface OptionCandidate {
+  option_code: string;
+  option_label: string;
+}
+
+/** Kuesioner "nasional" (program_id IS NULL) — satu-satunya yang relevan untuk Pemetaan Pertanyaan. */
+export interface QuestionnaireOption {
+  id: number;
+  code: string;
+  title: string;
+  period_year: number;
+}
+
+export interface SimilarQuestion {
+  question_code: string;
+  question_text: string;
+  similarity: number;
+  current_semantic_role: string | null;
+}
+
+export interface CreateQuestionSemanticMappingPayload {
+  questionnaire_id: number;
+  question_code: string;
+  semantic_role: string;
+  /** wajib true untuk retry setelah 409 role_already_mapped (Constraint A) */
+  force_replace?: boolean;
+}
+
+/** Body respons 409 — Constraint A: role narrow ini sudah dipegang kode aktif lain di kuesioner ini. */
+export interface RoleAlreadyMappedError {
+  error: "role_already_mapped";
+  conflicting_mapping: {
+    id: number;
+    question_code: string;
+    question_text_snapshot: string;
+  };
+}
+
+/** Body respons 422 — sample jawaban tidak cocok dengan expected_kind role tujuan. Hard block, tidak boleh di-retry diam-diam. */
+export interface TypeMismatchError {
+  error: "type_mismatch";
+  expected_kind: SemanticExpectedKind;
+  samples: string[];
+}
+
+export interface KpiCategoryMapping {
+  id: number;
+  semantic_role: string;
+  option_code: string;
+  option_label_snapshot: string;
+  kpi_category: string;
+  kpi_category_label: string;
+  digunakan_oleh: string;
+  is_active: boolean;
+  effective_date: string;
+}
+
+export interface CreateKpiCategoryMappingPayload {
+  semantic_role: string;
+  option_code: string;
+  option_label_snapshot: string;
+  kpi_category: string;
+  kpi_category_label: string;
+  digunakan_oleh: string;
+}
+
+/**
+ * Satu grouping (digunakan_oleh) yang PERNAH dikonfigurasi untuk sebuah role —
+ * aktif atau tidak. Beda dari KpiCategoryMapping: ini bukan baris data, tapi
+ * daftar "section apa saja yang bisa dikelola", supaya grouping yang SEMUA
+ * baris aktifnya kebetulan nonaktif (mis. baru dinonaktifkan semua untuk
+ * demo ulang) tetap muncul di Langkah 2, bukan hilang total dari tampilan.
+ */
+export interface KpiCategoryTaxonomyEntry {
+  digunakan_oleh: string;
+  categories: { id: string; label: string }[];
+}
+
+export interface KpiFormulaGroup {
+  kpi_category: string;
+  kpi_category_label: string;
+  options: string[];
+}
+
+export interface KpiFormulaResponse {
+  semantic_role: string;
+  digunakan_oleh: string;
+  groups: KpiFormulaGroup[];
+}
+
+export interface EtlAnomalyLogEntry {
+  id: number;
+  etl_run_id: string;
+  alumni_nim: string;
+  questionnaire_id: number;
+  question_code: string;
+  semantic_role: string;
+  raw_answer: string | null;
+  expected_kind: SemanticExpectedKind;
+  reason: string;
+  detail: string | null;
+  occurred_at: string;
+}
+
+/** Shape default Laravel paginate() — dipakai apa adanya, tidak dibungkus ApiResponse. */
+export interface LaravelPaginated<T> {
+  current_page: number;
+  data: T[];
+  first_page_url: string | null;
+  from: number | null;
+  last_page: number;
+  last_page_url: string | null;
+  links: { url: string | null; label: string; active: boolean }[];
+  next_page_url: string | null;
+  path: string;
+  per_page: number;
+  prev_page_url: string | null;
+  to: number | null;
+  total: number;
+}
+
+// ─────────────────────────────────────────────
 // Axios instance
 // ─────────────────────────────────────────────
 
@@ -546,6 +724,190 @@ export const apiService = {
     data: Partial<Pick<ThresholdIndicatorMeta, "name" | "unit" | "operator" | "description" | "dynamic_param_unit">>
   ): Promise<ApiResponse<ThresholdIndicatorMeta>> => {
     const response = await apiClient.put(`/threshold-indicators/${id}`, data);
+    return response.data;
+  },
+
+  // ── Semantic Role Registry ────────────────
+
+  /**
+   * GET /semantic-roles
+   * Semua role aktif — di-group client-side per `category` (lihat useQuestionMappingManagement)
+   * untuk dropdown Langkah 1, supaya admin tidak salah petakan role lintas domain KPI.
+   */
+  getSemanticRoles: async (): Promise<ApiResponse<SemanticRole[]>> => {
+    const response = await apiClient.get("/semantic-roles");
+    return response.data;
+  },
+
+  // ── Question Semantic Mapping (Langkah 1) ─
+
+  /**
+   * GET /question-semantic-mappings?questionnaire_id=&is_active=
+   */
+  getQuestionSemanticMappings: async (params?: {
+    questionnaire_id?: number;
+    is_active?: boolean;
+  }): Promise<ApiResponse<QuestionSemanticMapping[]>> => {
+    const response = await apiClient.get("/question-semantic-mappings", { params });
+    return response.data;
+  },
+
+  /**
+   * GET /question-semantic-mappings/unmapped?questionnaire_id=
+   * Kode yang belum termapping di kuesioner ini, lengkap dengan contoh jawaban OLTP
+   * & saran role heuristik (tidak pernah auto-apply).
+   */
+  getUnmappedQuestions: async (
+    questionnaire_id: number
+  ): Promise<ApiResponse<UnmappedQuestion[]>> => {
+    const response = await apiClient.get("/question-semantic-mappings/unmapped", {
+      params: { questionnaire_id },
+    });
+    return response.data;
+  },
+
+  /**
+   * GET /question-semantic-mappings/questionnaires
+   * Kuesioner nasional (program_id IS NULL) untuk selector Langkah 1/2 —
+   * satu-satunya yang pernah punya question_code relevan untuk fitur ini.
+   */
+  getMappableQuestionnaires: async (): Promise<ApiResponse<QuestionnaireOption[]>> => {
+    const response = await apiClient.get("/question-semantic-mappings/questionnaires");
+    return response.data;
+  },
+
+  /**
+   * GET /question-semantic-mappings/option-candidates?semantic_role=
+   * Pasangan (option_code, option_label) NYATA untuk role ini — satu-satunya
+   * sumber sah option_code saat mengelompokkan status baru ke kategori KPI
+   * (Langkah 2). Jangan pernah mengarang option_code di klien.
+   */
+  getOptionCandidates: async (
+    semantic_role: string
+  ): Promise<ApiResponse<OptionCandidate[]>> => {
+    const response = await apiClient.get("/question-semantic-mappings/option-candidates", {
+      params: { semantic_role },
+    });
+    return response.data;
+  },
+
+  /**
+   * GET /question-semantic-mappings/similar?questionnaire_id=&question_text=&exclude_code=
+   * Constraint D helper (pg_trgm similarity) — dipanggil saat admin memilih kode di
+   * Langkah 1, sebelum commit, supaya tidak membuat mapping duplikat/pecah.
+   */
+  getSimilarQuestions: async (params: {
+    questionnaire_id: number;
+    question_text: string;
+    exclude_code?: string;
+  }): Promise<ApiResponse<SimilarQuestion[]>> => {
+    const response = await apiClient.get("/question-semantic-mappings/similar", { params });
+    return response.data;
+  },
+
+  /**
+   * POST /question-semantic-mappings
+   * BE re-validasi constraint A/B & type-compatibility (tidak percaya client). Bisa balas:
+   * - 409 { error: 'role_already_mapped', conflicting_mapping } → Constraint A, retry dengan force_replace: true
+   * - 422 { error: 'type_mismatch', expected_kind, samples }    → hard block, FE wajib patuh, jangan retry diam-diam
+   */
+  createQuestionSemanticMapping: async (
+    payload: CreateQuestionSemanticMappingPayload
+  ): Promise<ApiResponse<QuestionSemanticMapping>> => {
+    const response = await apiClient.post("/question-semantic-mappings", payload);
+    return response.data;
+  },
+
+  /**
+   * POST /question-semantic-mappings/{id}/deactivate
+   * Tidak pernah DELETE — hanya soft-deactivate (is_active=false, deactivated_at/by).
+   */
+  deactivateQuestionSemanticMapping: async (
+    id: number
+  ): Promise<ApiResponse<QuestionSemanticMapping>> => {
+    const response = await apiClient.post(`/question-semantic-mappings/${id}/deactivate`);
+    return response.data;
+  },
+
+  // ── KPI Category Mapping (Langkah 2) ──────
+
+  /**
+   * GET /kpi-category-mappings?semantic_role=&digunakan_oleh=
+   */
+  getKpiCategoryMappings: async (params?: {
+    semantic_role?: string;
+    digunakan_oleh?: string;
+    /** true = kembalikan SEMUA baris (aktif+nonaktif) — dipakai tab audit "Data Tersimpan". */
+    all?: boolean;
+  }): Promise<ApiResponse<KpiCategoryMapping[]>> => {
+    const response = await apiClient.get("/kpi-category-mappings", { params });
+    return response.data;
+  },
+
+  /**
+   * GET /kpi-category-mappings/taxonomy?semantic_role=
+   * Section (digunakan_oleh) apa saja yang PERNAH dikonfigurasi untuk role
+   * ini, aktif atau tidak — lihat catatan di KpiCategoryTaxonomyEntry.
+   */
+  getKpiCategoryTaxonomy: async (
+    semantic_role: string
+  ): Promise<ApiResponse<KpiCategoryTaxonomyEntry[]>> => {
+    const response = await apiClient.get("/kpi-category-mappings/taxonomy", {
+      params: { semantic_role },
+    });
+    return response.data;
+  },
+
+  /**
+   * POST /kpi-category-mappings
+   * BE pre-check unique index (semantic_role, option_code, digunakan_oleh) WHERE is_active
+   * dan balas 409 kalau konflik (bukan 500) — sama semantik dengan is_active=false-then-insert.
+   */
+  createKpiCategoryMapping: async (
+    payload: CreateKpiCategoryMappingPayload
+  ): Promise<ApiResponse<KpiCategoryMapping>> => {
+    const response = await apiClient.post("/kpi-category-mappings", payload);
+    return response.data;
+  },
+
+  /**
+   * POST /kpi-category-mappings/{id}/deactivate
+   */
+  deactivateKpiCategoryMapping: async (
+    id: number
+  ): Promise<ApiResponse<KpiCategoryMapping>> => {
+    const response = await apiClient.post(`/kpi-category-mappings/${id}/deactivate`);
+    return response.data;
+  },
+
+  /**
+   * GET /kpi-category-mappings/formula?semantic_role=&digunakan_oleh=
+   * Endpoint tooltip dinamis — dipakai chart KPI hilir (Kpi4Absorption dkk, lewat
+   * useKpiFormula) supaya formula di UI selalu sinkron dengan pengelompokan status
+   * terbaru tanpa perlu deploy FE baru. Respons TIDAK dibungkus { data }.
+   */
+  getKpiCategoryMappingFormula: async (params: {
+    semantic_role: string;
+    digunakan_oleh: string;
+  }): Promise<KpiFormulaResponse> => {
+    const response = await apiClient.get("/kpi-category-mappings/formula", { params });
+    return response.data;
+  },
+
+  // ── ETL Anomaly Log ───────────────────────
+
+  /**
+   * GET /etl-anomaly-log?etl_run_id=&semantic_role=&nim=&page=
+   * Paginated (Laravel default paginate() shape). Semua filter opsional/combinable.
+   * Respons TIDAK dibungkus { data } — sudah punya shape paginator sendiri.
+   */
+  getEtlAnomalyLog: async (params?: {
+    etl_run_id?: string;
+    semantic_role?: string;
+    nim?: string;
+    page?: number;
+  }): Promise<LaravelPaginated<EtlAnomalyLogEntry>> => {
+    const response = await apiClient.get("/etl-anomaly-log", { params });
     return response.data;
   },
 
