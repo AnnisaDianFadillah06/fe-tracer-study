@@ -30,7 +30,7 @@ const Kpi9CompetencyGapChart = () => {
   const { data, loading, error } = useKompetensiGap();
   const drillHook = useKompetensiGapDrillDown();
   const [view, setView] = useState<"radar" | "bar">("radar");
-  const [modal, setModal] = useState<{ open: boolean; title: string; kode_field?: string }>({ open: false, title: "" });
+  const [modal, setModal] = useState<{ open: boolean; title: string; grup_gap?: string }>({ open: false, title: "" });
 
   // Transform: radar membutuhkan skor_lulus & skor_dibutuhkan per indikator
   const cleanLabel = (label: string) =>
@@ -42,7 +42,7 @@ const Kpi9CompetencyGapChart = () => {
       kompetensi: cleanLabel(d.label),
       lulus:      d.skor_lulus,
       industri:   d.skor_dibutuhkan,
-      kodeField:  d.kode_field,
+      grupGap:    d.grup_gap,
       count:      d.count_responden,
     }));
   }, [data]);
@@ -52,7 +52,7 @@ const Kpi9CompetencyGapChart = () => {
     return data.data.map((d) => ({
       kompetensi: cleanLabel(d.label),
       gap:        +(d.skor_lulus - d.skor_dibutuhkan).toFixed(2),
-      kodeField:  d.kode_field,
+      grupGap:    d.grup_gap,
       count:      d.count_responden,
     }));
   }, [data]);
@@ -189,8 +189,8 @@ const Kpi9CompetencyGapChart = () => {
                   <Bar dataKey="gap" radius={[0, 6, 6, 0]} maxBarSize={30}
                     cursor="pointer"
                     onClick={(d: any) => {
-                      setModal({ open: true, title: `${d.kompetensi} (Gap: ${d.gap >= 0 ? "+" : ""}${d.gap.toFixed(2)} · ${d.count} responden)`, kode_field: d.kodeField });
-                      drillHook.fetch({ kode_field: d.kodeField, page: 1 });
+                      setModal({ open: true, title: `${d.kompetensi} (Gap: ${d.gap >= 0 ? "+" : ""}${d.gap.toFixed(2)} · ${d.count} responden)`, grup_gap: d.grupGap });
+                      drillHook.fetch({ grup_gap: d.grupGap, page: 1 });
                     }}>
                     {gapData.map((d, i) => (
                       <Cell key={i} fill={d.gap >= 0 ? C.green : C.red} />
@@ -289,7 +289,7 @@ const Kpi9CompetencyGapChart = () => {
       loading={drillHook.loading}
       error={drillHook.error}
       contextColumn={CONTEXT_COLUMN}
-      onPageChange={(page, search) => drillHook.fetch({ kode_field: modal.kode_field, page, search })}
+      onPageChange={(page, search) => drillHook.fetch({ grup_gap: modal.grup_gap, page, search })}
     />
     </>
   );

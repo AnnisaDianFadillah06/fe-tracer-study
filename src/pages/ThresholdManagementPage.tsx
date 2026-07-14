@@ -42,10 +42,8 @@ import {
 import { Plus, Edit, Trash2, Search, X, Building2, FileBadge } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  useThresholdManagement,
-  THRESHOLD_INDICATORS,
-} from "@/hooks/useThresholdManagement";
+import { useThresholdManagement, formatVersionRange } from "@/hooks/useThresholdManagement";
+import { MethodologyBlock } from "@/components/dashboard/charts/common/kpi/Methodology";
 
 const ThresholdManagementPage = () => {
   const {
@@ -61,6 +59,7 @@ const ThresholdManagementPage = () => {
     setFilterStatus,
     filterLam,
     setFilterLam,
+    indicators,
 
     // LAM
     isLamDialogOpen,
@@ -83,6 +82,7 @@ const ThresholdManagementPage = () => {
     deleteLam,
     isLamDeleteOpen,
     setIsLamDeleteOpen,
+    updateThresholdParam,
 
     // Standar
     isStdDialogOpen,
@@ -97,6 +97,8 @@ const ThresholdManagementPage = () => {
     openEditStandar,
     submitStandar,
     updateThreshold,
+    tracerBreakdown,
+    tracerBreakdownLoading,
     confirmDeleteStandar,
     deleteStandar,
     isStdDeleteOpen,
@@ -351,17 +353,28 @@ const ThresholdManagementPage = () => {
                               </TableCell>
                               <TableCell>
                                 <div className="font-medium">{s.version_name}</div>
-                                <div className="text-[11px] text-muted-foreground">Tahun {s.year}</div>
+                                <div className="text-[11px] text-muted-foreground">
+                                  Tahun {formatVersionRange(s.year, s.year_end)}
+                                </div>
                               </TableCell>
                               <TableCell>
                                 <div className="flex flex-col gap-1.5">
-                                  {s.thresholds.map((ind) => (
-                                    <div key={ind.indicator_id} className="flex items-center gap-2 text-xs">
-                                      <span className="min-w-[180px] text-muted-foreground truncate">{ind.indicator_name}</span>
-                                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-0 text-[10px] px-2">Baik {ind.baik}</Badge>
-                                      <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100 border-0 text-[10px] px-2">Unggul {ind.unggul}</Badge>
-                                    </div>
-                                  ))}
+                                  {s.thresholds.map((ind) =>
+                                    ind.is_system_calculated ? (
+                                      <div key={ind.indicator_id} className="flex items-center gap-2 text-xs">
+                                        <span className="min-w-[180px] text-muted-foreground truncate">{ind.indicator_name}</span>
+                                        <Badge variant="outline" className="text-[10px] px-2">
+                                          Otomatis (Slovin) — lihat detail per prodi
+                                        </Badge>
+                                      </div>
+                                    ) : (
+                                      <div key={ind.indicator_id} className="flex items-center gap-2 text-xs">
+                                        <span className="min-w-[180px] text-muted-foreground truncate">{ind.indicator_name}</span>
+                                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-0 text-[10px] px-2">Baik {ind.baik}</Badge>
+                                        <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100 border-0 text-[10px] px-2">Unggul {ind.unggul}</Badge>
+                                      </div>
+                                    )
+                                  )}
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -563,14 +576,82 @@ const ThresholdManagementPage = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {THRESHOLD_INDICATORS.map((ind) => {
+                    {indicators.map((ind) => {
                       const row = stdForm.thresholds.find((x) => x.indicator_id === ind.id);
                       const tErr = stdFormErrors.thresholds?.[ind.id];
+
+                      if (ind.is_system_calculated) {
+                        return (
+                          <TableRow key={ind.id}>
+                            <TableCell colSpan={3} className="align-top py-3">
+                              <div className="space-y-3">
+                                <div>
+                                  <div className="font-medium text-sm">{ind.name}</div>
+                                  <div className="text-[10px] text-muted-foreground">{ind.key} • {ind.unit}</div>
+                                </div>
+
+                                <MethodologyBlock
+                                  description="Nilai indikator ini dihitung otomatis oleh sistem memakai formula Slovin, berdasarkan jumlah lulusan tiap angkatan per program studi — bukan diisi manual."
+                                  formula="n = N / (1 + N·e²)"
+                                  notes="n = jumlah responden minimum (threshold), N = total lulusan angkatan tsb., e = margin of error (2,3%)"
+                                />
+
+                                {!stdForm.lam_id ? (
+                                  <p className="text-xs text-muted-foreground">Pilih LAM untuk melihat breakdown per prodi.</p>
+                                ) : tracerBreakdownLoading ? (
+                                  <div className="space-y-1.5">
+                                    <Skeleton className="h-4 w-full" />
+                                    <Skeleton className="h-4 w-4/5" />
+                                  </div>
+                                ) : tracerBreakdown.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    Belum ada data lulusan untuk LAM ini — nilai akan muncul otomatis setelah alumni mengisi tracer study.
+                                  </p>
+                                ) : (
+                                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2 bg-muted/20">
+                                    {tracerBreakdown.map((prodi) => (
+                                      <div key={prodi.program_id}>
+                                        <div className="text-xs font-medium">{prodi.program_name}</div>
+                                        <div className="flex flex-col gap-1 pl-2 mt-0.5">
+                                          {prodi.history.map((h) => (
+                                            <div key={h.graduated_year} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                              <span className="min-w-[90px]">Angkatan {h.graduated_year}</span>
+                                              <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100 border-0 text-[10px] px-2">
+                                                {h.threshold_value}%
+                                              </Badge>
+                                              <span>min {h.min_responden} dari {h.total_lulusan} lulusan</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+
                       return (
                         <TableRow key={ind.id}>
                           <TableCell className="text-sm">
-                            <div className="font-medium">{ind.name}</div>
+                            <div className="font-medium">{ind.name.replace("{value}", String(row?.param_value ?? "…"))}</div>
                             <div className="text-[10px] text-muted-foreground">{ind.key} • {ind.unit}</div>
+
+                            {ind.dynamic_param_unit && (
+                              <div className="mt-2 flex items-center gap-2">
+                                <Label className="text-[10px] shrink-0">
+                                  Parameter ({ind.dynamic_param_unit === "bulan" ? "bulan" : "x UMP/UMK"})
+                                </Label>
+                                <Input
+                                  type="number" min={0} step="0.1"
+                                  value={row?.param_value ?? ""}
+                                  onChange={(e) => updateThresholdParam(ind.id, Number(e.target.value))}
+                                  className="h-7 w-24"
+                                />
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Input

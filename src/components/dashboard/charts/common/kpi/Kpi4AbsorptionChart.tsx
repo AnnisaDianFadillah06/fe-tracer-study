@@ -6,11 +6,13 @@ import {
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import { MethodologyBlock } from "./Methodology";
+import { markMax } from "./format";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
 import { formatPctCount } from "./format";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import { useKeterserapanBar, useKeterserapanPie, useKeterserapanDrillDown } from "@/hooks/useKeterserapan";
+import { useKpiFormula, findFormulaGroup, joinOptions } from "@/hooks/useKpiFormula";
 import { buildColorMap, getShortLabel } from "@/lib/chartColors";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 
@@ -21,6 +23,14 @@ const Kpi4AbsorptionChart = () => {
   const barHook   = useKeterserapanBar();
   const pieHook   = useKeterserapanPie();
   const drillHook = useKeterserapanDrillDown();
+
+  // Formula dinamis — label status "terserap"/"tidak terserap" saat ini, bukan
+  // teks statis "A + B + C". Otomatis update begitu admin ubah pengelompokan
+  // status di halaman Pemetaan Pertanyaan (Langkah 2), tanpa deploy FE baru.
+  const formulaHook   = useKpiFormula("status_pekerjaan", "iku2_keterserapan");
+  const terserapGroup = findFormulaGroup(formulaHook.groups, "terserap");
+  const tidakGroup    = findFormulaGroup(formulaHook.groups, "tidak");
+  const keterserapanNumerator = joinOptions(terserapGroup, "A + B + C");
 
   // ── Modal state — simpan juga apakah dari bar atau pie ─────────────────────
   const [modal, setModal] = useState<{
@@ -108,15 +118,19 @@ const Kpi4AbsorptionChart = () => {
           headerExtra={<LamFilterControls lam={lam} />}
           methodology={
             <MethodologyBlock
-              description="Mengukur lulusan S1/Diploma yang berhasil bekerja (A), melanjutkan studi (B), atau berwirausaha (C) dalam satu periode."
-              formula={<>Keterserapan (%) = ((A + B + C) × 100) / Total Lulusan S1 &amp; Diploma dalam Satu Periode</>}
-              notes="A = bekerja, B = lanjut studi, C = wiraswasta. Sumber: BAN-PT / IAPS 4.0."
+              description="Mengukur lulusan S1/Diploma yang berhasil bekerja, melanjutkan studi, atau berwirausaha dalam satu periode."
+              formula={<>Keterserapan (%) = (({keterserapanNumerator}) × 100) / Total Lulusan S1 &amp; Diploma dalam Satu Periode</>}
+              notes={
+                terserapGroup
+                  ? <>Termasuk terserap: {terserapGroup.options.join(", ")}.{tidakGroup && <> Tidak terserap: {tidakGroup.options.join(", ")}.</>} Sumber: BAN-PT / IAPS 4.0.</>
+                  : "A = bekerja, B = lanjut studi, C = wiraswasta. Sumber: BAN-PT / IAPS 4.0."
+              }
             />
           }
         >
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={comboData} margin={{ top: 20, right: 20, left: 10, bottom: 25 }}>
+              <ComposedChart data={markMax(comboData, "value")} margin={{ top: 30, right: 20, left: 10, bottom: 25 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
                 <XAxis dataKey="year" fontSize={13}
                   label={{ value: "Tahun Kelulusan", position: "insideBottom", offset: -8, fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
@@ -136,21 +150,28 @@ const Kpi4AbsorptionChart = () => {
                     stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3"
                   />
                 )}
+                {markMax(comboData, "value").filter((d) => d.isMax).map((d) => (
+                  <ReferenceArea key={`max-${d.year}`} x1={d.year} x2={d.year}
+                    fill="hsl(45 95% 55%)" fillOpacity={0.14}
+                    stroke="hsl(45 95% 45%)" strokeOpacity={0.55} strokeDasharray="4 2" />
+                ))}
                 <Bar dataKey="value" name="Keterserapan" radius={[6, 6, 0, 0]} maxBarSize={50}
                   cursor="pointer"
-                  // fix #2: selalu buka dengan status=terserap
                   onClick={(d: any) => openFromBar(
                     `Terserap ${d.year} — ${d.value}% (${d.n}/${d.total} alumni)`,
                     d.year
                   )}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
-                  {comboData.map((d) => (
+                  {markMax(comboData, "value").map((d) => (
                     <Cell key={d.year}
                       fill={showRefLine && lam.threshold ? (d.value >= lam.threshold ? C.blue : C.orange) : C.blue}
                     />
                   ))}
                   <LabelList dataKey="value" position="center" fill="#fff" fontSize={11} formatter={(v: number) => `${v}%`} />
+                  <LabelList dataKey="isMax" position="top" content={(p: any) =>
+                    p.value ? <text x={p.x + p.width / 2} y={p.y - 6} fontSize={11} fontWeight={700} fill="hsl(38 92% 38%)" textAnchor="middle">★ Tertinggi</text> : null
+                  } />
                 </Bar>
                 <Line type="monotone" dataKey="value" name="Tren" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
                 {showRefLine && (

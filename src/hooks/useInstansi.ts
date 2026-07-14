@@ -58,8 +58,10 @@ export interface InstansiDrillDownResponse {
 }
 
 export interface InstansiDrillDownParams {
-  jenis_instansi?: string;
+  jenis_instansi?: string | string[];
   tingkat_instansi?: string;
+  tahun_lulus?: string;
+  nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -174,17 +176,26 @@ export function useInstansiDrillDown() {
       setLoading(true);
       setError(null);
 
+      const baseParams = buildParams(degree, jurusan, prodi, tahunLulus, weekKey);
+      if (extra.tahun_lulus) baseParams.tahun_lulus = extra.tahun_lulus;
+      if (extra.nama_prodi) baseParams.nama_prodi = extra.nama_prodi;
       const params: Record<string, string> = {
-        ...buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
+        ...baseParams,
         page:     String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),
-        ...(extra.jenis_instansi   ? { jenis_instansi:   extra.jenis_instansi   } : {}),
         ...(extra.tingkat_instansi ? { tingkat_instansi: extra.tingkat_instansi } : {}),
         ...(extra.search           ? { search:           extra.search           } : {}),
       };
 
+      const jenisArr = Array.isArray(extra.jenis_instansi)
+        ? extra.jenis_instansi
+        : extra.jenis_instansi ? [extra.jenis_instansi] : [];
+
+      const searchParams = new URLSearchParams(params);
+      jenisArr.forEach((j) => searchParams.append("jenis_instansi[]", j));
+
       apiService
-        .get<any>("/dashboard/sebaraninstansi/drill-down", { params, signal: abortRef.current.signal })
+        .get<any>(`/dashboard/sebaraninstansi/drill-down?${searchParams.toString()}`, { signal: abortRef.current.signal })
         .then((res) => { setData(res?.data ?? res); setLoading(false); })
         .catch((err: any) => {
           if (err?.name === "CanceledError" || err?.name === "AbortError") return;

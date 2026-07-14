@@ -111,14 +111,25 @@ function buildParams(
 // Hook: useMasaTungguBar
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function useMasaTungguBar() {
-  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
+/**
+ * batasCepatBulan: ambang "cepat" dinamis (dulu selalu 6 bulan) -- sumbernya
+ * useLamFilter("waitingTime").dynamicParam?.value (indikator employment_time
+ * per LAM version terpilih). undefined = BE pakai default 6 bulan (standar
+ * DIKTI, dipakai saat belum ada konteks LAM/prodi terpilih).
+ */
+export function useMasaTungguBar(batasCepatBulan?: number) {
+  const { degree, jurusan, prodi, weekKey, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
-  const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-    [degree, jurusan, prodi, tahunLulus, weekKey]
-  );
+  const params = useMemo(() => {
+    const p: Record<string, string> = {};
+    if (degree  && degree  !== "__all__") p.jenjang         = degree;
+    if (jurusan && jurusan !== "__all__") p.jurusan         = jurusan;
+    if (prodi   && prodi   !== "__all__") p.nama_prodi      = prodi;
+    if (weekKey)                          p.minggu_snapshot = weekKey;
+    if (batasCepatBulan != null)          p.batas_cepat_bulan = String(batasCepatBulan);
+    return p;
+  }, [degree, jurusan, prodi, weekKey, batasCepatBulan]);
 
   const result = useQuery<MasaTungguBarResponse>({
     queryKey: ["masa-tunggu", "bar", params, updatedTs],
@@ -140,12 +151,19 @@ export function useMasaTungguBar() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useMasaTungguDistribusi() {
-  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt, filterOptions } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
+  // Distribusi adalah snapshot SATU kohort (subtitle-nya di Kpi5WaitingTimeChart
+  // menampilkan "Tahun kelulusan X"), bukan tren lintas tahun -- kalau tidak ada
+  // tahun dipilih ("all"), tanpa ini datanya diam-diam menjumlah SEMUA tahun
+  // sementara subtitle mengklaim cuma satu tahun (tahun terbaru). Default ke
+  // tahun_lulus TERBARU supaya subtitle dan data benar-benar konsisten.
+  const effectiveTahun = tahunLulus !== "all" ? tahunLulus : (filterOptions.tahunLulus[0] ?? "all");
+
   const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-    [degree, jurusan, prodi, tahunLulus, weekKey]
+    () => buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
+    [degree, jurusan, prodi, effectiveTahun, weekKey]
   );
 
   const result = useQuery<MasaTungguDistribusiResponse>({
@@ -168,10 +186,14 @@ export function useMasaTungguDistribusi() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface MasaTungguDrillDownParams {
-  rentang: "0-3" | "3-6" | ">6";
+  /** 'cepat' = <= batas_cepat_bulan dinamis (dipakai bar "% Lulusan <= N Bulan"), BUKAN bucket tetap 0-3. */
+  rentang: "cepat" | "0-3" | "3-6" | ">6";
+  tahun_lulus?: string;
+  nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
+  batas_cepat_bulan?: number;
 }
 
 export function useMasaTungguDrillDown() {
@@ -195,12 +217,16 @@ export function useMasaTungguDrillDown() {
       setLoading(true);
       setError(null);
 
+      const baseParams = buildParams(degree, jurusan, prodi, tahunLulus, weekKey);
+      if (extra.tahun_lulus) baseParams.tahun_lulus = extra.tahun_lulus;
+      if (extra.nama_prodi) baseParams.nama_prodi = extra.nama_prodi;
       const params: Record<string, string> = {
-        ...buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
+        ...baseParams,
         rentang:  extra.rentang,
         page:     String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),
         ...(extra.search ? { search: extra.search } : {}),
+        ...(extra.batas_cepat_bulan != null ? { batas_cepat_bulan: String(extra.batas_cepat_bulan) } : {}),
       };
 
       apiService

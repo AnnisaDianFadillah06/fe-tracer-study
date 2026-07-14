@@ -68,6 +68,7 @@ export interface WirausahaDrillDownParams {
   jabatan?: string;
   jabatan_values?: string[];
   tahun_lulus?: string;
+  nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -86,7 +87,7 @@ export interface WirausahaBandingkanItem {
   count_wirausaha: number;
   pct_wirausaha: number;
   avg_masa_tunggu_wirausaha: number;
-  tingkat: WirausahaBandingkanTingkat[];
+  jabatan: { label: string; count: number; pct: number }[];
 }
 
 export interface WirausahaBandingkanResponse {
@@ -149,12 +150,19 @@ export function useWirausahaBar() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useWirausahaPie() {
-  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt, filterOptions } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
+  // Pie adalah snapshot SATU kohort, bukan tren lintas tahun -- kalau tidak
+  // ada tahun dipilih ("all"), agregasi lintas SEMUA tahun_lulus akan
+  // mencampur kohort berbeda jadi satu potongan pie yang tidak jelas
+  // mewakili tahun mana. Default ke tahun_lulus TERBARU (filterOptions
+  // sudah terurut desc dari backend), bukan mengirim tanpa filter tahun.
+  const effectiveTahun = tahunLulus !== "all" ? tahunLulus : (filterOptions.tahunLulus[0] ?? "all");
+
   const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-    [degree, jurusan, prodi, tahunLulus, weekKey]
+    () => buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
+    [degree, jurusan, prodi, effectiveTahun, weekKey]
   );
 
   const result = useQuery<WirausahaPieResponse>({
@@ -196,6 +204,7 @@ export function useWirausahaDrillDown() {
         ...(extra.tingkat ? { tingkat: extra.tingkat } : {}),
         ...(extra.jabatan ? { jabatan: extra.jabatan } : {}),
         ...(extra.jabatan_values?.length ? { jabatan_values: extra.jabatan_values.join(',') } : {}),
+        ...(extra.nama_prodi ? { nama_prodi: extra.nama_prodi } : {}),
         page:     String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),
         ...(extra.search ? { search: extra.search } : {}),

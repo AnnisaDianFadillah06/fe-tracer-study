@@ -100,9 +100,13 @@ const DrillDownModal = ({
 
   const displayTitle = (() => {
     if (!data || loading) return title;
-    const actual = pagination?.total ?? (currentPage === 1 ? totalOnPage : null);
-    if (actual == null) return title;
-    return title.replace(/(\d+)(\s*(?:\/\d+\s*)?(?:alumni|responden|lulusan|data)\b)/, `${actual}$2`);
+    if (pagination?.total != null) {
+      return title.replace(/(\d+)(\s*(?:\/\d+\s*)?(?:alumni|responden|lulusan|data)\b)/, `${pagination.total}$2`);
+    }
+    if (currentPage === 1 && totalOnPage < perPage) {
+      return title.replace(/(\d+)(\s*(?:\/\d+\s*)?(?:alumni|responden|lulusan|data)\b)/, `${totalOnPage}$2`);
+    }
+    return title;
   })();
 
   if (!isOpen) return null;
@@ -159,7 +163,7 @@ const DrillDownModal = ({
               </div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-secondary/40 sticky top-0 z-10">
+                <thead className="bg-card sticky top-0 z-10 shadow-[0_1px_0_0_hsl(var(--border))]">
                   <tr>
                     <th className="py-3 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-10">No</th>
                     <th className="py-3 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nama</th>

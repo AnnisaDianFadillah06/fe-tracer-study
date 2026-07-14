@@ -25,7 +25,23 @@ import {
 } from "@/hooks/usePembiayaan";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 
-const PIE_COLORS = [C.blueLight, C.green, C.orange, C.gray, C.blue, C.red];
+const PIE_COLORS = [C.blueLight, C.green, C.orange, C.gray, C.blue, C.red, "#8b5cf6", "#ec4899"];
+
+const OFFICIAL_SOURCES = new Set([
+  "Biaya Sendiri/Keluarga",
+  "Beasiswa BIDIKMISI",
+  "Beasiswa PPA",
+  "Beasiswa Perusahaan/Swasta",
+  "Beasiswa AFIRMASI",
+  "Beasiswa ADIK",
+  "Tidak Mengisi",
+]);
+
+const normalizeLabel = (l: string): string => {
+  if (l === "0" || l === "") return "Tidak Mengisi";
+  if (OFFICIAL_SOURCES.has(l)) return l;
+  return "Lainnya";
+};
 
 type View = "pie" | "antar";
 
@@ -52,108 +68,61 @@ const Kpi11FundingSourceChart = () => {
     ? (pieResult.error as Error | null)?.message ?? null
     : (antarResult.error as Error | null)?.message ?? null;
 
-  // Ambil semua label unik dari pie (sudah urut by count desc) → warna konsisten
-  const fixLabel = (l: string) => (l === "0" || l === "" ? "Tidak Mengisi" : l);
-
-  const allLabels = useMemo(() => {
-    const arr: string[] = [];
-    const seen = new Set<string>();
-    pieResult.data?.data?.forEach((d) => {
-      const label = fixLabel(d.sumber_biaya);
-      if (!seen.has(label)) { arr.push(label); seen.add(label); }
-    });
-    antarResult.data?.data?.forEach((t) =>
-      t.sumber.forEach((s) => {
-        const label = fixLabel(s.label);
-        if (!seen.has(label)) { arr.push(label); seen.add(label); }
-      })
-    );
-    return arr;
-  }, [pieResult.data, antarResult.data]);
+  const LABEL_ORDER = [...OFFICIAL_SOURCES, "Lainnya"];
 
   const labelColor = (label: string) =>
-    PIE_COLORS[allLabels.indexOf(label) % PIE_COLORS.length] ?? C.gray;
+    PIE_COLORS[LABEL_ORDER.indexOf(label) % PIE_COLORS.length] ?? C.gray;
 
-  const MAX_PIE_SLICES = 8;
   const pieData = useMemo(() => {
     if (!pieResult.data?.data) return [];
-    const sorted = [...pieResult.data.data].sort((a, b) => b.pct - a.pct);
-    const top = sorted.slice(0, MAX_PIE_SLICES);
-    const rest = sorted.slice(MAX_PIE_SLICES);
-    const result = top.map((d) => ({
-      name: d.sumber_biaya === "0" || d.sumber_biaya === "" ? "Tidak Mengisi" : d.sumber_biaya,
-      value: +(d.pct).toFixed(1),
-      count: d.count,
-    }));
-    if (rest.length > 0) {
-      result.push({
-        name: "Lainnya",
-        value: +(rest.reduce((s, d) => s + d.pct, 0)).toFixed(1),
-        count: rest.reduce((s, d) => s + d.count, 0),
-      });
-    }
-    return result;
+    const merged: Record<string, { pct: number; count: number }> = {};
+    pieResult.data.data.forEach((d) => {
+      const label = normalizeLabel(d.sumber_biaya);
+      if (!merged[label]) merged[label] = { pct: 0, count: 0 };
+      merged[label].pct += d.pct;
+      merged[label].count += d.count;
+    });
+    return LABEL_ORDER
+      .filter((l) => merged[l])
+      .map((l) => ({ name: l, value: +(merged[l].pct).toFixed(1), count: merged[l].count }));
   }, [pieResult.data]);
 
-  // Antar periode — grouped bar per tahun_lulus (top N + Lainnya)
-  const antarTopLabels = useMemo(() => {
+  const antarLabels = useMemo(() => {
     if (!antarResult.data?.data) return [] as string[];
-    const totals: Record<string, number> = {};
+    const seen = new Set<string>();
     antarResult.data.data.forEach((t) =>
-      t.sumber.forEach((s) => { totals[fixLabel(s.label)] = (totals[fixLabel(s.label)] ?? 0) + s.count; })
+      t.sumber.forEach((s) => seen.add(normalizeLabel(s.label)))
     );
-    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-    const top = sorted.slice(0, MAX_PIE_SLICES).map(([l]) => l);
-    if (sorted.length > MAX_PIE_SLICES) top.push("Lainnya");
-    return top;
+    return LABEL_ORDER.filter((l) => seen.has(l));
   }, [antarResult.data]);
 
   const antarData = useMemo(() => {
     if (!antarResult.data?.data) return [];
-    const topSet = new Set(antarTopLabels.filter((l) => l !== "Lainnya"));
     return antarResult.data.data.map((t) => {
       const row: Record<string, any> = { tahun: t.tahun_lulus };
-      let lainnyaPct = 0;
-      let lainnyaCount = 0;
       t.sumber.forEach((s) => {
-        const label = fixLabel(s.label);
-        if (topSet.has(label)) {
-          row[label] = +(s.pct).toFixed(1);
-          row[`${label}_count`] = s.count;
-        } else {
-          lainnyaPct += s.pct;
-          lainnyaCount += s.count;
-        }
+        const label = normalizeLabel(s.label);
+        row[label] = +((row[label] ?? 0) + s.pct).toFixed(1);
+        row[`${label}_count`] = (row[`${label}_count`] ?? 0) + s.count;
       });
-      if (antarTopLabels.includes("Lainnya")) {
-        row["Lainnya"] = +(lainnyaPct).toFixed(1);
-        row["Lainnya_count"] = lainnyaCount;
-      }
       return row;
     });
-  }, [antarResult.data, antarTopLabels]);
+  }, [antarResult.data]);
 
-  const antarLabels = antarTopLabels;
-
-  // Tooltip antar periode: tampilkan grouped sumber untuk tahun itu
   const antarTooltipData = useMemo(() => {
-    const topSet = new Set(antarTopLabels.filter((l) => l !== "Lainnya"));
     const map: Record<string, Record<string, number>> = {};
     antarResult.data?.data?.forEach((t) => {
-      map[t.tahun_lulus] = {};
-      let lainnya = 0;
+      const merged: Record<string, number> = {};
       t.sumber.forEach((s) => {
-        const label = fixLabel(s.label);
-        if (topSet.has(label)) {
-          map[t.tahun_lulus][label] = s.pct;
-        } else {
-          lainnya += s.pct;
-        }
+        const label = normalizeLabel(s.label);
+        merged[label] = (merged[label] ?? 0) + s.pct;
       });
-      if (antarTopLabels.includes("Lainnya")) map[t.tahun_lulus]["Lainnya"] = +(lainnya).toFixed(1);
+      map[t.tahun_lulus] = Object.fromEntries(
+        Object.entries(merged).map(([k, v]) => [k, +(v).toFixed(1)])
+      );
     });
     return map;
-  }, [antarResult.data, antarTopLabels]);
+  }, [antarResult.data]);
 
   const isEmpty = !loading && (view === "pie" ? pieData.length === 0 : antarData.length === 0);
   const total   = pieResult.data?.total ?? 0;

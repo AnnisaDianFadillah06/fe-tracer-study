@@ -65,9 +65,10 @@ export interface KesesuaianDrillDownResponse {
 }
 
 export interface KesesuaianDrillDownParams {
-  kesesuaian_sk?: number;
+  kesesuaian_label?: string;
   alasan?: string;
   tahun_lulus?: string;
+  nama_prodi?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -141,12 +142,17 @@ export function useKesesuaianBar() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useKesesuaianPie() {
-  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt, filterOptions } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
+  // Pie adalah snapshot SATU kohort -- kalau tidak ada tahun dipilih ("all"),
+  // default ke tahun_lulus TERBARU, bukan menjumlah semua tahun (lihat pola
+  // yang sama di useWirausahaPie/useMasaTungguDistribusi).
+  const effectiveTahun = tahunLulus !== "all" ? tahunLulus : (filterOptions.tahunLulus[0] ?? "all");
+
   const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-    [degree, jurusan, prodi, tahunLulus, weekKey]
+    () => buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
+    [degree, jurusan, prodi, effectiveTahun, weekKey]
   );
 
   const result = useQuery<KesesuaianPieResponse>({
@@ -169,12 +175,16 @@ export function useKesesuaianPie() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useKesesuaianAlasan() {
-  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt, filterOptions } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
+  // Sama seperti useKesesuaianPie -- default ke tahun_lulus terbaru kalau
+  // belum ada tahun dipilih, bukan "semua periode".
+  const effectiveTahun = tahunLulus !== "all" ? tahunLulus : (filterOptions.tahunLulus[0] ?? "all");
+
   const params = useMemo(
-    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
-    [degree, jurusan, prodi, tahunLulus, weekKey]
+    () => buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
+    [degree, jurusan, prodi, effectiveTahun, weekKey]
   );
 
   const result = useQuery<KesesuaianAlasanResponse>({
@@ -272,8 +282,9 @@ export function useKesesuaianDrillDown() {
         ...buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
         page:          String(extra.page ?? 1),
         per_page:      String(extra.per_page ?? 15),
-        ...(extra.kesesuaian_sk != null ? { kesesuaian_sk: String(extra.kesesuaian_sk) } : {}),
-        ...(extra.alasan ? { alasan: extra.alasan } : {}),
+        ...(extra.kesesuaian_label ? { kesesuaian_label: extra.kesesuaian_label } : {}),
+        ...(extra.alasan ? { label_pertanyaan: extra.alasan } : {}),
+        ...(extra.nama_prodi ? { nama_prodi: extra.nama_prodi } : {}),
         ...(extra.search ? { search: extra.search } : {}),
       };
 

@@ -11,10 +11,12 @@ import {
   Tooltip,
   Legend,
   ReferenceLine,
+  ReferenceArea,
   LabelList,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import { MethodologyBlock } from "./Methodology";
+import { markMax } from "./format";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import {
   usePendapatanBar,
@@ -22,13 +24,25 @@ import {
   usePendapatanDrillDown,
   PendapatanDrillDownParams,
 } from "@/hooks/usePendapatan";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 
+/** Format angka ambang tanpa nol berlebih: 1.2 -> "1,2", 1.4 -> "1,4", 2 -> "2". */
+function formatAmbang(n: number): string {
+  return n.toFixed(1).replace(/\.0$/, "").replace(".", ",");
+}
+
 const Kpi8IncomeChart = () => {
-  const barHook   = usePendapatanBar();
-  const distHook  = usePendapatanDistribusi();
-  const drillHook = usePendapatanDrillDown();
-  const lam       = useLamFilter("incomePct");
+  const { tahunLulus } = useGlobalFilters();
+  const lam = useLamFilter("incomePct");
+  // Ambang "≥ ambang UMP" dinamis dari LAM terpilih (indikator salary_above_ump)
+  // -- dulu selalu 1,2×. undefined = biarkan BE pakai default 1.2.
+  const ambangMultiplier = lam.dynamicParam?.value;
+  const ambangLabel = formatAmbang(ambangMultiplier ?? 1.2);
+
+  const barHook   = usePendapatanBar(ambangMultiplier);
+  const distHook  = usePendapatanDistribusi(ambangMultiplier);
+  const drillHook = usePendapatanDrillDown(ambangMultiplier);
 
   const [modal, setModal] = useState<{
     open: boolean;
@@ -89,25 +103,25 @@ const Kpi8IncomeChart = () => {
   return (
     <>
       <div className="grid lg:grid-cols-2 gap-4">
-        {/* ── Grafik 1: Tren rata-rata gaji + % ≥ 1,2× UMP ── */}
+        {/* ── Grafik 1: Tren rata-rata gaji + % ≥ ambang UMP (dinamis per LAM) ── */}
         <KpiCard
           loading={barHook.loading}
           error={barHook.error}
           empty={isEmpty}
-          title="Tren Pendapatan & % Lulusan ≥ 1,2× UMP"
+          title={`Tren Pendapatan & % Lulusan ≥ ${ambangLabel}× UMP`}
           subtitle={lamSubtitle(lam)}
           compareType="income-kelompok"
           headerExtra={<LamFilterControls lam={lam} />}
           methodology={
             <MethodologyBlock
-              description="Mengukur rata-rata pendapatan lulusan serta proporsi yang berpendapatan ≥ 1,2× UMP daerah kerja."
+              description={`Mengukur rata-rata pendapatan lulusan serta proporsi yang berpendapatan ≥ ${ambangLabel}× UMP daerah kerja.`}
               formula={
                 <>
                   Rata-rata Gaji = Σ Gaji Lulusan Bekerja / Total Lulusan Bekerja<br />
-                  % ≥ 1,2× UMP = (Lulusan dengan Gaji ≥ 1,2 × UMP / Total Lulusan Bekerja) × 100%
+                  % ≥ {ambangLabel}× UMP = (Lulusan dengan Gaji ≥ {ambangLabel}× UMP / Total Lulusan Bekerja) × 100%
                 </>
               }
-              notes="UMP mengacu pada daerah lokasi kerja lulusan pada tahun pengukuran."
+              notes={`UMP mengacu pada daerah lokasi kerja lulusan pada tahun pengukuran. Ambang ${ambangLabel}× mengikuti standar LAM yang sedang dipilih (indikator "salary_above_ump") — 1,2× dipakai sebagai default kalau belum ada LAM/prodi terpilih.`}
             />
           }
         >
@@ -120,6 +134,10 @@ const Kpi8IncomeChart = () => {
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={avgData} margin={{ top: 30, right: hasUmpData ? 50 : 20, left: 20, bottom: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+                {tahunLulus !== "all" && (
+                  <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill="hsl(var(--foreground))" fillOpacity={0.06}
+                    stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3" />
+                )}
                 <XAxis
                   dataKey="year"
                   fontSize={13}
@@ -142,7 +160,7 @@ const Kpi8IncomeChart = () => {
                     fontSize={13}
                     domain={[0, 100]}
                     stroke={C.red}
-                    label={{ value: "% Lulusan ≥ 1,2× UMP", angle: 90, position: "insideRight", fontSize: 12, fill: C.red }}
+                    label={{ value: `% Lulusan ≥ ${ambangLabel}× UMP`, angle: 90, position: "insideRight", fontSize: 12, fill: C.red }}
                   />
                 )}
                 <Tooltip
@@ -179,7 +197,7 @@ const Kpi8IncomeChart = () => {
                     yAxisId="right"
                     type="monotone"
                     dataKey="pctAbove"
-                    name="% ≥ 1,2× UMP"
+                    name={`% ≥ ${ambangLabel}× UMP`}
                     stroke={C.red}
                     strokeWidth={2.5}
                     dot={{ r: 5, fill: C.red }}
@@ -211,12 +229,12 @@ const Kpi8IncomeChart = () => {
           loading={distHook.loading}
           error={distHook.error}
           empty={isEmpty2}
-          title="Proporsi Lulusan Berdasar UMP"
-          subtitle="Dua kelompok: < 1,2× UMP vs ≥ 1,2× UMP per tahun"
+          title="Proporsi Lulusan Berdasarkan UMP"
+          subtitle={`Dua kelompok: < ${ambangLabel}× UMP vs ≥ ${ambangLabel}× UMP per tahun`}
           compareType="income"
           methodology={
             <MethodologyBlock
-              description="Membagi lulusan bekerja ke dua kelompok pendapatan berdasarkan ambang 1,2× UMP."
+              description={`Membagi lulusan bekerja ke dua kelompok pendapatan berdasarkan ambang ${ambangLabel}× UMP.`}
               formula={<>% Kelompok = (Lulusan pada Kelompok / Total Lulusan Bekerja) × 100%</>}
             />
           }
@@ -245,12 +263,12 @@ const Kpi8IncomeChart = () => {
                   <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
                   <Bar
                     dataKey="below"
-                    name="< 1,2× UMP"
+                    name={`< ${ambangLabel}× UMP`}
                     fill={C.orange}
                     radius={[3, 3, 0, 0]}
                     cursor="pointer"
                     onClick={(d: any) =>
-                      openModal(`Alumni < 1,2× UMP — ${d.year} (${d.below}% · ${d.countBelow} alumni)`, { segmen_ump: "below_ump", tahun_lulus: d.year })
+                      openModal(`Alumni < ${ambangLabel}× UMP — ${d.year} (${d.below}% · ${d.countBelow} alumni)`, { segmen_ump: "below_ump", tahun_lulus: d.year })
                     }
                     activeBar={{ stroke: "hsl(20 90% 45%)", strokeWidth: 2 } as any}
                   >
@@ -258,12 +276,12 @@ const Kpi8IncomeChart = () => {
                   </Bar>
                   <Bar
                     dataKey="above"
-                    name="≥ 1,2× UMP"
+                    name={`≥ ${ambangLabel}× UMP`}
                     fill={C.blue}
                     radius={[3, 3, 0, 0]}
                     cursor="pointer"
                     onClick={(d: any) =>
-                      openModal(`Alumni ≥ 1,2× UMP — ${d.year} (${d.above}% · ${d.countAbove} alumni)`, { segmen_ump: "above_ump", tahun_lulus: d.year })
+                      openModal(`Alumni ≥ ${ambangLabel}× UMP — ${d.year} (${d.above}% · ${d.countAbove} alumni)`, { segmen_ump: "above_ump", tahun_lulus: d.year })
                     }
                     activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                   >

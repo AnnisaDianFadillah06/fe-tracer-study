@@ -7,11 +7,13 @@ function buildOverviewParams(
   degree: string,
   prodi: string,
   tahunLulus: string,
+  weekKey: string,
 ): Record<string, string> {
   const p: Record<string, string> = {};
   if (degree && degree !== "__all__") p.jenjang = degree;
   if (prodi && prodi !== "__all__") p.nama_prodi = prodi;
   if (tahunLulus && tahunLulus !== "all") p.graduation_year = tahunLulus;
+  if (weekKey) p.minggu_snapshot = weekKey;
   return p;
 }
 
@@ -19,11 +21,13 @@ function buildEducationParams(
   degree: string,
   prodi: string,
   tahunLulus: string,
+  weekKey: string,
 ): Record<string, string> {
   const p: Record<string, string> = {};
   if (degree && degree !== "__all__") p.jenjang = degree;
   if (prodi && prodi !== "__all__") p.nama_prodi = prodi;
   if (tahunLulus && tahunLulus !== "all") p.tahun_lulus = tahunLulus;
+  if (weekKey) p.minggu_snapshot = weekKey;
   return p;
 }
 
@@ -42,9 +46,9 @@ export interface OverviewSummaryCards {
 }
 
 export function useOverviewSummary() {
-  const { degree, prodi, tahunLulus, lastUpdatedAt } = useGlobalFilters();
+  const { degree, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
-  const params = useMemo(() => buildOverviewParams(degree, prodi, tahunLulus), [degree, prodi, tahunLulus]);
+  const params = useMemo(() => buildOverviewParams(degree, prodi, tahunLulus, weekKey), [degree, prodi, tahunLulus, weekKey]);
 
   const { data, isLoading: loading, error } = useQuery<OverviewSummaryCards | null>({
     queryKey: ["summary", "overview", params, updatedTs],
@@ -69,9 +73,9 @@ export interface EducationSummaryCards {
 }
 
 export function useEducationSummary() {
-  const { degree, prodi, tahunLulus, lastUpdatedAt } = useGlobalFilters();
+  const { degree, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
-  const params = useMemo(() => buildEducationParams(degree, prodi, tahunLulus), [degree, prodi, tahunLulus]);
+  const params = useMemo(() => buildEducationParams(degree, prodi, tahunLulus, weekKey), [degree, prodi, tahunLulus, weekKey]);
 
   const { data, isLoading: loading, error } = useQuery<EducationSummaryCards | null>({
     queryKey: ["summary", "education", params, updatedTs],
@@ -96,9 +100,9 @@ export interface EmploymentSummaryCards {
 }
 
 export function useEmploymentSummary() {
-  const { degree, prodi, tahunLulus, lastUpdatedAt } = useGlobalFilters();
+  const { degree, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
-  const params = useMemo(() => buildEducationParams(degree, prodi, tahunLulus), [degree, prodi, tahunLulus]);
+  const params = useMemo(() => buildEducationParams(degree, prodi, tahunLulus, weekKey), [degree, prodi, tahunLulus, weekKey]);
 
   const { data, isLoading: loading, error } = useQuery<EmploymentSummaryCards | null>({
     queryKey: ["summary", "employment", params, updatedTs],

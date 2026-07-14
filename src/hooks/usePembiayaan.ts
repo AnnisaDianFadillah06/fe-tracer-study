@@ -186,6 +186,7 @@ export function usePembiayaanDrillDown() {
       if (degree  && degree  !== "__all__") params.jenjang    = degree;
       if (jurusan && jurusan !== "__all__") params.jurusan    = jurusan;
       if (prodi   && prodi   !== "__all__") params.nama_prodi = prodi;
+      if (extra.nama_prodi)   params.nama_prodi   = extra.nama_prodi;
       if (extra.sumber_biaya) params.sumber_biaya = extra.sumber_biaya;
       if (extra.tahun_lulus)  params.tahun_lulus  = extra.tahun_lulus;
       if (extra.search)       params.search       = extra.search;

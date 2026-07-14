@@ -60,13 +60,14 @@ export function useResponseRatePie() {
 
   const params = useMemo(
     () => buildParams(degree, prodi, tahunLulus),
-    [degree, prodi, tahunLulus]
+    [degree, prodi, tahunLulus],
   );
 
   const result = useQuery<ResponseRatePieResponse>({
     queryKey: ["response-rate", "pie", params, updatedTs],
     queryFn: ({ signal }) =>
-      apiService.get<any>("/dashboard/response-rate/pie", { params, signal })
+      apiService
+        .get<any>("/dashboard/response-rate/pie", { params, signal })
         .then((res) => res?.data ?? res),
     staleTime: 5 * 60 * 1000,
   });
@@ -108,7 +109,8 @@ export function useResponseRateTrend() {
   const result = useQuery<ResponseRateTrendResponse>({
     queryKey: ["response-rate", "trend", params, updatedTs],
     queryFn: ({ signal }) =>
-      apiService.get<any>("/dashboard/response-rate/trend", { params, signal })
+      apiService
+        .get<any>("/dashboard/response-rate/trend", { params, signal })
         .then((res) => res?.data ?? res),
     staleTime: 5 * 60 * 1000,
   });
@@ -125,13 +127,15 @@ export function useResponseRateTrend() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useResponseRateBandingkan(enabled: boolean) {
-  const sp = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search)
-    : new URLSearchParams();
+  const sp =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
 
   const jenjang = sp.get("jenjang") ?? "";
   const namaProdi = sp.get("nama_prodi") ?? "";
-  const graduationYear = sp.get("graduation_year") ?? sp.get("tahun_lulus") ?? "";
+  const graduationYear =
+    sp.get("graduation_year") ?? sp.get("tahun_lulus") ?? "";
 
   const params = useMemo(() => {
     const p: Record<string, string> = {};
@@ -144,7 +148,8 @@ export function useResponseRateBandingkan(enabled: boolean) {
   const result = useQuery<ResponseRateBarResponse>({
     queryKey: ["response-rate", "bandingkan", params],
     queryFn: ({ signal }) =>
-      apiService.get<any>("/dashboard/response-rate/bar", { params, signal })
+      apiService
+        .get<any>("/dashboard/response-rate/bar", { params, signal })
         .then((res) => res?.data ?? res),
     enabled,
     staleTime: 5 * 60 * 1000,
@@ -167,13 +172,14 @@ export function useResponseRateBar() {
 
   const params = useMemo(
     () => buildParams(degree, prodi, tahunLulus),
-    [degree, prodi, tahunLulus]
+    [degree, prodi, tahunLulus],
   );
 
   const result = useQuery<ResponseRateBarResponse>({
     queryKey: ["response-rate", "bar", params, updatedTs],
     queryFn: ({ signal }) =>
-      apiService.get<any>("/dashboard/response-rate/bar", { params, signal })
+      apiService
+        .get<any>("/dashboard/response-rate/bar", { params, signal })
         .then((res) => res?.data ?? res),
     staleTime: 5 * 60 * 1000,
   });
@@ -191,6 +197,8 @@ export function useResponseRateBar() {
 
 export interface ResponseRateDrillDownParams {
   status: string;
+  nama_prodi?: string;
+  tahun_lulus?: string;
   page?: number;
   per_page?: number;
   search?: string;
@@ -210,11 +218,11 @@ export interface ResponseRateDrillDownResponse {
 }
 
 const STATUS_NAME_TO_KEY: Record<string, string> = {
-  "Selesai": "selesai",
-  "Sedang Mengisi": "on_going",
-  "Belum Mengisi": "belum_mengisi",
-  "Sudah Merespons": "selesai",
-  "Belum Merespons": "belum_mengisi",
+  Selesai: "submitted",
+  "Sedang Mengisi": "ongoing",
+  "Belum Mengisi": "started",
+  "Sudah Merespons": "submitted",
+  "Belum Merespons": "started",
 };
 
 export function statusNameToKey(name: string): string {
@@ -244,11 +252,22 @@ export function useResponseRateDrillDown() {
         ...(searchUpper ? { search: searchUpper } : {}),
       };
       if (degree && degree !== "__all__") params.jenjang = degree;
-      if (prodi && prodi !== "__all__") params.nama_prodi = prodi;
-      if (tahunLulus && tahunLulus !== "all") params.graduation_year = tahunLulus;
+      if (extra.nama_prodi) {
+        params.nama_prodi = extra.nama_prodi;
+      } else if (prodi && prodi !== "__all__") {
+        params.nama_prodi = prodi;
+      }
+      if (extra.tahun_lulus) {
+        params.graduation_year = extra.tahun_lulus;
+      } else if (tahunLulus && tahunLulus !== "all") {
+        params.graduation_year = tahunLulus;
+      }
 
       apiService
-        .get<any>("/dashboard/response-rate/drill-down", { params, signal: abortRef.current.signal })
+        .get<any>("/dashboard/response-rate/drill-down", {
+          params,
+          signal: abortRef.current.signal,
+        })
         .then((res) => {
           const raw = res?.data ?? res;
           if (raw?.data) {
@@ -261,12 +280,13 @@ export function useResponseRateDrillDown() {
           setLoading(false);
         })
         .catch((err: any) => {
-          if (err?.name === "CanceledError" || err?.name === "AbortError") return;
+          if (err?.name === "CanceledError" || err?.name === "AbortError")
+            return;
           setError(err?.message ?? "Gagal memuat data");
           setLoading(false);
         });
     },
-    [degree, prodi, tahunLulus]
+    [degree, prodi, tahunLulus],
   );
 
   return { data, loading, error, fetch };

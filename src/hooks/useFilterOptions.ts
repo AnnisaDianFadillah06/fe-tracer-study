@@ -19,9 +19,23 @@ export interface RawProdi {
   kode_prodi: string;
 }
  
+/**
+ * Satu opsi snapshot -- `value` tetap raw minggu_snapshot (dikirim apa
+ * adanya ke filter, TIDAK berubah maknanya, lihat catatan lengkap di
+ * FilterMetaRepository::getSnapshot()), field lain murni untuk label
+ * dropdown yang lebih jelas (tahun + bulan + tanggal persis).
+ */
+export interface RawSnapshotOption {
+  value: string;
+  tahun_snapshot: string;
+  bulan_snapshot: string;
+  tanggal_refresh: string | null;
+  label: string;
+}
+
 export interface RawFilterOptionsData {
   tahun_lulus: string[];
-  snapshot: string[];   // e.g. "2024-W06"
+  snapshot: RawSnapshotOption[];
   jenjang: string[];
   jurusan: RawJurusan[];
   prodi: RawProdi[];
@@ -52,14 +66,6 @@ export interface FilterOptions {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** "2024-W06" → "2024 Minggu 06". Returns raw string on unexpected format. */
-function formatSnapshotLabel(raw: string): string {
-  const match = raw.match(/^(\d{4})-W(\d{2})$/);
-  if (!match) return raw;
-  const [, year, week] = match;
-  return `${year} Minggu ${week}`;
-}
-
 function buildJurusanMap(prodiList: RawProdi[]): JurusanMap {
   return prodiList.reduce<JurusanMap>((acc, p) => {
     if (!acc[p.jurusan]) acc[p.jurusan] = [];
@@ -70,12 +76,31 @@ function buildJurusanMap(prodiList: RawProdi[]): JurusanMap {
   }, {});
 }
 
-const CACHE_KEY = "filterOptions_v2";
+// v5: `snapshot[].value` sekarang berisi id_waktu (unik per ETL run), BUKAN
+// lagi minggu_snapshot mentah (mis. "29") -- lihat FilterMetaRepository::
+// getSnapshot(). Cache v4 lama menyimpan value versi minggu_snapshot yang
+// sudah tidak valid dipakai sebagai filter, harus dipaksa fetch ulang.
+const CACHE_KEY = "filterOptions_v5";
 
 function readCache(): RawFilterOptionsData | null {
   try {
     const raw = sessionStorage.getItem(CACHE_KEY);
-    return raw ? (JSON.parse(raw) as RawFilterOptionsData) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as RawFilterOptionsData;
+    // Snapshot kosong ATAU ada entri tanpa value/label berarti response ini
+    // kemungkinan diambil saat backend/cache-nya masih bermasalah -- jangan
+    // dipercaya selamanya untuk sisa sesi tab ini, paksa refetch supaya
+    // begitu backend sudah benar, dropdown snapshot ikut terisi tanpa user
+    // harus tutup-buka tab.
+    const invalid =
+      !parsed.snapshot ||
+      parsed.snapshot.length === 0 ||
+      parsed.snapshot.some((s) => !s.value || !s.label);
+    if (invalid) {
+      sessionStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+    return parsed;
   } catch {
     sessionStorage.removeItem(CACHE_KEY);
     return null;
@@ -91,8 +116,12 @@ function writeCache(data: RawFilterOptionsData) {
 }
 
 function deriveOptions(raw: RawFilterOptionsData): Omit<FilterOptions, "loading" | "error"> {
-  const weekKeys = raw.snapshot;
-  const weekOptions = weekKeys.map(formatSnapshotLabel);
+  // value = raw minggu_snapshot (dikirim apa adanya ke filter, TIDAK berubah
+  // maknanya); label = tahun + minggu + bulan + tanggal persis, supaya jelas
+  // dibaca dan snapshot dari minggu-yang-sama-tapi-tahun-beda (atau >1 ETL
+  // run dalam minggu kalender yang sama) tidak terlihat identik di dropdown.
+  const weekKeys = raw.snapshot.map((s) => s.value);
+  const weekOptions = raw.snapshot.map((s) => s.label);
   const jurusanMap = buildJurusanMap(raw.prodi);
   // Preserve BE ordering from the jurusan array
   const jurusanList = raw.jurusan.map((j) => j.jurusan);

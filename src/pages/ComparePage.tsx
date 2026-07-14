@@ -55,7 +55,7 @@ import {
 import { useInstansiBandingkan, useInstansiDrillDown } from "@/hooks/useInstansi";
 import { usePembiayaanBandingkan, usePembiayaanDrillDown } from "@/hooks/usePembiayaan";
 import { useMetodePembelajaranBandingkan, useMetodePembelajaranDrillDown } from "@/hooks/useMetodePembelajaran";
-import { useKompetensiGapBandingkan } from "@/hooks/useKompetensi";
+import { useKompetensiGapBandingkan, useKompetensiGapDrillDown } from "@/hooks/useKompetensi";
 import { useResponseRateBandingkan, useResponseRateDrillDown, statusNameToKey } from "@/hooks/useResponseRate";
 import { buildColorMap, getShortLabel } from "@/lib/chartColors";
 import {
@@ -275,6 +275,7 @@ const ComparePage = () => {
   const metodeBandingkanHook         = useMetodePembelajaranBandingkan(isLearning);
   const metodeDrillHook              = useMetodePembelajaranDrillDown();
   const kompetensiGapHook            = useKompetensiGapBandingkan(isCompetency);
+  const kompetensiDrillHook          = useKompetensiGapDrillDown();
   const pembiayaanDrillHook          = usePembiayaanDrillDown();
   const responseRateBarHook          = useResponseRateBandingkan(isCompletion || isParticipation);
   const responseRateDrillHook        = useResponseRateDrillDown();
@@ -306,13 +307,17 @@ const ComparePage = () => {
     if (!isKesesuaian || !ksBandingkanHook.data?.data) return [];
     return ksBandingkanHook.data.data.map((d) => {
       const shortProdi = d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi;
+      const rawSum = d.pct_sesuai + d.pct_tidak_sesuai;
+      const scale = rawSum > 0 ? 100 / rawSum : 1;
+      const sesuaiNorm = +(d.pct_sesuai * scale).toFixed(1);
+      const tidakNorm = +(100 - sesuaiNorm).toFixed(1);
       return {
         prodi: shortProdi,
         fullProdi: d.nama_prodi,
         total: d.total,
-        "Sesuai Bidang": d.pct_sesuai,
+        "Sesuai Bidang": sesuaiNorm,
         "Sesuai BidangCount": Math.round(d.total * d.pct_sesuai / 100),
-        "Tidak Sesuai": d.pct_tidak_sesuai,
+        "Tidak Sesuai": tidakNorm,
         "Tidak SesuaiCount": Math.round(d.total * d.pct_tidak_sesuai / 100),
       };
     });
@@ -400,18 +405,32 @@ const ComparePage = () => {
   }, [incomeKelompokBandingkanHook.data]);
   const incomeKelompokColorMap = buildColorMap(incomeKelompokLabels);
 
-  // Jenis Instansi — transform data BE ke stacked bar per prodi (top N + Lainnya)
-  const MAX_JENIS_SLICES = 8;
+  // Jenis Instansi — 6 kategori resmi + "Lainnya"
+  const JENIS_MAP: Record<string, string> = {
+    "instansi pemerintah": "Instansi Pemerintah",
+    "lembaga pemerintah": "Instansi Pemerintah",
+    "organisasi non-profit/lembaga swadaya masyarakat": "Organisasi Non-profit",
+    "perusahaan swasta": "Perusahaan Swasta",
+    "wiraswasta/perusahaan sendiri": "Wiraswasta",
+    "bumn/bumd": "BUMN/BUMD",
+    "institusi/organisasi multilateral": "Institusi/Organisasi Multilateral",
+  };
+  const JENIS_ORDER_CMP = [
+    "Instansi Pemerintah", "Organisasi Non-profit", "Perusahaan Swasta",
+    "Wiraswasta", "BUMN/BUMD", "Institusi/Organisasi Multilateral", "Lainnya",
+  ];
+  const normJenis = (l: string): string => {
+    if (!l || l === "0" || l === "Lainnya, tuliskan") return "Lainnya";
+    return JENIS_MAP[l.toLowerCase().trim()] ?? "Lainnya";
+  };
+
   const instansiJenisLabels = useMemo(() => {
     if (!instansiBandingkanHook.data?.data) return [] as string[];
-    const totals: Record<string, number> = {};
+    const seen = new Set<string>();
     instansiBandingkanHook.data.data.forEach((d) =>
-      d.jenis.forEach((j) => { totals[j.label] = (totals[j.label] ?? 0) + j.count; })
+      d.jenis.forEach((j) => seen.add(normJenis(j.label)))
     );
-    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-    const top = sorted.slice(0, MAX_JENIS_SLICES).map(([l]) => l);
-    if (sorted.length > MAX_JENIS_SLICES) top.push("Lainnya");
-    return top;
+    return JENIS_ORDER_CMP.filter((l) => seen.has(l));
   }, [instansiBandingkanHook.data]);
 
   const instansiJenisColorMap = useMemo(
@@ -421,30 +440,20 @@ const ComparePage = () => {
 
   const instansiJenisChartData = useMemo(() => {
     if (!isJenisInstansi || !instansiBandingkanHook.data?.data) return [];
-    const topSet = new Set(instansiJenisLabels.filter((l) => l !== "Lainnya"));
     return instansiBandingkanHook.data.data.map((d) => {
       const row: Record<string, any> = {
         prodi:    d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
         fullProdi: d.nama_prodi,
         total:    d.total,
       };
-      let lainnyaPct = 0, lainnyaCount = 0;
       d.jenis.forEach((j) => {
-        if (topSet.has(j.label)) {
-          row[j.label] = +(j.pct).toFixed(1);
-          row[`${j.label}Count`] = j.count;
-        } else {
-          lainnyaPct += j.pct;
-          lainnyaCount += j.count;
-        }
+        const label = normJenis(j.label);
+        row[label] = +((row[label] ?? 0) + j.pct).toFixed(1);
+        row[`${label}Count`] = (row[`${label}Count`] ?? 0) + j.count;
       });
-      if (instansiJenisLabels.includes("Lainnya")) {
-        row["Lainnya"] = +(lainnyaPct).toFixed(1);
-        row["LainnyaCount"] = lainnyaCount;
-      }
       return row;
     });
-  }, [isJenisInstansi, instansiBandingkanHook.data, instansiJenisLabels]);
+  }, [isJenisInstansi, instansiBandingkanHook.data]);
 
   // Tingkat Instansi — transform data BE ke stacked bar per prodi
   const instansiTingkatLabels = ["Lokal", "Nasional", "Internasional"];
@@ -470,19 +479,25 @@ const ComparePage = () => {
     });
   }, [isTingkatInstansi, instansiBandingkanHook.data]);
 
-  // Sumber Biaya — transform data BE ke stacked bar per prodi (top N + Lainnya)
-  const MAX_BIAYA_SLICES = 8;
+  // Sumber Biaya — 7 kategori resmi + "Lainnya" (merge Beasiswa Polban, dll)
+  const BIAYA_OFFICIAL = new Set([
+    "Biaya Sendiri/Keluarga", "Beasiswa BIDIKMISI", "Beasiswa PPA",
+    "Beasiswa Perusahaan/Swasta", "Beasiswa AFIRMASI", "Beasiswa ADIK", "Tidak Mengisi",
+  ]);
+  const BIAYA_ORDER = [...BIAYA_OFFICIAL, "Lainnya"];
+  const normBiaya = (l: string): string => {
+    if (l === "0" || l === "") return "Tidak Mengisi";
+    if (BIAYA_OFFICIAL.has(l)) return l;
+    return "Lainnya";
+  };
+
   const pembiayaanLabels = useMemo(() => {
     if (!pembiayaanBandingkanHook.data?.data) return [] as string[];
-    const totals: Record<string, number> = {};
-    const fixBiayaLabel = (l: string) => (l === "0" || l === "" ? "Tidak Mengisi" : l);
+    const seen = new Set<string>();
     pembiayaanBandingkanHook.data.data.forEach((d) =>
-      d.sumber.forEach((s) => { const l = fixBiayaLabel(s.label); totals[l] = (totals[l] ?? 0) + s.count; })
+      d.sumber.forEach((s) => seen.add(normBiaya(s.label)))
     );
-    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-    const top = sorted.slice(0, MAX_BIAYA_SLICES).map(([l]) => l);
-    if (sorted.length > MAX_BIAYA_SLICES) top.push("Lainnya");
-    return top;
+    return BIAYA_ORDER.filter((l) => seen.has(l));
   }, [pembiayaanBandingkanHook.data]);
 
   const pembiayaanColorMap = useMemo(
@@ -492,7 +507,6 @@ const ComparePage = () => {
 
   const pembiayaanChartData = useMemo(() => {
     if (!isSumberBiaya || !pembiayaanBandingkanHook.data?.data) return [];
-    const topSet = new Set(pembiayaanLabels.filter((l) => l !== "Lainnya"));
     return pembiayaanBandingkanHook.data.data.map((d) => {
       const shortProdi = d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi;
       const row: Record<string, any> = {
@@ -500,26 +514,16 @@ const ComparePage = () => {
         fullProdi: d.nama_prodi,
         total: d.total,
       };
-      let lainnyaPct = 0, lainnyaCount = 0;
       d.sumber.forEach((s) => {
-        const label = s.label === "0" || s.label === "" ? "Tidak Mengisi" : s.label;
-        if (topSet.has(label)) {
-          row[label] = +(s.pct).toFixed(1);
-          row[`${label}Count`] = s.count;
-        } else {
-          lainnyaPct += s.pct;
-          lainnyaCount += s.count;
-        }
+        const label = normBiaya(s.label);
+        row[label] = +((row[label] ?? 0) + s.pct).toFixed(1);
+        row[`${label}Count`] = (row[`${label}Count`] ?? 0) + s.count;
       });
-      if (pembiayaanLabels.includes("Lainnya")) {
-        row["Lainnya"] = +(lainnyaPct).toFixed(1);
-        row["LainnyaCount"] = lainnyaCount;
-      }
       return row;
     });
-  }, [isSumberBiaya, pembiayaanBandingkanHook.data, pembiayaanLabels]);
+  }, [isSumberBiaya, pembiayaanBandingkanHook.data]);
 
-  const [pembiayaanModal, setPembiayaanModal] = useState<{ open: boolean; title: string; sumber_biaya?: string }>({ open: false, title: "" });
+  const [pembiayaanModal, setPembiayaanModal] = useState<{ open: boolean; title: string; sumber_biaya?: string; namaProdi?: string }>({ open: false, title: "" });
 
   // Gap Kompetensi — stacked bar per prodi (level distribution based on gap)
   const competencyLevels = ["Tinggi (>4)", "Sedang (3-4)", "Rendah (<3)"];
@@ -571,7 +575,8 @@ const ComparePage = () => {
     });
   }, [isLearning, metodeBandingkanHook.data]);
 
-  const [metodeModal, setMetodeModal] = useState<{ open: boolean; title: string; kode_field?: string }>({ open: false, title: "" });
+  const [metodeModal, setMetodeModal] = useState<{ open: boolean; title: string; kode_field?: string; namaProdi?: string }>({ open: false, title: "" });
+  const [kompModal, setKompModal] = useState<{ open: boolean; title: string; grup_gap?: string; namaProdi?: string }>({ open: false, title: "" });
 
   // Response Rate — for completion (KPI2) and participation-trend (KPI3)
   const rrLabels = isCompletion
@@ -591,14 +596,17 @@ const ComparePage = () => {
         total: d.total,
       };
       if (isCompletion) {
-        const b = d.breakdown;
+        const b = d.breakdown ?? {} as any;
         const t = d.total || 1;
-        row["Selesai"] = +(b.selesai / t * 100).toFixed(1);
-        row["SelesaiCount"] = b.selesai;
-        row["Sedang Mengisi"] = +(b.on_going / t * 100).toFixed(1);
-        row["Sedang MengisiCount"] = b.on_going;
-        row["Belum Mengisi"] = +(b.belum_mengisi / t * 100).toFixed(1);
-        row["Belum MengisiCount"] = b.belum_mengisi;
+        const submitted = b.submitted ?? b.selesai ?? 0;
+        const ongoing = b.ongoing ?? b.on_going ?? 0;
+        const started = b.started ?? b.belum_mengisi ?? 0;
+        row["Selesai"] = +(submitted / t * 100).toFixed(1);
+        row["SelesaiCount"] = submitted;
+        row["Sedang Mengisi"] = +(ongoing / t * 100).toFixed(1);
+        row["Sedang MengisiCount"] = ongoing;
+        row["Belum Mengisi"] = +(started / t * 100).toFixed(1);
+        row["Belum MengisiCount"] = started;
       } else {
         row["Sudah Merespons"] = d.responded;
         row["Sudah MeresponsCount"] = Math.round(d.responded / 100 * d.total);
@@ -609,13 +617,15 @@ const ComparePage = () => {
     });
   }, [isCompletion, isParticipation, responseRateBarHook.data]);
 
-  const [rrModal, setRrModal] = useState<{ open: boolean; title: string; status: string }>({ open: false, title: "", status: "" });
+  const [rrModal, setRrModal] = useState<{ open: boolean; title: string; status: string; namaProdi?: string }>({ open: false, title: "", status: "" });
 
   // Wirausaha — transform data BE ke stacked bar per prodi
   const wsLabels = useMemo(() => {
     if (!wsBandingkanHook.data?.chart) return [] as string[];
     const set = new Set<string>();
-    wsBandingkanHook.data.chart.forEach((d) => d.tingkat.forEach((t) => set.add(t.label)));
+    wsBandingkanHook.data.chart.forEach((d) =>
+      (d.jabatan ?? []).forEach((t: any) => { set.add(t.label || "Lainnya"); })
+    );
     return [...set];
   }, [wsBandingkanHook.data]);
 
@@ -623,37 +633,39 @@ const ComparePage = () => {
 
   const wsChartData = useMemo(() => {
     if (!isWirausaha || !wsBandingkanHook.data?.chart) return [];
-    return wsBandingkanHook.data.chart.map((d) => {
+    return wsBandingkanHook.data.chart.map((d: any) => {
       const row: Record<string, any> = {
-        prodi:        d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
-        fullProdi:    d.nama_prodi,
-        total:        d.count_wirausaha,
-        pct_wirausaha: d.pct_wirausaha,
+        prodi:           d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
+        fullProdi:       d.nama_prodi,
+        total:           d.count_wirausaha,
+        pct_wirausaha:   d.pct_wirausaha,
         count_wirausaha: d.count_wirausaha,
       };
-      d.tingkat.forEach((t) => {
-        row[t.label]              = +(t.pct).toFixed(1);
-        row[`${t.label}Count`]   = t.count;
+      (d.jabatan ?? []).forEach((t: any) => {
+        const lbl = t.label || "Lainnya";
+        row[lbl]           = +((row[lbl] ?? 0) + t.pct).toFixed(1);
+        row[`${lbl}Count`] = (row[`${lbl}Count`] ?? 0) + t.count;
       });
       return row;
     });
   }, [isWirausaha, wsBandingkanHook.data]);
 
   // ── Modal absorption (BE — DrillDownModal) ────────────────────────────────
-  const [beModal, setBeModal] = useState<{ open: boolean; title: string; status?: string }>({ open: false, title: "" });
-  const [ksModal, setKsModal] = useState<{ open: boolean; title: string; kesesuaian_sk?: number }>({ open: false, title: "" });
-  const [mtModal, setMtModal] = useState<{ open: boolean; title: string; rentang?: "0-3" | "3-6" | ">6" }>({ open: false, title: "" });
-  const [wsModal, setWsModal]         = useState<{ open: boolean; title: string; tingkat?: string }>({ open: false, title: "" });
+  const [beModal, setBeModal] = useState<{ open: boolean; title: string; status?: string; namaProdi?: string }>({ open: false, title: "" });
+  const [ksModal, setKsModal] = useState<{ open: boolean; title: string; kesesuaian_sk?: number; namaProdi?: string }>({ open: false, title: "" });
+  const [mtModal, setMtModal] = useState<{ open: boolean; title: string; rentang?: "0-3" | "3-6" | ">6"; namaProdi?: string }>({ open: false, title: "" });
+  const [wsModal, setWsModal]         = useState<{ open: boolean; title: string; tingkat?: string; namaProdi?: string }>({ open: false, title: "" });
   const [incomeModal, setIncomeModal] = useState<{ open: boolean; title: string; segmen?: "above_ump" | "below_ump"; tahun_lulus?: string; namaProdi?: string }>({ open: false, title: "" });
-  const [instansiModal, setInstansiModal] = useState<{ open: boolean; title: string; jenis_instansi?: string; tingkat_instansi?: string }>({ open: false, title: "" });
+  const [instansiModal, setInstansiModal] = useState<{ open: boolean; title: string; jenis_instansi?: string; tingkat_instansi?: string; namaProdi?: string }>({ open: false, title: "" });
 
   const handleBeBarClick = (barData: any, statusLabel: string) => {
-    setBeModal({ open: true, title: `${barData.fullProdi ?? barData.prodi} — ${getShortLabel(statusLabel)}`, status: statusLabel });
-    drillHook.fetch({ status: statusLabel });
+    const namaProdi = barData.fullProdi ?? barData.prodi;
+    setBeModal({ open: true, title: `${namaProdi} — ${getShortLabel(statusLabel)}`, status: statusLabel, namaProdi });
+    drillHook.fetch({ status: statusLabel, nama_prodi: namaProdi });
   };
 
   const handleBePageChange = (page: number, search?: string) => {
-    drillHook.fetch({ status: beModal.status, page, search });
+    drillHook.fetch({ status: beModal.status, nama_prodi: beModal.namaProdi, page, search });
   };
 
   const beModalData = useMemo(() => {
@@ -667,20 +679,21 @@ const ComparePage = () => {
 
   const handleInstansiJenisClick = (barData: any, jenisLabel: string) => {
     const prodi = barData.fullProdi ?? barData.prodi;
-    setInstansiModal({ open: true, title: `${prodi} — ${jenisLabel}`, jenis_instansi: jenisLabel });
-    instansiDrillHook.fetch({ jenis_instansi: jenisLabel, page: 1 });
+    setInstansiModal({ open: true, title: `${prodi} — ${jenisLabel}`, jenis_instansi: jenisLabel, namaProdi: prodi });
+    instansiDrillHook.fetch({ jenis_instansi: jenisLabel, nama_prodi: prodi, page: 1 });
   };
 
   const handleInstansiTingkatClick = (barData: any, tingkatLabel: string) => {
     const prodi = barData.fullProdi ?? barData.prodi;
-    setInstansiModal({ open: true, title: `${prodi} — ${tingkatLabel}`, tingkat_instansi: tingkatLabel });
-    instansiDrillHook.fetch({ tingkat_instansi: tingkatLabel, page: 1 });
+    setInstansiModal({ open: true, title: `${prodi} — ${tingkatLabel}`, tingkat_instansi: tingkatLabel, namaProdi: prodi });
+    instansiDrillHook.fetch({ tingkat_instansi: tingkatLabel, nama_prodi: prodi, page: 1 });
   };
 
   const handleInstansiPageChange = (page: number, search?: string) => {
     instansiDrillHook.fetch({
       jenis_instansi: instansiModal.jenis_instansi,
       tingkat_instansi: instansiModal.tingkat_instansi,
+      nama_prodi: instansiModal.namaProdi,
       page,
       search,
     });
@@ -1048,8 +1061,9 @@ const ComparePage = () => {
                             key={label} dataKey={label} name={getShortLabel(label)} stackId="a" fill={ksColorMap[label]} cursor="pointer"
                             onClick={(d: any) => {
                               const sk = KESESUAIAN_SK_MAP[label] ?? 1;
-                              setKsModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${getShortLabel(label)}`, kesesuaian_sk: sk });
-                              ksDrillHook.fetch({ kesesuaian_sk: sk });
+                              const namaProdi = d.fullProdi ?? d.prodi;
+                              setKsModal({ open: true, title: `${namaProdi} — ${getShortLabel(label)}`, kesesuaian_sk: sk, namaProdi });
+                              ksDrillHook.fetch({ kesesuaian_sk: sk, nama_prodi: namaProdi });
                             }}
                           />
                         ))}
@@ -1104,7 +1118,7 @@ const ComparePage = () => {
               loading={ksDrillHook.loading}
               error={ksDrillHook.error}
               contextColumn={{ key: "kesesuaian_bidang", label: "Kesesuaian Bidang" }}
-              onPageChange={(page, search) => ksDrillHook.fetch({ kesesuaian_sk: ksModal.kesesuaian_sk!, page, search })}
+              onPageChange={(page, search) => ksDrillHook.fetch({ kesesuaian_sk: ksModal.kesesuaian_sk!, nama_prodi: ksModal.namaProdi, page, search })}
             />
           </>
         )}
@@ -1155,8 +1169,9 @@ const ComparePage = () => {
                             key={label} dataKey={label} stackId="a" fill={mtColorMap[label]} cursor="pointer"
                             onClick={(d: any) => {
                               const rentang = label === "< 3 bulan" ? "0-3" : label === "3-6 bulan" ? "3-6" : ">6";
-                              setMtModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}`, rentang: rentang as any });
-                              mtDrillHook.fetch({ rentang: rentang as any });
+                              const namaProdi = d.fullProdi ?? d.prodi;
+                              setMtModal({ open: true, title: `${namaProdi} — ${label}`, rentang: rentang as any, namaProdi });
+                              mtDrillHook.fetch({ rentang: rentang as any, nama_prodi: namaProdi });
                             }}
                           />
                         ))}
@@ -1208,7 +1223,7 @@ const ComparePage = () => {
               loading={mtDrillHook.loading}
               error={mtDrillHook.error}
               contextColumn={{ key: "masa_tunggu_bekerja", label: "Masa Tunggu (bln)" }}
-              onPageChange={(page, search) => mtDrillHook.fetch({ rentang: mtModal.rentang!, page, search })}
+              onPageChange={(page, search) => mtDrillHook.fetch({ rentang: mtModal.rentang!, nama_prodi: mtModal.namaProdi, page, search })}
             />
           </>
         )}
@@ -1258,8 +1273,9 @@ const ComparePage = () => {
                           <Bar
                             key={label} dataKey={label} stackId="a" fill={wsColorMap[label]} cursor="pointer"
                             onClick={(d: any) => {
-                              setWsModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}`, tingkat: label });
-                              wsDrillHook.fetch({ tingkat: label });
+                              const namaProdi = d.fullProdi ?? d.prodi;
+                              setWsModal({ open: true, title: `${namaProdi} — ${label}`, tingkat: label, namaProdi });
+                              wsDrillHook.fetch({ jabatan: label, nama_prodi: namaProdi });
                             }}
                           />
                         ))}
@@ -1310,8 +1326,8 @@ const ComparePage = () => {
               data={wsDrillHook.data}
               loading={wsDrillHook.loading}
               error={wsDrillHook.error}
-              contextColumn={{ key: "tingkat_instansi", label: "Tingkat" }}
-              onPageChange={(page, search) => wsDrillHook.fetch({ tingkat: wsModal.tingkat!, page, search })}
+              contextColumn={null}
+              onPageChange={(page, search) => wsDrillHook.fetch({ jabatan: wsModal.tingkat!, nama_prodi: wsModal.namaProdi, page, search })}
             />
           </>
         )}
@@ -1617,12 +1633,13 @@ const ComparePage = () => {
                           <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
                           <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                           {instansiJenisLabels.map((l) => {
-                            const j = row.jenis.find((x) => x.label === l);
+                            let pct = 0, count = 0;
+                            row.jenis.forEach((x) => { if (normJenis(x.label) === l) { pct += x.pct; count += x.count; } });
                             return (
                               <td key={l} className="py-2 px-3">
-                                {j ? (
+                                {count > 0 ? (
                                   <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: instansiJenisColorMap[l] }}>
-                                    {j.pct}% ({j.count})
+                                    {pct.toFixed(1)}% ({count})
                                   </span>
                                 ) : <span className="text-muted-foreground text-xs">—</span>}
                               </td>
@@ -1799,8 +1816,9 @@ const ComparePage = () => {
                           <Bar key={label} dataKey={label} stackId="a" fill={rrColorMap[label]} cursor="pointer"
                             onClick={(d: any) => {
                               const sk = statusNameToKey(label);
-                              setRrModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}`, status: sk });
-                              responseRateDrillHook.fetch({ status: sk, page: 1 });
+                              const namaProdi = d.fullProdi ?? d.prodi;
+                              setRrModal({ open: true, title: `${namaProdi} — ${label}`, status: sk, namaProdi });
+                              responseRateDrillHook.fetch({ status: sk, nama_prodi: namaProdi, page: 1 });
                             }}
                           />
                         ))}
@@ -1853,7 +1871,7 @@ const ComparePage = () => {
               loading={responseRateDrillHook.loading}
               error={responseRateDrillHook.error}
               contextColumn={{ key: "status", label: "Status" }}
-              onPageChange={(page, search) => responseRateDrillHook.fetch({ status: rrModal.status, page, search })}
+              onPageChange={(page, search) => responseRateDrillHook.fetch({ status: rrModal.status, nama_prodi: rrModal.namaProdi, page, search })}
             />
           </>
         )}
@@ -1902,8 +1920,9 @@ const ComparePage = () => {
                         {pembiayaanLabels.map((label) => (
                           <Bar key={label} dataKey={label} stackId="a" fill={pembiayaanColorMap[label]} cursor="pointer"
                             onClick={(d: any) => {
-                              setPembiayaanModal({ open: true, title: `${d.fullProdi ?? d.prodi} — ${label}`, sumber_biaya: label });
-                              pembiayaanDrillHook.fetch({ sumber_biaya: label, page: 1 });
+                              const namaProdi = d.fullProdi ?? d.prodi;
+                              setPembiayaanModal({ open: true, title: `${namaProdi} — ${label}`, sumber_biaya: label, namaProdi });
+                              pembiayaanDrillHook.fetch({ sumber_biaya: label, nama_prodi: namaProdi, page: 1 });
                             }}
                           />
                         ))}
@@ -1934,10 +1953,11 @@ const ComparePage = () => {
                           <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
                           <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                           {pembiayaanLabels.map((l) => {
-                            const s = row.sumber.find((x) => x.label === l);
+                            let pct = 0, count = 0;
+                            row.sumber.forEach((x) => { if (normBiaya(x.label) === l) { pct += x.pct; count += x.count; } });
                             return (
                               <td key={l} className="py-2 px-3">
-                                {s ? <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: pembiayaanColorMap[l] }}>{s.pct}% ({s.count})</span> : <span className="text-muted-foreground text-xs">—</span>}
+                                {count > 0 ? <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: pembiayaanColorMap[l] }}>{pct.toFixed(1)}% ({count})</span> : <span className="text-muted-foreground text-xs">—</span>}
                               </td>
                             );
                           })}
@@ -1957,7 +1977,7 @@ const ComparePage = () => {
               loading={pembiayaanDrillHook.loading}
               error={pembiayaanDrillHook.error}
               contextColumn={{ key: "sumber_biaya", label: "Sumber Biaya" }}
-              onPageChange={(page, search) => pembiayaanDrillHook.fetch({ sumber_biaya: pembiayaanModal.sumber_biaya, page, search })}
+              onPageChange={(page, search) => pembiayaanDrillHook.fetch({ sumber_biaya: pembiayaanModal.sumber_biaya, nama_prodi: pembiayaanModal.namaProdi, page, search })}
             />
           </>
         )}
@@ -1966,6 +1986,7 @@ const ComparePage = () => {
             GAP KOMPETENSI — data dari BE
         ══════════════════════════════════════════════════════════════════ */}
         {isCompetency && (
+          <>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
             {kompetensiGapHook.loading ? (
               <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
@@ -2002,13 +2023,72 @@ const ComparePage = () => {
                     />
                     <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
                     {competencyLevels.map((label) => (
-                      <Bar key={label} dataKey={label} stackId="a" fill={competencyColorMap[label]} />
+                      <Bar key={label} dataKey={label} stackId="a" fill={competencyColorMap[label]}
+                        cursor="pointer"
+                        onClick={(d: any) => {
+                          const allProdi = kompetensiGapHook.data?.data ?? [];
+                          const prodiRow = allProdi.find((p) => p.nama_prodi === d.fullProdi) ?? allProdi.find((p) => p.nama_prodi.includes(d.prodi?.replace("…", "")));
+                          const levelIndicators = prodiRow?.indikator?.filter((m) =>
+                            label === "Tinggi (>4)" ? m.skor_lulus > 4 : label === "Sedang (3-4)" ? m.skor_lulus >= 3 && m.skor_lulus <= 4 : m.skor_lulus < 3
+                          );
+                          const gg = levelIndicators?.[0]?.grup_gap ?? prodiRow?.indikator?.[0]?.grup_gap ?? allProdi[0]?.indikator?.[0]?.grup_gap;
+                          const namaProdi = d.fullProdi ?? d.prodi;
+                          setKompModal({ open: true, title: `${label} — ${namaProdi}`, grup_gap: gg, namaProdi });
+                          if (gg) kompetensiDrillHook.fetch({ grup_gap: gg, nama_prodi: namaProdi, page: 1 });
+                        }}
+                      />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             )}
           </motion.div>
+
+          {competencyChartData.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+              <h3 className="font-heading font-semibold mb-4">Ringkasan Data</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Program Studi</th>
+                      <th className="py-2 px-3 text-left font-semibold text-muted-foreground">Total Indikator</th>
+                      {competencyLevels.map((l) => (
+                        <th key={l} className="py-2 px-3 text-left font-semibold text-muted-foreground whitespace-nowrap">{l}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {competencyChartData.map((row) => (
+                      <tr key={row.fullProdi} className="border-t border-border/30 hover:bg-secondary/20">
+                        <td className="py-2 px-3 font-medium">{row.fullProdi}</td>
+                        <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
+                        {competencyLevels.map((l) => (
+                          <td key={l} className="py-2 px-3">
+                            <span className="px-2 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: competencyColorMap[l] }}>
+                              {row[l]}% ({row[`${l}Count`]})
+                            </span>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+
+          <DrillDownModal
+            isOpen={kompModal.open}
+            onClose={() => setKompModal((m) => ({ ...m, open: false }))}
+            title={kompModal.title}
+            data={kompetensiDrillHook.data}
+            loading={kompetensiDrillHook.loading}
+            error={kompetensiDrillHook.error}
+            contextColumn={{ key: "gap", label: "Gap" }}
+            onPageChange={(page, search) => kompetensiDrillHook.fetch({ grup_gap: kompModal.grup_gap, nama_prodi: kompModal.namaProdi, page, search })}
+          />
+          </>
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
@@ -2055,8 +2135,14 @@ const ComparePage = () => {
                         <Bar key={label} dataKey={label} stackId="a" fill={learningColorMap[label]}
                           cursor="pointer"
                           onClick={(d: any) => {
-                            setMetodeModal({ open: true, title: `${label} — ${d.fullProdi ?? d.prodi}` });
-                            metodeDrillHook.fetch({ page: 1 });
+                            const prodiRow = metodeBandingkanHook.data?.data?.find((p) => p.nama_prodi === d.fullProdi || p.nama_prodi.startsWith(d.prodi));
+                            const methods = prodiRow?.metode?.filter((m) =>
+                              label === "Tinggi (>4)" ? m.avg_skor > 4 : label === "Sedang (3-4)" ? m.avg_skor >= 3 && m.avg_skor <= 4 : m.avg_skor < 3
+                            );
+                            const kf = methods?.[0]?.kode_field;
+                            const namaProdi = d.fullProdi ?? d.prodi;
+                            setMetodeModal({ open: true, title: `${label} — ${namaProdi}`, kode_field: kf, namaProdi });
+                            metodeDrillHook.fetch({ kode_field: kf, nama_prodi: namaProdi, page: 1 });
                           }}
                         />
                       ))}
@@ -2108,7 +2194,7 @@ const ComparePage = () => {
               loading={metodeDrillHook.loading}
               error={metodeDrillHook.error}
               contextColumn={{ key: "metode", label: "Metode" }}
-              onPageChange={(page, search) => metodeDrillHook.fetch({ kode_field: metodeModal.kode_field, page, search })}
+              onPageChange={(page, search) => metodeDrillHook.fetch({ kode_field: metodeModal.kode_field, nama_prodi: metodeModal.namaProdi, page, search })}
             />
           </>
         )}

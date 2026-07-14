@@ -42,7 +42,7 @@ const HeroSection = () => {
             >
               <Sparkles className="w-4 h-4 text-primary" />
               <span className="text-sm font-medium text-primary">
-                Dashboard Analitik Terbaru 2024
+                Dashboard Business Intelligence
               </span>
             </motion.div>
 
@@ -55,9 +55,9 @@ const HeroSection = () => {
             </h1>
 
             <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto lg:mx-0">
-              Platform analitik komprehensif untuk penelusuran alumni dengan 
-              visualisasi data real-time, clustering analysis, dan survival analysis 
-              untuk penjaminan mutu pendidikan.
+              Platform Business Intelligence berbasis OLAP untuk analisis
+              multidimensi data tracer study alumni — mendukung evaluasi
+              kurikulum dan penjaminan mutu pendidikan.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
@@ -82,9 +82,9 @@ const HeroSection = () => {
               className="grid grid-cols-3 gap-6 mt-12"
             >
               {[
-                { value: "1,692", label: "Alumni" },
-                { value: "37", label: "Program Studi" },
-                { value: "3.4", label: "Rata-rata IPK" },
+                { value: "10,257", label: "Alumni" },
+                { value: "38", label: "Program Studi" },
+                { value: "13", label: "Indikator Tracer" },
               ].map((stat, i) => (
                 <div key={i} className="text-center lg:text-left">
                   <div className="font-heading text-2xl md:text-3xl font-bold gradient-text">
@@ -173,7 +173,7 @@ const HeroSection = () => {
             >
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-xs font-medium">Real-time Data</span>
+                <span className="text-xs font-medium">Snapshot Mingguan</span>
               </div>
             </motion.div>
 
@@ -184,7 +184,7 @@ const HeroSection = () => {
             >
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-cyan-accent" />
-                <span className="text-xs font-medium">K-Means Clustering</span>
+                <span className="text-xs font-medium">OLAP Drill-Down</span>
               </div>
             </motion.div>
           </motion.div>

@@ -11,8 +11,8 @@ import {
 const features = [
   {
     icon: BarChart3,
-    title: "Pemantauan Respons Secara Realtime",
-    description: "Pantau tingkat partisipasi dan pengisian status tracer study secara realtime selama periode survei aktif berlangsung.",
+    title: "Pemantauan Partisipasi Survei",
+    description: "Pantau tingkat partisipasi dan status pengisian tracer study per program studi melalui snapshot data mingguan.",
     color: "text-primary",
     bgColor: "bg-primary/10",
   },

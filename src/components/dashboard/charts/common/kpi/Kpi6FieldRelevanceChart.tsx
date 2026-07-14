@@ -14,31 +14,26 @@ import {
   Tooltip,
   Legend,
   ReferenceLine,
+  ReferenceArea,
   LabelList,
 } from "recharts";
 import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import { MethodologyBlock } from "./Methodology";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
-import { formatPctCount } from "./format";
+import { formatPctCount, markMax } from "./format";
 import {
   useKesesuaianBar,
   useKesesuaianPie,
   useKesesuaianAlasan,
   useKesesuaianDrillDown,
 } from "@/hooks/useKesesuaian";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 import { buildColorMap } from "@/lib/chartColors";
+import { useKpiFormula, findFormulaGroup } from "@/hooks/useKpiFormula";
 
 const CONTEXT_COLUMN = { key: "kesesuaian_bidang", label: "Kesesuaian Bidang" };
-
-const KESESUAIAN_SK: Record<string, number> = {
-  "Sangat Erat": 1,
-  "Erat": 2,
-  "Cukup Erat": 3,
-  "Kurang Erat": 4,
-  "Tidak Sama Sekali": 5,
-};
 
 const Kpi6FieldRelevanceChart = () => {
   const barHook    = useKesesuaianBar();
@@ -48,27 +43,29 @@ const Kpi6FieldRelevanceChart = () => {
   const lam        = useLamFilter("fieldRelevance");
   const pieActive  = usePieActive();
 
+  const { tahunLulus } = useGlobalFilters();
+
   const [modal, setModal] = useState<{
     open: boolean;
     title: string;
-    kesesuaian_sk?: number;
+    kesesuaian_label?: string;
     alasan?: string;
     tahun_lulus?: string;
   }>({ open: false, title: "" });
 
-  const openModal = (title: string, kesesuaian_sk: number, tahun_lulus?: string) => {
-    setModal({ open: true, title, kesesuaian_sk, tahun_lulus });
-    drillHook.fetch({ kesesuaian_sk, tahun_lulus, page: 1 });
+  const openModal = (title: string, kesesuaian_label: string, tahun_lulus?: string) => {
+    setModal({ open: true, title, kesesuaian_label, tahun_lulus });
+    drillHook.fetch({ kesesuaian_label, tahun_lulus, page: 1 });
   };
 
-  const openAlasanModal = (title: string, alasan: string) => {
-    setModal({ open: true, title, alasan, kesesuaian_sk: 5 });
-    drillHook.fetch({ kesesuaian_sk: 5, alasan, page: 1 });
+  const openAlasanModal = (title: string, alasan: string, tahun_lulus?: string) => {
+    setModal({ open: true, title, alasan, tahun_lulus });
+    drillHook.fetch({ alasan, tahun_lulus, page: 1 });
   };
 
   const handlePageChange = (page: number, search?: string) => {
     drillHook.fetch({
-      ...(modal.kesesuaian_sk != null ? { kesesuaian_sk: modal.kesesuaian_sk } : {}),
+      ...(modal.kesesuaian_label ? { kesesuaian_label: modal.kesesuaian_label } : {}),
       ...(modal.alasan ? { alasan: modal.alasan } : {}),
       tahun_lulus: modal.tahun_lulus,
       page,
@@ -127,8 +124,24 @@ const Kpi6FieldRelevanceChart = () => {
     }));
   }, [alasanHook.data]);
 
+  const latestYear = comboData.length > 0 ? comboData[comboData.length - 1].year : undefined;
+  const isAllYear = tahunLulus === "all";
+  // Pie & bar alasan sekarang default ke tahun_lulus TERBARU kalau "all"
+  // (lihat useKesesuaianPie/useKesesuaianAlasan) -- subtitle harus konsisten
+  // dengan itu, bukan mengklaim "semua periode" sementara datanya sudah
+  // dipersempit ke satu tahun.
+  const displayTahun = isAllYear ? latestYear : tahunLulus;
+  const drillTahun = displayTahun;
+
   const isLoading   = barHook.loading || pieHook.loading || alasanHook.loading;
   const hasError    = barHook.error || pieHook.error || alasanHook.error;
+
+  // Kategori "sesuai" saat ini (mis. Sangat Erat, Erat) — dikonfigurasi di halaman
+  // Pemetaan Pertanyaan Langkah 2 (digunakan_oleh = kesesuaian_bidang_relevance).
+  // Menggantikan teks statis "Sangat Erat dan Erat" supaya tetap akurat kalau
+  // kategori berubah tanpa perlu deploy FE baru.
+  const relevanceFormula = useKpiFormula("relevansi_bidang", "kesesuaian_bidang_relevance");
+  const sesuaiGroup = findFormulaGroup(relevanceFormula.groups, "sesuai");
   const showRefLine = !lam.isDisabled && !!lam.threshold;
 
   return (
@@ -146,13 +159,17 @@ const Kpi6FieldRelevanceChart = () => {
             <MethodologyBlock
               description="Mengukur kesesuaian bidang pekerjaan lulusan terhadap bidang studi."
               formula={<>Kesesuaian (%) = (Lulusan Sesuai Bidang / Total Lulusan Bekerja) × 100%</>}
-              notes="Kategori sesuai mencakup: Sangat Erat dan Erat."
+              notes={
+                sesuaiGroup
+                  ? `Kategori sesuai mencakup: ${sesuaiGroup.options.join(", ")}.`
+                  : "Kategori sesuai mencakup: Sangat Erat dan Erat."
+              }
             />
           }
         >
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={comboData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+              <ComposedChart data={markMax(comboData, "value")} margin={{ top: 30, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
                 <XAxis dataKey="year" fontSize={12} stroke="hsl(var(--muted-foreground))" />
                 <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} fontSize={12} stroke="hsl(var(--muted-foreground))" />
@@ -162,21 +179,33 @@ const Kpi6FieldRelevanceChart = () => {
                     [formatPctCount(v, p.payload.n, p.payload.total), "Kesesuaian"]
                   }
                 />
+                {tahunLulus !== "all" && (
+                  <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill="hsl(var(--foreground))" fillOpacity={0.06}
+                    stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3" />
+                )}
+                {markMax(comboData, "value").filter((d) => d.isMax).map((d) => (
+                  <ReferenceArea key={`max-${d.year}`} x1={d.year} x2={d.year}
+                    fill="hsl(45 95% 55%)" fillOpacity={0.14}
+                    stroke="hsl(45 95% 45%)" strokeOpacity={0.55} strokeDasharray="4 2" />
+                ))}
                 <Bar
                   dataKey="value" name="Kesesuaian" radius={[6, 6, 0, 0]} maxBarSize={50}
                   cursor="pointer"
                   onClick={(d: any) => openModal(
-                    `Kesesuaian — ${d.year} (${d.value}% · ${d.n}/${d.total} lulusan)`, 1, d.year
+                    `Kesesuaian — ${d.year} (${d.value}% · ${d.n}/${d.total} lulusan)`, "Sangat Erat,Erat", d.year
                   )}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
-                  {comboData.map((d) => (
+                  {markMax(comboData, "value").map((d) => (
                     <Cell
                       key={d.year}
                       fill={showRefLine && lam.threshold ? (d.value >= lam.threshold ? C.blue : C.orange) : C.blue}
                     />
                   ))}
                   <LabelList dataKey="value" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => `${v}%`} />
+                  <LabelList dataKey="isMax" position="top" content={(p: any) =>
+                    p.value ? <text x={p.x + p.width / 2} y={p.y - 6} fontSize={11} fontWeight={700} fill="hsl(38 92% 38%)" textAnchor="middle">★ Tertinggi</text> : null
+                  } />
                 </Bar>
                 <Line type="monotone" dataKey="value" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
                 {showRefLine && (
@@ -195,7 +224,7 @@ const Kpi6FieldRelevanceChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && pieData.length === 0}
           title="Distribusi Tingkat Kesesuaian"
-          subtitle="Periode aktif — klik slice untuk lihat alumni"
+          subtitle={displayTahun ? `Tahun kelulusan ${displayTahun}${isAllYear ? " (default: terbaru)" : ""} — klik slice untuk lihat alumni` : "Memuat…"}
           compareType="kesesuaian"
           methodology={
             <MethodologyBlock
@@ -214,8 +243,7 @@ const Kpi6FieldRelevanceChart = () => {
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                   cursor="pointer"
                   onClick={(d: any) => {
-                    const sk = KESESUAIAN_SK[d.name];
-                    if (sk) openModal(`${d.name} (${d.value}% · ${d.count} alumni)`, sk);
+                    openModal(`${d.name} (${d.value}% · ${d.count} alumni)`, d.name, drillTahun);
                   }}
                 >
                   {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
@@ -232,7 +260,7 @@ const Kpi6FieldRelevanceChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && reasonsData.length === 0}
           title="Frekuensi Alasan Ketidaksesuaian"
-          subtitle="Jumlah responden per alasan (multi-pilih)"
+          subtitle={displayTahun ? `Tahun kelulusan ${displayTahun}${isAllYear ? " (default: terbaru)" : ""} — jumlah responden per alasan (multi-pilih)` : "Memuat…"}
           className="lg:col-span-2"
           compareType="kesesuaian"
           methodology={
@@ -250,10 +278,10 @@ const Kpi6FieldRelevanceChart = () => {
                 <XAxis type="number" fontSize={11} stroke="hsl(var(--muted-foreground))" />
                 <YAxis type="category" dataKey="reason" width={240} fontSize={11} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [v, "Responden"]} />
-                <Bar dataKey="value" fill={C.orange} radius={[0, 6, 6, 0]} maxBarSize={28}
+                <Bar dataKey="value" fill={C.orange} radius={[0, 6, 6, 0]} maxBarSize={28} minPointSize={8}
                   cursor="pointer"
                   onClick={(d: any) => {
-                    openAlasanModal(`${d.reason} (${d.value} responden)`, d.reason);
+                    openAlasanModal(`${d.reason} (${d.value} responden)`, d.reason, drillTahun);
                   }}>
                   <LabelList dataKey="value" position="right" fontSize={11} fill="hsl(var(--foreground))" />
                 </Bar>
