@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Filter, ChevronDown, Check, Info } from "lucide-react";
+import { Filter, ChevronDown, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -14,12 +14,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PRODI_LIST, TAHUN_LULUS, LAM_THRESHOLDS } from "@/lib/mockData";
+import { LAM_THRESHOLDS } from "@/lib/mockData"; // TODO: ganti ke BE saat endpoint tersedia
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useFilterOptions } from "@/hooks/useFilterOptions";
 
 interface DashboardFiltersProps {
   selectedProdi: string;
@@ -38,19 +39,21 @@ const DashboardFilters = ({
   selectedJenjang,
   setSelectedJenjang,
 }: DashboardFiltersProps) => {
-  // Get unique prodi names (without jenjang duplicates for the main filter)
-  const uniqueProdiNames = [...new Set(PRODI_LIST.map(p => p.name))];
+  const { prodiList, tahunLulus, jenjang, loading } = useFilterOptions();
+
+  // Deduplicated prodi names for the single-select dropdown
+  const uniqueProdiNames = [...new Set(prodiList.map((p) => p.nama_prodi))];
 
   return (
     <div className="flex flex-wrap items-center gap-3">
       {/* Prodi Filter */}
-      <Select value={selectedProdi} onValueChange={setSelectedProdi}>
+      <Select value={selectedProdi} onValueChange={setSelectedProdi} disabled={loading}>
         <SelectTrigger className="w-[200px] bg-secondary/50">
           <SelectValue placeholder="Program Studi" />
         </SelectTrigger>
         <SelectContent className="bg-card border-border">
           <SelectItem value="all">Semua Prodi</SelectItem>
-          {uniqueProdiNames.map(name => (
+          {uniqueProdiNames.map((name) => (
             <SelectItem key={name} value={name}>
               {name}
             </SelectItem>
@@ -59,14 +62,14 @@ const DashboardFilters = ({
       </Select>
 
       {/* Tahun Lulus Filter */}
-      <Select value={selectedTahun} onValueChange={setSelectedTahun}>
+      <Select value={selectedTahun} onValueChange={setSelectedTahun} disabled={loading}>
         <SelectTrigger className="w-[140px] bg-secondary/50">
           <SelectValue placeholder="Tahun Lulus" />
         </SelectTrigger>
         <SelectContent className="bg-card border-border">
           <SelectItem value="all">Semua Tahun</SelectItem>
-          {TAHUN_LULUS.map(year => (
-            <SelectItem key={year} value={String(year)}>
+          {tahunLulus.map((year) => (
+            <SelectItem key={year} value={year}>
               {year}
             </SelectItem>
           ))}
@@ -74,19 +77,21 @@ const DashboardFilters = ({
       </Select>
 
       {/* Jenjang Filter */}
-      <Select value={selectedJenjang} onValueChange={setSelectedJenjang}>
+      <Select value={selectedJenjang} onValueChange={setSelectedJenjang} disabled={loading}>
         <SelectTrigger className="w-[100px] bg-secondary/50">
           <SelectValue placeholder="Jenjang" />
         </SelectTrigger>
         <SelectContent className="bg-card border-border">
           <SelectItem value="all">Semua</SelectItem>
-          <SelectItem value="D3">D3</SelectItem>
-          <SelectItem value="D4">D4</SelectItem>
-          <SelectItem value="S2">S2</SelectItem>
+          {jenjang.map((j) => (
+            <SelectItem key={j} value={j}>
+              {j}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
 
-      {/* LAM Info */}
+      {/* LAM Info — masih pakai mock, TODO: ganti ke BE */}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="sm" className="gap-2">
@@ -99,8 +104,13 @@ const DashboardFilters = ({
           <div className="space-y-2 text-sm">
             {Object.entries(LAM_THRESHOLDS).map(([lam, data]) => (
               <div key={lam}>
-                <span className="font-medium text-primary">{lam} ({data.threshold}%)</span>
-                <span className="text-muted-foreground"> = {data.prodi.slice(0, 3).join(", ")}{data.prodi.length > 3 ? "..." : ""}</span>
+                <span className="font-medium text-primary">
+                  {lam} ({data.threshold}%)
+                </span>
+                <span className="text-muted-foreground">
+                  {" "}= {data.prodi.slice(0, 3).join(", ")}
+                  {data.prodi.length > 3 ? "..." : ""}
+                </span>
               </div>
             ))}
           </div>
@@ -110,20 +120,27 @@ const DashboardFilters = ({
   );
 };
 
-// Multi-select prodi filter for charts
+// ─── Multi-select prodi filter for charts ────────────────────────────────────
+
 interface ChartProdiFilterProps {
   selectedProdi: string[];
   onChange: (prodi: string[]) => void;
   showLamInfo?: boolean;
 }
 
-export const ChartProdiFilter = ({ selectedProdi, onChange, showLamInfo = true }: ChartProdiFilterProps) => {
+export const ChartProdiFilter = ({
+  selectedProdi,
+  onChange,
+  showLamInfo = true,
+}: ChartProdiFilterProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const uniqueProdiNames = [...new Set(PRODI_LIST.map(p => p.name))];
+  const { prodiList, loading } = useFilterOptions();
+
+  const uniqueProdiNames = [...new Set(prodiList.map((p) => p.nama_prodi))];
 
   const toggleProdi = (prodi: string) => {
     if (selectedProdi.includes(prodi)) {
-      onChange(selectedProdi.filter(p => p !== prodi));
+      onChange(selectedProdi.filter((p) => p !== prodi));
     } else {
       onChange([...selectedProdi, prodi]);
     }
@@ -135,7 +152,12 @@ export const ChartProdiFilter = ({ selectedProdi, onChange, showLamInfo = true }
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 h-8 text-xs">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 h-8 text-xs"
+          disabled={loading}
+        >
           <Filter className="w-3 h-3" />
           {selectedProdi.length === 0 || selectedProdi.length === uniqueProdiNames.length
             ? "Semua Prodi"
@@ -147,35 +169,41 @@ export const ChartProdiFilter = ({ selectedProdi, onChange, showLamInfo = true }
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-medium">Filter Prodi</span>
           <div className="flex gap-1">
-            <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={selectAll}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs px-2"
+              onClick={selectAll}
+            >
               Semua
             </Button>
-            <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={clearAll}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs px-2"
+              onClick={clearAll}
+            >
               Reset
             </Button>
           </div>
         </div>
         <div className="max-h-48 overflow-y-auto space-y-1">
-          {uniqueProdiNames.map(prodi => {
-            const prodiData = PRODI_LIST.find(p => p.name === prodi);
-            return (
-              <label
-                key={prodi}
-                className="flex items-center gap-2 p-1.5 rounded hover:bg-secondary/50 cursor-pointer"
-              >
-                <Checkbox
-                  checked={selectedProdi.includes(prodi)}
-                  onCheckedChange={() => toggleProdi(prodi)}
-                />
-                <span className="text-xs flex-1">{prodi}</span>
-                {showLamInfo && prodiData && (
-                  <span className="text-[10px] text-muted-foreground">
-                    {prodiData.threshold}%
-                  </span>
-                )}
-              </label>
-            );
-          })}
+          {uniqueProdiNames.map((prodiName) => (
+            <label
+              key={prodiName}
+              className="flex items-center gap-2 p-1.5 rounded hover:bg-secondary/50 cursor-pointer"
+            >
+              <Checkbox
+                checked={selectedProdi.includes(prodiName)}
+                onCheckedChange={() => toggleProdi(prodiName)}
+              />
+              <span className="text-xs flex-1">{prodiName}</span>
+              {/* threshold per-prodi masih dari mock — TODO: ganti ke BE */}
+              {showLamInfo && (
+                <span className="text-[10px] text-muted-foreground">LAM</span>
+              )}
+            </label>
+          ))}
         </div>
         {showLamInfo && (
           <div className="mt-2 pt-2 border-t border-border">

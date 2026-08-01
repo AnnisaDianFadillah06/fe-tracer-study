@@ -1,0 +1,313 @@
+import { useMemo, useState, useRef, useEffect } from "react";
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  BarChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ReferenceLine,
+  ReferenceArea,
+  LabelList,
+} from "recharts";
+import { C, tooltipStyle, KpiCard } from "../KpiCard";
+import { MethodologyBlock } from "./Methodology";
+import { markMax } from "./format";
+import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
+import {
+  usePendapatanBar,
+  usePendapatanDistribusi,
+  usePendapatanDrillDown,
+  PendapatanDrillDownParams,
+} from "@/hooks/usePendapatan";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
+import DrillDownModal from "@/components/dashboard/DrillDownModal";
+
+/** Format angka ambang tanpa nol berlebih: 1.2 -> "1,2", 1.4 -> "1,4", 2 -> "2". */
+function formatAmbang(n: number): string {
+  return n.toFixed(1).replace(/\.0$/, "").replace(".", ",");
+}
+
+const Kpi8IncomeChart = () => {
+  const { tahunLulus } = useGlobalFilters();
+  const lam = useLamFilter("incomePct");
+  // Ambang "≥ ambang UMP" dinamis dari LAM terpilih (indikator salary_above_ump)
+  // -- dulu selalu 1,2×. undefined = biarkan BE pakai default 1.2.
+  const ambangMultiplier = lam.dynamicParam?.value;
+  const ambangLabel = formatAmbang(ambangMultiplier ?? 1.2);
+
+  const barHook   = usePendapatanBar(ambangMultiplier);
+  const distHook  = usePendapatanDistribusi(ambangMultiplier);
+  const drillHook = usePendapatanDrillDown(ambangMultiplier);
+
+  const [modal, setModal] = useState<{
+    open: boolean;
+    title: string;
+    fetchParams: PendapatanDrillDownParams;
+  }>({ open: false, title: "", fetchParams: {} });
+
+  const openModal = (title: string, fetchParams: PendapatanDrillDownParams) => {
+    setModal({ open: true, title, fetchParams });
+    drillHook.fetch({ ...fetchParams, page: 1 });
+  };
+
+  // Map BE response → format yang dipakai chart
+  const avgData = useMemo(
+    () =>
+      (barHook.data?.data ?? []).map((d) => ({
+        year:     d.tahun_lulus,
+        avg:      Math.round((d.avg_gaji / 1_000_000) * 100) / 100,
+        pctAbove: d.pct_above_ump ?? undefined,
+        total:    d.total_alumni_ump,
+        countAbove: d.count_above_ump,
+      })),
+    [barHook.data]
+  );
+
+  // UMP tersedia jika setidaknya satu titik punya pctAbove bukan null
+  const hasUmpData = avgData.some((d) => d.pctAbove !== undefined);
+
+  const distData = useMemo(
+    () =>
+      (distHook.data?.data ?? []).map((d) => ({
+        year:  d.tahun_lulus,
+        below: d.pct_below_ump,
+        above: d.pct_above_ump,
+        countBelow: d.count_below_ump,
+        countAbove: d.count_above_ump,
+        total: d.total_alumni_ump,
+      })),
+    [distHook.data]
+  );
+
+  const showRefLine = !lam.isDisabled && !!lam.threshold;
+  const isEmpty     = !barHook.loading  && !barHook.error  && avgData.length  === 0;
+  const isEmpty2    = !distHook.loading && !distHook.error && distData.length === 0;
+
+  const VISIBLE_YEARS = 3;
+  const BAR_GROUP_WIDTH = 160;
+  const distChartWidth = Math.max(distData.length * BAR_GROUP_WIDTH, 400);
+  const distScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = distScrollRef.current;
+    if (el && distData.length > VISIBLE_YEARS) {
+      el.scrollLeft = el.scrollWidth - el.clientWidth;
+    }
+  }, [distData]);
+
+  return (
+    <>
+      <div className="grid lg:grid-cols-2 gap-4">
+        {/* ── Grafik 1: Tren rata-rata gaji + % ≥ ambang UMP (dinamis per LAM) ── */}
+        <KpiCard
+          loading={barHook.loading}
+          error={barHook.error}
+          empty={isEmpty}
+          title={`Tren Pendapatan & % Lulusan ≥ ${ambangLabel}× UMP`}
+          subtitle={lamSubtitle(lam)}
+          compareType="income-kelompok"
+          headerExtra={<LamFilterControls lam={lam} />}
+          methodology={
+            <MethodologyBlock
+              description={`Mengukur rata-rata pendapatan lulusan serta proporsi yang berpendapatan ≥ ${ambangLabel}× UMP daerah kerja.`}
+              formula={
+                <>
+                  Rata-rata Gaji = Σ Gaji Lulusan Bekerja / Total Lulusan Bekerja<br />
+                  % ≥ {ambangLabel}× UMP = (Lulusan dengan Gaji ≥ {ambangLabel}× UMP / Total Lulusan Bekerja) × 100%
+                </>
+              }
+              notes={`UMP mengacu pada daerah lokasi kerja lulusan pada tahun pengukuran. Ambang ${ambangLabel}× mengikuti standar LAM yang sedang dipilih (indikator "salary_above_ump") — 1,2× dipakai sebagai default kalau belum ada LAM/prodi terpilih.`}
+            />
+          }
+        >
+          {!hasUmpData && avgData.length > 0 && (
+            <p className="text-xs text-muted-foreground mb-2">
+              Data perbandingan UMP belum tersedia — menampilkan rata-rata gaji saja.
+            </p>
+          )}
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={avgData} margin={{ top: 30, right: hasUmpData ? 50 : 20, left: 20, bottom: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+                {tahunLulus !== "all" && (
+                  <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill="hsl(var(--foreground))" fillOpacity={0.06}
+                    stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3" />
+                )}
+                <XAxis
+                  dataKey="year"
+                  fontSize={13}
+                  stroke="hsl(var(--muted-foreground))"
+                  label={{ value: "Tahun Kelulusan", position: "insideBottom", offset: -8, fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <YAxis
+                  yAxisId="left"
+                  tickFormatter={(v) => `${v} jt`}
+                  fontSize={13}
+                  domain={[0, "auto"]}
+                  stroke={C.blue}
+                  label={{ value: "Rata-rata Gaji (Juta Rp)", angle: -90, position: "insideLeft", fontSize: 12, fill: C.blue }}
+                />
+                {hasUmpData && (
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tickFormatter={(v) => `${v}%`}
+                    fontSize={13}
+                    domain={[0, 100]}
+                    stroke={C.red}
+                    label={{ value: `% Lulusan ≥ ${ambangLabel}× UMP`, angle: 90, position: "insideRight", fontSize: 12, fill: C.red }}
+                  />
+                )}
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(v: number, n) =>
+                    n === "Rata-rata Gaji" ? [`Rp ${v.toFixed(2)} jt`, n] : [`${v}%`, n]
+                  }
+                />
+                <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
+                <Bar
+                  yAxisId="left"
+                  dataKey="avg"
+                  name="Rata-rata Gaji"
+                  fill={C.blue}
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={60}
+                  cursor="pointer"
+                  onClick={(d: any) =>
+                    openModal(`Pendapatan Lulusan ${d.year} (${d.total} alumni)`, { tahun_lulus: d.year })
+                  }
+                  activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
+                >
+                  <LabelList
+                    dataKey="avg"
+                    position="center"
+                    fill="#fff"
+                    fontSize={12}
+                    fontWeight={600}
+                    formatter={(v: number) => `${v.toFixed(1)}jt`}
+                  />
+                </Bar>
+                {hasUmpData && (
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="pctAbove"
+                    name={`% ≥ ${ambangLabel}× UMP`}
+                    stroke={C.red}
+                    strokeWidth={2.5}
+                    dot={{ r: 5, fill: C.red }}
+                  />
+                )}
+                {hasUmpData && showRefLine && (
+                  <ReferenceLine
+                    yAxisId="right"
+                    y={lam.threshold}
+                    stroke={C.red}
+                    strokeDasharray="6 3"
+                    strokeWidth={2}
+                    label={{
+                      value: `Target ${lam.level === "baik" ? "Baik" : "Unggul"} ≥ ${lam.threshold}%`,
+                      fill: C.red,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      position: "insideTopRight",
+                    }}
+                  />
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </KpiCard>
+
+        {/* ── Grafik 2: Proporsi < UMP vs ≥ UMP ── */}
+        <KpiCard
+          loading={distHook.loading}
+          error={distHook.error}
+          empty={isEmpty2}
+          title="Proporsi Lulusan Berdasarkan UMP"
+          subtitle={`Dua kelompok: < ${ambangLabel}× UMP vs ≥ ${ambangLabel}× UMP per tahun`}
+          compareType="income"
+          methodology={
+            <MethodologyBlock
+              description={`Membagi lulusan bekerja ke dua kelompok pendapatan berdasarkan ambang ${ambangLabel}× UMP.`}
+              formula={<>% Kelompok = (Lulusan pada Kelompok / Total Lulusan Bekerja) × 100%</>}
+            />
+          }
+        >
+          <div
+            ref={distScrollRef}
+            className="h-80 overflow-x-auto overflow-y-hidden"
+            style={{ scrollBehavior: "smooth" }}
+          >
+            <div style={{ width: distData.length > VISIBLE_YEARS ? distChartWidth : "100%", height: "100%" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={distData} margin={{ top: 30, right: 20, left: 20, bottom: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+                  <XAxis
+                    dataKey="year"
+                    fontSize={13}
+                    stroke="hsl(var(--muted-foreground))"
+                  />
+                  <YAxis
+                    tickFormatter={(v) => `${v}%`}
+                    fontSize={13}
+                    domain={[0, 100]}
+                    label={{ value: "Persentase Lulusan (%)", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                  />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
+                  <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
+                  <Bar
+                    dataKey="below"
+                    name={`< ${ambangLabel}× UMP`}
+                    fill={C.orange}
+                    radius={[3, 3, 0, 0]}
+                    cursor="pointer"
+                    onClick={(d: any) =>
+                      openModal(`Alumni < ${ambangLabel}× UMP — ${d.year} (${d.below}% · ${d.countBelow} alumni)`, { segmen_ump: "below_ump", tahun_lulus: d.year })
+                    }
+                    activeBar={{ stroke: "hsl(20 90% 45%)", strokeWidth: 2 } as any}
+                  >
+                    <LabelList dataKey="below" position="center" fontSize={12} fontWeight={600} fill="#fff" formatter={(v: number) => `${v}%`} />
+                  </Bar>
+                  <Bar
+                    dataKey="above"
+                    name={`≥ ${ambangLabel}× UMP`}
+                    fill={C.blue}
+                    radius={[3, 3, 0, 0]}
+                    cursor="pointer"
+                    onClick={(d: any) =>
+                      openModal(`Alumni ≥ ${ambangLabel}× UMP — ${d.year} (${d.above}% · ${d.countAbove} alumni)`, { segmen_ump: "above_ump", tahun_lulus: d.year })
+                    }
+                    activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
+                  >
+                    <LabelList dataKey="above" position="center" fontSize={12} fontWeight={600} fill="#fff" formatter={(v: number) => `${v}%`} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </KpiCard>
+      </div>
+
+      <DrillDownModal
+        isOpen={modal.open}
+        onClose={() => setModal((m) => ({ ...m, open: false }))}
+        title={modal.title}
+        data={drillHook.data as any}
+        loading={drillHook.loading}
+        error={drillHook.error}
+        contextColumn={{ key: "perusahaan", label: "Perusahaan" }}
+        onPageChange={(page, search) =>
+          drillHook.fetch({ ...modal.fetchParams, page, search })
+        }
+      />
+    </>
+  );
+};
+
+export default Kpi8IncomeChart;

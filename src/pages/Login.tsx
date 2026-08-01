@@ -7,29 +7,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import PolbanLogo from "@/components/PolbanLogo";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { login, isLoading } = useAuth(); // ✅ pakai hook
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-
-    // Simulate login
-    setTimeout(() => {
-      setIsLoading(false);
-      toast({
-        title: "Login Berhasil",
-        description: "Selamat datang di Dashboard Tracer Study",
-      });
+    try {
+      await login(email, password);
       navigate("/dashboard/overview");
-    }, 1500);
+    } catch {
+    }
   };
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   navigate("/dashboard/overview"); // langsung bypass, skip login()
+  // };
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -149,17 +147,17 @@ const Login = () => {
               Dashboard <span className="gradient-text">Analitik</span>
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto mb-8">
-              Akses data tracer study secara real-time dengan visualisasi interaktif
-              dan analisis clustering untuk penjaminan mutu
+              Analisis multidimensi data tracer study dengan
+              visualisasi interaktif berbasis OLAP
             </p>
 
             {/* Feature Cards */}
             <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
               {[
-                { title: "Real-time Data", desc: "Monitor langsung" },
-                { title: "Clustering", desc: "8 domain analisis" },
-                { title: "Survival Analysis", desc: "Pola masa tunggu" },
-                { title: "Multi-Prodi", desc: "37 program studi" },
+                { title: "OLAP Analytics", desc: "Analisis multidimensi" },
+                { title: "13 Indikator", desc: "Tracer study lengkap" },
+                { title: "Drill-Down", desc: "Detail per alumni" },
+                { title: "38 Prodi", desc: "Lintas program studi" },
               ].map((item, i) => (
                 <motion.div
                   key={item.title}

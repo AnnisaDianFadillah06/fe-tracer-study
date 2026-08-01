@@ -2,19 +2,21 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
+  GraduationCap, 
   LayoutDashboard, 
-  BarChart3, 
   ChevronLeft, 
   ChevronRight,
   LogOut,
   User,
   Bell,
-  Users,
   KeyRound,
   Briefcase,
   BookOpen,
-  UserCog,
-  ClipboardList,
+  Target,
+  Radio,
+  Wallet,
+  Link2,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,10 +27,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import RoleSwitcher from "@/components/dashboard/RoleSwitcher";
 import { useRole } from "@/contexts/RoleContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
-import PolbanLogo from "@/components/PolbanLogo";
+import GlobalFilters from "@/components/dashboard/GlobalFilters";
+import { GlobalFiltersProvider } from "@/contexts/GlobalFiltersContext";
+import DownloadDataButton from "@/components/dashboard/DownloadDataButton";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -37,35 +41,43 @@ interface DashboardLayoutProps {
 // Navigation items — role-agnostic routes
 const navItems = [
   {
-    title: "Overview",
+    title: "Monitoring Partisipasi",
     icon: LayoutDashboard,
     href: "/dashboard/overview",
-    description: "High-level KPI metrics",
+    description: "Pemantauan pengisian tracer study",
   },
   {
-    title: "Employment Outcome",
+    title: "Luaran Pekerjaan",
     icon: Briefcase,
     href: "/dashboard/employment",
-    description: "Job placement & career",
+    description: "Penempatan & karier alumni",
   },
   {
-    title: "Educational Assessment",
+    title: "Analisis Capaian Lulusan",
     icon: BookOpen,
     href: "/dashboard/education",
-    description: "Kompetensi & learning",
+    description: "Kompetensi & pembelajaran",
   },
-  {
-    title: "Analitik",
-    icon: BarChart3,
-    href: "/dashboard/analytics",
-    description: "Clustering & Survival",
-  },
+];
+
+const adminItems = [
+  { href: "/dashboard/threshold-management", icon: Target, title: "Threshold", desc: "Nilai LAM/BAN-PT" },
+  { href: "/dashboard/master-ump", icon: Wallet, title: "Master UMP", desc: "Data UMP per provinsi" },
+  { href: "/dashboard/question-mapping", icon: Link2, title: "Pemetaan Pertanyaan", desc: "Mapping kode → semantic role" },
+  { href: "/dashboard/etl-anomaly-log", icon: AlertTriangle, title: "Log Anomali ETL", desc: "Jawaban gagal dinormalisasi saat ETL" },
 ];
 
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { currentRole, selectedProdi, roleLabels } = useRole();
+  const { user } = useAuth();
+
+  // Show GlobalFilters on dashboard data pages (overview/employment/education/kpi)
+  const showGlobalFilters = /\/dashboard\/(overview|employment|education|kpi)/.test(location.pathname);
+  const filtersMode = currentRole === "kaprodi" ? "kaprodi" : "full";
+  const isRealtimePage = /\/dashboard\/overview/.test(location.pathname);
+  const todayId = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -79,7 +91,23 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Logo */}
         <div className="p-4 border-b border-sidebar-border">
           <Link to="/dashboard/overview" className="flex items-center gap-3">
-            <PolbanLogo compact title="Tracer Study" subtitle="Dashboard" showText={!collapsed} />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-orange-light flex items-center justify-center flex-shrink-0">
+              <GraduationCap className="w-6 h-6 text-primary-foreground" />
+            </div>
+            {!collapsed && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <span className="font-heading font-bold text-lg text-sidebar-foreground">
+                  Tracer Study
+                </span>
+                <span className="text-xs text-muted-foreground block -mt-1">
+                  Dashboard
+                </span>
+              </motion.div>
+            )}
           </Link>
         </div>
 
@@ -124,37 +152,37 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             );
           })}
 
-          {/* Admin section */}
-          {!collapsed && (
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-4 pb-1">
-              Administrasi
-            </p>
+          {/* Admin section — only visible for kotc (admin) */}
+          {currentRole === "kotc" && (
+            <>
+              {!collapsed && (
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-4 pb-1">
+                  Administrasi
+                </p>
+              )}
+              {collapsed && <div className="my-2 border-t border-sidebar-border" />}
+              {adminItems.map((item) => {
+                const isActive = location.pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    className={`sidebar-item ${isActive ? "active" : ""}`}
+                  >
+                    <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-primary" : "text-sidebar-foreground"}`} />
+                    {!collapsed && (
+                      <div>
+                        <div className={`font-medium ${isActive ? "text-primary" : "text-sidebar-foreground"}`}>
+                          {item.title}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{item.desc}</div>
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </>
           )}
-          {collapsed && <div className="my-2 border-t border-sidebar-border" />}
-          {[
-            { href: "/dashboard/team-management", icon: Users, title: "Tim Koordinator", desc: "Kelola tim tracer" },
-            { href: "/dashboard/student-management", icon: UserCog, title: "Akun Mahasiswa", desc: "CRUD akun kuesioner" },
-            { href: "/dashboard/form-management", icon: ClipboardList, title: "Form Management", desc: "Kelola formulir dan hasil respon" },
-          ].map((item) => {
-            const isActive = location.pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                to={item.href}
-                className={`sidebar-item ${isActive ? "active" : ""}`}
-              >
-                <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-primary" : "text-sidebar-foreground"}`} />
-                {!collapsed && (
-                  <div>
-                    <div className={`font-medium ${isActive ? "text-primary" : "text-sidebar-foreground"}`}>
-                      {item.title}
-                    </div>
-                    <div className="text-xs text-muted-foreground">{item.desc}</div>
-                  </div>
-                )}
-              </Link>
-            );
-          })}
         </nav>
 
         {/* Collapse Toggle */}
@@ -185,9 +213,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Top Bar */}
         <header className="sticky top-0 z-30 h-16 bg-background/80 backdrop-blur-lg border-b border-border flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
-            {/* Role Switcher */}
-            <RoleSwitcher />
-            
             {/* Current page info */}
             <div className="hidden md:block">
               <h1 className="font-heading font-semibold text-lg">
@@ -200,6 +225,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Realtime indicator (Overview only) */}
+            {isRealtimePage && (
+              <Badge
+                variant="outline"
+                className="hidden md:flex h-8 px-3 gap-1.5 items-center text-xs border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              >
+                <Radio className="w-3.5 h-3.5 animate-pulse" /> Realtime — {todayId}
+              </Badge>
+            )}
+
             {/* Prodi indicator for Kaprodi */}
             {selectedProdi && (
               <Badge variant="secondary" className="hidden md:flex">
@@ -207,7 +242,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               </Badge>
             )}
 
-            {/* Theme Toggle */}
+            {/* Download & Theme */}
+            {showGlobalFilters && <DownloadDataButton />}
             <ThemeToggle />
 
             {/* Notifications */}
@@ -223,7 +259,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-orange-light flex items-center justify-center">
                     <User className="w-4 h-4 text-primary-foreground" />
                   </div>
-                  <span className="hidden md:inline">Admin</span>
+                  <span className="hidden md:inline">{user?.name ?? "User"}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 bg-card border-border">
@@ -250,6 +286,13 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </DropdownMenu>
           </div>
         </header>
+
+        {/* Sticky Global Filters under the top bar */}
+        {showGlobalFilters && (
+          <div className="sticky top-16 z-20">
+            <GlobalFilters mode={filtersMode} kaprodiName={selectedProdi ?? undefined} />
+          </div>
+        )}
 
         {/* Page Content */}
         <main className="flex-1 p-6 overflow-auto">

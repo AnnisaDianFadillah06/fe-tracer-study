@@ -1,0 +1,304 @@
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiService } from "@/lib/apiClient";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface KesesuaianBarItem {
+  nama_prodi: string;
+  jenjang: string;
+  tahun_lulus: string;
+  count_alumni: number;
+  count_sesuai_bidang: number;
+  count_tidak_sesuai_bidang: number;
+  pct_sesuai: number;
+  pct_tidak_sesuai: number;
+}
+
+export interface KesesuaianBarResponse {
+  filters: Record<string, string>;
+  data: KesesuaianBarItem[];
+}
+
+export interface KesesuaianPieItem {
+  label: string;
+  count: number;
+  pct: number;
+}
+
+export interface KesesuaianPieResponse {
+  chart_type: string;
+  filters: Record<string, string>;
+  total: number;
+  data: KesesuaianPieItem[];
+}
+
+export interface KesesuaianAlasanItem {
+  kode_field: string;
+  label: string;
+  count: number;
+}
+
+export interface KesesuaianAlasanResponse {
+  filters: Record<string, string>;
+  data: KesesuaianAlasanItem[];
+}
+
+export interface KesesuaianDrillDownStudent {
+  nama: string;
+  nim: string;
+  nama_prodi: string;
+  jenjang: string;
+  tahun_lulus: string;
+  kesesuaian_bidang: string;
+  status: string;
+}
+
+export interface KesesuaianDrillDownResponse {
+  kesesuaian_label: string;
+  filters: Record<string, string>;
+  pagination: { page: number; per_page: number; total_on_page: number };
+  data: KesesuaianDrillDownStudent[];
+}
+
+export interface KesesuaianDrillDownParams {
+  kesesuaian_label?: string;
+  alasan?: string;
+  tahun_lulus?: string;
+  nama_prodi?: string;
+  page?: number;
+  per_page?: number;
+  search?: string;
+}
+
+export interface KesesuaianBandingkanItem {
+  nama_prodi: string;
+  jenjang: string;
+  total: number;
+  pct_sesuai: number;
+  pct_tidak_sesuai: number;
+  breakdown: { tahun_lulus: string; count_alumni: number; pct_sesuai: number; pct_tidak_sesuai: number }[];
+}
+
+export interface KesesuaianBandingkanResponse {
+  data: KesesuaianBandingkanItem[];
+  prodi_list: string[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildParams(
+  degree: string,
+  jurusan: string,
+  prodi: string,
+  tahunLulus: string,
+  weekKey: string
+): Record<string, string> {
+  const p: Record<string, string> = {};
+  if (degree     && degree     !== "__all__") p.jenjang         = degree;
+  if (jurusan    && jurusan    !== "__all__") p.jurusan         = jurusan;
+  if (prodi      && prodi      !== "__all__") p.nama_prodi      = prodi;
+  if (tahunLulus && tahunLulus !== "all")     p.tahun_lulus     = tahunLulus;
+  if (weekKey)                               p.minggu_snapshot = weekKey;
+  return p;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook: useKesesuaianBar  (tidak filter tahun — tahun_lulus adalah sumbu X)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useKesesuaianBar() {
+  const { degree, jurusan, prodi, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
+
+  // Bar tidak pakai tahun_lulus — itu sumbu X
+  const params = useMemo(
+    () => buildParams(degree, jurusan, prodi, "all", weekKey),
+    [degree, jurusan, prodi, weekKey]
+  );
+
+  const result = useQuery<KesesuaianBarResponse>({
+    queryKey: ["kesesuaian", "bar", params, updatedTs],
+    queryFn: ({ signal }) =>
+      apiService.get<any>("/dashboard/kesesuaian/bar", { params, signal })
+        .then((res) => res?.data ?? res),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return {
+    data: result.data ?? null,
+    loading: result.isLoading,
+    error: (result.error as Error | null)?.message ?? null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook: useKesesuaianPie
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useKesesuaianPie() {
+  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt, filterOptions } = useGlobalFilters();
+  const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
+
+  // Pie adalah snapshot SATU kohort -- kalau tidak ada tahun dipilih ("all"),
+  // default ke tahun_lulus TERBARU, bukan menjumlah semua tahun (lihat pola
+  // yang sama di useWirausahaPie/useMasaTungguDistribusi).
+  const effectiveTahun = tahunLulus !== "all" ? tahunLulus : (filterOptions.tahunLulus[0] ?? "all");
+
+  const params = useMemo(
+    () => buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
+    [degree, jurusan, prodi, effectiveTahun, weekKey]
+  );
+
+  const result = useQuery<KesesuaianPieResponse>({
+    queryKey: ["kesesuaian", "pie", params, updatedTs],
+    queryFn: ({ signal }) =>
+      apiService.get<any>("/dashboard/kesesuaian/pie", { params, signal })
+        .then((res) => res?.data ?? res),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return {
+    data: result.data ?? null,
+    loading: result.isLoading,
+    error: (result.error as Error | null)?.message ?? null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook: useKesesuaianAlasan
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useKesesuaianAlasan() {
+  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt, filterOptions } = useGlobalFilters();
+  const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
+
+  // Sama seperti useKesesuaianPie -- default ke tahun_lulus terbaru kalau
+  // belum ada tahun dipilih, bukan "semua periode".
+  const effectiveTahun = tahunLulus !== "all" ? tahunLulus : (filterOptions.tahunLulus[0] ?? "all");
+
+  const params = useMemo(
+    () => buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
+    [degree, jurusan, prodi, effectiveTahun, weekKey]
+  );
+
+  const result = useQuery<KesesuaianAlasanResponse>({
+    queryKey: ["kesesuaian", "alasan", params, updatedTs],
+    queryFn: ({ signal }) =>
+      apiService.get<any>("/dashboard/kesesuaian/alasan", { params, signal })
+        .then((res) => res?.data ?? res),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return {
+    data: result.data ?? null,
+    loading: result.isLoading,
+    error: (result.error as Error | null)?.message ?? null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook: useKesesuaianBandingkan
+// Baca filter dari URL — reliabel di halaman compare karena GlobalFiltersProvider
+// mungkin tidak membungkus halaman compare (sama persis seperti useKeterserapanBandingkan).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useKesesuaianBandingkan(enabled: boolean) {
+  const searchParams = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search)
+    : new URLSearchParams();
+
+  const jenjang    = searchParams.get("jenjang")         ?? "";
+  const jurusan    = searchParams.get("jurusan")         ?? "";
+  const tahunLulus = searchParams.get("tahun_lulus")     ?? "";
+  const weekKey    = searchParams.get("minggu_snapshot") ?? "";
+
+  const [data, setData] = useState<KesesuaianBandingkanResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const abortRef              = useRef<AbortController | null>(null);
+
+  const paramKey = `${jenjang}|${jurusan}|${tahunLulus}|${weekKey}`;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+    setLoading(true);
+    setError(null);
+
+    const params: Record<string, string> = {};
+    if (jenjang)    params.jenjang         = jenjang;
+    if (jurusan)    params.jurusan         = jurusan;
+    if (tahunLulus) params.tahun_lulus     = tahunLulus;
+    if (weekKey)    params.minggu_snapshot = weekKey;
+
+    apiService
+      .get<any>("/dashboard/kesesuaian/bandingkan", { params, signal: abortRef.current.signal })
+      .then((res) => {
+        const payload: KesesuaianBandingkanResponse = res?.data?.data ? res.data : res?.data ?? res;
+        setData(payload);
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        if (err?.name === "CanceledError" || err?.name === "AbortError") return;
+        setError(err?.message ?? "Gagal memuat data perbandingan");
+        setLoading(false);
+      });
+
+    return () => { abortRef.current?.abort(); };
+  }, [enabled, paramKey]);
+
+  return { data, loading, error };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook: useKesesuaianDrillDown  (lazy)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useKesesuaianDrillDown() {
+  const { degree, jurusan, prodi, tahunLulus, weekKey } = useGlobalFilters();
+
+  const [data, setData]       = useState<KesesuaianDrillDownResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const abortRef              = useRef<AbortController | null>(null);
+
+  const fetch = useCallback(
+    (extra: KesesuaianDrillDownParams) => {
+      if (abortRef.current) abortRef.current.abort();
+      abortRef.current = new AbortController();
+      setLoading(true);
+      setError(null);
+
+      const effectiveTahun = extra.tahun_lulus ?? tahunLulus;
+      const params: Record<string, string> = {
+        ...buildParams(degree, jurusan, prodi, effectiveTahun, weekKey),
+        page:          String(extra.page ?? 1),
+        per_page:      String(extra.per_page ?? 15),
+        ...(extra.kesesuaian_label ? { kesesuaian_label: extra.kesesuaian_label } : {}),
+        ...(extra.alasan ? { label_pertanyaan: extra.alasan } : {}),
+        ...(extra.nama_prodi ? { nama_prodi: extra.nama_prodi } : {}),
+        ...(extra.search ? { search: extra.search } : {}),
+      };
+
+      apiService
+        .get<any>("/dashboard/kesesuaian/drill-down", { params, signal: abortRef.current.signal })
+        .then((res) => { setData(res?.data ?? res); setLoading(false); })
+        .catch((err: any) => {
+          if (err?.name === "CanceledError" || err?.name === "AbortError") return;
+          setError(err?.message ?? "Gagal memuat data alumni");
+          setLoading(false);
+        });
+    },
+    [degree, jurusan, prodi, tahunLulus, weekKey]
+  );
+
+  return { data, loading, error, fetch };
+}
