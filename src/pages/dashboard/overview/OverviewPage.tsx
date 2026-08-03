@@ -7,14 +7,12 @@ const OverviewPage = () => {
   const { currentRole } = useRole();
 
   switch (currentRole) {
-    case "p2mpp":
-      return <P2mppOverview />;
     case "kaprodi":
       return <KaprodiOverview />;
-    case "kotc":
+    case "tracer_team":
       return <KotcOverview />;
     default:
-      return null;
+      return <P2mppOverview />;
   }
 };
 

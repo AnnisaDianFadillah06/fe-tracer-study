@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { apiService } from "@/lib/apiClient";
-import { useToast } from "@/hooks/use-toast";
-import type { FormSection, Question, Option } from "@/hooks/useQuestionManagement";
+import { useToast } from "@/hooks/common/use-toast";
+import type { FormSection, Question, Option } from "@/hooks/form/useQuestionManagement";
 
 interface QuestionnaireResponse {
   id: number;

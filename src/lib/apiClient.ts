@@ -416,7 +416,9 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
+      // Token expired, redirect to login
       localStorage.removeItem("auth_token");
+      window.location.href = "/login";
     }
     return Promise.reject(error);
   }
@@ -431,10 +433,9 @@ export const apiService = {
 
   login: async (email: string, password: string) => {
     const response = await apiClient.post("/auth/login", { email, password });
-    
+
     // Response shape: { success, message, data: { user, token, token_type } }
-    const payload = response.data.data; // ✅ unwrap wrapper dulu
-    
+    const payload = response.data.data; // unwrap wrapper dulu
     if (payload?.token) {
       localStorage.setItem("auth_token", payload.token);
     }

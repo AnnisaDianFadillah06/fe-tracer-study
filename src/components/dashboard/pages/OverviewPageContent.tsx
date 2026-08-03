@@ -50,7 +50,7 @@ interface Props {
   /** Hide compare buttons (Kaprodi). */
   hideCompare?: boolean;
   /** Demo: which KPIs should render empty (no data). */
-  emptyKpis?: ("k1" | "k2" | "k3")[];
+  emptyKpis?: ("k1" | "k2" | "k3" | "k13")[];
 }
 
 const OverviewPageContent = ({

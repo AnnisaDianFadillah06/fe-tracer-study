@@ -45,7 +45,12 @@ function buildEmploymentCards(cards: EmploymentSummaryCards): SummaryCardItem[] 
   ];
 }
 
-const EmploymentPageContent = () => {
+interface Props {
+  /** Demo: KPI mana yang dirender kosong (belum ada data untuk scope ini). */
+  emptyKpis?: ("k4" | "k5" | "k6" | "k7")[];
+}
+
+const EmploymentPageContent = ({ emptyKpis = [] }: Props) => {
   const { data: cards } = useEmploymentSummary();
   const hasExpectedShape = cards && cards.keterserapan && cards.masa_tunggu_cepat;
   const summary = hasExpectedShape ? buildEmploymentCards(cards) : FALLBACK_SUMMARY;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/common/use-toast";
 
 export type QuestionType =
   | "short"
@@ -31,6 +31,10 @@ export interface Question {
   scaleMax?: number;
   scaleMinLabel?: string;
   scaleMaxLabel?: string;
+  showIf?: Record<string, (string | number)[]>;
+  groupCode?: string;
+  groupTitle?: string;
+  groupLabel?: string;
 }
 
 export interface FormSection {

@@ -1,3 +1,56 @@
+// ── Backend API types ──────────────────────────────────────────────────────────
+/** Shape returned by GET /api/questionnaires */
+export interface BackendQuestionnaire {
+  id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  target: string | null;
+  respondents: string[];
+  period_year: number;
+  version: number;
+  status: string;             // 'published' | 'draft'
+  program_id: number | null;
+  is_global: boolean;
+  response_count: number;
+  target_graduation_years: number[] | null;
+  sections: BackendSection[];
+}
+
+export interface BackendSection {
+  id: number;
+  title: string;
+  description: string | null;
+  questions: BackendQuestion[];
+}
+
+export interface BackendQuestion {
+  id: number;
+  code: string;
+  question: string;
+  question_text: string;
+  type: string;
+  description: string | null;
+  options: BackendOption[];
+  required: boolean;
+  allowOther: boolean;
+  scaleMin: number;
+  scaleMax: number;
+  gridRows: string[];
+  gridColumns: string[];
+  metadata?: Record<string, unknown> | null;
+  show_if?: Record<string, unknown> | null;
+}
+
+export interface BackendOption {
+  id: number;
+  code: string;
+  label: string;
+  value: string | null;
+  order_no: number;
+}
+
+// ── Local / Builder types ──────────────────────────────────────────────────────
 export type FormStatus = "aktif" | "nonaktif";
 
 export type BuilderQuestionType =
@@ -13,6 +66,14 @@ export type BuilderQuestionType =
   | "checkbox_grid"
   | "date"
   | "time";
+
+export type QuestionLogicType = "always" | "in_array";
+
+export interface QuestionLogic {
+  type: QuestionLogicType;
+  dependsOn: string;
+  values: string[];
+}
 
 export interface FormResponseMock {
   respondent: string;
@@ -32,6 +93,16 @@ export interface BuilderQuestion {
   allowOther?: boolean;
   scaleMin?: number;
   scaleMax?: number;
+  scaleLabels?: string[];
+  logic: QuestionLogic;
+  // Group metadata for grouped boolean questions (preserved from template)
+  group_code?: string;
+  group_label?: string;
+  group_title?: string;
+  // Original individual question codes for grouped booleans (used to expand on save)
+  _individual_codes?: string[];
+  // Original option objects with codes (preserved from backend for roundtrip)
+  _original_options?: Array<{ label: string; code: string }>;
 }
 
 export const isOptionQuestionType = (type: BuilderQuestionType) =>
@@ -52,41 +123,14 @@ export interface FormListItem {
   title: string;
   description?: string;
   status: FormStatus;
-  target: string;
+  target: string[];
+  targetProdi: string[];
   respondents: string[];
   sections: BuilderSection[];
   responses: FormResponseMock[];
 }
 
 export const FORM_STORAGE_KEY = "tracer_form_management_data";
-
-type BackendQuestionOption = {
-  id: number;
-  option_code?: string;
-  option_label: string;
-  order_no?: number;
-};
-
-type BackendQuestion = {
-  id: number;
-  code: string;
-  question_text: string;
-  question_type: string;
-  is_required: boolean;
-  order_no: number;
-  options?: BackendQuestionOption[];
-};
-
-type BackendQuestionnaire = {
-  id: number;
-  code: string;
-  title: string;
-  period_year: number;
-  status: string;
-  program_id: number | null;
-  is_global?: boolean;
-  questions?: BackendQuestion[];
-};
 
 export const createId = (prefix: string) =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -101,11 +145,188 @@ export const createDefaultQuestion = (
   options: isOptionQuestionType(type) ? ["Opsi 1"] : [],
   gridRows: isGridQuestionType(type) ? ["Baris 1", "Baris 2"] : [],
   gridColumns: isGridQuestionType(type) ? ["Kolom 1", "Kolom 2"] : [],
-  required: false,
+  required: true,
   allowOther: false,
   scaleMin: 1,
   scaleMax: 5,
+  scaleLabels: ["", "", "", "", ""],
+  logic: {
+    type: "always",
+    dependsOn: "",
+    values: [],
+  },
 });
+
+/**
+ * Merge grouped boolean questions into a single checkbox for the builder.
+ */
+const mergeGroupedForBuilder = (questions: BuilderQuestion[]): BuilderQuestion[] => {
+  const grouped: Record<string, BuilderQuestion[]> = {};
+  const result: BuilderQuestion[] = [];
+  const seenGroups = new Set<string>();
+  // Map individual code → { groupCode, optionLabel }
+  const individualToGroup: Record<string, { groupCode: string; label: string }> = {};
+
+  for (const q of questions) {
+    if (q.group_code) {
+      if (!grouped[q.group_code]) grouped[q.group_code] = [];
+      grouped[q.group_code].push(q);
+      individualToGroup[q.id] = { groupCode: q.group_code, label: q.group_label ?? q.question };
+      if (!seenGroups.has(q.group_code)) {
+        seenGroups.add(q.group_code);
+        result.push(q);
+      }
+    } else {
+      result.push(q);
+    }
+  }
+
+  const merged = result.map((q) => {
+    if (q.group_code && grouped[q.group_code] && grouped[q.group_code].length > 1) {
+      const items = grouped[q.group_code];
+      const titleItem = items.find((i) => i.group_title);
+      return {
+        id: q.group_code,
+        type: "checkbox" as BuilderQuestionType,
+        question: titleItem?.group_title ?? q.question,
+        description: "",
+        options: items.map((item) => item.group_label ?? item.question),
+        required: false,
+        allowOther: false,
+        logic: { type: "always" as QuestionLogicType, dependsOn: "", values: [] },
+        group_code: q.group_code,
+        group_title: titleItem?.group_title,
+        _individual_codes: items.map((item) => item.id),
+        _original_options: items.map((item) => ({ label: item.group_label ?? item.question, code: item.id })),
+      } as BuilderQuestion;
+    }
+    return q;
+  });
+
+  // Rewrite logic.dependsOn that references a merged individual code
+  return merged.map((q) => {
+    if (q.logic && q.logic.type === "in_array" && q.logic.dependsOn) {
+      const ref = individualToGroup[q.logic.dependsOn];
+      if (ref) {
+        // e.g. dependsOn "f415" → dependsOn "q16_cara_cari_kerja", values → ["Lainnya"]
+        return { ...q, logic: { ...q.logic, dependsOn: ref.groupCode, values: [ref.label] } };
+      }
+    }
+    return q;
+  });
+};
+
+/**
+ * Convert a backend questionnaire (GET /api/questionnaires/:id) to a FormListItem
+ * so the FormBuilder can edit seeded/backend questionnaires.
+ */
+export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
+  const VALID_BUILDER_TYPES = new Set([
+    "short", "paragraph", "multiple_choice", "checkbox", "dropdown",
+    "file_upload", "linear_scale", "rating", "multiple_choice_grid",
+    "checkbox_grid", "date", "time",
+  ]);
+  const mapType = (t: string): BuilderQuestionType => {
+    // If already a valid builder type, pass through
+    if (VALID_BUILDER_TYPES.has(t)) return t as BuilderQuestionType;
+    // Otherwise map from DB type
+    const dbMap: Record<string, BuilderQuestionType> = {
+      short_text: "short",
+      long_text: "paragraph",
+      single_choice: "multiple_choice",
+      number: "linear_scale",
+      boolean: "multiple_choice",
+      file: "file_upload",
+    };
+    return dbMap[t] ?? "short";
+  };
+
+  // Build lookup: question_code → { option_code → option_label }
+  // Dipakai untuk translate show_if values (option_code) ke label yang dipakai builder.
+  const optionLabelMap: Record<string, Record<string, string>> = {};
+  for (const sec of bq.sections ?? []) {
+    for (const q of sec.questions ?? []) {
+      const code = q.code || String(q.id);
+      if (q.options && q.options.length > 0) {
+        const map: Record<string, string> = {};
+        for (const o of q.options) {
+          map[String(o.code ?? o.value ?? o.id)] = o.label;
+        }
+        optionLabelMap[code] = map;
+      }
+    }
+  }
+
+  const sections: BuilderSection[] = (bq.sections ?? []).map((sec) => {
+    const mapped = (sec.questions ?? []).map((q): BuilderQuestion => ({
+      id: q.code || String(q.id),
+      type: mapType(q.type),
+      question: q.question_text || q.question || "",
+      description: q.description ?? undefined,
+      options: (q.options ?? []).map((o) => o.label),
+      required: !!q.required,
+      allowOther: !!q.allowOther,
+      scaleMin: q.scaleMin ?? 1,
+      scaleMax: q.scaleMax ?? 5,
+      gridRows: q.gridRows ?? [],
+      gridColumns: q.gridColumns ?? [],
+      group_code: (q as any).metadata?.group_code ?? undefined,
+      group_label: (q as any).metadata?.group_label ?? undefined,
+      group_title: (q as any).metadata?.group_title ?? undefined,
+      _original_options: (q.options ?? []).map((o) => ({ label: o.label, code: o.code ?? o.value ?? "" })),
+      logic: (() => {
+        const showIf = (q as any).metadata?.show_if ?? (q as any).show_if;
+        if (showIf && typeof showIf === "object") {
+          const entries = Object.entries(showIf);
+          if (entries.length > 0) {
+            const [depCode, vals] = entries[0];
+            if (depCode && Array.isArray(vals)) {
+              const triggerOptions = optionLabelMap[depCode] ?? {};
+              const allLabels = Object.values(triggerOptions);
+              const resolvedValues = vals.map((v) => {
+                const strVal = String(v);
+                if (allLabels.includes(strVal)) return strVal;
+                const label = triggerOptions[strVal];
+                return label ?? strVal;
+              });
+              return { type: "in_array" as QuestionLogicType, dependsOn: depCode, values: resolvedValues };
+            }
+          }
+        }
+        return { type: "always" as QuestionLogicType, dependsOn: "", values: [] };
+      })(),
+    }));
+    return {
+      id: String(sec.id),
+      title: sec.title ?? "Bagian",
+      description: sec.description ?? undefined,
+      questions: mergeGroupedForBuilder(mapped),
+    };
+  });
+
+  // If no sections returned, create a default empty one
+  if (sections.length === 0) {
+    sections.push({
+      id: createId("section"),
+      title: "Bagian 1",
+      questions: [createDefaultQuestion()],
+    });
+  }
+
+  return {
+    id: String(bq.id),
+    title: bq.title ?? "Untitled Form",
+    description: bq.description ?? undefined,
+    status: bq.status === "published" ? "aktif" : "nonaktif",
+    target: bq.target
+      ? bq.target.split(",").map((s) => s.trim()).filter(Boolean)
+      : [],
+    targetProdi: (bq as any).target_prodi ?? [],
+    respondents: bq.respondents ?? [],
+    sections,
+    responses: [],
+  };
+}
 
 const initialForms: FormListItem[] = [
   {
@@ -113,7 +334,8 @@ const initialForms: FormListItem[] = [
     title: "Survey Kepuasan",
     description: "Isi dengan jujur",
     status: "aktif",
-    target: "Alumni",
+    target: ["Semua Alumni"],
+    targetProdi: ["Teknik Informatika"],
     respondents: ["Ayu", "Budi", "Citra"],
     sections: [
       {
@@ -128,6 +350,11 @@ const initialForms: FormListItem[] = [
             options: ["Sangat puas", "Puas", "Tidak puas"],
             required: true,
             allowOther: false,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
           },
         ],
       },
@@ -147,7 +374,8 @@ const initialForms: FormListItem[] = [
     title: "Tracer Study Lulusan Teknik Informatika 2026",
     description: "Isi dengan jujur dan lengkap.",
     status: "aktif",
-    target: "Lulusan Angkatan 2026",
+    target: ["Lulusan Angkatan 2026"],
+    targetProdi: ["Teknik Informatika", "Teknik Komputer"],
     respondents: ["Ayu Pratama", "Dimas Saputra", "Nabila Rahma", "Rizky Hidayat"],
     sections: [
       {
@@ -161,6 +389,11 @@ const initialForms: FormListItem[] = [
             question: "Nama lengkap",
             options: [],
             required: true,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
           },
           {
             id: "q-2",
@@ -168,6 +401,11 @@ const initialForms: FormListItem[] = [
             question: "Status pekerjaan saat ini",
             options: ["Bekerja", "Wiraswasta", "Studi lanjut", "Mencari kerja"],
             required: true,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
           },
         ],
       },
@@ -184,6 +422,11 @@ const initialForms: FormListItem[] = [
             required: true,
             scaleMin: 1,
             scaleMax: 5,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
           },
           {
             id: "q-4",
@@ -191,6 +434,11 @@ const initialForms: FormListItem[] = [
             question: "Ceritakan masukan Anda untuk program studi",
             options: [],
             required: false,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
           },
         ],
       },
@@ -223,7 +471,8 @@ const initialForms: FormListItem[] = [
     title: "Survei Kepuasan Alumni 2025",
     description: "Masukan alumni terhadap proses pendidikan.",
     status: "nonaktif",
-    target: "Lulusan Angkatan 2025",
+    target: ["Lulusan Angkatan 2025"],
+    targetProdi: [],
     respondents: ["Nabila Rahma", "Fahri Maulana"],
     sections: [
       {
@@ -236,6 +485,11 @@ const initialForms: FormListItem[] = [
             question: "Bagaimana Anda menilai layanan akademik?",
             options: ["Sangat baik", "Baik", "Cukup", "Perlu perbaikan"],
             required: true,
+            logic: {
+              type: "always",
+              dependsOn: "",
+              values: [],
+            },
           },
         ],
       },
@@ -258,8 +512,18 @@ export const getInitialForms = (): FormListItem[] => {
   try {
     const saved = localStorage.getItem(FORM_STORAGE_KEY);
     if (saved) {
-      const parsed = JSON.parse(saved) as FormListItem[];
-      if (Array.isArray(parsed)) return parsed;
+      const parsed = JSON.parse(saved) as Array<FormListItem & { target?: string | string[] }>;
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => ({
+          ...item,
+          target: Array.isArray(item.target)
+            ? item.target
+            : item.target
+              ? [item.target]
+              : [],
+          targetProdi: Array.isArray(item.targetProdi) ? item.targetProdi : [],
+        }));
+      }
     }
   } catch {
     // Ignore malformed localStorage and fall back to seed data.
@@ -273,167 +537,72 @@ export const saveForms = (forms: FormListItem[]) => {
   localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(forms));
 };
 
-const toBuilderQuestionType = (type: string): BuilderQuestionType => {
-  const typeMap: Record<string, BuilderQuestionType> = {
-    short_text: "short",
-    long_text: "paragraph",
-    single_choice: "multiple_choice",
-    multiple_choice: "checkbox",
-    number: "short",
-    date: "date",
-    boolean: "multiple_choice",
-    short: "short",
-    paragraph: "paragraph",
-    dropdown: "dropdown",
-    file_upload: "file_upload",
-    linear_scale: "linear_scale",
-    rating: "rating",
-    multiple_choice_grid: "multiple_choice_grid",
-    checkbox_grid: "checkbox_grid",
-    time: "time",
-  };
 
-  return typeMap[type] ?? "short";
-};
 
-const normalizeBuilderQuestion = (question: any): BuilderQuestion => {
-  const metadata = question?.metadata ?? {};
-  const optionLabels = Array.isArray(question?.options)
-    ? question.options.map((option: any) => option.label ?? option.option_label ?? option)
-    : [];
 
-  return {
-    id: String(question?.id ?? createId("q")),
-    type: toBuilderQuestionType(question?.type ?? metadata.original_type ?? question?.question_type),
-    question: question?.question ?? question?.question_text ?? "",
-    description: question?.description ?? metadata.description ?? "",
-    options: optionLabels,
-    gridRows: metadata.gridRows ?? question?.gridRows ?? [],
-    gridColumns: metadata.gridColumns ?? question?.gridColumns ?? [],
-    required: Boolean(question?.required ?? question?.is_required ?? false),
-    allowOther: Boolean(metadata.allowOther ?? question?.allowOther ?? false),
-    scaleMin: metadata.scaleMin ?? question?.scaleMin ?? 1,
-    scaleMax: metadata.scaleMax ?? question?.scaleMax ?? 5,
-  };
-};
-
-const normalizeBuilderSection = (section: any): BuilderSection => ({
-  id: String(section?.id ?? createId("section")),
-  title: section?.title ?? "Bagian Baru",
-  description: section?.description ?? "",
-  questions: Array.isArray(section?.questions)
-    ? section.questions.map((question: any) => normalizeBuilderQuestion(question))
-    : [],
-});
-
-const normalizeFormFromBackend = (form: any): FormListItem => ({
-  id: String(form?.id ?? createId("form")),
-  title: form?.title ?? "Untitled Form",
-  description: form?.description ?? "",
-  status: (form?.status === "published" ? "aktif" : form?.status === "archived" ? "nonaktif" : "aktif") as FormStatus,
-  target: form?.target ?? "",
-  respondents: Array.isArray(form?.respondents) ? form.respondents : [],
-  sections: Array.isArray(form?.sections)
-    ? form.sections.map((section: any) => normalizeBuilderSection(section))
-    : [],
-  responses: [],
-});
-
-export const formToQuestionnairePayload = (form: FormListItem) => ({
+/** Convert FormListItem → backend API payload for POST/PUT /api/questionnaires */
+export const formListItemToApiPayload = (form: FormListItem & { targetGraduationYears?: number[] }, prodiNameToId?: Record<string, number>) => ({
   title: form.title,
-  description: form.description ?? "",
-  target: form.target ?? "",
+  description: form.description ?? null,
+  target: Array.isArray(form.target) ? form.target.join(", ") : (form.target ?? null),
+  program_id: form.targetProdi.length > 0 && prodiNameToId
+    ? prodiNameToId[form.targetProdi[0]] ?? null
+    : null,
+  target_prodi: form.targetProdi ?? [],
+  target_graduation_years: form.targetGraduationYears ?? null,
   respondents: form.respondents ?? [],
   status: form.status === "aktif" ? "published" : "draft",
-  period_year: new Date().getFullYear(),
-  sections: form.sections.map((section, sectionIndex) => ({
-    title: section.title,
-    description: section.description ?? "",
-    order_no: sectionIndex + 1,
-    questions: section.questions.map((question, questionIndex) => ({
-      code: question.id,
-      question: question.question,
-      type: question.type,
-      description: question.description ?? "",
-      required: question.required,
-      allowOther: question.allowOther ?? false,
-      scaleMin: question.scaleMin,
-      scaleMax: question.scaleMax,
-      gridRows: question.gridRows ?? [],
-      gridColumns: question.gridColumns ?? [],
-      order_no: questionIndex + 1,
-      options: (question.options ?? []).map((option, optionIndex) => ({
-        code: `opt_${optionIndex + 1}`,
-        label: option,
-        value: option,
-        order_no: optionIndex + 1,
-      })),
-    })),
+  sections: form.sections.map((s, si) => ({
+    title: s.title,
+    description: s.description ?? null,
+    order_no: si + 1,
+    questions: s.questions.flatMap((q, qi) => {
+      // Expand merged grouped checkbox back to individual boolean questions
+      if (q.group_code && q._individual_codes && q._individual_codes.length > 1) {
+        return q._individual_codes.map((code, i) => ({
+          code,
+          question: `${q.question} — ${q.options[i] ?? ""}`,
+          type: "multiple_choice",
+          required: false,
+          order_no: qi + i + 1,
+          allowOther: false,
+          scaleMin: undefined,
+          scaleMax: undefined,
+          gridRows: [],
+          gridColumns: [],
+          group_code: q.group_code,
+          group_label: q.options[i] ?? "",
+          group_title: q.group_title ?? q.question,
+          logic: null,
+          options: [],
+        }));
+      }
+      return [{
+        code: q.id,
+        question: q.question,
+        type: q.type,
+        required: q.required,
+        order_no: qi + 1,
+        allowOther: q.allowOther ?? false,
+        scaleMin: q.scaleMin,
+        scaleMax: q.scaleMax,
+        scaleLabels: q.scaleLabels ?? undefined,
+        gridRows: q.gridRows ?? [],
+        gridColumns: q.gridColumns ?? [],
+        group_code: q.group_code ?? undefined,
+        group_label: q.group_label ?? undefined,
+        group_title: q.group_title ?? undefined,
+        logic: q.logic && q.logic.type === "in_array" && q.logic.dependsOn
+          ? { type: "in_array", dependsOn: q.logic.dependsOn, values: q.logic.values }
+          : null,
+        options: q._original_options && q._original_options.length === q.options.length
+          ? q._original_options.map((o) => ({ label: o.label, code: o.code }))
+          : q.options.map((opt, oi) =>
+              typeof opt === "string"
+                ? { label: opt, code: `opt_${oi + 1}` }
+                : opt
+            ),
+      }];
+    }),
   })),
 });
-
-const mapBackendQuestionType = (type: string): BuilderQuestionType => {
-  const typeMap: Record<string, BuilderQuestionType> = {
-    short_text: "short",
-    text: "paragraph",
-    paragraph: "paragraph",
-    single_choice: "multiple_choice",
-    multiple_choice: "checkbox",
-    checkbox: "checkbox",
-    dropdown: "dropdown",
-    file_upload: "file_upload",
-    linear_scale: "linear_scale",
-    rating: "rating",
-    date: "date",
-    time: "time",
-    number: "short",
-    boolean: "multiple_choice",
-  };
-
-  return typeMap[type] ?? "short";
-};
-
-const mapBackendQuestionnaireToForm = (questionnaire: BackendQuestionnaire): FormListItem => {
-  const sections: BuilderSection[] = [
-    {
-      id: `section_${questionnaire.id}`,
-      title: questionnaire.title,
-      description: questionnaire.is_global ? "Kuesioner nasional" : "Kuesioner prodi",
-      questions: (questionnaire.questions ?? []).map((question) => ({
-        id: `q_${question.id}`,
-        type: mapBackendQuestionType(question.question_type),
-        question: question.question_text,
-        description: question.code,
-        options: (question.options ?? []).map((option) => option.option_label),
-        required: question.is_required,
-        allowOther: false,
-        scaleMin: 1,
-        scaleMax: 5,
-      })),
-    },
-  ];
-
-  return {
-    id: `backend_${questionnaire.id}`,
-    title: questionnaire.title,
-    description: `Periode ${questionnaire.period_year}`,
-    status: questionnaire.status === "published" ? "aktif" : "nonaktif",
-    target: questionnaire.is_global ? "Semua prodi" : "Prodi terkait",
-    respondents: [],
-    sections,
-    responses: [],
-  };
-};
-
-export const loadBackendForms = async (kodeProdi = "TI"): Promise<FormListItem[]> => {
-  const { apiService } = await import("@/lib/apiClient");
-
-  const response = await apiService.getQuestionnaires();
-  const questionnaires = (response?.data ?? []) as any[];
-
-  if (!response?.success || !Array.isArray(questionnaires)) {
-    return [];
-  }
-
-  return questionnaires.map(normalizeFormFromBackend);
-};

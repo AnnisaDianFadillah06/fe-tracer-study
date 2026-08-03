@@ -3,32 +3,50 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { RoleProvider } from "@/contexts/RoleContext";
 import { GlobalFiltersProvider } from "@/contexts/GlobalFiltersContext";
-import { AuthProvider } from "@/contexts/AuthContext";        // ✅ tambah
-import ProtectedRoute from "@/components/ProtectedRoute";    // ✅ tambah
-import Landing from "./pages/Landing";
-import Login from "./pages/Login";
+import { ProtectedRoute } from "@/components/common/ProtectedRoute";
 
+import Landing from "./pages/landing/Landing";
+import Login from "./pages/auth/Login";
+import Unauthorized from "./pages/common/Unauthorized";
+
+// Dashboard pages
 import OverviewPage from "./pages/dashboard/overview/OverviewPage";
 import EmploymentPage from "./pages/dashboard/employment/EmploymentPage";
 import EducationPage from "./pages/dashboard/education/EducationPage";
 import KpiOverviewPage from "./pages/dashboard/kpi/KpiOverviewPage";
-import ComparePage from "./pages/ComparePage";
-import ProfilePage from "./pages/ProfilePage";
-import ChangePasswordPage from "./pages/ChangePasswordPage";
-import TeamManagementPage from "./pages/TeamManagementPage";
-import StudentManagementPage from "./pages/StudentManagementPage";
-import DaftarFormulirPage from "./pages/FormManagementPage";
-import FormBuilderPage from "./pages/FormBuilderPage";
-import FormPreviewPage from "./pages/FormPreviewPage";
+import ComparePage from "./pages/dashboard/ComparePage";
+import ProfilePage from "./pages/dashboard/ProfilePage";
+import AlumniDataPage from "./pages/dashboard/AlumniDataPage";
+import QuestionnaireResultsPage from "./pages/dashboard/QuestionnaireResultsPage";
+
+// Auth
+import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
+
+// Admin pages
+import TeamManagementPage from "./pages/team/TeamManagementPage";
+import StaffManagementPage from "./pages/staff/StaffManagementPage";
+import StudentManagementPage from "./pages/student/StudentManagementPage";
+import ApprovalsPage from "./pages/admin/ApprovalsPage";
+import MasterDataPage from "./pages/admin/MasterDataPage";
+import DaftarKuisionerPage from "./pages/form/FormManagementPage";
+import FormCreationChoicePage from "./pages/form/FormCreationChoicePage";
+import FormBuilderPage from "./pages/form/FormBuilderPage";
+import FormPreviewPage from "./pages/form/FormPreviewPage";
+import FormRespondentsPage from "./pages/form/FormRespondentsPage";
+
+// Master data & KPI tooling (dari Checkpoint-1)
 import ThresholdManagementPage from "./pages/ThresholdManagementPage";
-import NotFound from "./pages/NotFound";
-import StudentLoginPage from "./pages/StudentLoginPage";
-import FormPage from "./pages/FormPage";
 import MasterUmpPage from "./pages/MasterUmpPage";
 import QuestionMappingPage from "./pages/QuestionMappingPage";
 import EtlAnomalyLogPage from "./pages/EtlAnomalyLogPage";
+
+// Student/Alumni form
+import FormPage from "./pages/form/FormPage";
+
+import NotFound from "./pages/common/NotFound";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,61 +58,74 @@ const queryClient = new QueryClient({
   },
 });
 
-// ✅ Helper agar tidak repeat ProtectedRoute di tiap route
-const P = ({ children }: { children: React.ReactNode }) => (
-  <ProtectedRoute>{children}</ProtectedRoute>
-);
-// const P = ({ children }: { children: React.ReactNode }) => (
-//   <>{children}</>
-// );
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <BrowserRouter>
-        {/* ✅ AuthProvider di dalam BrowserRouter agar useNavigate bisa dipakai di context */}
         <AuthProvider>
           <RoleProvider>
+            {/* GlobalFiltersProvider di dalam Router agar filter persist antar halaman dashboard */}
             <GlobalFiltersProvider>
-            <Toaster />
-            <Sonner />
-            <Routes>
-              {/* Public */}
-              <Route path="/" element={<Landing />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/form/login" element={<StudentLoginPage />} />
-              <Route path="/form" element={<FormPage />} />
+              <Toaster />
+              <Sonner />
+              <Routes>
+                {/* Public */}
+                <Route path="/" element={<Landing />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/unauthorized" element={<Unauthorized />} />
 
-              {/* Protected — semua dashboard (GlobalFiltersProvider persists across pages) */}
-              <Route path="/dashboard" element={<Navigate to="/dashboard/overview" replace />} />
-              <Route path="/dashboard/overview"             element={<P><OverviewPage /></P>} />
-              <Route path="/dashboard/employment"           element={<P><EmploymentPage /></P>} />
-              <Route path="/dashboard/education"            element={<P><EducationPage /></P>} />
-              <Route path="/dashboard/kpi"                  element={<P><KpiOverviewPage /></P>} />
-              <Route path="/dashboard/threshold-management" element={<P><ThresholdManagementPage /></P>} />
-              <Route path="/dashboard/master-ump" element={<P><MasterUmpPage /></P>} />
-              <Route path="/dashboard/question-mapping" element={<P><QuestionMappingPage /></P>} />
-              <Route path="/dashboard/etl-anomaly-log" element={<P><EtlAnomalyLogPage /></P>} />
-              <Route path="/dashboard/compare"              element={<P><ComparePage /></P>} />
-              <Route path="/dashboard/profile"              element={<P><ProfilePage /></P>} />
-              <Route path="/dashboard/change-password"      element={<P><ChangePasswordPage /></P>} />
-              <Route path="/dashboard/team-management"      element={<P><TeamManagementPage /></P>} />
-              <Route path="/dashboard/student-management"   element={<P><StudentManagementPage /></P>} />
-              <Route path="/dashboard/form-management"              element={<P><DaftarFormulirPage /></P>} />
-              <Route path="/dashboard/form-management/new"          element={<P><FormBuilderPage /></P>} />
-              <Route path="/dashboard/form-management/:formId/edit" element={<P><FormBuilderPage /></P>} />
-              <Route path="/dashboard/form-management/new/preview"  element={<P><FormPreviewPage /></P>} />
-              <Route path="/dashboard/form-management/:formId/preview" element={<P><FormPreviewPage /></P>} />
+                {/* Default redirect */}
+                <Route path="/dashboard" element={<Navigate to="/dashboard/overview" replace />} />
 
-              {/* Legacy redirects */}
-              <Route path="/dashboard/summary"    element={<Navigate to="/dashboard/overview" replace />} />
-              <Route path="/dashboard/responden"  element={<Navigate to="/dashboard/overview" replace />} />
-              <Route path="/dashboard/p2mpp/*"    element={<Navigate to="/dashboard/overview" replace />} />
-              <Route path="/dashboard/kaprodi/*"  element={<Navigate to="/dashboard/overview" replace />} />
-              <Route path="/dashboard/kotc/*"     element={<Navigate to="/dashboard/overview" replace />} />
+                {/* Dashboard — permission-protected */}
+                <Route path="/dashboard/overview" element={<ProtectedRoute permission="dashboard.overview"><OverviewPage /></ProtectedRoute>} />
+                <Route path="/dashboard/employment" element={<ProtectedRoute permission="dashboard.employment"><EmploymentPage /></ProtectedRoute>} />
+                <Route path="/dashboard/education" element={<ProtectedRoute permission="dashboard.education"><EducationPage /></ProtectedRoute>} />
+                <Route path="/dashboard/kpi" element={<ProtectedRoute permission="dashboard.kpi"><KpiOverviewPage /></ProtectedRoute>} />
+                <Route path="/dashboard/compare" element={<ProtectedRoute permission="dashboard.overview"><ComparePage /></ProtectedRoute>} />
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                {/* Administration */}
+                <Route path="/dashboard/approvals" element={<ProtectedRoute permission="admin.approval"><ApprovalsPage /></ProtectedRoute>} />
+                <Route path="/dashboard/master-data" element={<ProtectedRoute permission="admin.master"><MasterDataPage /></ProtectedRoute>} />
+                <Route path="/dashboard/master-ump" element={<ProtectedRoute permission="admin.master"><MasterUmpPage /></ProtectedRoute>} />
+                <Route path="/dashboard/threshold-management" element={<ProtectedRoute permission="admin.master"><ThresholdManagementPage /></ProtectedRoute>} />
+                <Route path="/dashboard/question-mapping" element={<ProtectedRoute permission="admin.master"><QuestionMappingPage /></ProtectedRoute>} />
+                <Route path="/dashboard/etl-anomaly-log" element={<ProtectedRoute permission="admin.master"><EtlAnomalyLogPage /></ProtectedRoute>} />
+                <Route path="/dashboard/team-management" element={<ProtectedRoute permission="admin.user"><TeamManagementPage /></ProtectedRoute>} />
+                <Route path="/dashboard/staff-management" element={<ProtectedRoute permission="admin.user"><StaffManagementPage /></ProtectedRoute>} />
+                <Route path="/dashboard/student-management" element={<ProtectedRoute permission="admin.user"><StudentManagementPage /></ProtectedRoute>} />
+                <Route path="/dashboard/form-management" element={<ProtectedRoute permission="admin.questionnaire"><DaftarKuisionerPage /></ProtectedRoute>} />
+                <Route path="/dashboard/form-management/new" element={<ProtectedRoute permission="admin.questionnaire"><FormCreationChoicePage /></ProtectedRoute>} />
+                <Route path="/dashboard/form-management/new/builder" element={<ProtectedRoute permission="admin.questionnaire"><FormBuilderPage /></ProtectedRoute>} />
+                <Route path="/dashboard/form-management/:formId/edit" element={<ProtectedRoute permission="admin.questionnaire"><FormBuilderPage /></ProtectedRoute>} />
+                <Route path="/dashboard/form-management/new/preview" element={<ProtectedRoute permission="admin.questionnaire"><FormPreviewPage /></ProtectedRoute>} />
+                <Route path="/dashboard/form-management/:formId/preview" element={<ProtectedRoute permission="admin.questionnaire"><FormPreviewPage /></ProtectedRoute>} />
+                <Route path="/dashboard/form-management/:formId/respondents" element={<ProtectedRoute permission="admin.questionnaire"><FormRespondentsPage /></ProtectedRoute>} />
+
+                {/* Akademik (Kaprodi / Kajur / Head Tracer) */}
+                <Route path="/dashboard/alumni-data" element={<ProtectedRoute permission="academic.alumni_data"><AlumniDataPage /></ProtectedRoute>} />
+                <Route path="/dashboard/questionnaire-results" element={<ProtectedRoute permission="academic.questionnaire_results"><QuestionnaireResultsPage /></ProtectedRoute>} />
+                <Route path="/dashboard/questionnaire-results/:formId" element={<ProtectedRoute permission="academic.questionnaire_results"><FormRespondentsPage /></ProtectedRoute>} />
+
+                {/* Profile & settings (any authenticated) */}
+                <Route path="/dashboard/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+                <Route path="/dashboard/change-password" element={<ProtectedRoute><ChangePasswordPage /></ProtectedRoute>} />
+
+                {/* Alumni / Student form routes */}
+                <Route path="/form" element={<Navigate to="/form/fill" replace />} />
+                <Route path="/form/:formId" element={<FormPreviewPage />} />
+                <Route path="/form/fill" element={<FormPage />} />
+
+                {/* Legacy redirects */}
+                <Route path="/dashboard/summary" element={<Navigate to="/dashboard/overview" replace />} />
+                <Route path="/dashboard/responden" element={<Navigate to="/dashboard/overview" replace />} />
+                <Route path="/dashboard/analytics" element={<Navigate to="/dashboard/kpi" replace />} />
+                <Route path="/dashboard/p2mpp/*" element={<Navigate to="/dashboard/overview" replace />} />
+                <Route path="/dashboard/kaprodi/*" element={<Navigate to="/dashboard/overview" replace />} />
+                <Route path="/dashboard/kotc/*" element={<Navigate to="/dashboard/overview" replace />} />
+
+                <Route path="*" element={<NotFound />} />
+              </Routes>
             </GlobalFiltersProvider>
           </RoleProvider>
         </AuthProvider>

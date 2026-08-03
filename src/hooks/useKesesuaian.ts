@@ -66,6 +66,8 @@ export interface KesesuaianDrillDownResponse {
 
 export interface KesesuaianDrillDownParams {
   kesesuaian_label?: string;
+  /** Kode SK kesesuaian (1..5) — dipakai drill-down dari stacked bar ComparePage. */
+  kesesuaian_sk?: number;
   alasan?: string;
   tahun_lulus?: string;
   nama_prodi?: string;
@@ -283,6 +285,7 @@ export function useKesesuaianDrillDown() {
         page:          String(extra.page ?? 1),
         per_page:      String(extra.per_page ?? 15),
         ...(extra.kesesuaian_label ? { kesesuaian_label: extra.kesesuaian_label } : {}),
+        ...(extra.kesesuaian_sk != null ? { kesesuaian_sk: String(extra.kesesuaian_sk) } : {}),
         ...(extra.alasan ? { label_pertanyaan: extra.alasan } : {}),
         ...(extra.nama_prodi ? { nama_prodi: extra.nama_prodi } : {}),
         ...(extra.search ? { search: extra.search } : {}),

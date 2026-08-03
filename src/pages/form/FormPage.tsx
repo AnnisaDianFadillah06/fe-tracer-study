@@ -15,16 +15,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LogOut, Star, CheckCircle2, User } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { useStudentAuth } from "@/hooks/useStudentAuth";
-import { useFormResponse } from "@/hooks/useFormResponse";
-import type { Question } from "@/hooks/useQuestionManagement";
+import { ThemeToggle } from "@/components/common/ThemeToggle";
+import PolbanLogo from "@/components/common/PolbanLogo";
+import { useStudentAuth } from "@/hooks/auth/useStudentAuth";
+import { useTracerForm, isQuestionVisible } from "@/hooks/form/useTracerForm";
+import type { Question } from "@/hooks/form/useQuestionManagement";
 import { useState } from "react";
-import PolbanLogo from "@/components/PolbanLogo";
+import { Loader2 } from "lucide-react";
 
 const FormPage = () => {
   const navigate = useNavigate();
   const { session, isLoggedIn, logout } = useStudentAuth();
+
+  // Pass kode_prodi dari session agar backend bisa filter kuesioner yang relevan
+  const kodeProdi = session?.kodeProdi ?? undefined;
+  const graduationYear = session?.graduationYear ?? (session?.angkatan ? parseInt(session.angkatan) + 3 : undefined);
   const {
     sections,
     answers,
@@ -34,31 +39,37 @@ const FormPage = () => {
     section,
     isLastSection,
     progressPercent,
-    questionsLoading,
+    isLoadingForms,
     isSubmitting,
-    fetchError,
+    hasResponded,
     setAnswer,
     setCheckboxAnswer,
     handleNext,
     handleBack,
-    handleSubmit,
+    handleSubmit: submitToBackend,
     handleReset,
-  } = useFormResponse(
-    session ? {
-      kodeProdi: session.prodi,
-      alumniData: {
+  } = useTracerForm(kodeProdi, graduationYear, session?.nim);
+
+  // Wrap submit to include identity data from session
+  // Only include fields genuinely known from session — nik/npwp/kode_pt come from form answers
+  const handleSubmit = (e: React.FormEvent) => {
+    const identityData = session
+      ? {
         nim: session.nim,
         name: session.username,
         email: session.email,
-        tahun_lulus: parseInt(session.angkatan) || new Date().getFullYear(),
-      },
-    } : {}
-  );
+        phone: session.phone || undefined,
+        tahun_lulus: session.graduationYear ?? (parseInt(session.angkatan) + 3),
+        kdpstmsmh: kodeProdi ?? "",
+      }
+      : undefined;
+    submitToBackend(e, identityData);
+  };
 
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoggedIn) {
-      navigate("/form/login");
+      navigate("/login");
     }
   }, [isLoggedIn, navigate]);
 
@@ -66,8 +77,70 @@ const FormPage = () => {
 
   const handleLogout = () => {
     logout();
-    navigate("/form/login");
+    navigate("/login");
   };
+
+  // Loading state saat fetch kuesioner dari backend
+  if (isLoadingForms) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Memuat kuisioner...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Already responded state
+  if (!isLoadingForms && hasResponded && !submitted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <Card className="max-w-md w-full text-center glass-card">
+          <CardContent className="pt-10 pb-10 space-y-4">
+            <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <h2 className="font-heading text-xl font-bold">Anda Sudah Mengisi</h2>
+            <p className="text-muted-foreground">
+              Terima kasih! Anda sudah mengisi kuesioner Tracer Study. Data Anda telah tersimpan.
+            </p>
+            {session && (
+              <p className="text-sm text-muted-foreground">
+                — {session.username} ({session.nim})
+              </p>
+            )}
+            <div className="flex gap-2 justify-center pt-2">
+              <Button variant="outline" onClick={handleLogout}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Keluar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Empty state — tidak ada kuesioner aktif untuk tahun lulusan alumni
+  if (!isLoadingForms && sections.length === 0 && !submitted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <Card className="max-w-md w-full text-center glass-card">
+          <CardContent className="pt-10 pb-10 space-y-4">
+            <h2 className="font-heading text-xl font-bold">Tidak Ada Kuesioner</h2>
+            <p className="text-muted-foreground">
+              Saat ini belum ada kuesioner aktif untuk tahun lulusan Anda. Silakan hubungi admin atau coba lagi nanti.
+            </p>
+            <Button variant="outline" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Keluar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
@@ -133,112 +206,97 @@ const FormPage = () => {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-4">
-        {questionsLoading && (
-          <Card className="border-t-4 border-t-primary">
-            <CardContent className="pt-10 pb-10 text-center">
-              <div className="space-y-2">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                <p className="text-muted-foreground">Memuat pertanyaan...</p>
-              </div>
-            </CardContent>
-          </Card>
+        {currentSection === 0 && (
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="text-muted-foreground self-center">Unduh referensi:</span>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => window.open(`${import.meta.env.VITE_API_URL ?? "/api"}/provinces/download`, "_blank")}>Kode Provinsi</Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => window.open(`${import.meta.env.VITE_API_URL ?? "/api"}/cities/download`, "_blank")}>Kode Kab/Kota</Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => window.open(`${import.meta.env.VITE_API_URL ?? "/api"}/programs/download`, "_blank")}>Kode Prodi</Button>
+          </div>
+        )}
+        {sections.length > 1 && (
+          <div className="text-right text-xs text-muted-foreground">
+            Bagian {currentSection + 1} dari {sections.length}
+          </div>
         )}
 
-        {fetchError && (
-          <Card className="border-t-4 border-t-destructive">
-            <CardContent className="pt-5 pb-5">
-              <p className="text-destructive font-medium">Gagal memuat kuesioner</p>
-              <p className="text-sm text-muted-foreground mt-1">{fetchError}</p>
-              <p className="text-xs text-muted-foreground mt-3">
-                Menggunakan form default sebagai fallback.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {!questionsLoading && sections.length > 0 && (
-          <>
-            {sections.length > 1 && (
-              <div className="text-right text-xs text-muted-foreground">
-                Bagian {currentSection + 1} dari {sections.length}
-              </div>
+        {/* Section Header */}
+        <Card className="border-t-4 border-t-primary">
+          <CardContent className="pt-5 pb-5">
+            <h1 className="font-heading text-xl font-bold">{section.title}</h1>
+            {section.description && (
+              <p className="text-muted-foreground text-sm mt-1">{section.description}</p>
             )}
+            {section.questions.some((q) => q.required) && (
+              <p className="text-xs text-destructive mt-3">* Pertanyaan wajib diisi</p>
+            )}
+          </CardContent>
+        </Card>
 
-            {/* Section Header */}
-            <Card className="border-t-4 border-t-primary">
-              <CardContent className="pt-5 pb-5">
-                <h1 className="font-heading text-xl font-bold">{section.title}</h1>
-                {section.description && (
-                  <p className="text-muted-foreground text-sm mt-1">{section.description}</p>
-                )}
-                {section.questions.some((q) => q.required) && (
-                  <p className="text-xs text-destructive mt-3">* Pertanyaan wajib diisi</p>
-                )}
-              </CardContent>
-            </Card>
-
-          {/* Questions */}
-          <form
-              onSubmit={
-                isLastSection
-                  ? handleSubmit
-                  : (e) => {
-                      e.preventDefault();
-                      handleNext();
-                    }
+        {/* Questions */}
+        <form
+          onSubmit={
+            isLastSection
+              ? handleSubmit
+              : (e) => {
+                e.preventDefault();
+                handleNext();
               }
-            >
-              <div className="space-y-4">
-                {section.questions.map((q) => (
-                  <Card
-                    key={q.id}
-                    className={`glass-card ${errors[q.id] ? "border-destructive" : ""}`}
-                  >
-                    <CardContent className="pt-5 pb-5 space-y-3">
-                      <div>
-                        <Label className="text-base font-medium leading-snug">
-                          {q.question || (
-                            <span className="italic text-muted-foreground">Pertanyaan Tanpa Judul</span>
-                          )}
-                          {q.required && <span className="text-destructive ml-1">*</span>}
-                        </Label>
-                        {q.description && (
-                          <p className="text-sm text-muted-foreground mt-1">{q.description}</p>
-                        )}
-                      </div>
-
-                      <AnswerField
-                        q={q}
-                        answer={answers[q.id]}
-                        setAnswer={setAnswer}
-                        setCheckboxAnswer={setCheckboxAnswer}
-                      />
-
-                      {errors[q.id] && (
-                        <p className="text-xs text-destructive flex items-center gap-1">
-                          <span>⚠</span> {errors[q.id]}
-                        </p>
+          }
+        >
+          <div className="space-y-4">
+            {section.questions
+              .filter((q) => isQuestionVisible(q, answers, section.questions))
+              .map((q) => (
+              <Card
+                key={q.id}
+                className={`glass-card ${errors[q.id] ? "border-destructive" : ""}`}
+              >
+                <CardContent className="pt-5 pb-5 space-y-3">
+                  <div>
+                    <Label className="text-base font-medium leading-snug">
+                      {q.question || (
+                        <span className="italic text-muted-foreground">Pertanyaan Tanpa Judul</span>
                       )}
-                    </CardContent>
-                  </Card>
-                ))}
+                      {q.required && <span className="text-destructive ml-1">*</span>}
+                    </Label>
+                    {q.description && (
+                      <p className="text-sm text-muted-foreground mt-1">{q.description}</p>
+                    )}
+                  </div>
 
-                <div className="flex justify-between pt-2">
-                  {currentSection > 0 ? (
-                    <Button type="button" variant="outline" onClick={handleBack}>
-                      Sebelumnya
-                    </Button>
-                  ) : (
-                    <div />
+                  <AnswerField
+                    q={q}
+                    answer={answers[q.id]}
+                    setAnswer={setAnswer}
+                    setCheckboxAnswer={setCheckboxAnswer}
+                  />
+
+                  {errors[q.id] && (
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <span>⚠</span> {errors[q.id]}
+                    </p>
                   )}
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? "Mengirim..." : isLastSection ? "Kirim" : "Berikutnya"}
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </>
-        )}
+                </CardContent>
+              </Card>
+            ))}
+
+            <div className="flex justify-between pt-2">
+              {currentSection > 0 ? (
+                <Button type="button" variant="outline" onClick={handleBack}>
+                  Sebelumnya
+                </Button>
+              ) : (
+                <div />
+              )}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" />Mengirim...</>
+                ) : isLastSection ? "Kirim" : "Berikutnya"}
+              </Button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -265,9 +323,8 @@ const AnswerField = ({ q, answer, setAnswer, setCheckboxAnswer }: AnswerFieldPro
           return (
             <Star
               key={i}
-              className={`w-8 h-8 cursor-pointer transition-colors ${
-                filled ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/40"
-              }`}
+              className={`w-8 h-8 cursor-pointer transition-colors ${filled ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/40"
+                }`}
               onMouseEnter={() => setHoverRating(val)}
               onMouseLeave={() => setHoverRating(null)}
               onClick={() => setAnswer(q.id, val)}
