@@ -1,50 +1,50 @@
 import { createContext, useContext, ReactNode } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/auth/useAuth";
+import {
+  type AppRole,
+  type Permission,
+  roleLabels,
+  roleDescriptions,
+  hasPermission,
+  hasAnyPermission,
+  getMenuForRole,
+  getDefaultRoute,
+  mapBackendRole,
+} from "@/lib/rbac";
 
-export type UserRole = "p2mpp" | "kaprodi" | "kotc";
+export type { AppRole };
+export { roleLabels, roleDescriptions };
 
 interface RoleContextType {
-  currentRole: UserRole;
+  currentRole: AppRole;
   selectedProdi: string | null;
-  roleLabels: Record<UserRole, string>;
-  roleDescriptions: Record<UserRole, string>;
+  selectedJurusan: string | null;
+  can: (permission: Permission) => boolean;
+  canAny: (permissions: Permission[]) => boolean;
+  menu: ReturnType<typeof getMenuForRole>;
+  defaultRoute: string;
 }
 
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
-export const roleLabels: Record<UserRole, string> = {
-  p2mpp: "P2MPP",
-  kaprodi: "Kaprodi",
-  kotc: "KoTC",
-};
-
-export const roleDescriptions: Record<UserRole, string> = {
-  p2mpp: "Pusat Pengembangan Mutu Pendidikan & Pembelajaran",
-  kaprodi: "Kepala Program Studi",
-  kotc: "Koordinator Tracer Study",
-};
-
 export function RoleProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const currentRole: AppRole = mapBackendRole(user?.role);
 
-  // Derive role from authenticated user; fallback to p2mpp if unknown
-  const currentRole: UserRole =
-    user?.role && ["p2mpp", "kaprodi", "kotc"].includes(user.role)
-      ? (user.role as UserRole)
-      : "p2mpp";
-
-  // For kaprodi, use program_name from the real user data
   const selectedProdi =
     currentRole === "kaprodi" ? (user?.program_name ?? null) : null;
 
+  const selectedJurusan =
+    currentRole === "kajur" ? (user?.jurusan ?? null) : null;
+
+  const can = (permission: Permission) => hasPermission(currentRole, permission);
+  const canAny = (permissions: Permission[]) => hasAnyPermission(currentRole, permissions);
+  const menu = getMenuForRole(currentRole);
+  const defaultRoute = getDefaultRoute(currentRole);
+
   return (
     <RoleContext.Provider
-      value={{
-        currentRole,
-        selectedProdi,
-        roleLabels,
-        roleDescriptions,
-      }}
+      value={{ currentRole, selectedProdi, selectedJurusan, can, canAny, menu, defaultRoute }}
     >
       {children}
     </RoleContext.Provider>
@@ -53,8 +53,6 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
 export function useRole() {
   const context = useContext(RoleContext);
-  if (context === undefined) {
-    throw new Error("useRole must be used within a RoleProvider");
-  }
+  if (!context) throw new Error("useRole must be used within a RoleProvider");
   return context;
 }

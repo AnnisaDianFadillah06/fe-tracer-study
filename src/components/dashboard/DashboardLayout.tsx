@@ -1,22 +1,13 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { 
-  GraduationCap, 
-  LayoutDashboard, 
-  ChevronLeft, 
+import {
+  ChevronLeft,
   ChevronRight,
   LogOut,
   User,
   Bell,
   KeyRound,
-  Briefcase,
-  BookOpen,
-  Target,
-  Radio,
-  Wallet,
-  Link2,
-  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,58 +17,41 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { useRole } from "@/contexts/RoleContext";
-import { useAuth } from "@/contexts/AuthContext";
+import { ThemeToggle } from "@/components/common/ThemeToggle";
+
+import { useRole, roleLabels } from "@/contexts/RoleContext";
+import { useAuth } from "@/hooks/auth/useAuth";
 import { Badge } from "@/components/ui/badge";
+import PolbanLogo from "@/components/common/PolbanLogo";
 import GlobalFilters from "@/components/dashboard/GlobalFilters";
-import { GlobalFiltersProvider } from "@/contexts/GlobalFiltersContext";
 import DownloadDataButton from "@/components/dashboard/DownloadDataButton";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
-// Navigation items — role-agnostic routes
-const navItems = [
-  {
-    title: "Monitoring Partisipasi",
-    icon: LayoutDashboard,
-    href: "/dashboard/overview",
-    description: "Pemantauan pengisian tracer study",
-  },
-  {
-    title: "Luaran Pekerjaan",
-    icon: Briefcase,
-    href: "/dashboard/employment",
-    description: "Penempatan & karier alumni",
-  },
-  {
-    title: "Analisis Capaian Lulusan",
-    icon: BookOpen,
-    href: "/dashboard/education",
-    description: "Kompetensi & pembelajaran",
-  },
-];
-
-const adminItems = [
-  { href: "/dashboard/threshold-management", icon: Target, title: "Threshold", desc: "Nilai LAM/BAN-PT" },
-  { href: "/dashboard/master-ump", icon: Wallet, title: "Master UMP", desc: "Data UMP per provinsi" },
-  { href: "/dashboard/question-mapping", icon: Link2, title: "Pemetaan Pertanyaan", desc: "Mapping kode → semantic role" },
-  { href: "/dashboard/etl-anomaly-log", icon: AlertTriangle, title: "Log Anomali ETL", desc: "Jawaban gagal dinormalisasi saat ETL" },
-];
-
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { currentRole, selectedProdi, roleLabels } = useRole();
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { currentRole, selectedProdi, menu } = useRole();
 
-  // Show GlobalFilters on dashboard data pages (overview/employment/education/kpi)
-  const showGlobalFilters = /\/dashboard\/(overview|employment|education|kpi)/.test(location.pathname);
+  // Filter global hanya relevan di halaman data OLAP; halaman admin/konfigurasi
+  // punya filternya sendiri.
+  const showGlobalFilters = /\/dashboard\/(overview|employment|education|kpi)/.test(
+    location.pathname,
+  );
   const filtersMode = currentRole === "kaprodi" ? "kaprodi" : "full";
-  const isRealtimePage = /\/dashboard\/overview/.test(location.pathname);
-  const todayId = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
+
+  // Flatten menu items for page title lookup
+  const allItems = menu.flatMap((g) => g.items);
+  const currentItem = allItems.find((item) => location.pathname.startsWith(item.href));
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -91,27 +65,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Logo */}
         <div className="p-4 border-b border-sidebar-border">
           <Link to="/dashboard/overview" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-orange-light flex items-center justify-center flex-shrink-0">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
-            </div>
-            {!collapsed && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <span className="font-heading font-bold text-lg text-sidebar-foreground">
-                  Tracer Study
-                </span>
-                <span className="text-xs text-muted-foreground block -mt-1">
-                  Dashboard
-                </span>
-              </motion.div>
-            )}
+            <PolbanLogo compact title="Tracer Study" subtitle="Dashboard" showText={!collapsed} />
           </Link>
         </div>
 
-        {/* Role Badge in Sidebar */}
+        {/* Role Badge */}
         {!collapsed && (
           <div className="px-4 py-3 border-b border-sidebar-border">
             <Badge variant="outline" className="w-full justify-center py-1.5">
@@ -123,46 +81,18 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
         )}
 
-        {/* Navigation — scrollable */}
+        {/* Navigation — config-driven */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin">
-          {/* Main nav */}
-          {!collapsed && (
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 pb-1">
-              Dashboard
-            </p>
-          )}
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                to={item.href}
-                className={`sidebar-item ${isActive ? "active" : ""}`}
-              >
-                <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-primary" : "text-sidebar-foreground"}`} />
-                {!collapsed && (
-                  <div>
-                    <div className={`font-medium ${isActive ? "text-primary" : "text-sidebar-foreground"}`}>
-                      {item.title}
-                    </div>
-                    <div className="text-xs text-muted-foreground">{item.description}</div>
-                  </div>
-                )}
-              </Link>
-            );
-          })}
-
-          {/* Admin section — only visible for kotc (admin) */}
-          {currentRole === "kotc" && (
-            <>
+          {menu.map((group, gi) => (
+            <div key={group.label}>
               {!collapsed && (
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-4 pb-1">
-                  Administrasi
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 pb-1 pt-3 first:pt-0">
+                  {group.label}
                 </p>
               )}
-              {collapsed && <div className="my-2 border-t border-sidebar-border" />}
-              {adminItems.map((item) => {
-                const isActive = location.pathname === item.href;
+              {collapsed && gi > 0 && <div className="my-2 border-t border-sidebar-border" />}
+              {group.items.map((item) => {
+                const isActive = location.pathname === item.href || location.pathname.startsWith(item.href + "/");
                 return (
                   <Link
                     key={item.href}
@@ -175,14 +105,14 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                         <div className={`font-medium ${isActive ? "text-primary" : "text-sidebar-foreground"}`}>
                           {item.title}
                         </div>
-                        <div className="text-xs text-muted-foreground">{item.desc}</div>
+                        <div className="text-xs text-muted-foreground">{item.description}</div>
                       </div>
                     )}
                   </Link>
                 );
               })}
-            </>
-          )}
+            </div>
+          ))}
         </nav>
 
         {/* Collapse Toggle */}
@@ -206,53 +136,36 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       </motion.aside>
 
       {/* Main Content */}
-      <div 
+      <div
         className="flex-1 flex flex-col transition-all duration-300"
         style={{ marginLeft: collapsed ? 80 : 260 }}
       >
         {/* Top Bar */}
         <header className="sticky top-0 z-30 h-16 bg-background/80 backdrop-blur-lg border-b border-border flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
-            {/* Current page info */}
             <div className="hidden md:block">
               <h1 className="font-heading font-semibold text-lg">
-                {navItems.find(item => item.href === location.pathname)?.title || "Dashboard"}
+                {currentItem?.title || "Dashboard"}
               </h1>
               <p className="text-sm text-muted-foreground">
-                {navItems.find(item => item.href === location.pathname)?.description}
+                {currentItem?.description}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Realtime indicator (Overview only) */}
-            {isRealtimePage && (
-              <Badge
-                variant="outline"
-                className="hidden md:flex h-8 px-3 gap-1.5 items-center text-xs border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-              >
-                <Radio className="w-3.5 h-3.5 animate-pulse" /> Realtime — {todayId}
-              </Badge>
-            )}
-
-            {/* Prodi indicator for Kaprodi */}
             {selectedProdi && (
               <Badge variant="secondary" className="hidden md:flex">
                 Prodi: {selectedProdi}
               </Badge>
             )}
-
-            {/* Download & Theme */}
             {showGlobalFilters && <DownloadDataButton />}
             <ThemeToggle />
-
-            {/* Notifications */}
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="w-5 h-5" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
             </Button>
 
-            {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2">
@@ -276,18 +189,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link to="/" className="flex items-center text-destructive">
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Keluar
-                  </Link>
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Keluar
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </header>
 
-        {/* Sticky Global Filters under the top bar */}
+        {/* Filter global sticky di bawah top bar */}
         {showGlobalFilters && (
           <div className="sticky top-16 z-20">
             <GlobalFilters mode={filtersMode} kaprodiName={selectedProdi ?? undefined} />

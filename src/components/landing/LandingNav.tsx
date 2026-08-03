@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Menu, X, GraduationCap } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/common/ThemeToggle";
+import PolbanLogo from "@/components/common/PolbanLogo";
 
 const LandingNav = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -25,17 +27,7 @@ const LandingNav = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-orange-light flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
-            </div>
-            <div className="hidden sm:block">
-              <span className="font-heading font-bold text-lg text-foreground">
-                Tracer Study
-              </span>
-              <span className="text-xs text-muted-foreground block -mt-1">
-                POLBAN
-              </span>
-            </div>
+            <PolbanLogo compact title="Tracer Study" subtitle="POLBAN" />
           </Link>
 
           {/* Desktop Nav */}
@@ -53,6 +45,7 @@ const LandingNav = () => {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center gap-3">
+            <ThemeToggle />
             <Link to="/login">
               <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
                 Masuk
@@ -98,6 +91,7 @@ const LandingNav = () => {
                 </a>
               ))}
               <div className="flex gap-2 mt-4 px-4">
+                <ThemeToggle />
                 <Link to="/login" className="flex-1">
                   <Button variant="outline" className="w-full">
                     Masuk

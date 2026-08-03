@@ -7,14 +7,12 @@ const EducationPage = () => {
   const { currentRole } = useRole();
 
   switch (currentRole) {
-    case "p2mpp":
-      return <P2mppEducation />;
     case "kaprodi":
       return <KaprodiEducation />;
-    case "kotc":
+    case "tracer_team":
       return <KotcEducation />;
     default:
-      return null;
+      return <P2mppEducation />;
   }
 };
 

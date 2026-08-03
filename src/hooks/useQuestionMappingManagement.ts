@@ -23,7 +23,7 @@
 
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/common/use-toast";
 import {
   apiService,
   type SemanticRole,

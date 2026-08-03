@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useGlobalFilters, ALL } from "@/contexts/GlobalFiltersContext";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/auth/useAuth";
 import { useThresholds, KPI_INDICATOR_MAP, ThresholdVersion, DynamicParam } from "@/hooks/useFilterThresholds";
 
 // ─────────────────────────────────────────────────────────────────────────────

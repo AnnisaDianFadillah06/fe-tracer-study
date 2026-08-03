@@ -416,7 +416,14 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
+      // Token expired. Redirect hanya dari area dashboard -- halaman publik
+      // (/form, /) juga memakai client ini dan tidak boleh terlempar ke login.
+      // Perilaku ini disamakan dengan interceptor di src/lib/api.ts.
       localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      if (window.location.pathname.startsWith("/dashboard")) {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }
@@ -431,10 +438,12 @@ export const apiService = {
 
   login: async (email: string, password: string) => {
     const response = await apiClient.post("/auth/login", { email, password });
-    
-    // Response shape: { success, message, data: { user, token, token_type } }
-    const payload = response.data.data; // ✅ unwrap wrapper dulu
-    
+
+    // BE membungkus semua response: { success, message, data: { user, token,
+    // token_type } } -- lihat AuthController::login + ResponseAuthDTO::toArray.
+    // Token ADA DI response.data.data.token, bukan response.data.token.
+    const payload = response.data.data;
+
     if (payload?.token) {
       localStorage.setItem("auth_token", payload.token);
     }

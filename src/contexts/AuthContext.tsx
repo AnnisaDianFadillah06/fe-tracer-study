@@ -1,142 +1,140 @@
-// src/contexts/AuthContext.tsx
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { apiService } from "@/lib/apiClient";
-import { useToast } from "@/hooks/use-toast";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  type ReactNode,
+} from "react";
+import api from "@/lib/api";
 
+// ── Types matching backend ResponseAuthDTO & AuthService::me() ────────────
 export interface AuthUser {
   id: number;
   name: string;
   email: string;
-  role: string;
+  role: string; // BE role: "head_tracer" | "tracer_team" | "wadir" | "kajur" | "kaprodi"
   program_id: number | null;
   program_name: string | null;
   program_code: string | null;
   program_degree: string | null;
+  jurusan: string | null;
 }
 
-interface AuthContextValue {
+interface AuthState {
   user: AuthUser | null;
-  isLoading: boolean;
+  token: string | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+  isLoading: boolean;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+interface AuthContextValue extends AuthState {
+  login: (email: string, password: string) => Promise<{ success: true; user: AuthUser }>;
+  logout: () => Promise<void>;
+  fetchMe: () => Promise<void>;
+}
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const { toast } = useToast();
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-    // useEffect(() => {
-    // const checkAuth = async () => {
-    //     const payload = await apiService.getMe();
-    //     console.log("[Auth] getMe payload:", payload); // cek shape
-        
-    //     if (!payload) {
-    //     setIsLoading(false);
-    //     return;
-    //     }
-
-    //     try {
-    //     const response = await apiService.getMe();
-    //     console.log("[Auth] getMe response:", response); // ✅ cek shape response
-        
-    //     const userData: AuthUser = response.data ?? response;
-    //     console.log("[Auth] userData:", userData); // ✅ cek hasil parse
-        
-    //     setUser(userData);
-    //     } catch (error: any) {
-    //     console.error("[Auth] checkAuth error:", error.response?.status, error); // ✅ cek error
-    //     if (error.response?.status === 401) {
-    //         localStorage.removeItem("auth_token");
-    //     }
-    //     setUser(null);
-    //     } finally {
-    //     setIsLoading(false);
-    //     }
-    // };
-
-    useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem("auth_token");
-
-      // kalau belum login, jangan hit API
-      if (!token) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const response = await apiService.getMe();
-
-        console.log("[Auth] getMe response:", response);
-
-        const userData: AuthUser = response.data ?? response;
-
-        setUser(userData);
-      } catch (error: any) {
-        console.error(
-          "[Auth] checkAuth error:",
-          error.response?.status,
-          error
-        );
-
-        if (error.response?.status === 401) {
-          localStorage.removeItem("auth_token");
-        }
-
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
+/**
+ * Single source of truth untuk state autentikasi.
+ *
+ * Dibungkus sebagai Context (bukan plain hook) supaya semua consumer
+ * (`RoleProvider`, `DashboardLayout`, `ProtectedRoute`, `Login`, dst.)
+ * berbagi state yang SAMA — tanpa ini, login/logout di satu komponen
+ * tidak merefresh state komponen lain dalam SPA yang sama.
+ */
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AuthState>(() => {
+    const token = localStorage.getItem("auth_token");
+    const userRaw = localStorage.getItem("auth_user");
+    return {
+      token,
+      user: userRaw ? JSON.parse(userRaw) : null,
+      isAuthenticated: !!token,
+      isLoading: false,
     };
+  });
 
-    checkAuth();
+  // ── Login ────────────────────────────────────────────────────────────────
+  const login = useCallback(async (email: string, password: string) => {
+    setState((s) => ({ ...s, isLoading: true }));
+    try {
+      const { data } = await api.post("/auth/login", { email, password });
+      // Backend response: data.data = { user: {...}, token: "...", token_type: "Bearer" }
+      const { user, token } = data.data;
+
+      localStorage.setItem("auth_token", token);
+      localStorage.setItem("auth_user", JSON.stringify(user));
+
+      setState({
+        user,
+        token,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+
+      return { success: true as const, user };
+    } catch (error: any) {
+      setState((s) => ({ ...s, isLoading: false }));
+
+      // Backend throws ValidationException → response 422 with { errors: { email: [...] } }
+      const message =
+        error.response?.data?.errors?.email?.[0] ||
+        error.response?.data?.message ||
+        "Login gagal. Periksa email dan password.";
+      throw new Error(message);
+    }
   }, []);
 
-  const login = useCallback(
-    async (email: string, password: string): Promise<void> => {
-        setIsLoading(true);
-        try {
-        const payload = await apiService.login(email, password);
-        // payload sekarang sudah { user, token, token_type }
-        setUser(payload.user);
-        toast({ title: "Berhasil", description: "Login berhasil" });
-        } catch (error: any) {
-        const message =
-            error.response?.data?.message || "Email atau password salah";
-        toast({ title: "Login Gagal", description: message, variant: "destructive" });
-        throw error;
-        } finally {
-        setIsLoading(false);
-        }
-    },
-    [toast]
-    );
-
-  const logout = useCallback(async (): Promise<void> => {
+  // ── Logout ───────────────────────────────────────────────────────────────
+  const logout = useCallback(async () => {
     try {
-      await apiService.logout();
+      await api.post("/auth/logout");
     } catch {
-      // tetap lanjut logout FE
-    } finally {
-      localStorage.removeItem("auth_token");
-      setUser(null);
-      toast({ title: "Berhasil", description: "Logout berhasil" });
+      // Tetap logout di frontend meski request gagal (token expired, dll)
     }
-  }, [toast]);
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_user");
+    setState({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+      isLoading: false,
+    });
+  }, []);
+
+  // ── Fetch current user (refresh data) ────────────────────────────────────
+  const fetchMe = useCallback(async () => {
+    if (!localStorage.getItem("auth_token")) return;
+    try {
+      const { data } = await api.get("/auth/me");
+      const user: AuthUser = data.data;
+      localStorage.setItem("auth_user", JSON.stringify(user));
+      setState((s) => ({ ...s, user }));
+    } catch {
+      // Token invalid/expired → clear
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      setState({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+    }
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ ...state, login, logout, fetchMe }}>
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = (): AuthContextValue => {
+export function useAuthContext(): AuthContextValue {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth harus dipakai di dalam AuthProvider");
+  if (!ctx) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
   return ctx;
-};
+}

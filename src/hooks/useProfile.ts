@@ -1,6 +1,5 @@
-import { useAuth } from "@/contexts/AuthContext";
-import { roleLabels, roleDescriptions } from "@/contexts/RoleContext";
-import type { UserRole } from "@/contexts/RoleContext";
+import { useAuth } from "@/hooks/auth/useAuth";
+import { roleLabels, roleDescriptions, mapBackendRole } from "@/lib/rbac";
 
 export interface ProfileData {
   id: number;
@@ -20,16 +19,19 @@ export function useProfile(): { profile: ProfileData | null; isLoading: boolean 
 
   if (!user) return { profile: null, isLoading };
 
-  const knownRole = ["p2mpp", "kaprodi", "kotc"].includes(user.role);
-  const roleKey = knownRole ? (user.role as UserRole) : "p2mpp";
+  // Pakai mapBackendRole supaya kosakata role tunggal dengan RoleContext.
+  // Versi lama mencocokkan ke daftar ["p2mpp","kaprodi","kotc"] yang sudah
+  // tidak dikirim backend, lalu jatuh ke fallback "p2mpp" -- membuat semua
+  // role tampil sebagai Pimpinan di halaman profil.
+  const roleKey = mapBackendRole(user.role);
 
   const profile: ProfileData = {
     id: user.id,
     name: user.name,
     email: user.email,
     role: user.role,
-    roleLabel: knownRole ? roleLabels[roleKey] : user.role,
-    roleDescription: knownRole ? roleDescriptions[roleKey] : user.role,
+    roleLabel: roleLabels[roleKey],
+    roleDescription: roleDescriptions[roleKey],
     programName: user.program_name,
     programDegree: user.program_degree,
     programCode: user.program_code,

@@ -7,14 +7,12 @@ const EmploymentPage = () => {
   const { currentRole } = useRole();
 
   switch (currentRole) {
-    case "p2mpp":
-      return <P2mppEmployment />;
     case "kaprodi":
       return <KaprodiEmployment />;
-    case "kotc":
+    case "tracer_team":
       return <KotcEmployment />;
     default:
-      return null;
+      return <P2mppEmployment />;
   }
 };
 
