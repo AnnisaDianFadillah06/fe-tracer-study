@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { LogOut, Star, CheckCircle2, User, Info, AlertCircle, AlertTriangle } from "lucide-react";
+import { LogOut, Star, CheckCircle2, User, Info, AlertCircle, AlertTriangle, RotateCcw } from "lucide-react";
 import {
   petunjukUntuk, bersihkanAngka, formatRupiah, formatAngka, KODE_UANG,
 } from "@/lib/formValidation";
@@ -41,6 +41,8 @@ const FormPage = () => {
     errors,
     warnings,
     validateQuestion,
+    draftDipulihkan,
+    buangDraft,
     section,
     isLastSection,
     progressPercent,
@@ -223,6 +225,34 @@ const FormPage = () => {
           <div className="text-right text-xs text-muted-foreground">
             Bagian {currentSection + 1} dari {sections.length}
           </div>
+        )}
+
+        {/* Pemberitahuan pemulihan isian yang tertinggal. Ditampilkan sekali
+            dan bisa dibuang bila ternyata bukan pengisian yang diinginkan. */}
+        {draftDipulihkan && (
+          <Card className="border-primary/40 bg-primary/[0.04]">
+            <CardContent className="py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2.5">
+                <RotateCcw className="h-4 w-4 text-primary shrink-0 mt-0.5" aria-hidden />
+                <div className="text-sm">
+                  <p className="font-medium">Isian sebelumnya dipulihkan</p>
+                  <p className="text-muted-foreground text-xs mt-0.5">
+                    {draftDipulihkan.jumlah} jawaban tersimpan otomatis di perangkat ini,
+                    terakhir {draftDipulihkan.waktu}. Anda bisa melanjutkan dari sini.
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={buangDraft}
+                className="shrink-0"
+              >
+                Mulai dari awal
+              </Button>
+            </CardContent>
+          </Card>
         )}
 
         {/* Section Header */}

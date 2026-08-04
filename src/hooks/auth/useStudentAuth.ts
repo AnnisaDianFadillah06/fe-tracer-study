@@ -1,5 +1,6 @@
 import { useState } from "react";
 import api from "@/lib/api";
+import { hapusSemuaDraft } from "@/lib/formDraft";
 
 const SESSION_KEY = "tracer_student_session";
 
@@ -64,6 +65,10 @@ export const useStudentAuth = () => {
 
   const logout = () => {
     sessionStorage.removeItem(SESSION_KEY);
+    // Draf pengisian memuat data pribadi (NIK, NPWP, pendapatan). Keluar
+    // sesi berarti alumni selesai memakai perangkat ini — bisa jadi komputer
+    // bersama — sehingga draf tidak boleh ditinggalkan.
+    hapusSemuaDraft();
     setSession(null);
   };
 

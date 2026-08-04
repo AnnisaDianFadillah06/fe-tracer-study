@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/common/use-toast";
 import api from "@/lib/api";
 import type { FormSection, Question, Option } from "@/hooks/form/useQuestionManagement";
 import { validasiJawaban, validasiSilang } from "@/lib/formValidation";
+import {
+  simpanDraft, bacaDraft, hapusDraft, sidikKuesioner, jumlahTerisi, waktuRelatif,
+} from "@/lib/formDraft";
 
 /** Satu masalah pengisian, dipakai untuk isi toast dan penggulir otomatis. */
 export interface MasalahForm {
@@ -354,6 +357,17 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasResponded, setHasResponded] = useState(false);
 
+  /** Info draf yang dipulihkan, untuk diberitahukan ke pengguna sekali saja. */
+  const [draftDipulihkan, setDraftDipulihkan] = useState<{
+    jumlah: number; waktu: string;
+  } | null>(null);
+  /**
+   * Penanda bahwa pemulihan draf sudah dicoba. Penyimpanan otomatis baru
+   * boleh berjalan setelah ini, supaya state awal yang masih kosong tidak
+   * keburu menimpa draf yang tersimpan.
+   */
+  const siapSimpanDraft = useRef(false);
+
   // ── Fetch forms dari backend ──────────────────────────────────────────────
   useEffect(() => {
     const fetchForms = async () => {
@@ -374,6 +388,23 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
           const mapped = mapBackendToSections(data.data);
           setSections(mapped);
           setHasResponded(!!data.has_responded);
+
+          // Pulihkan isian yang tertinggal, kecuali kuesionernya sudah pernah
+          // dikirim. Dilakukan setelah sections siap karena sidik kuesioner
+          // dihitung dari daftar pertanyaannya.
+          if (nim && !data.has_responded) {
+            const sidik = sidikKuesioner(mapped.flatMap((s) => s.questions.map((q) => q.id)));
+            const draft = bacaDraft(nim, sidik);
+
+            if (draft && jumlahTerisi(draft.jawaban) > 0) {
+              setAnswers(draft.jawaban);
+              setCurrentSection(Math.min(draft.bagianAktif, mapped.length - 1));
+              setDraftDipulihkan({
+                jumlah: jumlahTerisi(draft.jawaban),
+                waktu: waktuRelatif(draft.disimpanPada),
+              });
+            }
+          }
         } else {
           // Tidak ada kuesioner aktif untuk tahun lulus ini
           setSections([]);
@@ -392,11 +423,32 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
         });
       } finally {
         setIsLoadingForms(false);
+        // Sejak titik ini state sudah mencerminkan keadaan sebenarnya,
+        // sehingga penyimpanan otomatis aman dijalankan.
+        siapSimpanDraft.current = true;
       }
     };
 
     fetchForms();
   }, [kodeProdi, graduationYear]);
+
+  // ── Penyimpanan draf otomatis ─────────────────────────────────────────────
+  //
+  // Ditunda 800 ms setelah ketikan terakhir. Tanpa jeda, setiap huruf yang
+  // diketik memicu penulisan localStorage dan serialisasi seluruh jawaban --
+  // pemborosan yang terasa pada kuesioner sepanjang ini.
+  useEffect(() => {
+    if (!nim || !siapSimpanDraft.current || submitted || hasResponded) return;
+    if (sections.length === 0) return;
+    if (jumlahTerisi(answers) === 0) return;
+
+    const sidik = sidikKuesioner(sections.flatMap((s) => s.questions.map((q) => q.id)));
+    const timer = setTimeout(() => {
+      simpanDraft(nim, answers, currentSection, sidik);
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [answers, currentSection, nim, sections, submitted, hasResponded]);
 
   // ── Answer management ─────────────────────────────────────────────────────
   const setAnswer = (questionId: string, value: unknown) => {
@@ -602,6 +654,13 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
       await api.post("/tracer-study/submit", payload);
 
       setSubmitted(true);
+
+      // Draf dibuang begitu data aman di server. Isinya memuat data pribadi
+      // (NIK, NPWP, pendapatan), jadi tidak dibiarkan tertinggal di peramban
+      // lebih lama dari yang diperlukan.
+      if (nim) hapusDraft(nim);
+      setDraftDipulihkan(null);
+
       toast({
         title: "Berhasil!",
         description: "Kuesioner telah berhasil dikirim",
@@ -656,6 +715,27 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
     setAnswers({});
     setCurrentSection(0);
     setErrors({});
+    setWarnings({});
+    setMasalah([]);
+    setDraftDipulihkan(null);
+    if (nim) hapusDraft(nim);
+  };
+
+  /**
+   * Buang isian yang dipulihkan dan mulai dari kosong.
+   *
+   * Dibutuhkan bila draf ternyata milik pengisian yang tidak diinginkan —
+   * misalnya alumni salah memulai, atau komputernya dipakai bergantian.
+   */
+  const buangDraft = () => {
+    if (nim) hapusDraft(nim);
+    setAnswers({});
+    setCurrentSection(0);
+    setErrors({});
+    setWarnings({});
+    setMasalah([]);
+    setDraftDipulihkan(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const progressPercent =
@@ -674,6 +754,8 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
     warnings,
     masalah,
     validateQuestion,
+    draftDipulihkan,
+    buangDraft,
     section,
     isLastSection,
     progressPercent,
