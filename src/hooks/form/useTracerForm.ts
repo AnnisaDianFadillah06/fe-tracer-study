@@ -2,17 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/common/use-toast";
 import api from "@/lib/api";
 import type { FormSection, Question, Option } from "@/hooks/form/useQuestionManagement";
-import { validasiJawaban, validasiSilang } from "@/lib/formValidation";
+import { validateAnswer, validateCrossField } from "@/lib/formValidation";
 import {
-  simpanDraft, bacaDraft, hapusDraft, sidikKuesioner, jumlahTerisi, waktuRelatif,
+  saveDraft, readDraft, clearDraft, questionnaireFingerprint, countAnswered, relativeTime,
 } from "@/lib/formDraft";
 
 /** Satu masalah pengisian, dipakai untuk isi toast dan penggulir otomatis. */
-export interface MasalahForm {
+export interface FormIssue {
   /** id pertanyaan (berawalan id kuesioner) — dipakai untuk scroll & fokus. */
   id: string;
-  pertanyaan: string;
-  pesan: string;
+  question: string;
+  message: string;
 }
 
 /**
@@ -96,9 +96,9 @@ function mapSingleQuestion(q: any): Question {
 const QID_SEP = "___";
 
 /** Pangkas teks panjang agar isi toast tetap terbaca. */
-function potong(teks: string, maks: number): string {
-  const bersih = (teks ?? "").trim();
-  return bersih.length <= maks ? bersih : `${bersih.slice(0, maks - 1)}…`;
+function truncate(text: string, max: number): string {
+  const trimmed = (text ?? "").trim();
+  return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max - 1)}…`;
 }
 
 function mapBackendToSections(backendData: any[]): FormSection[] {
@@ -352,21 +352,21 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
   /** Peringatan lunak — nilainya sah, tapi patut dikonfirmasi ulang. */
   const [warnings, setWarnings] = useState<Record<string, string>>({});
   /** Ringkasan masalah untuk toast + penanda field mana yang harus digulir. */
-  const [masalah, setMasalah] = useState<MasalahForm[]>([]);
+  const [issues, setIssues] = useState<FormIssue[]>([]);
   const [isLoadingForms, setIsLoadingForms] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasResponded, setHasResponded] = useState(false);
 
   /** Info draf yang dipulihkan, untuk diberitahukan ke pengguna sekali saja. */
-  const [draftDipulihkan, setDraftDipulihkan] = useState<{
-    jumlah: number; waktu: string;
+  const [restoredDraft, setRestoredDraft] = useState<{
+    count: number; time: string;
   } | null>(null);
   /**
    * Penanda bahwa pemulihan draf sudah dicoba. Penyimpanan otomatis baru
    * boleh berjalan setelah ini, supaya state awal yang masih kosong tidak
    * keburu menimpa draf yang tersimpan.
    */
-  const siapSimpanDraft = useRef(false);
+  const draftSaveReady = useRef(false);
 
   // ── Fetch forms dari backend ──────────────────────────────────────────────
   useEffect(() => {
@@ -393,15 +393,15 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
           // dikirim. Dilakukan setelah sections siap karena sidik kuesioner
           // dihitung dari daftar pertanyaannya.
           if (nim && !data.has_responded) {
-            const sidik = sidikKuesioner(mapped.flatMap((s) => s.questions.map((q) => q.id)));
-            const draft = bacaDraft(nim, sidik);
+            const fingerprint = questionnaireFingerprint(mapped.flatMap((s) => s.questions.map((q) => q.id)));
+            const draft = readDraft(nim, fingerprint);
 
-            if (draft && jumlahTerisi(draft.jawaban) > 0) {
-              setAnswers(draft.jawaban);
-              setCurrentSection(Math.min(draft.bagianAktif, mapped.length - 1));
-              setDraftDipulihkan({
-                jumlah: jumlahTerisi(draft.jawaban),
-                waktu: waktuRelatif(draft.disimpanPada),
+            if (draft && countAnswered(draft.answers) > 0) {
+              setAnswers(draft.answers);
+              setCurrentSection(Math.min(draft.currentSection, mapped.length - 1));
+              setRestoredDraft({
+                count: countAnswered(draft.answers),
+                time: relativeTime(draft.savedAt),
               });
             }
           }
@@ -425,7 +425,7 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
         setIsLoadingForms(false);
         // Sejak titik ini state sudah mencerminkan keadaan sebenarnya,
         // sehingga penyimpanan otomatis aman dijalankan.
-        siapSimpanDraft.current = true;
+        draftSaveReady.current = true;
       }
     };
 
@@ -438,13 +438,13 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
   // diketik memicu penulisan localStorage dan serialisasi seluruh jawaban --
   // pemborosan yang terasa pada kuesioner sepanjang ini.
   useEffect(() => {
-    if (!nim || !siapSimpanDraft.current || submitted || hasResponded) return;
+    if (!nim || !draftSaveReady.current || submitted || hasResponded) return;
     if (sections.length === 0) return;
-    if (jumlahTerisi(answers) === 0) return;
+    if (countAnswered(answers) === 0) return;
 
-    const sidik = sidikKuesioner(sections.flatMap((s) => s.questions.map((q) => q.id)));
+    const fingerprint = questionnaireFingerprint(sections.flatMap((s) => s.questions.map((q) => q.id)));
     const timer = setTimeout(() => {
-      simpanDraft(nim, answers, currentSection, sidik);
+      saveDraft(nim, answers, currentSection, fingerprint);
     }, 800);
 
     return () => clearTimeout(timer);
@@ -483,66 +483,66 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
    * begitu kolom pendapatan yang diisi teks langsung ketahuan di sini,
    * bukan setelah satu putaran ke server.
    */
-  const periksaSection = (sectionIdx: number) => {
+  const checkSection = (sectionIdx: number) => {
     const sec = sections[sectionIdx];
-    if (!sec) return { errors: {}, warnings: {}, daftar: [] as MasalahForm[] };
+    if (!sec) return { errors: {}, warnings: {}, issueList: [] as FormIssue[] };
 
     const errors: Record<string, string> = {};
     const warnings: Record<string, string> = {};
-    const daftar: MasalahForm[] = [];
+    const issueList: FormIssue[] = [];
 
     // Kumpulkan jawaban per KODE (tanpa awalan id kuesioner) untuk
     // validasi silang antar-pertanyaan.
-    const perKode: Record<string, unknown> = {};
+    const byCode: Record<string, unknown> = {};
 
     sec.questions.forEach((q) => {
       if (q.showIf && !isQuestionVisible(q, answers, sec.questions)) return;
-      const kode = q.code ?? (q.id.includes(QID_SEP) ? q.id.split(QID_SEP)[1] : q.id);
-      perKode[kode] = answers[q.id];
+      const code = q.code ?? (q.id.includes(QID_SEP) ? q.id.split(QID_SEP)[1] : q.id);
+      byCode[code] = answers[q.id];
 
-      const hasil = validasiJawaban(q, answers[q.id]);
-      if (hasil.error) {
-        errors[q.id] = hasil.error;
-        daftar.push({ id: q.id, pertanyaan: q.question, pesan: hasil.error });
-      } else if (hasil.warning) {
-        warnings[q.id] = hasil.warning;
+      const result = validateAnswer(q, answers[q.id]);
+      if (result.error) {
+        errors[q.id] = result.error;
+        issueList.push({ id: q.id, question: q.question, message: result.error });
+      } else if (result.warning) {
+        warnings[q.id] = result.warning;
       }
     });
 
     // Validasi silang f6 >= f7 >= f7a — hasilnya berkunci kode, perlu
     // dipetakan balik ke id pertanyaan supaya tampil di bawah field.
-    const silang = validasiSilang(perKode);
-    for (const [kode, pesan] of Object.entries(silang)) {
+    const crossErrors = validateCrossField(byCode);
+    for (const [code, message] of Object.entries(crossErrors)) {
       const q = sec.questions.find(
-        (x) => (x.code ?? x.id.split(QID_SEP).pop()) === kode,
+        (x) => (x.code ?? x.id.split(QID_SEP).pop()) === code,
       );
       if (!q || errors[q.id]) continue;
-      errors[q.id] = pesan;
-      daftar.push({ id: q.id, pertanyaan: q.question, pesan });
+      errors[q.id] = message;
+      issueList.push({ id: q.id, question: q.question, message });
     }
 
-    return { errors, warnings, daftar };
+    return { errors, warnings, issueList };
   };
 
   const validateSection = (sectionIdx: number): boolean => {
-    const { errors, warnings, daftar } = periksaSection(sectionIdx);
+    const { errors, warnings, issueList } = checkSection(sectionIdx);
     setErrors(errors);
     setWarnings(warnings);
-    setMasalah(daftar);
-    return daftar.length === 0;
+    setIssues(issueList);
+    return issueList.length === 0;
   };
 
   /** Validasi satu pertanyaan saja — dipakai saat pengguna meninggalkan field. */
   const validateQuestion = (q: Question) => {
-    const hasil = validasiJawaban(q, answers[q.id]);
+    const result = validateAnswer(q, answers[q.id]);
     setErrors((prev) => {
       const next = { ...prev };
-      if (hasil.error) next[q.id] = hasil.error; else delete next[q.id];
+      if (result.error) next[q.id] = result.error; else delete next[q.id];
       return next;
     });
     setWarnings((prev) => {
       const next = { ...prev };
-      if (hasil.warning) next[q.id] = hasil.warning; else delete next[q.id];
+      if (result.warning) next[q.id] = result.warning; else delete next[q.id];
       return next;
     });
   };
@@ -555,33 +555,33 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
    * diringkas. Durasi 9 detik karena bawaannya 4 detik — terlalu cepat untuk
    * membaca beberapa baris.
    */
-  const tampilkanToastMasalah = (daftar: MasalahForm[]) => {
-    if (daftar.length === 0) return;
+  const showIssuesToast = (issueList: FormIssue[]) => {
+    if (issueList.length === 0) return;
 
-    const ditampilkan = daftar.slice(0, 3);
-    const sisa = daftar.length - ditampilkan.length;
+    const shown = issueList.slice(0, 3);
+    const remaining = issueList.length - shown.length;
 
-    const rincian = ditampilkan
-      .map((m) => `• ${potong(m.pertanyaan, 60)} — ${m.pesan}`)
+    const details = shown
+      .map((m) => `• ${truncate(m.question, 60)} — ${m.message}`)
       .join("\n");
 
     toast({
-      title: daftar.length === 1
+      title: issueList.length === 1
         ? "1 pertanyaan belum benar"
-        : `${daftar.length} pertanyaan belum benar`,
-      description: sisa > 0 ? `${rincian}\n…dan ${sisa} pertanyaan lainnya.` : rincian,
+        : `${issueList.length} pertanyaan belum benar`,
+      description: remaining > 0 ? `${details}\n…dan ${remaining} pertanyaan lainnya.` : details,
       variant: "destructive",
       duration: 9000,
     });
   };
 
   /** Gulir ke pertanyaan bermasalah pertama lalu fokuskan isiannya. */
-  const gulirKeMasalah = (daftar: MasalahForm[]) => {
-    const pertama = daftar[0];
-    if (!pertama) return;
+  const scrollToFirstIssue = (issueList: FormIssue[]) => {
+    const first = issueList[0];
+    if (!first) return;
     // Ditunda satu frame supaya penanda error sudah tergambar lebih dulu.
     requestAnimationFrame(() => {
-      const el = document.querySelector<HTMLElement>(`[data-question-id="${CSS.escape(pertama.id)}"]`);
+      const el = document.querySelector<HTMLElement>(`[data-question-id="${CSS.escape(first.id)}"]`);
       if (!el) return;
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       el.querySelector<HTMLElement>("input, textarea, select, [role='radiogroup']")?.focus({ preventScroll: true });
@@ -590,14 +590,14 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const handleNext = () => {
-    const { errors, warnings, daftar } = periksaSection(currentSection);
+    const { errors, warnings, issueList } = checkSection(currentSection);
     setErrors(errors);
     setWarnings(warnings);
-    setMasalah(daftar);
+    setIssues(issueList);
 
-    if (daftar.length > 0) {
-      tampilkanToastMasalah(daftar);
-      gulirKeMasalah(daftar);
+    if (issueList.length > 0) {
+      showIssuesToast(issueList);
+      scrollToFirstIssue(issueList);
       return;
     }
 
@@ -617,13 +617,13 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
   ) => {
     e.preventDefault();
 
-    const periksa = periksaSection(currentSection);
-    setErrors(periksa.errors);
-    setWarnings(periksa.warnings);
-    setMasalah(periksa.daftar);
-    if (periksa.daftar.length > 0) {
-      tampilkanToastMasalah(periksa.daftar);
-      gulirKeMasalah(periksa.daftar);
+    const check = checkSection(currentSection);
+    setErrors(check.errors);
+    setWarnings(check.warnings);
+    setIssues(check.issueList);
+    if (check.issueList.length > 0) {
+      showIssuesToast(check.issueList);
+      scrollToFirstIssue(check.issueList);
       return;
     }
 
@@ -658,8 +658,8 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
       // Draf dibuang begitu data aman di server. Isinya memuat data pribadi
       // (NIK, NPWP, pendapatan), jadi tidak dibiarkan tertinggal di peramban
       // lebih lama dari yang diperlukan.
-      if (nim) hapusDraft(nim);
-      setDraftDipulihkan(null);
+      if (nim) clearDraft(nim);
+      setRestoredDraft(null);
 
       toast({
         title: "Berhasil!",
@@ -675,24 +675,24 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
         // tidak pernah muncul di bawah field — pengguna hanya melihat pesan
         // umum tanpa tahu bagian mana yang salah. Di sini kodenya dipetakan
         // balik ke id pertanyaan.
-        const semuaPertanyaan = sections.flatMap((s) => s.questions);
+        const allQuestions = sections.flatMap((s) => s.questions);
         const newErrors: Record<string, string> = {};
-        const daftar: MasalahForm[] = [];
+        const issueList: FormIssue[] = [];
 
-        for (const [kode, messages] of Object.entries(serverErrors)) {
-          const pesan = Array.isArray(messages) ? String(messages[0]) : String(messages);
-          const q = semuaPertanyaan.find(
-            (x) => (x.code ?? x.id.split(QID_SEP).pop()) === kode,
+        for (const [code, messages] of Object.entries(serverErrors)) {
+          const message = Array.isArray(messages) ? String(messages[0]) : String(messages);
+          const q = allQuestions.find(
+            (x) => (x.code ?? x.id.split(QID_SEP).pop()) === code,
           );
-          const kunci = q?.id ?? kode;
-          newErrors[kunci] = pesan;
-          daftar.push({ id: kunci, pertanyaan: q?.question ?? kode, pesan });
+          const key = q?.id ?? code;
+          newErrors[key] = message;
+          issueList.push({ id: key, question: q?.question ?? code, message });
         }
 
         setErrors(newErrors);
-        setMasalah(daftar);
-        tampilkanToastMasalah(daftar);
-        gulirKeMasalah(daftar);
+        setIssues(issueList);
+        showIssuesToast(issueList);
+        scrollToFirstIssue(issueList);
         return;
       }
 
@@ -716,9 +716,9 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
     setCurrentSection(0);
     setErrors({});
     setWarnings({});
-    setMasalah([]);
-    setDraftDipulihkan(null);
-    if (nim) hapusDraft(nim);
+    setIssues([]);
+    setRestoredDraft(null);
+    if (nim) clearDraft(nim);
   };
 
   /**
@@ -727,14 +727,14 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
    * Dibutuhkan bila draf ternyata milik pengisian yang tidak diinginkan —
    * misalnya alumni salah memulai, atau komputernya dipakai bergantian.
    */
-  const buangDraft = () => {
-    if (nim) hapusDraft(nim);
+  const discardDraft = () => {
+    if (nim) clearDraft(nim);
     setAnswers({});
     setCurrentSection(0);
     setErrors({});
     setWarnings({});
-    setMasalah([]);
-    setDraftDipulihkan(null);
+    setIssues([]);
+    setRestoredDraft(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -752,10 +752,10 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
     currentSection,
     errors,
     warnings,
-    masalah,
+    issues,
     validateQuestion,
-    draftDipulihkan,
-    buangDraft,
+    restoredDraft,
+    discardDraft,
     section,
     isLastSection,
     progressPercent,

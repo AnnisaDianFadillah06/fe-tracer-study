@@ -57,7 +57,7 @@ const QuestionnaireResultsPage = () => {
   };
 
   // Kembali ke layar kartu tahun: buang parameternya dari URL.
-  const kembaliKeKartu = () => {
+  const backToYearCards = () => {
     setSearch("");
     setSearchParams(new URLSearchParams(), { replace: false });
   };
@@ -156,7 +156,7 @@ const QuestionnaireResultsPage = () => {
               Pilih angkatan untuk melihat kuesioner dan ringkasan respondennya
             </p>
           </div>
-          <PilihTahun mode="kuesioner" onPilih={setGraduationYear} />
+          <PilihTahun mode="kuesioner" onSelect={setGraduationYear} />
         </div>
       </DashboardLayout>
     );
@@ -175,7 +175,7 @@ const QuestionnaireResultsPage = () => {
             </h2>
             <p className="text-muted-foreground text-sm">Daftar kuesioner dan ringkasan responden</p>
           </div>
-          <Button variant="outline" size="sm" onClick={kembaliKeKartu} className="shrink-0">
+          <Button variant="outline" size="sm" onClick={backToYearCards} className="shrink-0">
             <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
             Pilih Angkatan
           </Button>

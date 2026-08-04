@@ -107,7 +107,7 @@ const DaftarKuisionerPage = () => {
     setSearchParams(params, { replace: true });
   };
 
-  const kembaliKeKartu = () => {
+  const backToYearCards = () => {
     setGraduationYearFilterRaw("");
     setPageRaw(1);
     setSearchParams(new URLSearchParams(), { replace: false });
@@ -276,8 +276,8 @@ const DaftarKuisionerPage = () => {
           </div>
           <PilihTahun
             mode="kuesioner"
-            onPilih={(t) => setGraduationYearFilter(t === null ? "all" : String(t))}
-            aksi={
+            onSelect={(t) => setGraduationYearFilter(t === null ? "all" : String(t))}
+            actions={
               <Button onClick={() => navigate("/dashboard/form-management/new")}>
                 <Plus className="mr-2 h-4 w-4" />
                 {isHeadTracer ? "Tambah Kuisioner" : "Ajukan Kuisioner Baru"}
@@ -307,7 +307,7 @@ const DaftarKuisionerPage = () => {
             <p className="max-w-2xl text-sm text-muted-foreground">
               Kelola kuisioner, lihat preview, edit, hapus, dan export hasil respon ke Excel.
             </p>
-            <Button variant="outline" size="sm" onClick={kembaliKeKartu} className="mt-2">
+            <Button variant="outline" size="sm" onClick={backToYearCards} className="mt-2">
               <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
               Pilih Angkatan
             </Button>

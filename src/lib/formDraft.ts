@@ -21,21 +21,21 @@
  */
 
 const PREFIX = "tracer_form_draft";
-const VERSI = 1;
+const VERSION = 1;
 /** Draf lebih tua dari ini dianggap basi dan diabaikan. */
-const KEDALUWARSA_HARI = 30;
+const EXPIRY_DAYS = 30;
 
-export interface DraftPengisian {
-  versi: number;
+export interface FormDraft {
+  version: number;
   /** Milidetik epoch saat draf terakhir disimpan. */
-  disimpanPada: number;
+  savedAt: number;
   /** Menjaga draf tidak dipulihkan ke susunan kuesioner yang sudah berubah. */
-  sidikKuesioner: string;
-  jawaban: Record<string, unknown>;
-  bagianAktif: number;
+  fingerprint: string;
+  answers: Record<string, unknown>;
+  currentSection: number;
 }
 
-function kunci(nim: string): string {
+function storageKey(nim: string): string {
   return `${PREFIX}:${nim}`;
 }
 
@@ -47,28 +47,28 @@ function kunci(nim: string): string {
  * memasangkan jawaban ke pertanyaan yang keliru. Sidik ini membuat draf
  * lama diabaikan begitu susunannya berbeda.
  */
-export function sidikKuesioner(idPertanyaan: string[]): string {
-  return `${idPertanyaan.length}:${[...idPertanyaan].sort().join(",")}`;
+export function questionnaireFingerprint(questionIds: string[]): string {
+  return `${questionIds.length}:${[...questionIds].sort().join(",")}`;
 }
 
 /** Simpan draf. Gagal menyimpan tidak boleh mengganggu pengisian. */
-export function simpanDraft(
+export function saveDraft(
   nim: string,
-  jawaban: Record<string, unknown>,
-  bagianAktif: number,
-  sidik: string,
+  answers: Record<string, unknown>,
+  currentSection: number,
+  fingerprint: string,
 ): void {
   if (!nim) return;
 
   try {
-    const isi: DraftPengisian = {
-      versi: VERSI,
-      disimpanPada: Date.now(),
-      sidikKuesioner: sidik,
-      jawaban,
-      bagianAktif,
+    const payload: FormDraft = {
+      version: VERSION,
+      savedAt: Date.now(),
+      fingerprint,
+      answers,
+      currentSection,
     };
-    localStorage.setItem(kunci(nim), JSON.stringify(isi));
+    localStorage.setItem(storageKey(nim), JSON.stringify(payload));
   } catch (e) {
     // Kuota penuh atau localStorage diblokir (mode privat pada sebagian
     // peramban). Diabaikan diam-diam — kehilangan draf jauh lebih ringan
@@ -83,64 +83,64 @@ export function simpanDraft(
  * Mengembalikan null bila tidak ada, rusak, versinya beda, sudah lewat masa
  * berlaku, atau susunan kuesionernya sudah berubah.
  */
-export function bacaDraft(nim: string, sidik: string): DraftPengisian | null {
+export function readDraft(nim: string, fingerprint: string): FormDraft | null {
   if (!nim) return null;
 
   try {
-    const mentah = localStorage.getItem(kunci(nim));
-    if (!mentah) return null;
+    const raw = localStorage.getItem(storageKey(nim));
+    if (!raw) return null;
 
-    const draft = JSON.parse(mentah) as DraftPengisian;
+    const draft = JSON.parse(raw) as FormDraft;
 
-    if (draft?.versi !== VERSI) return null;
-    if (!draft.jawaban || typeof draft.jawaban !== "object") return null;
+    if (draft?.version !== VERSION) return null;
+    if (!draft.answers || typeof draft.answers !== "object") return null;
 
-    const umurHari = (Date.now() - (draft.disimpanPada ?? 0)) / 86_400_000;
-    if (umurHari > KEDALUWARSA_HARI) {
-      hapusDraft(nim);
+    const ageInDays = (Date.now() - (draft.savedAt ?? 0)) / 86_400_000;
+    if (ageInDays > EXPIRY_DAYS) {
+      clearDraft(nim);
       return null;
     }
 
-    if (draft.sidikKuesioner !== sidik) {
+    if (draft.fingerprint !== fingerprint) {
       // Kuesionernya sudah berubah sejak draf dibuat. Lebih aman mengulang
       // daripada memasangkan jawaban ke pertanyaan yang salah.
-      hapusDraft(nim);
+      clearDraft(nim);
       return null;
     }
 
     return draft;
   } catch {
-    hapusDraft(nim);
+    clearDraft(nim);
     return null;
   }
 }
 
-export function hapusDraft(nim: string): void {
+export function clearDraft(nim: string): void {
   if (!nim) return;
   try {
-    localStorage.removeItem(kunci(nim));
+    localStorage.removeItem(storageKey(nim));
   } catch {
     /* diabaikan */
   }
 }
 
 /** Hapus seluruh draf milik siapa pun — dipakai saat alumni keluar sesi. */
-export function hapusSemuaDraft(): void {
+export function clearAllDrafts(): void {
   try {
-    const kunciTerhapus: string[] = [];
+    const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k?.startsWith(`${PREFIX}:`)) kunciTerhapus.push(k);
+      if (k?.startsWith(`${PREFIX}:`)) keysToRemove.push(k);
     }
-    kunciTerhapus.forEach((k) => localStorage.removeItem(k));
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
   } catch {
     /* diabaikan */
   }
 }
 
 /** Berapa banyak pertanyaan yang sudah terisi pada draf. */
-export function jumlahTerisi(jawaban: Record<string, unknown>): number {
-  return Object.values(jawaban).filter((v) => {
+export function countAnswered(answers: Record<string, unknown>): number {
+  return Object.values(answers).filter((v) => {
     if (v === undefined || v === null || v === "") return false;
     if (Array.isArray(v)) return v.length > 0;
     return true;
@@ -148,16 +148,16 @@ export function jumlahTerisi(jawaban: Record<string, unknown>): number {
 }
 
 /** Keterangan waktu yang enak dibaca, mis. "3 jam lalu". */
-export function waktuRelatif(epochMs: number): string {
-  const detik = Math.max(0, Math.floor((Date.now() - epochMs) / 1000));
-  if (detik < 60) return "beberapa detik lalu";
+export function relativeTime(epochMs: number): string {
+  const seconds = Math.max(0, Math.floor((Date.now() - epochMs) / 1000));
+  if (seconds < 60) return "beberapa detik lalu";
 
-  const menit = Math.floor(detik / 60);
-  if (menit < 60) return `${menit} menit lalu`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} menit lalu`;
 
-  const jam = Math.floor(menit / 60);
-  if (jam < 24) return `${jam} jam lalu`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} jam lalu`;
 
-  const hari = Math.floor(jam / 24);
-  return hari === 1 ? "kemarin" : `${hari} hari lalu`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "kemarin" : `${days} hari lalu`;
 }

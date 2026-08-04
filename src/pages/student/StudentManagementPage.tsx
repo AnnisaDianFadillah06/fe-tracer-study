@@ -220,7 +220,7 @@ const StudentManagementPage = () => {
 
   // Dialog tambah/ubah mahasiswa diangkat ke variabel supaya bisa dipakai
   // baik di layar kartu tahun maupun di layar tabel.
-  const dialogMahasiswa = (
+  const studentDialog = (
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
@@ -338,7 +338,7 @@ const StudentManagementPage = () => {
 
   // Aksi lintas angkatan — impor massal, unduh templat, dan tambah mahasiswa
   // tidak terikat pada satu tahun, jadi tetap tersedia di layar kartu.
-  const aksiGlobal = (
+  const globalActions = (
     <>
       <input
         ref={fileInputRef}
@@ -390,16 +390,16 @@ const StudentManagementPage = () => {
           </div>
           <PilihTahun
             mode="alumni"
-            onPilih={(t) => { setFilterGraduationYear(t === null ? "all" : String(t)); setPage(1); }}
-            onCari={(q) => { setSearchQuery(q); setFilterGraduationYear("all"); setPage(1); }}
-            placeholderCari="Cari NIM atau nama mahasiswa..."
-            aksi={aksiGlobal}
+            onSelect={(t) => { setFilterGraduationYear(t === null ? "all" : String(t)); setPage(1); }}
+            onSearch={(q) => { setSearchQuery(q); setFilterGraduationYear("all"); setPage(1); }}
+            searchPlaceholder="Cari NIM atau nama mahasiswa..."
+            actions={globalActions}
           />
         </div>
 
         {/* Dialog tambah/ubah tetap dipasang supaya tombol Tambah Mahasiswa
             di layar kartu tetap berfungsi. */}
-        {dialogMahasiswa}
+        {studentDialog}
       </DashboardLayout>
     );
   }
@@ -689,7 +689,7 @@ const StudentManagementPage = () => {
         </Card>
       </div>
 
-      {dialogMahasiswa}
+      {studentDialog}
 
       {/* Delete Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

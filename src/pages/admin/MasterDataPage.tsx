@@ -106,7 +106,7 @@ const MasterDataPage = () => {
 
   // Fetch data from API
   useEffect(() => {
-    let aktif = true;
+    let active = true;
 
     (async () => {
       try {
@@ -115,7 +115,7 @@ const MasterDataPage = () => {
           api.get("/provinces"),
           api.get("/cities"),
         ]);
-        if (!aktif) return;
+        if (!active) return;
 
         const programs = prodiRes.data.data ?? prodiRes.data;
         setProdiList((programs as any[]).map((p: any) => ({
@@ -126,16 +126,16 @@ const MasterDataPage = () => {
         setKotaList((kotaRes.data.data as any[]).map((c: any) => ({ id: String(c.id), name: c.name, provinsiId: c.province_code, code: c.code })));
         setLoadError(null);
       } catch (e: any) {
-        if (!aktif) return;
+        if (!active) return;
         // Sebelumnya galat ditelan diam-diam, sehingga kegagalan muat
         // tampak persis sama dengan data kosong. Sekarang dibedakan.
         setLoadError(e?.response?.data?.message ?? "Gagal memuat data master. Periksa koneksi ke server.");
       } finally {
-        if (aktif) setIsLoading(false);
+        if (active) setIsLoading(false);
       }
     })();
 
-    return () => { aktif = false; };
+    return () => { active = false; };
   }, []);
   const [kotaDialog, setKotaDialog] = useState(false);
   const [editKota, setEditKota] = useState<Kota | null>(null);
@@ -223,7 +223,7 @@ const MasterDataPage = () => {
 
   // Selama memuat, jumlah pada label tab belum bermakna — tampilkan titik
   // supaya tidak terbaca sebagai "datanya memang nol".
-  const jumlah = (n: number) => (isLoading ? "…" : String(n));
+  const countLabel = (n: number) => (isLoading ? "…" : String(n));
 
   return (
     <DashboardLayout>
@@ -235,9 +235,9 @@ const MasterDataPage = () => {
 
         <Tabs defaultValue="prodi">
           <TabsList>
-            <TabsTrigger value="prodi">Program Studi ({jumlah(prodiList.length)})</TabsTrigger>
-            <TabsTrigger value="provinsi">Provinsi ({jumlah(provList.length)})</TabsTrigger>
-            <TabsTrigger value="kota">Kota ({jumlah(kotaList.length)})</TabsTrigger>
+            <TabsTrigger value="prodi">Program Studi ({countLabel(prodiList.length)})</TabsTrigger>
+            <TabsTrigger value="provinsi">Provinsi ({countLabel(provList.length)})</TabsTrigger>
+            <TabsTrigger value="kota">Kota ({countLabel(kotaList.length)})</TabsTrigger>
           </TabsList>
 
           {/* ── PRODI TAB ── */}

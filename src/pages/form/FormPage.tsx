@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { LogOut, Star, CheckCircle2, User, Info, AlertCircle, AlertTriangle, RotateCcw } from "lucide-react";
 import {
-  petunjukUntuk, bersihkanAngka, formatRupiah, formatAngka, KODE_UANG,
+  hintFor, parseNumericInput, formatRupiah, formatNumber, CURRENCY_CODES,
 } from "@/lib/formValidation";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import PolbanLogo from "@/components/common/PolbanLogo";
@@ -41,8 +41,8 @@ const FormPage = () => {
     errors,
     warnings,
     validateQuestion,
-    draftDipulihkan,
-    buangDraft,
+    restoredDraft,
+    discardDraft,
     section,
     isLastSection,
     progressPercent,
@@ -229,7 +229,7 @@ const FormPage = () => {
 
         {/* Pemberitahuan pemulihan isian yang tertinggal. Ditampilkan sekali
             dan bisa dibuang bila ternyata bukan pengisian yang diinginkan. */}
-        {draftDipulihkan && (
+        {restoredDraft && (
           <Card className="border-primary/40 bg-primary/[0.04]">
             <CardContent className="py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-2.5">
@@ -237,8 +237,8 @@ const FormPage = () => {
                 <div className="text-sm">
                   <p className="font-medium">Isian sebelumnya dipulihkan</p>
                   <p className="text-muted-foreground text-xs mt-0.5">
-                    {draftDipulihkan.jumlah} jawaban tersimpan otomatis di perangkat ini,
-                    terakhir {draftDipulihkan.waktu}. Anda bisa melanjutkan dari sini.
+                    {restoredDraft.count} jawaban tersimpan otomatis di perangkat ini,
+                    terakhir {restoredDraft.time}. Anda bisa melanjutkan dari sini.
                   </p>
                 </div>
               </div>
@@ -246,7 +246,7 @@ const FormPage = () => {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={buangDraft}
+                onClick={discardDraft}
                 className="shrink-0"
               >
                 Mulai dari awal
@@ -311,10 +311,10 @@ const FormPage = () => {
                     )}
                     {/* Petunjuk pengisian — terutama untuk isian angka, supaya
                         alumni tidak perlu menebak formatnya. */}
-                    {petunjukUntuk(q) && (
+                    {hintFor(q) && (
                       <p className="text-xs text-muted-foreground mt-1.5 flex items-start gap-1.5">
                         <Info className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden />
-                        {petunjukUntuk(q)}
+                        {hintFor(q)}
                       </p>
                     )}
                   </div>
@@ -392,10 +392,10 @@ const AnswerField = ({ q, answer, setAnswer, setCheckboxAnswer, onBlur, invalid 
    * padahal maksud pengguna sudah jelas.
    */
   if (q.backendType === "number" && q.type === "short") {
-    const teks = (answer as string) ?? "";
-    const bersih = bersihkanAngka(teks);
-    const angka = /^\d+$/.test(bersih) ? Number(bersih) : null;
-    const perluPratinjau = angka !== null && bersih !== teks.trim();
+    const text = (answer as string) ?? "";
+    const cleaned = parseNumericInput(text);
+    const numeric = /^\d+$/.test(cleaned) ? Number(cleaned) : null;
+    const showPreview = numeric !== null && cleaned !== text.trim();
 
     return (
       <div className="space-y-1.5">
@@ -403,18 +403,18 @@ const AnswerField = ({ q, answer, setAnswer, setCheckboxAnswer, onBlur, invalid 
           {...aria}
           type="text"
           inputMode="numeric"
-          value={teks}
+          value={text}
           onChange={(e) => setAnswer(q.id, e.target.value)}
           onBlur={onBlur}
-          placeholder={KODE_UANG.has(q.code ?? "") ? "5000000" : "0"}
+          placeholder={CURRENCY_CODES.has(q.code ?? "") ? "5000000" : "0"}
         />
-        {angka !== null && (perluPratinjau || KODE_UANG.has(q.code ?? "")) && (
+        {numeric !== null && (showPreview || CURRENCY_CODES.has(q.code ?? "")) && (
           <p className="text-xs text-muted-foreground">
             Terbaca:{" "}
             <span className="font-medium text-foreground">
-              {KODE_UANG.has(q.code ?? "") ? formatRupiah(angka) : formatAngka(angka)}
+              {CURRENCY_CODES.has(q.code ?? "") ? formatRupiah(numeric) : formatNumber(numeric)}
             </span>
-            {perluPratinjau && <span> — dikirim sebagai {bersih}</span>}
+            {showPreview && <span> — dikirim sebagai {cleaned}</span>}
           </p>
         )}
       </div>

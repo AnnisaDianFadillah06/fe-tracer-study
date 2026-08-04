@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   GraduationCap, FileText, Search, AlertCircle, ArrowRight, Layers, RefreshCw,
 } from "lucide-react";
-import { useRingkasanTahun, RingkasanTahun } from "@/hooks/useRingkasanTahun";
+import { useRingkasanTahun, YearSummary } from "@/hooks/useRingkasanTahun";
 
 /**
  * Layar antara berupa kartu per TAHUN LULUSAN.
@@ -26,43 +26,43 @@ import { useRingkasanTahun, RingkasanTahun } from "@/hooks/useRingkasanTahun";
  * bekerja tanpa perlu menambah route baru.
  */
 
-export type ModeTahun = "alumni" | "kuesioner";
+export type YearMode = "alumni" | "kuesioner";
 
 interface Props {
   /** "alumni" menyoroti jumlah alumni; "kuesioner" menyoroti jumlah kuesioner. */
-  mode: ModeTahun;
+  mode: YearMode;
   /** Dipanggil saat kartu ditekan. `null` berarti "Semua Tahun". */
-  onPilih: (tahun: number | null) => void;
+  onSelect: (year: number | null) => void;
   /** Dipanggil saat pengguna menekan Enter di kotak pencarian. */
-  onCari?: (kata: string) => void;
-  placeholderCari?: string;
+  onSearch?: (query: string) => void;
+  searchPlaceholder?: string;
   /** Tombol aksi global (import, unduh templat, tambah) — tetap terlihat di layar kartu. */
-  aksi?: React.ReactNode;
+  actions?: React.ReactNode;
 }
 
 const nf = new Intl.NumberFormat("id-ID");
 
 /** Kartu satu tahun. Diredupkan bila tidak ada yang bisa dibuka pada mode ini. */
-const KartuTahun = ({
-  data, mode, onPilih,
-}: { data: RingkasanTahun; mode: ModeTahun; onPilih: (t: number) => void }) => {
+const YearCard = ({
+  data, mode, onSelect,
+}: { data: YearSummary; mode: YearMode; onSelect: (year: number) => void }) => {
   // Pada mode kuesioner, angkatan yang belum disasar kuesioner apa pun tidak
   // ada isinya untuk dibuka. Kartunya tetap ditampilkan (bukan disembunyikan)
   // supaya pengguna sadar angkatan itu ada tapi belum digarap.
-  const kosong = mode === "kuesioner" && data.kuesioner === 0;
+  const disabled = mode === "kuesioner" && data.kuesioner === 0;
 
   return (
     <Card
-      role={kosong ? undefined : "button"}
-      tabIndex={kosong ? -1 : 0}
-      aria-disabled={kosong}
-      onClick={() => !kosong && onPilih(data.tahun)}
+      role={disabled ? undefined : "button"}
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      onClick={() => !disabled && onSelect(data.tahun)}
       onKeyDown={(e) => {
-        if (kosong) return;
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPilih(data.tahun); }
+        if (disabled) return;
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(data.tahun); }
       }}
       className={
-        kosong
+        disabled
           ? "opacity-55 cursor-not-allowed border-dashed"
           : "cursor-pointer transition-all hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       }
@@ -77,14 +77,14 @@ const KartuTahun = ({
               </p>
             )}
           </div>
-          {kosong ? (
+          {disabled ? (
             <Badge variant="outline" className="shrink-0">Belum digarap</Badge>
           ) : (
             <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" aria-hidden />
           )}
         </div>
 
-        {kosong ? (
+        {disabled ? (
           <p className="text-sm text-muted-foreground">
             Belum ada kuesioner yang menyasar angkatan ini.
           </p>
@@ -137,15 +137,15 @@ const KartuTahun = ({
 };
 
 export const PilihTahun = ({
-  mode, onPilih, onCari, placeholderCari = "Cari NIM atau nama alumni...", aksi,
+  mode, onSelect, onSearch, searchPlaceholder = "Cari NIM atau nama alumni...", actions,
 }: Props) => {
-  const { daftar, isLoading, isError, error, refetch, total } = useRingkasanTahun();
-  const [kata, setKata] = useState("");
+  const { years, isLoading, isError, error, refetch, total } = useRingkasanTahun();
+  const [query, setQuery] = useState("");
 
-  const kirimCari = () => {
-    const q = kata.trim();
-    if (!q || !onCari) return;
-    onCari(q);
+  const submitSearch = () => {
+    const q = query.trim();
+    if (!q || !onSearch) return;
+    onSearch(q);
   };
 
   if (isError) {
@@ -167,26 +167,26 @@ export const PilihTahun = ({
 
   return (
     <div className="space-y-4">
-      {(onCari || aksi) && (
+      {(onSearch || actions) && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          {onCari && (
+          {onSearch && (
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden />
               <Input
-                value={kata}
-                onChange={(e) => setKata(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && kirimCari()}
-                placeholder={placeholderCari}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && submitSearch()}
+                placeholder={searchPlaceholder}
                 className="pl-9"
-                aria-label={placeholderCari}
+                aria-label={searchPlaceholder}
               />
             </div>
           )}
-          {aksi && <div className="flex gap-2 shrink-0">{aksi}</div>}
+          {actions && <div className="flex gap-2 shrink-0">{actions}</div>}
         </div>
       )}
 
-      {onCari && (
+      {onSearch && (
         <p className="text-xs text-muted-foreground -mt-1">
           Tekan Enter untuk mencari lintas seluruh angkatan.
         </p>
@@ -209,9 +209,9 @@ export const PilihTahun = ({
             <Card
               role="button"
               tabIndex={0}
-              onClick={() => onPilih(null)}
+              onClick={() => onSelect(null)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPilih(null); }
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(null); }
               }}
               className="cursor-pointer transition-all border-primary/40 bg-primary/[0.03] hover:border-primary hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
@@ -225,26 +225,26 @@ export const PilihTahun = ({
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-bold tabular-nums">
-                    {nf.format(mode === "kuesioner" ? total.kuesioner : total.alumni)}
+                    {nf.format(mode === "kuesioner" ? total.questionnaires : total.alumni)}
                   </span>
                   <span className="text-sm text-muted-foreground">
                     {mode === "kuesioner" ? "kuesioner" : "alumni"}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {nf.format(total.sudahMengisi)} dari {nf.format(total.alumni)} alumni sudah mengisi
+                  {nf.format(total.responded)} dari {nf.format(total.alumni)} alumni sudah mengisi
                 </p>
               </CardContent>
             </Card>
 
-            {daftar.map((r) => (
-              <KartuTahun key={r.tahun} data={r} mode={mode} onPilih={onPilih} />
+            {years.map((r) => (
+              <YearCard key={r.tahun} data={r} mode={mode} onSelect={onSelect} />
             ))}
           </>
         )}
       </div>
 
-      {!isLoading && daftar.length === 0 && (
+      {!isLoading && years.length === 0 && (
         <Card><CardContent className="py-12 text-center text-muted-foreground">
           Belum ada data tahun lulusan.
         </CardContent></Card>

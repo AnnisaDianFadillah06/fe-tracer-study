@@ -23,53 +23,53 @@ import type { Question } from "@/hooks/form/useQuestionManagement";
  */
 
 /** Peringatan lunak: nilainya sah, tapi patut dikonfirmasi ulang. */
-export interface HasilValidasi {
+export interface ValidationResult {
   error?: string;
   warning?: string;
 }
 
 /** Ambang kewajaran per kode pertanyaan — untuk menangkap salah ketik nol. */
-const AMBANG_WAJAR: Record<string, { min?: number; max?: number; pesanMin?: string; pesanMax?: string }> = {
+const SANITY_RANGES: Record<string, { min?: number; max?: number; messageMin?: string; messageMax?: string }> = {
   // UMP terendah di Indonesia ada di kisaran 2 juta; di bawah 1 juta hampir
   // pasti nol-nya kurang. Di atas 200 juta/bulan sangat jarang untuk lulusan baru.
   f505: {
     min: 1_000_000,
     max: 200_000_000,
-    pesanMin: "Nilainya jauh di bawah UMP mana pun. Pastikan tidak ada angka nol yang terlewat.",
-    pesanMax: "Nilainya tidak lazim untuk pendapatan per bulan. Pastikan tidak ada kelebihan angka nol.",
+    messageMin: "Nilainya jauh di bawah UMP mana pun. Pastikan tidak ada angka nol yang terlewat.",
+    messageMax: "Nilainya tidak lazim untuk pendapatan per bulan. Pastikan tidak ada kelebihan angka nol.",
   },
-  f502: { max: 120, pesanMax: "Lebih dari 10 tahun. Pastikan yang Anda isi adalah jumlah BULAN, bukan tahun." },
-  f302: { max: 60, pesanMax: "Lebih dari 5 tahun sebelum lulus. Pastikan satuannya bulan." },
-  f303: { max: 120, pesanMax: "Lebih dari 10 tahun setelah lulus. Pastikan satuannya bulan." },
-  f6:   { max: 500, pesanMax: "Jumlahnya tidak lazim. Pastikan angkanya benar." },
-  f7:   { max: 500, pesanMax: "Jumlahnya tidak lazim. Pastikan angkanya benar." },
-  f7a:  { max: 500, pesanMax: "Jumlahnya tidak lazim. Pastikan angkanya benar." },
+  f502: { max: 120, messageMax: "Lebih dari 10 tahun. Pastikan yang Anda isi adalah jumlah BULAN, bukan tahun." },
+  f302: { max: 60, messageMax: "Lebih dari 5 tahun sebelum lulus. Pastikan satuannya bulan." },
+  f303: { max: 120, messageMax: "Lebih dari 10 tahun setelah lulus. Pastikan satuannya bulan." },
+  f6:   { max: 500, messageMax: "Jumlahnya tidak lazim. Pastikan angkanya benar." },
+  f7:   { max: 500, messageMax: "Jumlahnya tidak lazim. Pastikan angkanya benar." },
+  f7a:  { max: 500, messageMax: "Jumlahnya tidak lazim. Pastikan angkanya benar." },
 };
 
 /** Kode pertanyaan yang nilainya uang — dipakai untuk pratinjau terformat. */
-export const KODE_UANG = new Set(["f505"]);
+export const CURRENCY_CODES = new Set(["f505"]);
 
 /**
- * Bersihkan input angka dari pemisah ribuan yang biasa diketik pengguna.
+ * Bersihkan input value dari pemisah ribuan yang biasa diketik pengguna.
  *
  * Alumni terbiasa mengetik "5.000.000" atau "5,000,000". Menolak mentah-mentah
  * hanya membuat mereka bingung, padahal maksudnya sudah jelas. Titik dan koma
  * dibuang, spasi dan "Rp" ikut dibersihkan.
  */
-export function bersihkanAngka(nilai: string): string {
-  return nilai.replace(/[.,\s]/g, "").replace(/rp/gi, "");
+export function parseNumericInput(value: string): string {
+  return value.replace(/[.,\s]/g, "").replace(/rp/gi, "");
 }
 
-/** Format angka jadi rupiah untuk pratinjau di bawah input. */
-export function formatRupiah(angka: number): string {
+/** Format value jadi rupiah untuk pratinjau di bawah input. */
+export function formatRupiah(value: number): string {
   return new Intl.NumberFormat("id-ID", {
     style: "currency", currency: "IDR", maximumFractionDigits: 0,
-  }).format(angka);
+  }).format(value);
 }
 
-/** Format angka biasa dengan pemisah ribuan. */
-export function formatAngka(angka: number): string {
-  return new Intl.NumberFormat("id-ID").format(angka);
+/** Format value biasa dengan pemisah ribuan. */
+export function formatNumber(value: number): string {
+  return new Intl.NumberFormat("id-ID").format(value);
 }
 
 /**
@@ -77,15 +77,15 @@ export function formatAngka(angka: number): string {
  *
  * Dua lapis: metadata.hint dari basis data menang bila ada (bisa disunting
  * Tim Tracer lewat form builder tanpa deploy), selebihnya diturunkan otomatis
- * dari tipe supaya seluruh isian angka langsung punya petunjuk sejak awal.
+ * dari tipe supaya seluruh isian value langsung punya petunjuk sejak awal.
  */
-export function petunjukUntuk(q: Question): string | null {
+export function hintFor(q: Question): string | null {
   const meta = (q.metadata ?? {}) as Record<string, unknown>;
   if (typeof meta.hint === "string" && meta.hint.trim()) return meta.hint.trim();
 
-  const kode = q.code ?? q.id;
+  const code = q.code ?? q.id;
 
-  if (KODE_UANG.has(kode)) {
+  if (CURRENCY_CODES.has(code)) {
     return "Isi angka saja, tanpa titik atau koma. Contoh: 5000000";
   }
 
@@ -101,21 +101,21 @@ export function petunjukUntuk(q: Question): string | null {
 
   if (q.backendType === "date") return "Format tanggal: dd/mm/yyyy";
 
-  if (kode === "telpomsmh") return "Contoh: 081234567890";
-  if (kode === "emailmsmh") return "Contoh: nama@email.com";
-  if (kode === "nik") return "16 digit, angka saja tanpa spasi.";
-  if (kode === "npwp") return "15 atau 16 digit, angka saja. Kosongkan bila belum punya.";
+  if (code === "telpomsmh") return "Contoh: 081234567890";
+  if (code === "emailmsmh") return "Contoh: nama@email.com";
+  if (code === "nik") return "16 digit, angka saja tanpa spasi.";
+  if (code === "npwp") return "15 atau 16 digit, angka saja. Kosongkan bila belum punya.";
 
   return null;
 }
 
 /** Apakah jawaban dianggap kosong. */
-export function kosong(nilai: unknown): boolean {
+export function isEmpty(value: unknown): boolean {
   return (
-    nilai === undefined ||
-    nilai === null ||
-    nilai === "" ||
-    (Array.isArray(nilai) && nilai.length === 0)
+    value === undefined ||
+    value === null ||
+    value === "" ||
+    (Array.isArray(value) && value.length === 0)
   );
 }
 
@@ -123,50 +123,50 @@ export function kosong(nilai: unknown): boolean {
  * Validasi satu jawaban. Mengembalikan error (memblokir) dan/atau warning
  * (tidak memblokir, hanya minta konfirmasi ulang).
  */
-export function validasiJawaban(q: Question, nilai: unknown): HasilValidasi {
-  const kode = q.code ?? q.id;
+export function validateAnswer(q: Question, answer: unknown): ValidationResult {
+  const code = q.code ?? q.id;
 
-  if (kosong(nilai)) {
+  if (isEmpty(answer)) {
     return q.required ? { error: "Pertanyaan ini wajib diisi." } : {};
   }
 
-  const teks = typeof nilai === "string" ? nilai.trim() : String(nilai);
+  const text = typeof answer === "string" ? answer.trim() : String(answer);
 
   switch (q.backendType) {
     case "number": {
-      const bersih = bersihkanAngka(teks);
+      const cleaned = parseNumericInput(text);
 
-      if (!/^-?\d+([.]\d+)?$/.test(bersih)) {
+      if (!/^-?\d+([.]\d+)?$/.test(cleaned)) {
         return {
-          error: KODE_UANG.has(kode)
+          error: CURRENCY_CODES.has(code)
             ? "Harus berupa angka. Tulis tanpa titik, koma, atau huruf. Contoh: 5000000"
             : "Harus berupa angka. Contoh: 6",
         };
       }
 
-      const angka = Number(bersih);
-      if (Number.isNaN(angka)) return { error: "Harus berupa angka." };
-      if (angka < 0) return { error: "Tidak boleh bernilai negatif." };
+      const value = Number(cleaned);
+      if (Number.isNaN(value)) return { error: "Harus berupa angka." };
+      if (value < 0) return { error: "Tidak boleh bernilai negatif." };
 
       // Pertanyaan berskala: batas keras, sama seperti aturan `between` di BE.
       const meta = (q.metadata ?? {}) as Record<string, unknown>;
       const min = meta.scale_min as number | undefined;
       const max = meta.scale_max as number | undefined;
-      if (min != null && max != null && (angka < min || angka > max)) {
+      if (min != null && max != null && (value < min || value > max)) {
         return { error: `Nilai harus antara ${min} sampai ${max}.` };
       }
 
       // Batas kewajaran: peringatan saja, pengisian tetap boleh dilanjutkan.
-      const ambang = AMBANG_WAJAR[kode];
-      if (ambang) {
-        if (ambang.min != null && angka < ambang.min) return { warning: ambang.pesanMin };
-        if (ambang.max != null && angka > ambang.max) return { warning: ambang.pesanMax };
+      const range = SANITY_RANGES[code];
+      if (range) {
+        if (range.min != null && value < range.min) return { warning: range.messageMin };
+        if (range.max != null && value > range.max) return { warning: range.messageMax };
       }
       return {};
     }
 
     case "date": {
-      const d = new Date(teks);
+      const d = new Date(text);
       if (Number.isNaN(d.getTime())) return { error: "Format tanggal tidak valid. Gunakan dd/mm/yyyy." };
       if (d.getFullYear() < 1950 || d.getFullYear() > new Date().getFullYear() + 10) {
         return { warning: "Tahunnya di luar rentang wajar. Mohon diperiksa kembali." };
@@ -175,29 +175,29 @@ export function validasiJawaban(q: Question, nilai: unknown): HasilValidasi {
     }
 
     case "short_text":
-      if (teks.length > 500) return { error: "Maksimal 500 karakter." };
-      if (kode === "emailmsmh" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(teks)) {
+      if (text.length > 500) return { error: "Maksimal 500 karakter." };
+      if (code === "emailmsmh" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
         return { error: "Format email tidak valid. Contoh: nama@email.com" };
       }
-      if (kode === "telpomsmh") {
-        const digit = teks.replace(/[^\d]/g, "");
-        if (digit.length < 9 || digit.length > 15) {
+      if (code === "telpomsmh") {
+        const digits = text.replace(/[^\d]/g, "");
+        if (digits.length < 9 || digits.length > 15) {
           return { error: "Nomor telepon harus 9–15 digit. Contoh: 081234567890" };
         }
       }
-      if (kode === "nik" && teks.replace(/\D/g, "").length !== 16) {
+      if (code === "nik" && text.replace(/\D/g, "").length !== 16) {
         return { error: "NIK harus tepat 16 digit." };
       }
-      if (kode === "npwp") {
-        const digit = teks.replace(/\D/g, "");
-        if (digit.length !== 15 && digit.length !== 16) {
+      if (code === "npwp") {
+        const digits = text.replace(/\D/g, "");
+        if (digits.length !== 15 && digits.length !== 16) {
           return { error: "NPWP harus 15 atau 16 digit." };
         }
       }
       return {};
 
     case "long_text":
-      return teks.length > 5000 ? { error: "Maksimal 5000 karakter." } : {};
+      return text.length > 5000 ? { error: "Maksimal 5000 karakter." } : {};
 
     default:
       return {};
@@ -207,33 +207,33 @@ export function validasiJawaban(q: Question, nilai: unknown): HasilValidasi {
 /**
  * Validasi silang antar-pertanyaan — cerminan withValidator() di
  * SubmitTracerStudyRequest. Corong pencarian kerja harus mengecil:
- * jumlah lamaran >= yang merespons >= yang mengundang wawancara.
+ * jumlah lamaran >= yang responded >= yang mengundang interviewed.
  *
- * @param nilaiPerKode jawaban yang sudah dilepas awalan id kuesionernya
+ * @param answersByCode jawaban yang sudah dilepas awalan id kuesionernya
  * @returns error per KODE pertanyaan (bukan per id)
  */
-export function validasiSilang(nilaiPerKode: Record<string, unknown>): Record<string, string> {
+export function validateCrossField(answersByCode: Record<string, unknown>): Record<string, string> {
   const errors: Record<string, string> = {};
 
-  const angka = (kode: string): number | null => {
-    const v = nilaiPerKode[kode];
-    if (kosong(v)) return null;
-    const bersih = bersihkanAngka(String(v));
-    return /^\d+$/.test(bersih) ? Number(bersih) : null;
+  const numeric = (code: string): number | null => {
+    const v = answersByCode[code];
+    if (isEmpty(v)) return null;
+    const cleaned = parseNumericInput(String(v));
+    return /^\d+$/.test(cleaned) ? Number(cleaned) : null;
   };
 
-  const dilamar = angka("f6");
-  const merespons = angka("f7");
-  const wawancara = angka("f7a");
+  const applied = numeric("f6");
+  const responded = numeric("f7");
+  const interviewed = numeric("f7a");
 
-  if (dilamar !== null && merespons !== null && merespons > dilamar) {
-    errors.f7 = `Tidak boleh lebih banyak daripada jumlah lamaran yang dikirim (${formatAngka(dilamar)}).`;
+  if (applied !== null && responded !== null && responded > applied) {
+    errors.f7 = `Tidak boleh lebih banyak daripada jumlah lamaran yang dikirim (${formatNumber(applied)}).`;
   }
-  if (merespons !== null && wawancara !== null && wawancara > merespons) {
-    errors.f7a = `Tidak boleh lebih banyak daripada jumlah perusahaan yang merespons (${formatAngka(merespons)}).`;
+  if (responded !== null && interviewed !== null && interviewed > responded) {
+    errors.f7a = `Tidak boleh lebih banyak daripada jumlah perusahaan yang merespons (${formatNumber(responded)}).`;
   }
-  if (merespons === null && dilamar !== null && wawancara !== null && wawancara > dilamar) {
-    errors.f7a = `Tidak boleh lebih banyak daripada jumlah lamaran yang dikirim (${formatAngka(dilamar)}).`;
+  if (responded === null && applied !== null && interviewed !== null && interviewed > applied) {
+    errors.f7a = `Tidak boleh lebih banyak daripada jumlah lamaran yang dikirim (${formatNumber(applied)}).`;
   }
 
   return errors;

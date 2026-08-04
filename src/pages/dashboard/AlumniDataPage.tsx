@@ -34,7 +34,7 @@ const AlumniDataPage = () => {
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
 
   // Kembali ke layar kartu tahun: cukup buang parameternya dari URL.
-  const kembaliKeKartu = () => {
+  const backToYearCards = () => {
     setSearch("");
     setPageState(1);
     setSearchParams(new URLSearchParams(), { replace: false });
@@ -57,7 +57,7 @@ const AlumniDataPage = () => {
 
   // Tahun belum dipilih -> hook menahan seluruh permintaannya sendiri
   // (lihat isReady di useKaprodiAlumni), jadi tidak ada API yang dipanggil.
-  const belumPilihTahun = graduationYear === undefined;
+  const noYearSelected = graduationYear === undefined;
 
   const { stats, alumni, pagination, isLoading, isError, graduationYears } = useKaprodiAlumni({
     search, page, graduationYear,
@@ -70,7 +70,7 @@ const AlumniDataPage = () => {
   // Sebelumnya di sini ada useEffect yang otomatis memilih angkatan terbaru,
   // sehingga halaman langsung menarik data begitu dibuka. Sekarang pengguna
   // memilih dulu lewat kartu.
-  if (belumPilihTahun) {
+  if (noYearSelected) {
     return (
       <DashboardLayout>
         <div className="space-y-6">
@@ -82,8 +82,8 @@ const AlumniDataPage = () => {
           </div>
           <PilihTahun
             mode="alumni"
-            onPilih={setGraduationYear}
-            onCari={(q) => {
+            onSelect={setGraduationYear}
+            onSearch={(q) => {
               setSearch(q);
               setPageState(1);
               const params = new URLSearchParams();
@@ -111,7 +111,7 @@ const AlumniDataPage = () => {
             </h2>
             <p className="text-muted-foreground text-sm">Data alumni {selectedProdi ?? "program studi Anda"}</p>
           </div>
-          <Button variant="outline" size="sm" onClick={kembaliKeKartu} className="shrink-0">
+          <Button variant="outline" size="sm" onClick={backToYearCards} className="shrink-0">
             <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
             Pilih Angkatan
           </Button>
