@@ -6,6 +6,7 @@ import { validateAnswer, validateCrossField } from "@/lib/formValidation";
 import {
   saveDraft, readDraft, clearDraft, questionnaireFingerprint, countAnswered, relativeTime,
 } from "@/lib/formDraft";
+import { getStudentToken } from "@/hooks/auth/useStudentAuth";
 
 /** Satu masalah pengisian, dipakai untuk isi toast dan penggulir otomatis. */
 export interface FormIssue {
@@ -651,7 +652,15 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
         questionnaire_ids: sections.map((s) => Number(s.id)),
       };
 
-      await api.post("/tracer-study/submit", payload);
+      // Token alumni disematkan eksplisit: endpoint ini memakai guard
+      // 'alumni', dan token staff yang mungkin ada di localStorage akan
+      // ditolak 401 di sana.
+      const studentToken = getStudentToken();
+      await api.post("/tracer-study/submit", payload, {
+        headers: studentToken
+          ? { Authorization: `Bearer ${studentToken}` }
+          : undefined,
+      });
 
       setSubmitted(true);
 
