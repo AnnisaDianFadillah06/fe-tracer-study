@@ -16,6 +16,17 @@ import {
 } from "@/components/ui/select";
 import { LogOut, Star, CheckCircle2, User, Info, AlertCircle, AlertTriangle, RotateCcw } from "lucide-react";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   hintFor, parseNumericInput, formatRupiah, formatNumber, CURRENCY_CODES,
 } from "@/lib/formValidation";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
@@ -29,6 +40,8 @@ import { Loader2 } from "lucide-react";
 const FormPage = () => {
   const navigate = useNavigate();
   const { session, isLoggedIn, logout } = useStudentAuth();
+  /** Dialog konfirmasi "Mulai ulang" — dipicu dari dua tempat. */
+  const [resetOpen, setResetOpen] = useState(false);
 
   // Pass kode_prodi dari session agar backend bisa filter kuesioner yang relevan
   const kodeProdi = session?.kodeProdi ?? undefined;
@@ -237,8 +250,8 @@ const FormPage = () => {
                 <div className="text-sm">
                   <p className="font-medium">Isian sebelumnya dipulihkan</p>
                   <p className="text-muted-foreground text-xs mt-0.5">
-                    {restoredDraft.count} jawaban tersimpan otomatis di perangkat ini,
-                    terakhir {restoredDraft.time}. Anda bisa melanjutkan dari sini.
+                    {restoredDraft.count} jawaban tersimpan otomatis, terakhir {restoredDraft.time}.
+                    Anda bisa melanjutkan dari sini — termasuk dari perangkat lain.
                   </p>
                 </div>
               </div>
@@ -246,10 +259,10 @@ const FormPage = () => {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={discardDraft}
+                onClick={() => setResetOpen(true)}
                 className="shrink-0"
               >
-                Mulai dari awal
+                Mulai ulang
               </Button>
             </CardContent>
           </Card>
@@ -359,8 +372,45 @@ const FormPage = () => {
                 ) : isLastSection ? "Kirim" : "Berikutnya"}
               </Button>
             </div>
+
+            {/* Selalu tersedia selama pengisian, bukan hanya saat draf baru
+                dipulihkan. Sejak draf ikut akun, keluar-lalu-masuk tidak lagi
+                mengosongkan formulir — ini satu-satunya jalan mulai ulang. */}
+            <div className="flex justify-center pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={() => setResetOpen(true)}
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1.5" aria-hidden />
+                Mulai ulang pengisian
+              </Button>
+            </div>
           </div>
         </form>
+
+        {/* Satu dialog untuk dua pemicu (spanduk draf & tombol bawah). Dibuat
+            terkendali supaya render ulang akibat autosave tidak menutupnya. */}
+        <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Mulai ulang pengisian?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Semua jawaban yang sudah Anda isi akan dihapus — termasuk yang tersimpan
+                di akun Anda, sehingga tidak akan muncul lagi di perangkat lain.
+                Formulir kembali kosong dari bagian pertama. Tindakan ini tidak bisa dibatalkan.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Batal</AlertDialogCancel>
+              <AlertDialogAction onClick={() => void discardDraft()}>
+                Ya, mulai ulang
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

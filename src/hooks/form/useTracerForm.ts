@@ -368,6 +368,15 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
    * keburu menimpa draf yang tersimpan.
    */
   const draftSaveReady = useRef(false);
+  /**
+   * Ada perubahan yang belum dikirim ke server.
+   *
+   * Draf disimpan ke DUA tempat dengan irama berbeda: localStorage tiap 800 ms
+   * (murah, tanpa jaringan) dan server tiap 15 detik atau saat pindah bagian
+   * (mahal, jadi jangan seirama ketikan). Penanda ini yang menahan pengiriman
+   * berkala kalau tidak ada yang berubah.
+   */
+  const serverDraftDirty = useRef(false);
 
   // ── Fetch forms dari backend ──────────────────────────────────────────────
   useEffect(() => {
@@ -395,14 +404,27 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
           // dihitung dari daftar pertanyaannya.
           if (nim && !data.has_responded) {
             const fingerprint = questionnaireFingerprint(mapped.flatMap((s) => s.questions.map((q) => q.id)));
-            const draft = readDraft(nim, fingerprint);
+            const local = readDraft(nim, fingerprint);
+            const server = await fetchServerDraft(mapped);
 
-            if (draft && countAnswered(draft.answers) > 0) {
-              setAnswers(draft.answers);
-              setCurrentSection(Math.min(draft.currentSection, mapped.length - 1));
+            // Dua sumber, ambil yang paling baru. Draf lokal paling mutakhir di
+            // perangkat ini, tapi draf server bisa lebih baru kalau alumni
+            // sempat mengisi dari perangkat lain — itu justru gunanya draf
+            // server, jadi jangan asal menangkan yang lokal.
+            const localAt  = local && countAnswered(local.answers) > 0 ? local.savedAt : 0;
+            const serverAt = server ? server.savedAt : 0;
+            const winner   = localAt === 0 && serverAt === 0
+              ? null
+              : serverAt > localAt
+                ? { answers: server!.answers, section: 0, savedAt: serverAt }
+                : { answers: local!.answers, section: local!.currentSection, savedAt: localAt };
+
+            if (winner) {
+              setAnswers(winner.answers);
+              setCurrentSection(Math.min(winner.section, mapped.length - 1));
               setRestoredDraft({
-                count: countAnswered(draft.answers),
-                time: relativeTime(draft.savedAt),
+                count: countAnswered(winner.answers),
+                time: relativeTime(winner.savedAt),
               });
             }
           }
@@ -432,6 +454,120 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
 
     fetchForms();
   }, [kodeProdi, graduationYear]);
+
+  // ── Draf server ───────────────────────────────────────────────────────────
+  //
+  // Selalu memuat jawaban terbaru tanpa perlu masuk sebagai dependensi effect
+  // — interval autosave dibuat sekali, tapi harus mengirim isi termutakhir.
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
+
+  const draftAuth = () => {
+    const token = getStudentToken();
+    return token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+  };
+
+  /** Kunci berawalan id kuesioner ("1___f505") → kode mentah ("f505"). */
+  const stripPrefix = (key: string) => (key.includes(QID_SEP) ? key.split(QID_SEP)[1] : key);
+
+  /** Bentuk penyimpanan server: berkunci question_code, sama seperti submit. */
+  const toServerAnswers = (source: Record<string, unknown>) => {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(source)) {
+      const code = stripPrefix(key);
+      const clean = Array.isArray(value) ? value.map((v) => (typeof v === "string" ? stripPrefix(v) : v)) : value;
+      const isEmpty = clean === undefined || clean === null || clean === ""
+        || (Array.isArray(clean) && clean.length === 0);
+      // Jangan biarkan duplikat kode antar-kuesioner menimpa jawaban terisi
+      // dengan yang kosong — aturan yang sama dipakai saat submit.
+      if (!isEmpty || !(code in out)) out[code] = clean;
+    }
+    return out;
+  };
+
+  /** Kebalikannya: kode mentah dari server → kunci berawalan id pertanyaan. */
+  const fromServerAnswers = (raw: Record<string, string>, sectionList: FormSection[]) => {
+    const out: Record<string, unknown> = {};
+    for (const s of sectionList) {
+      for (const q of s.questions) {
+        const code = q.code ?? stripPrefix(q.id);
+        const value = raw[code];
+        if (value === undefined) continue;
+
+        // Checkbox disimpan sebagai JSON array oleh backend.
+        if (typeof value === "string" && value.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(value);
+            out[q.id] = Array.isArray(parsed)
+              ? parsed.map((v) => (typeof v === "string" ? `${q.id.split(QID_SEP)[0]}${QID_SEP}${stripPrefix(v)}` : v))
+              : value;
+            continue;
+          } catch {
+            /* bukan JSON — perlakukan sebagai teks biasa */
+          }
+        }
+        out[q.id] = value;
+      }
+    }
+    return out;
+  };
+
+  const fetchServerDraft = async (sectionList: FormSection[]) => {
+    try {
+      const { data } = await api.get("/tracer-study/draft", draftAuth());
+      const raw = data?.data?.answers;
+      const savedAt = data?.data?.saved_at;
+      if (!raw || !savedAt || Object.keys(raw).length === 0) return null;
+
+      return {
+        answers: fromServerAnswers(raw, sectionList),
+        savedAt: new Date(savedAt).getTime(),
+      };
+    } catch {
+      // Draf server hanyalah kenyamanan tambahan. Kalau gagal dimuat,
+      // pengisian tetap jalan dengan draf lokal.
+      return null;
+    }
+  };
+
+  /** Kirim draf ke server bila ada yang berubah. Tidak pernah mengganggu pengisian. */
+  const flushServerDraft = async () => {
+    if (!serverDraftDirty.current || !nim || submitted || hasResponded) return;
+
+    const payload = toServerAnswers(answersRef.current);
+    if (Object.keys(payload).length === 0) return;
+
+    // Ditandai bersih SEBELUM permintaan dikirim supaya perubahan yang terjadi
+    // selama permintaan berjalan tidak ikut hilang tandanya.
+    serverDraftDirty.current = false;
+    try {
+      await api.post("/tracer-study/draft", { answers: payload }, draftAuth());
+    } catch (e) {
+      serverDraftDirty.current = true;   // coba lagi di siklus berikutnya
+      console.warn("[useTracerForm] draf server gagal disimpan:", e);
+    }
+  };
+
+  // Tandai ada perubahan yang belum terkirim.
+  useEffect(() => {
+    if (!draftSaveReady.current || submitted || hasResponded) return;
+    serverDraftDirty.current = true;
+  }, [answers, submitted, hasResponded]);
+
+  // Kirim berkala tiap 15 detik — hanya kalau memang ada perubahan.
+  useEffect(() => {
+    if (!nim || submitted || hasResponded) return;
+    const timer = setInterval(() => { void flushServerDraft(); }, 15_000);
+    return () => clearInterval(timer);
+  }, [nim, submitted, hasResponded]);
+
+  // Pindah bagian adalah titik alami untuk menyimpan: alumni baru saja
+  // menyelesaikan sekumpulan pertanyaan, dan di sinilah dia paling mungkin
+  // berhenti atau menutup tab.
+  useEffect(() => {
+    if (!draftSaveReady.current) return;
+    void flushServerDraft();
+  }, [currentSection]);
 
   // ── Penyimpanan draf otomatis ─────────────────────────────────────────────
   //
@@ -731,13 +867,32 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
   };
 
   /**
-   * Buang isian yang dipulihkan dan mulai dari kosong.
+   * Buang isian tersimpan dan mulai dari kosong ("Mulai ulang").
    *
-   * Dibutuhkan bila draf ternyata milik pengisian yang tidak diinginkan —
-   * misalnya alumni salah memulai, atau komputernya dipakai bergantian.
+   * WAJIB menghapus DUA tempat: draf lokal dan draf server. Kalau hanya satu
+   * yang dibuang, sisanya akan mengisi ulang saat halaman dimuat lagi dan
+   * formulirnya terlihat "tidak mau bersih".
+   *
+   * Dulu keluar-lalu-masuk berfungsi sebagai mulai ulang karena logout
+   * menghapus localStorage. Sejak draf ikut akun, jalan itu tidak lagi
+   * membuang apa pun — jadi tombol ini satu-satunya cara.
    */
-  const discardDraft = () => {
+  const discardDraft = async () => {
     if (nim) clearDraft(nim);
+    serverDraftDirty.current = false;
+
+    try {
+      await api.delete("/tracer-study/draft", draftAuth());
+    } catch (e) {
+      console.warn("[useTracerForm] draf server gagal dihapus:", e);
+      toast({
+        title: "Sebagian draf mungkin masih tersimpan",
+        description:
+          "Isian di perangkat ini sudah dikosongkan, tapi draf di server gagal dihapus. Coba lagi setelah koneksi membaik.",
+        variant: "destructive",
+      });
+    }
+
     setAnswers({});
     setCurrentSection(0);
     setErrors({});
