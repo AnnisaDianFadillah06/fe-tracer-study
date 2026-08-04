@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/common/use-toast";
 import { Eye, EyeOff, KeyRound, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
+import api from "@/lib/api";
 
 const ChangePasswordPage = () => {
   const { toast } = useToast();
@@ -43,22 +44,39 @@ const ChangePasswordPage = () => {
     }
 
     setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    toast({
-      title: "Berhasil",
-      description: "Password berhasil diubah",
-    });
-    
-    setFormData({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    });
-    
-    setIsLoading(false);
+
+    try {
+      await api.post("/auth/change-password", {
+        current_password: formData.currentPassword,
+        new_password: formData.newPassword,
+        new_password_confirmation: formData.confirmPassword,
+      });
+
+      toast({
+        title: "Berhasil",
+        description: "Password berhasil diubah. Sesi Anda di perangkat lain telah diakhiri.",
+      });
+
+      setFormData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+    } catch (err: any) {
+      // Pesan dari server didahulukan — server yang tahu password lama salah,
+      // password barunya sama dengan yang lama, atau aturan lain yang gagal.
+      const errors = err?.response?.data?.errors as Record<string, string[]> | undefined;
+      const firstError = errors ? Object.values(errors)[0]?.[0] : undefined;
+
+      toast({
+        title: "Gagal mengubah password",
+        description:
+          firstError ?? err?.response?.data?.message ?? "Terjadi kesalahan. Coba lagi.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

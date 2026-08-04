@@ -75,16 +75,26 @@ const Kpi11FundingSourceChart = () => {
 
   const pieData = useMemo(() => {
     if (!pieResult.data?.data) return [];
-    const merged: Record<string, { pct: number; count: number }> = {};
+    // rawLabels: nilai asli gudang data yang jatuh ke bucket ini. Wajib disimpan
+    // — nama bucket hasil normalizeLabel() ("Lainnya", "Tidak Mengisi") adalah
+    // istilah tampilan yang tidak pernah ada di data, jadi drill-down harus
+    // memfilter pakai label mentahnya, bukan nama bucket-nya.
+    const merged: Record<string, { pct: number; count: number; rawLabels: string[] }> = {};
     pieResult.data.data.forEach((d) => {
       const label = normalizeLabel(d.sumber_biaya);
-      if (!merged[label]) merged[label] = { pct: 0, count: 0 };
+      if (!merged[label]) merged[label] = { pct: 0, count: 0, rawLabels: [] };
       merged[label].pct += d.pct;
       merged[label].count += d.count;
+      if (d.sumber_biaya) merged[label].rawLabels.push(d.sumber_biaya);
     });
     return LABEL_ORDER
       .filter((l) => merged[l])
-      .map((l) => ({ name: l, value: +(merged[l].pct).toFixed(1), count: merged[l].count }));
+      .map((l) => ({
+        name: l,
+        value: +(merged[l].pct).toFixed(1),
+        count: merged[l].count,
+        rawLabels: merged[l].rawLabels,
+      }));
   }, [pieResult.data]);
 
   const antarLabels = useMemo(() => {
@@ -104,6 +114,8 @@ const Kpi11FundingSourceChart = () => {
         const label = normalizeLabel(s.label);
         row[label] = +((row[label] ?? 0) + s.pct).toFixed(1);
         row[`${label}_count`] = (row[`${label}_count`] ?? 0) + s.count;
+        // Sama seperti pieData: simpan label mentah per bucket untuk drill-down.
+        if (s.label) row[`${label}_raw`] = [...(row[`${label}_raw`] ?? []), s.label];
       });
       return row;
     });
@@ -203,7 +215,11 @@ const Kpi11FundingSourceChart = () => {
                       onClick={(d: any) =>
                         openModal(
                           `${d.name} — ${d.value}% (${d.count} alumni)`,
-                          { sumber_biaya: d.name }
+                          // Fallback ke nama bucket hanya kalau tidak ada label
+                          // mentah sama sekali (irisan pasti kosong) — supaya
+                          // filternya tidak hilang dan modal tidak malah
+                          // menampilkan seluruh alumni.
+                          { sumber_biaya: d.rawLabels?.length ? d.rawLabels : d.name }
                         )
                       }
                     >
@@ -256,7 +272,10 @@ const Kpi11FundingSourceChart = () => {
                         onClick={(d: any) =>
                           openModal(
                             `${label} — ${d.tahun} (${d[label]}% · ${d[`${label}_count`] ?? "?"} alumni)`,
-                            { sumber_biaya: label, tahun_lulus: d.tahun }
+                            {
+                              sumber_biaya: d[`${label}_raw`]?.length ? d[`${label}_raw`] : label,
+                              tahun_lulus: d.tahun,
+                            }
                           )
                         }
                       />

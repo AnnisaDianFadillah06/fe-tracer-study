@@ -66,7 +66,13 @@ export interface PembiayaanDrillDownResponse {
 }
 
 export interface PembiayaanDrillDownParams {
-  sumber_biaya?: string;
+  /**
+   * Satu label, atau daftar label MENTAH. Daftar dipakai untuk irisan pie yang
+   * menggabungkan beberapa nilai gudang data ke satu bucket tampilan (mis.
+   * "Lainnya", yang aslinya "Lainnya, tuliskan" dan kawan-kawan) — mengirim
+   * nama bucket-nya sendiri tidak akan cocok dengan apa pun.
+   */
+  sumber_biaya?: string | string[];
   tahun_lulus?: string;
   jenjang?: string;
   jurusan?: string;
@@ -179,7 +185,7 @@ export function usePembiayaanDrillDown() {
       setLoading(true);
       setError(null);
 
-      const params: Record<string, string> = {
+      const params: Record<string, string | string[]> = {
         page:     String(extra.page     ?? 1),
         per_page: String(extra.per_page ?? 15),
       };
@@ -187,7 +193,11 @@ export function usePembiayaanDrillDown() {
       if (jurusan && jurusan !== "__all__") params.jurusan    = jurusan;
       if (prodi   && prodi   !== "__all__") params.nama_prodi = prodi;
       if (extra.nama_prodi)   params.nama_prodi   = extra.nama_prodi;
-      if (extra.sumber_biaya) params.sumber_biaya = extra.sumber_biaya;
+      // Array diserialkan axios jadi sumber_biaya[]=… dan dibaca backend
+      // sebagai daftar (Cube.js: equals dengan banyak nilai = IN).
+      if (Array.isArray(extra.sumber_biaya)
+        ? extra.sumber_biaya.length > 0
+        : !!extra.sumber_biaya) params.sumber_biaya = extra.sumber_biaya;
       if (extra.tahun_lulus)  params.tahun_lulus  = extra.tahun_lulus;
       if (extra.search)       params.search       = extra.search;
 

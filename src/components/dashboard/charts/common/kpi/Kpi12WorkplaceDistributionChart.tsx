@@ -13,11 +13,12 @@ import {
   Legend,
   LabelList,
 } from "recharts";
-import { C, tooltipStyle, KpiCard } from "../KpiCard";
+import { tooltipStyle, KpiCard } from "../KpiCard";
 import { MethodologyBlock } from "./Methodology";
 import { renderActivePieShape, usePieActive } from "./pieUtils";
 import {
   useInstansiJenis,
+  useInstansiTingkat,
   useInstansiDrillDown,
   InstansiDrillDownParams,
 } from "@/hooks/useInstansi";
@@ -53,24 +54,14 @@ const normalizeJenis = (l: string): string => {
   return OFFICIAL_JENIS_MAP[key] ?? "Lainnya";
 };
 
-const DEFAULT_GROUPED = [
-  { year: "2019", lokal: 45, nasional: 40, multi: 15 },
-  { year: "2020", lokal: 44, nasional: 42, multi: 14 },
-  { year: "2021", lokal: 43, nasional: 43, multi: 14 },
-  { year: "2022", lokal: 42, nasional: 44, multi: 14 },
-  { year: "2023", lokal: 40, nasional: 45, multi: 15 },
-  { year: "2024", lokal: 38, nasional: 47, multi: 15 },
-];
-
-const BAR_LABEL_NAMES: Record<string, string> = { lokal: "Lokal", nasional: "Nasional", multi: "Multinasional" };
-const BAR_COLORS: Record<string, string> = { lokal: C.greenLight, nasional: C.blue, multi: C.navy };
-
+/** Berapa kelompok batang yang muat tanpa scroll horizontal. */
 const VISIBLE_YEARS = 3;
 const BAR_GROUP_WIDTH = 180;
 
 const Kpi12WorkplaceDistributionChart = () => {
   const { tahunLulus } = useGlobalFilters();
   const jenisHook = useInstansiJenis();
+  const tingkatHook = useInstansiTingkat();
   const drillHook = useInstansiDrillDown();
   const pieActive = usePieActive();
 
@@ -104,24 +95,58 @@ const Kpi12WorkplaceDistributionChart = () => {
       }));
   }, [jenisHook.data]);
 
+  // Label MENTAH yang jatuh ke irisan "Lainnya". Sebelumnya "0" ikut dibuang di
+  // sini padahal normalizeJenis() memasukkannya ke irisan ini — akibatnya isi
+  // modal selalu lebih sedikit dari angka pada irisannya, dan kalau seluruh
+  // "Lainnya" kebetulan berasal dari "0" array-nya kosong dan backend membalas
+  // 422. Yang dibuang cukup label kosong, karena tidak bisa difilter.
   const lainnyaRawLabels = useMemo(() => {
     if (!jenisHook.data?.data) return [] as string[];
     return jenisHook.data.data
-      .filter((d) => normalizeJenis(d.jenis) === "Lainnya" && d.jenis && d.jenis !== "0")
+      .filter((d) => normalizeJenis(d.jenis) === "Lainnya" && !!d.jenis)
       .map((d) => d.jenis);
   }, [jenisHook.data]);
 
   const pieTotal = jenisHook.data?.total ?? pieData.reduce((s, d) => s + d.count, 0);
   const displayTahun = tahunLulus === "all" ? undefined : tahunLulus;
 
-  const barChartWidth = Math.max(DEFAULT_GROUPED.length * BAR_GROUP_WIDTH, 400);
+  // ── Bar: sebaran level perusahaan per prodi ──
+  // Dulu bagian ini merender DEFAULT_GROUPED — angka karangan 2019–2024 yang
+  // tidak pernah menyentuh backend, sehingga drill-down-nya mustahil benar.
+  // Sekarang memakai /dashboard/sebaraninstansi/tingkat, satu-satunya endpoint
+  // tingkat yang ada. Endpoint itu mengagregasi per PRODI (bukan per tahun),
+  // jadi sumbu X ikut berubah.
+  const tingkatLabels = useMemo(() => {
+    const seen = new Set<string>();
+    tingkatHook.data?.data?.forEach((p) =>
+      p.tingkat.forEach((t) => { if (t.label) seen.add(t.label); }),
+    );
+    return [...seen].sort();
+  }, [tingkatHook.data]);
+
+  const tingkatColor = useMemo(() => buildColorMap(tingkatLabels), [tingkatLabels]);
+
+  const tingkatData = useMemo(() => {
+    if (!tingkatHook.data?.data) return [];
+    return tingkatHook.data.data.map((p) => {
+      const row: Record<string, any> = { prodi: p.nama_prodi, jenjang: p.jenjang };
+      p.tingkat.forEach((t) => {
+        if (!t.label) return;   // label kosong tidak bisa difilter saat drill-down
+        row[t.label] = +((row[t.label] ?? 0) + t.pct).toFixed(1);
+        row[`${t.label}_count`] = (row[`${t.label}_count`] ?? 0) + t.count;
+      });
+      return row;
+    });
+  }, [tingkatHook.data]);
+
+  const barChartWidth = Math.max(tingkatData.length * BAR_GROUP_WIDTH, 400);
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = scrollRef.current;
-    if (el && DEFAULT_GROUPED.length > VISIBLE_YEARS) {
-      el.scrollLeft = el.scrollWidth - el.clientWidth;
+    if (el && tingkatData.length > VISIBLE_YEARS) {
+      el.scrollLeft = 0;
     }
-  }, []);
+  }, [tingkatData.length]);
 
   const pieEmpty = !jenisHook.loading && pieData.length === 0;
 
@@ -177,40 +202,46 @@ const Kpi12WorkplaceDistributionChart = () => {
           </div>
         </KpiCard>
 
-        {/* ── Bar: Sebaran Level Perusahaan Antar Periode (mock — waiting BE endpoint) ── */}
+        {/* ── Bar: Sebaran Level Perusahaan per Prodi (data real dari BE) ── */}
         <KpiCard
-          title="Perubahan Sebaran Level Perusahaan Antar Periode"
-          subtitle="Sumbu Y: persentase lulusan • Sumbu X: tahun kelulusan"
+          loading={tingkatHook.loading}
+          error={tingkatHook.error}
+          empty={!tingkatHook.loading && tingkatData.length === 0}
+          title="Sebaran Level Perusahaan per Program Studi"
+          subtitle={`Sumbu Y: persentase lulusan • Sumbu X: program studi${displayTahun ? ` • Tahun kelulusan ${displayTahun}` : ""}`}
           compareType="tingkatInstansi"
           methodology={
             <MethodologyBlock
-              description="Tren proporsi level perusahaan tempat bekerja lulusan antar tahun kelulusan."
-              formula={<>% Level per Tahun = (Lulusan Bekerja di Level X pada Tahun T / Total Lulusan Bekerja Tahun T) × 100%</>}
+              description="Proporsi level perusahaan tempat bekerja lulusan per program studi."
+              formula={<>% Level per Prodi = (Lulusan Bekerja di Level X pada Prodi P / Total Lulusan Bekerja Prodi P) × 100%</>}
             />
           }
         >
           <div ref={scrollRef} className="h-72 overflow-x-auto overflow-y-hidden" style={{ scrollBehavior: "smooth" }}>
-            <div style={{ width: DEFAULT_GROUPED.length > VISIBLE_YEARS ? barChartWidth : "100%", height: "100%" }}>
+            <div style={{ width: tingkatData.length > VISIBLE_YEARS ? barChartWidth : "100%", height: "100%" }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={DEFAULT_GROUPED} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                <BarChart data={tingkatData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-                  <XAxis dataKey="year" fontSize={12} stroke="hsl(var(--muted-foreground))" />
-                  <YAxis tickFormatter={(v) => `${v}%`} fontSize={12} domain={[0, 60]} stroke="hsl(var(--muted-foreground))" />
+                  <XAxis dataKey="prodi" fontSize={11} stroke="hsl(var(--muted-foreground))" interval={0} angle={-15} textAnchor="end" height={60} />
+                  <YAxis tickFormatter={(v) => `${v}%`} fontSize={12} domain={[0, 100]} stroke="hsl(var(--muted-foreground))" />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  {(["lokal", "nasional", "multi"] as const).map((key) => (
+                  {tingkatLabels.map((label) => (
                     <Bar
-                      key={key} dataKey={key} name={BAR_LABEL_NAMES[key]}
-                      fill={BAR_COLORS[key]} radius={[3, 3, 0, 0]} cursor="pointer"
+                      key={label} dataKey={label} name={label}
+                      fill={tingkatColor[label]} radius={[3, 3, 0, 0]} cursor="pointer"
+                      // Label dikirim apa adanya — backend memfilter 'equals' pada
+                      // label asli gudang data. nama_prodi ikut supaya modalnya
+                      // benar-benar batang yang diklik, bukan seluruh prodi.
                       onClick={(d: any) =>
                         openModal(
-                          `${BAR_LABEL_NAMES[key]} — ${d.year} (${d[key]}%)`,
-                          { tingkat_instansi: BAR_LABEL_NAMES[key] }
+                          `${label} — ${d.prodi} (${d[label] ?? 0}% · ${d[`${label}_count`] ?? 0} alumni)`,
+                          { tingkat_instansi: label, nama_prodi: d.prodi }
                         )
                       }
                       activeBar={{ stroke: "hsl(var(--foreground))", strokeWidth: 1.5 } as any}
                     >
-                      <LabelList dataKey={key} position="top" fontSize={10} formatter={(v: number) => `${v}%`} />
+                      <LabelList dataKey={label} position="top" fontSize={10} formatter={(v: number) => (v ? `${v}%` : "")} />
                     </Bar>
                   ))}
                 </BarChart>

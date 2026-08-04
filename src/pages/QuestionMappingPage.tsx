@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -112,6 +112,15 @@ const QuestionMappingPage = () => {
   const [selectedRole, setSelectedRole] = useState<string>("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activatedRole, setActivatedRole] = useState<string | null>(null);
+  // Panel 2 berada jauh di bawah Panel 1. Tanpa digulir ke sana, menekan
+  // "Kelola" tidak mengubah apa pun yang terlihat di layar — tombolnya terasa
+  // mati padahal state-nya sudah berubah.
+  const panel2Ref = useRef<HTMLDivElement>(null);
+  const scrollToPanel2 = () => {
+    requestAnimationFrame(() => {
+      panel2Ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
   // ETL otomatis ter-trigger begitu Langkah 1 disimpan (lihat RunEtlJob di
   // backend) -- id ini dipoll supaya admin tahu kapan jawaban historis
   // selesai ditata ulang, bukan diam tanpa info seperti sebelumnya.
@@ -169,6 +178,7 @@ const QuestionMappingPage = () => {
         force_replace: forceReplace || undefined,
       });
       setActivatedRole(res.data?.semantic_role ?? selectedRole);
+      scrollToPanel2();
       setTypeMismatchError(null);
       setConflictDialog({ open: false, conflicting_mapping: null });
       if (res.data?.etl_run_id) setActiveEtlRunId(res.data.etl_run_id);
@@ -686,6 +696,7 @@ const QuestionMappingPage = () => {
                                 onClick={() => {
                                   setActivatedRole(r.semantic_role);
                                   setSelectedCode("");
+                                  scrollToPanel2();
                                 }}
                               >
                                 Kelola →
@@ -906,6 +917,7 @@ const QuestionMappingPage = () => {
             </Card>
 
             {/* ============= PANEL 2 (dinamis) ============= */}
+            <div ref={panel2Ref} className="scroll-mt-4" />
             {!activatedRole ? (
               <Card className="border-dashed border-border bg-muted/20">
                 <CardContent className="py-8 text-center space-y-2">

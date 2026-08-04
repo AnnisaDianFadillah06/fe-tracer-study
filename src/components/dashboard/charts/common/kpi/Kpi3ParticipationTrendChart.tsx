@@ -178,7 +178,17 @@ const Kpi3ParticipationTrendChart = () => {
                 <LabelList content={SegmentLabel} />
                 <LabelList content={CheckIcon} />
               </Bar>
-              <Bar dataKey="negative" stackId="a" fill={C.grayDark} radius={[0, 4, 4, 0]} name="Belum Mengisi">
+              {/* Segmen "Belum Mengisi" juga bisa di-drill down. Backend memetakan
+                  status 'started' (termasuk alumni yang belum punya baris responses)
+                  ke bucket ini — lihat ResponseRateRepository. */}
+              <Bar dataKey="negative" stackId="a" fill={C.grayDark} radius={[0, 4, 4, 0]} name="Belum Mengisi"
+                cursor="pointer"
+                onClick={(d: any) => {
+                  const total = d.total ?? 0;
+                  const n = Math.round((d.negative / 100) * total);
+                  setModal({ open: true, title: `Belum Mengisi — ${d.year} (${n}/${total})`, status: "started", tahun_lulus: d.year });
+                  drillHook.fetch({ status: "started", tahun_lulus: d.year, page: 1 });
+                }}>
                 <LabelList content={SegmentLabel} />
                 <LabelList content={ThresholdLabel} />
               </Bar>
