@@ -12,8 +12,9 @@ import {
 import { useRole } from "@/contexts/RoleContext";
 import api from "@/lib/api";
 import {
-  CheckCircle2, Loader2, Search, Users,
+  ArrowLeft, CheckCircle2, Loader2, Search, Users,
 } from "lucide-react";
+import PilihTahun from "@/components/common/PilihTahun";
 
 interface QForm {
   id: number;
@@ -55,8 +56,18 @@ const QuestionnaireResultsPage = () => {
     setSearchParams(params, { replace: true });
   };
 
-  // Fetch forms + programs + graduation_years on mount
+  // Kembali ke layar kartu tahun: buang parameternya dari URL.
+  const kembaliKeKartu = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams(), { replace: false });
+  };
+
+  // Fetch forms + programs + graduation_years — HANYA setelah angkatan
+  // dipilih. Daftar kuesioner berukuran ~279 KB, jadi tidak ditarik selama
+  // pengguna masih berada di layar kartu tahun.
   useEffect(() => {
+    if (graduationYear === undefined) return;
+
     const init = async () => {
       setIsLoading(true);
       try {
@@ -79,18 +90,11 @@ const QuestionnaireResultsPage = () => {
           setProgramJurusanMap(jurMap);
         }
         if (statsRes.data.success) {
-          const years: number[] = statsRes.data.data?.graduation_years ?? [];
-          setGraduationYears(years);
-          // Set default year if not in URL
-          if (graduationYear === undefined && years.length) {
-            const params = new URLSearchParams(searchParams);
-            params.set("year", String(years[0]));
-            setSearchParams(params, { replace: true });
-          }
-          // Set alumni total for the selected year
-          const selectedYear = graduationYear === undefined ? years[0] : graduationYear;
-          if (selectedYear) {
-            const { data } = await api.get("/alumni/stats", { params: { graduation_year: selectedYear } });
+          setGraduationYears(statsRes.data.data?.graduation_years ?? []);
+
+          // Total alumni pada angkatan terpilih, untuk kartu ringkasan.
+          if (graduationYear !== null) {
+            const { data } = await api.get("/alumni/stats", { params: { graduation_year: graduationYear } });
             if (data.success) setAlumniTotal(data.data?.total ?? 0);
           } else {
             setAlumniTotal(statsRes.data.data?.total ?? 0);
@@ -105,7 +109,7 @@ const QuestionnaireResultsPage = () => {
     };
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [graduationYear === undefined]);
 
   // Re-fetch alumni total when graduation year changes (after initial load)
   useEffect(() => {
@@ -141,12 +145,40 @@ const QuestionnaireResultsPage = () => {
     totalResponden: scopedForms.reduce((acc, f) => acc + (f.response_count ?? 0), 0),
   }), [scopedForms]);
 
+  // ── Layar kartu tahun ────────────────────────────────────────────────
+  if (graduationYear === undefined) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">Hasil Kuesioner</h2>
+            <p className="text-muted-foreground text-sm">
+              Pilih angkatan untuk melihat kuesioner dan ringkasan respondennya
+            </p>
+          </div>
+          <PilihTahun mode="kuesioner" onPilih={setGraduationYear} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-heading font-bold">Hasil Kuesioner</h2>
-          <p className="text-muted-foreground text-sm">Daftar kuesioner dan ringkasan responden</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">
+              Hasil Kuesioner
+              <span className="text-muted-foreground font-normal">
+                {" — "}{graduationYear === null ? "Semua Angkatan" : `Lulusan ${graduationYear}`}
+              </span>
+            </h2>
+            <p className="text-muted-foreground text-sm">Daftar kuesioner dan ringkasan responden</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={kembaliKeKartu} className="shrink-0">
+            <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
+            Pilih Angkatan
+          </Button>
         </div>
 
         {/* Stats */}

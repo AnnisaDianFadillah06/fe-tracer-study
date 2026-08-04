@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { CheckCircle2, GraduationCap, Loader2, Search, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, GraduationCap, Loader2, Search, XCircle } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
 import { useKaprodiAlumni } from "@/hooks/dashboard/kaprodi/useKaprodiAlumni";
+import PilihTahun from "@/components/common/PilihTahun";
 
 const AlumniDataPage = () => {
   const { selectedProdi } = useRole();
@@ -20,15 +21,26 @@ const AlumniDataPage = () => {
   const yearParam = searchParams.get("year");
   const pageParam = searchParams.get("page");
 
-  // graduationYear: undefined = not initialized, null = semua, number = specific year
-  const [graduationYear, setGraduationYearState] = useState<number | null | undefined>(
-    yearParam === "all" ? null : yearParam ? Number(yearParam) : undefined
-  );
+  // graduationYear DITURUNKAN dari URL, bukan disimpan sebagai state
+  // terpisah. Menyimpannya ganda membuat tombol Back peramban mengubah URL
+  // tanpa mengubah tampilan.
+  //   undefined = belum dipilih (tampilkan kartu tahun)
+  //   null      = semua angkatan
+  //   number    = satu angkatan
+  const graduationYear: number | null | undefined =
+    yearParam === "all" ? null : yearParam ? Number(yearParam) : undefined;
+
   const [page, setPageState] = useState(pageParam ? Number(pageParam) : 1);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
+
+  // Kembali ke layar kartu tahun: cukup buang parameternya dari URL.
+  const kembaliKeKartu = () => {
+    setSearch("");
+    setPageState(1);
+    setSearchParams(new URLSearchParams(), { replace: false });
+  };
 
   const setGraduationYear = (y: number | null) => {
-    setGraduationYearState(y);
     setPageState(1);
     const params = new URLSearchParams(searchParams);
     params.set("year", y === null ? "all" : String(y));
@@ -43,31 +55,66 @@ const AlumniDataPage = () => {
     setSearchParams(params, { replace: true });
   };
 
+  // Tahun belum dipilih -> hook menahan seluruh permintaannya sendiri
+  // (lihat isReady di useKaprodiAlumni), jadi tidak ada API yang dipanggil.
+  const belumPilihTahun = graduationYear === undefined;
+
   const { stats, alumni, pagination, isLoading, isError, graduationYears } = useKaprodiAlumni({
     search, page, graduationYear,
   });
 
-  // Set default year once graduation_years are available
-  useEffect(() => {
-    if (graduationYear === undefined && graduationYears.length) {
-      const defaultYear = graduationYears[0];
-      setGraduationYearState(defaultYear);
-      const params = new URLSearchParams(searchParams);
-      params.set("year", String(defaultYear));
-      if (!params.has("page")) params.set("page", "1");
-      setSearchParams(params, { replace: true });
-    }
-  }, [graduationYears, graduationYear, searchParams, setSearchParams]);
-
   // Reset page on search change
   useEffect(() => { setPageState(1); }, [search]);
+
+  // ── Layar kartu tahun ────────────────────────────────────────────────
+  // Sebelumnya di sini ada useEffect yang otomatis memilih angkatan terbaru,
+  // sehingga halaman langsung menarik data begitu dibuka. Sekarang pengguna
+  // memilih dulu lewat kartu.
+  if (belumPilihTahun) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">Data Alumni Prodi</h2>
+            <p className="text-muted-foreground text-sm">
+              Pilih angkatan untuk melihat data alumni {selectedProdi ?? "program studi Anda"}
+            </p>
+          </div>
+          <PilihTahun
+            mode="alumni"
+            onPilih={setGraduationYear}
+            onCari={(q) => {
+              setSearch(q);
+              setPageState(1);
+              const params = new URLSearchParams();
+              params.set("year", "all");
+              params.set("page", "1");
+              params.set("q", q);
+              setSearchParams(params, { replace: false });
+            }}
+          />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-heading font-bold">Data Alumni Prodi</h2>
-          <p className="text-muted-foreground text-sm">Data alumni {selectedProdi ?? "program studi Anda"}</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">
+              Data Alumni Prodi
+              <span className="text-muted-foreground font-normal">
+                {" — "}{graduationYear === null ? "Semua Angkatan" : `Lulusan ${graduationYear}`}
+              </span>
+            </h2>
+            <p className="text-muted-foreground text-sm">Data alumni {selectedProdi ?? "program studi Anda"}</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={kembaliKeKartu} className="shrink-0">
+            <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
+            Pilih Angkatan
+          </Button>
         </div>
 
         {/* Stats Cards */}

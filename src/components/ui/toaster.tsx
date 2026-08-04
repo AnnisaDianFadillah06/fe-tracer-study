@@ -11,7 +11,12 @@ export function Toaster() {
           <Toast key={id} {...props}>
             <div className="grid gap-1">
               {title && <ToastTitle>{title}</ToastTitle>}
-              {description && <ToastDescription>{description}</ToastDescription>}
+              {/* whitespace-pre-line supaya pesan berbaris banyak (mis. daftar
+                  pertanyaan yang belum benar pada form tracer) tampil sebagai
+                  beberapa baris, bukan menyatu jadi satu paragraf. */}
+              {description && (
+                <ToastDescription className="whitespace-pre-line">{description}</ToastDescription>
+              )}
             </div>
             {action}
             <ToastClose />

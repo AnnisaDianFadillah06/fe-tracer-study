@@ -14,7 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { LogOut, Star, CheckCircle2, User } from "lucide-react";
+import { LogOut, Star, CheckCircle2, User, Info, AlertCircle, AlertTriangle } from "lucide-react";
+import {
+  petunjukUntuk, bersihkanAngka, formatRupiah, formatAngka, KODE_UANG,
+} from "@/lib/formValidation";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import PolbanLogo from "@/components/common/PolbanLogo";
 import { useStudentAuth } from "@/hooks/auth/useStudentAuth";
@@ -36,6 +39,8 @@ const FormPage = () => {
     submitted,
     currentSection,
     errors,
+    warnings,
+    validateQuestion,
     section,
     isLastSection,
     progressPercent,
@@ -250,7 +255,16 @@ const FormPage = () => {
               .map((q) => (
               <Card
                 key={q.id}
-                className={`glass-card ${errors[q.id] ? "border-destructive" : ""}`}
+                // data-question-id dipakai penggulir otomatis untuk membawa
+                // pengguna ke pertanyaan bermasalah pertama.
+                data-question-id={q.id}
+                className={`glass-card ${
+                  errors[q.id]
+                    ? "border-destructive"
+                    : warnings?.[q.id]
+                      ? "border-amber-500/60"
+                      : ""
+                }`}
               >
                 <CardContent className="pt-5 pb-5 space-y-3">
                   <div>
@@ -258,10 +272,20 @@ const FormPage = () => {
                       {q.question || (
                         <span className="italic text-muted-foreground">Pertanyaan Tanpa Judul</span>
                       )}
-                      {q.required && <span className="text-destructive ml-1">*</span>}
+                      {q.required && (
+                        <span className="text-destructive ml-1" aria-label="wajib diisi">*</span>
+                      )}
                     </Label>
                     {q.description && (
                       <p className="text-sm text-muted-foreground mt-1">{q.description}</p>
+                    )}
+                    {/* Petunjuk pengisian — terutama untuk isian angka, supaya
+                        alumni tidak perlu menebak formatnya. */}
+                    {petunjukUntuk(q) && (
+                      <p className="text-xs text-muted-foreground mt-1.5 flex items-start gap-1.5">
+                        <Info className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden />
+                        {petunjukUntuk(q)}
+                      </p>
                     )}
                   </div>
 
@@ -270,13 +294,23 @@ const FormPage = () => {
                     answer={answers[q.id]}
                     setAnswer={setAnswer}
                     setCheckboxAnswer={setCheckboxAnswer}
+                    onBlur={() => validateQuestion(q)}
+                    invalid={!!errors[q.id]}
                   />
 
-                  {errors[q.id] && (
-                    <p className="text-xs text-destructive flex items-center gap-1">
-                      <span>⚠</span> {errors[q.id]}
+                  {errors[q.id] ? (
+                    <p className="text-xs text-destructive flex items-start gap-1.5" role="alert">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden />
+                      {errors[q.id]}
                     </p>
-                  )}
+                  ) : warnings?.[q.id] ? (
+                    // Peringatan lunak: nilainya sah, pengisian tetap boleh
+                    // dilanjutkan. Hanya mengajak memeriksa ulang.
+                    <p className="text-xs text-amber-600 dark:text-amber-500 flex items-start gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden />
+                      {warnings[q.id]}
+                    </p>
+                  ) : null}
                 </CardContent>
               </Card>
             ))}
@@ -309,10 +343,53 @@ interface AnswerFieldProps {
   answer: unknown;
   setAnswer: (qId: string, val: unknown) => void;
   setCheckboxAnswer: (qId: string, oId: string, checked: boolean) => void;
+  /** Divalidasi saat pengguna meninggalkan isian, bukan tiap ketikan. */
+  onBlur?: () => void;
+  invalid?: boolean;
 }
 
-const AnswerField = ({ q, answer, setAnswer, setCheckboxAnswer }: AnswerFieldProps) => {
+const AnswerField = ({ q, answer, setAnswer, setCheckboxAnswer, onBlur, invalid }: AnswerFieldProps) => {
   const [hoverRating, setHoverRating] = useState<number | null>(null);
+
+  const aria = { "aria-invalid": invalid || undefined } as const;
+
+  /**
+   * Isian angka.
+   *
+   * Pengguna boleh mengetik "5.000.000" — pemisah ribuan dibersihkan saat
+   * dikirim, dan nilai bersihnya ditampilkan sebagai pratinjau di bawah kotak
+   * sebagai konfirmasi. Menolak titik mentah-mentah hanya membingungkan,
+   * padahal maksud pengguna sudah jelas.
+   */
+  if (q.backendType === "number" && q.type === "short") {
+    const teks = (answer as string) ?? "";
+    const bersih = bersihkanAngka(teks);
+    const angka = /^\d+$/.test(bersih) ? Number(bersih) : null;
+    const perluPratinjau = angka !== null && bersih !== teks.trim();
+
+    return (
+      <div className="space-y-1.5">
+        <Input
+          {...aria}
+          type="text"
+          inputMode="numeric"
+          value={teks}
+          onChange={(e) => setAnswer(q.id, e.target.value)}
+          onBlur={onBlur}
+          placeholder={KODE_UANG.has(q.code ?? "") ? "5000000" : "0"}
+        />
+        {angka !== null && (perluPratinjau || KODE_UANG.has(q.code ?? "")) && (
+          <p className="text-xs text-muted-foreground">
+            Terbaca:{" "}
+            <span className="font-medium text-foreground">
+              {KODE_UANG.has(q.code ?? "") ? formatRupiah(angka) : formatAngka(angka)}
+            </span>
+            {perluPratinjau && <span> — dikirim sebagai {bersih}</span>}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   if (q.type === "rating") {
     return (
@@ -339,8 +416,11 @@ const AnswerField = ({ q, answer, setAnswer, setCheckboxAnswer }: AnswerFieldPro
     case "short":
       return (
         <Input
+          {...aria}
+          type={q.backendType === "date" ? "date" : "text"}
           value={(answer as string) ?? ""}
           onChange={(e) => setAnswer(q.id, e.target.value)}
+          onBlur={onBlur}
           placeholder="Jawaban Anda"
         />
       );
@@ -348,8 +428,10 @@ const AnswerField = ({ q, answer, setAnswer, setCheckboxAnswer }: AnswerFieldPro
     case "paragraph":
       return (
         <Textarea
+          {...aria}
           value={(answer as string) ?? ""}
           onChange={(e) => setAnswer(q.id, e.target.value)}
+          onBlur={onBlur}
           placeholder="Jawaban Anda"
           rows={4}
         />
@@ -359,14 +441,21 @@ const AnswerField = ({ q, answer, setAnswer, setCheckboxAnswer }: AnswerFieldPro
       return (
         <RadioGroup
           value={(answer as string) ?? ""}
-          onValueChange={(v) => setAnswer(q.id, v)}
+          onValueChange={(v) => { setAnswer(q.id, v); onBlur?.(); }}
           className="space-y-2"
         >
           {q.options.map((opt) => (
-            <div key={opt.id} className="flex items-center gap-3">
-              <RadioGroupItem value={opt.id} id={`${q.id}_${opt.id}`} />
-              <Label htmlFor={`${q.id}_${opt.id}`} className="font-normal cursor-pointer">
+            <div key={opt.id} className="flex items-start gap-3">
+              <RadioGroupItem value={opt.id} id={`${q.id}_${opt.id}`} className="mt-0.5" />
+              <Label htmlFor={`${q.id}_${opt.id}`} className="font-normal cursor-pointer leading-snug">
                 {opt.label}
+                {/* Keterangan per opsi (mis. "Pendiri utama usaha" untuk
+                    Founder) — menjaga pilihan tetap ringkas tapi jelas. */}
+                {q.optionHints?.[opt.id] && (
+                  <span className="block text-xs text-muted-foreground mt-0.5">
+                    {q.optionHints[opt.id]}
+                  </span>
+                )}
               </Label>
             </div>
           ))}

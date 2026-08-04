@@ -22,7 +22,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Search, Building2 } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Building2, Loader2, AlertCircle } from "lucide-react";
 import api from "@/lib/api";
 
 // ── Prodi Tab ────────────────────────────────────────────────
@@ -39,6 +39,43 @@ const jurusanOptions = [
   "Teknik Konversi Energi", "Teknik Elektro", "Teknik Kimia",
   "Teknik Komputer & Informatika", "Akuntansi", "Administrasi Niaga", "Bahasa Inggris",
 ];
+
+/**
+ * Baris keterangan di dalam tabel untuk keadaan selain "ada data":
+ * sedang memuat, gagal memuat, atau kosong.
+ *
+ * Sebelumnya ketiga keadaan itu tampil identik — tabel kosong tanpa
+ * penjelasan — sehingga pengguna tidak tahu apakah sistem sedang bekerja,
+ * gagal, atau memang tidak ada datanya.
+ */
+const TableStateRow = ({
+  colSpan, isLoading, error, isEmpty, emptyText,
+}: {
+  colSpan: number; isLoading: boolean; error: string | null;
+  isEmpty: boolean; emptyText: string;
+}) => {
+  if (!isLoading && !error && !isEmpty) return null;
+
+  return (
+    <TableRow>
+      <TableCell colSpan={colSpan} className="h-32 text-center align-middle">
+        {isLoading ? (
+          <span className="flex items-center justify-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            Memuat data...
+          </span>
+        ) : error ? (
+          <span className="flex items-center justify-center gap-2 text-destructive">
+            <AlertCircle className="h-4 w-4" aria-hidden />
+            {error}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">{emptyText}</span>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+};
 
 const MasterDataPage = () => {
   const { toast } = useToast();
@@ -61,21 +98,44 @@ const MasterDataPage = () => {
   // Kota state
   const [kotaList, setKotaList] = useState<Kota[]>([]);
 
+  // Status pemuatan awal. Ketiga permintaan dijalankan berbarengan dan
+  // ditunggu bersama, karena tab Kota membutuhkan provList untuk
+  // menerjemahkan province_code menjadi nama provinsi.
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   // Fetch data from API
   useEffect(() => {
-    api.get("/programs").then(({ data }) => {
-      const programs = data.data ?? data;
-      setProdiList((programs as any[]).map((p: any) => ({
-        id: String(p.id), name: p.name, code: p.code, dikti_code: p.dikti_code ?? "",
-        degree: p.degree, jurusan: p.jurusan, isActive: p.is_active !== false,
-      })));
-    }).catch(() => {});
-    api.get("/provinces").then(({ data }) => {
-      setProvList((data.data as any[]).map((p: any) => ({ id: String(p.id), name: p.name, code: p.code })));
-    }).catch(() => {});
-    api.get("/cities").then(({ data }) => {
-      setKotaList((data.data as any[]).map((c: any) => ({ id: String(c.id), name: c.name, provinsiId: c.province_code, code: c.code })));
-    }).catch(() => {});
+    let aktif = true;
+
+    (async () => {
+      try {
+        const [prodiRes, provRes, kotaRes] = await Promise.all([
+          api.get("/programs"),
+          api.get("/provinces"),
+          api.get("/cities"),
+        ]);
+        if (!aktif) return;
+
+        const programs = prodiRes.data.data ?? prodiRes.data;
+        setProdiList((programs as any[]).map((p: any) => ({
+          id: String(p.id), name: p.name, code: p.code, dikti_code: p.dikti_code ?? "",
+          degree: p.degree, jurusan: p.jurusan, isActive: p.is_active !== false,
+        })));
+        setProvList((provRes.data.data as any[]).map((p: any) => ({ id: String(p.id), name: p.name, code: p.code })));
+        setKotaList((kotaRes.data.data as any[]).map((c: any) => ({ id: String(c.id), name: c.name, provinsiId: c.province_code, code: c.code })));
+        setLoadError(null);
+      } catch (e: any) {
+        if (!aktif) return;
+        // Sebelumnya galat ditelan diam-diam, sehingga kegagalan muat
+        // tampak persis sama dengan data kosong. Sekarang dibedakan.
+        setLoadError(e?.response?.data?.message ?? "Gagal memuat data master. Periksa koneksi ke server.");
+      } finally {
+        if (aktif) setIsLoading(false);
+      }
+    })();
+
+    return () => { aktif = false; };
   }, []);
   const [kotaDialog, setKotaDialog] = useState(false);
   const [editKota, setEditKota] = useState<Kota | null>(null);
@@ -156,6 +216,15 @@ const MasterDataPage = () => {
     setDeleteKotaId(null);
   };
 
+  const filteredProdi = prodiList.filter(
+    (p) => p.name.toLowerCase().includes(prodiSearch.toLowerCase())
+        || p.code.toLowerCase().includes(prodiSearch.toLowerCase()),
+  );
+
+  // Selama memuat, jumlah pada label tab belum bermakna — tampilkan titik
+  // supaya tidak terbaca sebagai "datanya memang nol".
+  const jumlah = (n: number) => (isLoading ? "…" : String(n));
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -166,9 +235,9 @@ const MasterDataPage = () => {
 
         <Tabs defaultValue="prodi">
           <TabsList>
-            <TabsTrigger value="prodi">Program Studi ({prodiList.length})</TabsTrigger>
-            <TabsTrigger value="provinsi">Provinsi ({provList.length})</TabsTrigger>
-            <TabsTrigger value="kota">Kota ({kotaList.length})</TabsTrigger>
+            <TabsTrigger value="prodi">Program Studi ({jumlah(prodiList.length)})</TabsTrigger>
+            <TabsTrigger value="provinsi">Provinsi ({jumlah(provList.length)})</TabsTrigger>
+            <TabsTrigger value="kota">Kota ({jumlah(kotaList.length)})</TabsTrigger>
           </TabsList>
 
           {/* ── PRODI TAB ── */}
@@ -185,7 +254,12 @@ const MasterDataPage = () => {
                 <Table>
                   <TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Nama</TableHead><TableHead>Jenjang</TableHead><TableHead>Jurusan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {prodiList.filter((p) => p.name.toLowerCase().includes(prodiSearch.toLowerCase()) || p.code.toLowerCase().includes(prodiSearch.toLowerCase())).map((p) => (
+                    <TableStateRow
+                      colSpan={5} isLoading={isLoading} error={loadError}
+                      isEmpty={filteredProdi.length === 0}
+                      emptyText={prodiSearch ? "Tidak ada prodi yang cocok dengan pencarian." : "Belum ada data program studi."}
+                    />
+                    {filteredProdi.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell><Badge variant="outline">{p.code}</Badge></TableCell>
                         <TableCell className="font-medium">{p.name}</TableCell>
@@ -211,6 +285,10 @@ const MasterDataPage = () => {
                 <Table>
                   <TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Nama Provinsi</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
                   <TableBody>
+                    <TableStateRow
+                      colSpan={3} isLoading={isLoading} error={loadError}
+                      isEmpty={provList.length === 0} emptyText="Belum ada data provinsi."
+                    />
                     {provList.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell><Badge variant="outline">{p.code}</Badge></TableCell>
@@ -235,6 +313,10 @@ const MasterDataPage = () => {
                 <Table>
                   <TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Nama Kota</TableHead><TableHead>Provinsi</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
                   <TableBody>
+                    <TableStateRow
+                      colSpan={4} isLoading={isLoading} error={loadError}
+                      isEmpty={kotaList.length === 0} emptyText="Belum ada data kota."
+                    />
                     {kotaList.map((k) => (
                       <TableRow key={k.id}>
                         <TableCell><Badge variant="outline">{k.code}</Badge></TableCell>

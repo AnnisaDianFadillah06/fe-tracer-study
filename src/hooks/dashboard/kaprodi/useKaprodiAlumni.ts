@@ -42,7 +42,13 @@ interface Params {
 }
 
 export const useKaprodiAlumni = ({ search, page, graduationYear, perPage = 100 }: Params) => {
-  // Always fetch unfiltered stats first to get graduation_years list
+  // undefined = pengguna belum memilih angkatan; halaman masih menampilkan
+  // kartu tahun, jadi SELURUH permintaan di hook ini ditahan.
+  const isReady = graduationYear !== undefined;
+
+  // Daftar tahun untuk dropdown filter di dalam tabel. Ikut ditahan sampai
+  // tabel benar-benar tampil — layar kartu memakai endpoint ringkasannya
+  // sendiri (/meta/ringkasan-tahun) yang sudah memuat angka per tahun.
   const yearsQuery = useQuery<KaprodiAlumniStats>({
     queryKey: ["kaprodi-alumni-years"],
     queryFn: async () => {
@@ -50,9 +56,8 @@ export const useKaprodiAlumni = ({ search, page, graduationYear, perPage = 100 }
       return data.data;
     },
     staleTime: 60000,
+    enabled: isReady,
   });
-
-  const isReady = graduationYear !== undefined;
 
   const statsQuery = useQuery<KaprodiAlumniStats>({
     queryKey: ["kaprodi-alumni-stats", graduationYear ?? "all"],

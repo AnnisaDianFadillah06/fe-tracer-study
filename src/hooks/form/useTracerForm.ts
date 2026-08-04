@@ -2,6 +2,15 @@ import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/common/use-toast";
 import api from "@/lib/api";
 import type { FormSection, Question, Option } from "@/hooks/form/useQuestionManagement";
+import { validasiJawaban, validasiSilang } from "@/lib/formValidation";
+
+/** Satu masalah pengisian, dipakai untuk isi toast dan penggulir otomatis. */
+export interface MasalahForm {
+  /** id pertanyaan (berawalan id kuesioner) — dipakai untuk scroll & fokus. */
+  id: string;
+  pertanyaan: string;
+  pesan: string;
+}
 
 /**
  * Maps the backend questionnaire JSON (from QuestionnaireFetchController)
@@ -69,11 +78,25 @@ function mapSingleQuestion(q: any): Question {
     groupCode: meta.group_code ?? meta.groupCode ?? undefined,
     groupTitle: meta.group_title ?? meta.groupTitle ?? undefined,
     groupLabel: meta.group_label ?? meta.groupLabel ?? undefined,
+
+    // Tipe asli backend dipertahankan. `type` di atas hanya menentukan widget
+    // — number dan short_text sama-sama jadi "short", sehingga tanpa ini
+    // informasi bahwa sebuah isian harus angka hilang di komponen.
+    backendType: q.question_type ?? undefined,
+    code: q.question_code ?? q.code ?? undefined,
+    metadata: meta,
+    optionHints: meta.option_hints ?? meta.optionHints ?? undefined,
   };
 }
 
 /** Separator used to namespace question IDs per questionnaire. */
 const QID_SEP = "___";
+
+/** Pangkas teks panjang agar isi toast tetap terbaca. */
+function potong(teks: string, maks: number): string {
+  const bersih = (teks ?? "").trim();
+  return bersih.length <= maks ? bersih : `${bersih.slice(0, maks - 1)}…`;
+}
 
 function mapBackendToSections(backendData: any[]): FormSection[] {
   const allSections: FormSection[] = [];
@@ -323,6 +346,10 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
   const [submitted, setSubmitted] = useState(false);
   const [currentSection, setCurrentSection] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  /** Peringatan lunak — nilainya sah, tapi patut dikonfirmasi ulang. */
+  const [warnings, setWarnings] = useState<Record<string, string>>({});
+  /** Ringkasan masalah untuk toast + penanda field mana yang harus digulir. */
+  const [masalah, setMasalah] = useState<MasalahForm[]>([]);
   const [isLoadingForms, setIsLoadingForms] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasResponded, setHasResponded] = useState(false);
@@ -395,33 +422,133 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
   };
 
   // ── Validation ────────────────────────────────────────────────────────────
-  const validateSection = (sectionIdx: number): boolean => {
+  /**
+   * Memvalidasi satu bagian dan mengembalikan daftar masalahnya.
+   *
+   * Berbeda dari versi sebelumnya yang hanya memeriksa "wajib tapi kosong",
+   * sekarang setiap jawaban juga diperiksa tipenya lewat validasiJawaban()
+   * — aturan yang sama dengan SubmitTracerStudyRequest di backend. Dengan
+   * begitu kolom pendapatan yang diisi teks langsung ketahuan di sini,
+   * bukan setelah satu putaran ke server.
+   */
+  const periksaSection = (sectionIdx: number) => {
     const sec = sections[sectionIdx];
-    if (!sec) return false;
-    const newErrors: Record<string, string> = {};
-    let valid = true;
+    if (!sec) return { errors: {}, warnings: {}, daftar: [] as MasalahForm[] };
+
+    const errors: Record<string, string> = {};
+    const warnings: Record<string, string> = {};
+    const daftar: MasalahForm[] = [];
+
+    // Kumpulkan jawaban per KODE (tanpa awalan id kuesioner) untuk
+    // validasi silang antar-pertanyaan.
+    const perKode: Record<string, unknown> = {};
+
     sec.questions.forEach((q) => {
-      if (!q.required) return;
-      if (q.showIf && !isQuestionVisible(q, answers, sec.questions)) return; // Skip hidden questions
-      
-      const ans = answers[q.id];
-      const isEmpty =
-        ans === undefined ||
-        ans === "" ||
-        ans === null ||
-        (Array.isArray(ans) && ans.length === 0);
-      if (isEmpty) {
-        newErrors[q.id] = "Pertanyaan ini wajib diisi";
-        valid = false;
+      if (q.showIf && !isQuestionVisible(q, answers, sec.questions)) return;
+      const kode = q.code ?? (q.id.includes(QID_SEP) ? q.id.split(QID_SEP)[1] : q.id);
+      perKode[kode] = answers[q.id];
+
+      const hasil = validasiJawaban(q, answers[q.id]);
+      if (hasil.error) {
+        errors[q.id] = hasil.error;
+        daftar.push({ id: q.id, pertanyaan: q.question, pesan: hasil.error });
+      } else if (hasil.warning) {
+        warnings[q.id] = hasil.warning;
       }
     });
-    setErrors(newErrors);
-    return valid;
+
+    // Validasi silang f6 >= f7 >= f7a — hasilnya berkunci kode, perlu
+    // dipetakan balik ke id pertanyaan supaya tampil di bawah field.
+    const silang = validasiSilang(perKode);
+    for (const [kode, pesan] of Object.entries(silang)) {
+      const q = sec.questions.find(
+        (x) => (x.code ?? x.id.split(QID_SEP).pop()) === kode,
+      );
+      if (!q || errors[q.id]) continue;
+      errors[q.id] = pesan;
+      daftar.push({ id: q.id, pertanyaan: q.question, pesan });
+    }
+
+    return { errors, warnings, daftar };
+  };
+
+  const validateSection = (sectionIdx: number): boolean => {
+    const { errors, warnings, daftar } = periksaSection(sectionIdx);
+    setErrors(errors);
+    setWarnings(warnings);
+    setMasalah(daftar);
+    return daftar.length === 0;
+  };
+
+  /** Validasi satu pertanyaan saja — dipakai saat pengguna meninggalkan field. */
+  const validateQuestion = (q: Question) => {
+    const hasil = validasiJawaban(q, answers[q.id]);
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (hasil.error) next[q.id] = hasil.error; else delete next[q.id];
+      return next;
+    });
+    setWarnings((prev) => {
+      const next = { ...prev };
+      if (hasil.warning) next[q.id] = hasil.warning; else delete next[q.id];
+      return next;
+    });
+  };
+
+  /**
+   * Toast yang menyebutkan pertanyaan mana yang bermasalah.
+   *
+   * Pesan umum semacam "ada isian yang salah" memaksa alumni menyisir ulang
+   * seluruh bagian. Di sini maksimal tiga pertanyaan disebut namanya, sisanya
+   * diringkas. Durasi 9 detik karena bawaannya 4 detik — terlalu cepat untuk
+   * membaca beberapa baris.
+   */
+  const tampilkanToastMasalah = (daftar: MasalahForm[]) => {
+    if (daftar.length === 0) return;
+
+    const ditampilkan = daftar.slice(0, 3);
+    const sisa = daftar.length - ditampilkan.length;
+
+    const rincian = ditampilkan
+      .map((m) => `• ${potong(m.pertanyaan, 60)} — ${m.pesan}`)
+      .join("\n");
+
+    toast({
+      title: daftar.length === 1
+        ? "1 pertanyaan belum benar"
+        : `${daftar.length} pertanyaan belum benar`,
+      description: sisa > 0 ? `${rincian}\n…dan ${sisa} pertanyaan lainnya.` : rincian,
+      variant: "destructive",
+      duration: 9000,
+    });
+  };
+
+  /** Gulir ke pertanyaan bermasalah pertama lalu fokuskan isiannya. */
+  const gulirKeMasalah = (daftar: MasalahForm[]) => {
+    const pertama = daftar[0];
+    if (!pertama) return;
+    // Ditunda satu frame supaya penanda error sudah tergambar lebih dulu.
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>(`[data-question-id="${CSS.escape(pertama.id)}"]`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.querySelector<HTMLElement>("input, textarea, select, [role='radiogroup']")?.focus({ preventScroll: true });
+    });
   };
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const handleNext = () => {
-    if (!validateSection(currentSection)) return;
+    const { errors, warnings, daftar } = periksaSection(currentSection);
+    setErrors(errors);
+    setWarnings(warnings);
+    setMasalah(daftar);
+
+    if (daftar.length > 0) {
+      tampilkanToastMasalah(daftar);
+      gulirKeMasalah(daftar);
+      return;
+    }
+
     setCurrentSection((prev) => prev + 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -437,7 +564,16 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
     identityData?: Record<string, unknown>
   ) => {
     e.preventDefault();
-    if (!validateSection(currentSection)) return;
+
+    const periksa = periksaSection(currentSection);
+    setErrors(periksa.errors);
+    setWarnings(periksa.warnings);
+    setMasalah(periksa.daftar);
+    if (periksa.daftar.length > 0) {
+      tampilkanToastMasalah(periksa.daftar);
+      gulirKeMasalah(periksa.daftar);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -472,23 +608,42 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
       });
     } catch (err: any) {
       const serverErrors = err.response?.data?.errors;
+
       if (serverErrors) {
-        // Map validation errors ke pertanyaan yang salah
+        // PENTING: server membalas error berkunci KODE mentah ("f505"),
+        // sedangkan jawaban di sini berkunci id berawalan ("1___f505").
+        // Sebelumnya keduanya tidak pernah cocok, sehingga galat dari backend
+        // tidak pernah muncul di bawah field — pengguna hanya melihat pesan
+        // umum tanpa tahu bagian mana yang salah. Di sini kodenya dipetakan
+        // balik ke id pertanyaan.
+        const semuaPertanyaan = sections.flatMap((s) => s.questions);
         const newErrors: Record<string, string> = {};
-        for (const [key, messages] of Object.entries(serverErrors)) {
-          newErrors[key] = Array.isArray(messages)
-            ? messages[0]
-            : String(messages);
+        const daftar: MasalahForm[] = [];
+
+        for (const [kode, messages] of Object.entries(serverErrors)) {
+          const pesan = Array.isArray(messages) ? String(messages[0]) : String(messages);
+          const q = semuaPertanyaan.find(
+            (x) => (x.code ?? x.id.split(QID_SEP).pop()) === kode,
+          );
+          const kunci = q?.id ?? kode;
+          newErrors[kunci] = pesan;
+          daftar.push({ id: kunci, pertanyaan: q?.question ?? kode, pesan });
         }
+
         setErrors(newErrors);
+        setMasalah(daftar);
+        tampilkanToastMasalah(daftar);
+        gulirKeMasalah(daftar);
+        return;
       }
 
-      const msg =
-        err.response?.data?.message || "Gagal mengirim kuesioner";
       toast({
-        title: "Gagal",
-        description: msg,
+        title: "Gagal mengirim kuesioner",
+        description:
+          err.response?.data?.message ||
+          "Terjadi kesalahan saat menghubungi server. Periksa koneksi Anda lalu coba lagi.",
         variant: "destructive",
+        duration: 9000,
       });
     } finally {
       setIsSubmitting(false);
@@ -516,6 +671,9 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
     submitted,
     currentSection,
     errors,
+    warnings,
+    masalah,
+    validateQuestion,
     section,
     isLastSection,
     progressPercent,

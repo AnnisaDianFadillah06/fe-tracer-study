@@ -102,7 +102,9 @@ export const useStudentManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterProdi, setFilterProdi] = useState("all");
   const [filterJurusan, setFilterJurusan] = useState("all");
-  const [filterGraduationYear, setFilterGraduationYear] = useState("all");
+  // "" = angkatan belum dipilih (halaman masih menampilkan kartu tahun),
+  // "all" = lintas angkatan, selain itu satu tahun lulusan.
+  const [filterGraduationYear, setFilterGraduationYear] = useState("");
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -165,6 +167,9 @@ export const useStudentManagement = () => {
     },
     retry: 1,
     staleTime: 30_000,
+    // Ditahan selama angkatan belum dipilih supaya membuka halaman tidak
+    // langsung menarik daftar alumni.
+    enabled: filterGraduationYear !== "",
   });
 
   // Pagination metadata

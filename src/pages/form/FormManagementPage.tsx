@@ -45,6 +45,7 @@ import type { BackendQuestionnaire } from "@/lib/formManagement";
 import { backendToFormListItem, saveForms, getInitialForms } from "@/lib/formManagement";
 import api from "@/lib/api";
 import {
+  ArrowLeft,
   CheckCircle2,
   Edit,
   Eye,
@@ -57,6 +58,7 @@ import {
   XCircle,
   Search,
 } from "lucide-react";
+import PilihTahun from "@/components/common/PilihTahun";
 
 const statusStyles: Record<string, string> = {
   published: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
@@ -85,7 +87,9 @@ const DaftarKuisionerPage = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">((searchParams.get("status") as any) || "all");
   const [exportingId, setExportingId] = useState<number | null>(null);
   const [page, setPageRaw] = useState(Number(searchParams.get("page")) || 1);
-  const [graduationYearFilter, setGraduationYearFilterRaw] = useState(searchParams.get("year") || "all");
+  // "" = angkatan belum dipilih (layar kartu tahun), "all" = lintas angkatan,
+  // selain itu berisi satu tahun lulusan.
+  const [graduationYearFilter, setGraduationYearFilterRaw] = useState(searchParams.get("year") ?? "");
   const [paginationMeta, setPaginationMeta] = useState({ currentPage: 1, lastPage: 1, total: 0 });
 
   const setPage = (p: number) => {
@@ -103,8 +107,20 @@ const DaftarKuisionerPage = () => {
     setSearchParams(params, { replace: true });
   };
 
-  // Fetch questionnaires from backend (paginated)
+  const kembaliKeKartu = () => {
+    setGraduationYearFilterRaw("");
+    setPageRaw(1);
+    setSearchParams(new URLSearchParams(), { replace: false });
+  };
+
+  // Fetch questionnaires from backend (paginated).
+  //
+  // Ditahan sampai angkatan dipilih. Daftar kuesioner adalah muatan terberat
+  // di aplikasi ini (~279 KB untuk 100 baris), jadi tidak ditarik selama
+  // pengguna masih di layar kartu tahun.
   useEffect(() => {
+    if (graduationYearFilter === "") return;
+
     const fetchForms = async () => {
       setIsLoading(true);
       try {
@@ -243,6 +259,36 @@ const DaftarKuisionerPage = () => {
 
   const deleteTarget = deleteTargetId !== null ? forms.find((f) => f.id === deleteTargetId) : null;
 
+  // ── Layar kartu tahun ────────────────────────────────────────────────
+  if (graduationYearFilter === "") {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+              <FileText className="h-3.5 w-3.5" />
+              Manajemen kuisioner tracer study
+            </div>
+            <h2 className="font-heading text-2xl font-bold sm:text-3xl">Manajemen Kuisioner</h2>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              Pilih angkatan lulusan untuk mengelola kuisioner yang menyasarnya.
+            </p>
+          </div>
+          <PilihTahun
+            mode="kuesioner"
+            onPilih={(t) => setGraduationYearFilter(t === null ? "all" : String(t))}
+            aksi={
+              <Button onClick={() => navigate("/dashboard/form-management/new")}>
+                <Plus className="mr-2 h-4 w-4" />
+                {isHeadTracer ? "Tambah Kuisioner" : "Ajukan Kuisioner Baru"}
+              </Button>
+            }
+          />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -252,10 +298,19 @@ const DaftarKuisionerPage = () => {
               <FileText className="h-3.5 w-3.5" />
               Manajemen kuisioner tracer study
             </div>
-            <h2 className="font-heading text-2xl font-bold sm:text-3xl">Manajemen Kuisioner</h2>
+            <h2 className="font-heading text-2xl font-bold sm:text-3xl">
+              Manajemen Kuisioner
+              <span className="font-normal text-muted-foreground">
+                {" — "}{graduationYearFilter === "all" ? "Semua Angkatan" : `Lulusan ${graduationYearFilter}`}
+              </span>
+            </h2>
             <p className="max-w-2xl text-sm text-muted-foreground">
               Kelola kuisioner, lihat preview, edit, hapus, dan export hasil respon ke Excel.
             </p>
+            <Button variant="outline" size="sm" onClick={kembaliKeKartu} className="mt-2">
+              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
+              Pilih Angkatan
+            </Button>
           </div>
 
           <div className="flex flex-col gap-3 sm:items-end">

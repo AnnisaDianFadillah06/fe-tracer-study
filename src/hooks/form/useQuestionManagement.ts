@@ -35,6 +35,23 @@ export interface Question {
   groupCode?: string;
   groupTitle?: string;
   groupLabel?: string;
+
+  /**
+   * question_type asli dari backend (number, short_text, date, ...).
+   *
+   * `type` di atas adalah tipe WIDGET yang dipakai untuk merender — beberapa
+   * tipe backend menyatu ke satu widget (number dan short_text sama-sama jadi
+   * "short"). Tanpa menyimpan tipe aslinya, informasi bahwa sebuah isian
+   * seharusnya berupa angka hilang begitu sampai di komponen, sehingga kolom
+   * pendapatan bisa diisi teks bebas dan baru ditolak setelah sampai server.
+   */
+  backendType?: string;
+  /** Kode pertanyaan (f505, f8, ...) tanpa awalan id kuesioner. */
+  code?: string;
+  /** metadata mentah dari backend: show_if, scale_*, hint, option_hints. */
+  metadata?: Record<string, unknown>;
+  /** Keterangan pendek per opsi, ditampilkan di bawah label pilihan. */
+  optionHints?: Record<string, string>;
 }
 
 export interface FormSection {

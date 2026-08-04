@@ -42,7 +42,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle, FileSpreadsheet, Loader2, ArrowLeft } from "lucide-react";
+import PilihTahun from "@/components/common/PilihTahun";
 
 const StudentManagementPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -217,16 +218,216 @@ const StudentManagementPage = () => {
     event.target.value = "";
   };
 
+  // Dialog tambah/ubah mahasiswa diangkat ke variabel supaya bisa dipakai
+  // baik di layar kartu tahun maupun di layar tabel.
+  const dialogMahasiswa = (
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{editingStudent ? "Edit Akun Mahasiswa" : "Tambah Akun Mahasiswa"}</DialogTitle>
+              <DialogDescription>
+                {editingStudent ? "Perbarui data akun mahasiswa" : "Buat akun baru untuk mahasiswa mengakses kuesioner"}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit}>
+              <div className="grid grid-cols-2 gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nim">NIM *</Label>
+                  <Input
+                    id="nim"
+                    value={formData.nim}
+                    onChange={(e) => setFormData({ ...formData, nim: e.target.value })}
+                    placeholder="211511001"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="angkatan">Tahun Lulusan *</Label>
+                  <Select value={formData.angkatan} onValueChange={(v) => setFormData({ ...formData, angkatan: v })}>
+                    <SelectTrigger><SelectValue placeholder="Pilih Tahun Lulusan" /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() + 2 - i)).map((y) => (
+                        <SelectItem key={y} value={y}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="prodi">Program Studi *</Label>
+                  <Select
+                    value={formData.programId}
+                    onValueChange={(v) => setFormData({ ...formData, programId: v })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Pilih Program Studi" /></SelectTrigger>
+                    <SelectContent>
+                      {programs.map((program) => (
+                        <SelectItem key={program.id} value={String(program.id)}>
+                          {program.name}{program.degree ? ` (${program.degree})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="username">Username *</Label>
+                  <Input
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    placeholder="mahasiswa123"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="nim@student.polban.ac.id"
+                    required
+                  />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="password">
+                    Password {editingStudent ? "(kosongkan jika tidak diganti)" : "*"}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="Min. 8 karakter"
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="status">Status Akun</Label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(v: "aktif" | "nonaktif") => setFormData({ ...formData, status: v })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="aktif">Aktif</SelectItem>
+                      <SelectItem value="nonaktif">Nonaktif</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Batal</Button>
+                <Button type="submit">{editingStudent ? "Simpan Perubahan" : "Buat Akun"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+  );
+
+  // Aksi lintas angkatan — impor massal, unduh templat, dan tambah mahasiswa
+  // tidak terikat pada satu tahun, jadi tetap tersedia di layar kartu.
+  const aksiGlobal = (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,.xlsx"
+        onChange={handleImportCSV}
+        className="hidden"
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleDownloadTemplate}
+        disabled={isDownloadingTemplate}
+        title="Unduh template Excel kosong sebagai acuan import"
+      >
+        {isDownloadingTemplate ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <FileSpreadsheet className="mr-2 h-4 w-4" />
+        )}
+        Template
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => fileInputRef.current?.click()}
+        title="Import data dari file CSV/Excel"
+      >
+        <Download className="mr-2 h-4 w-4" />
+        Import
+      </Button>
+      <Button onClick={handleOpenAdd}>
+        <Plus className="mr-2 h-4 w-4" />
+        Tambah Mahasiswa
+      </Button>
+    </>
+  );
+
+  // ── Layar kartu tahun ────────────────────────────────────────────────
+  if (filterGraduationYear === "") {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h2 className="font-heading text-2xl font-bold">Manajemen Akun Mahasiswa</h2>
+            <p className="text-muted-foreground text-sm">
+              Pilih angkatan untuk mengelola akun mahasiswa
+            </p>
+          </div>
+          <PilihTahun
+            mode="alumni"
+            onPilih={(t) => { setFilterGraduationYear(t === null ? "all" : String(t)); setPage(1); }}
+            onCari={(q) => { setSearchQuery(q); setFilterGraduationYear("all"); setPage(1); }}
+            placeholderCari="Cari NIM atau nama mahasiswa..."
+            aksi={aksiGlobal}
+          />
+        </div>
+
+        {/* Dialog tambah/ubah tetap dipasang supaya tombol Tambah Mahasiswa
+            di layar kartu tetap berfungsi. */}
+        {dialogMahasiswa}
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="font-heading text-2xl font-bold">Manajemen Akun Mahasiswa</h2>
+            <h2 className="font-heading text-2xl font-bold">
+              Manajemen Akun Mahasiswa
+              <span className="font-normal text-muted-foreground">
+                {" — "}{filterGraduationYear === "all" ? "Semua Angkatan" : `Lulusan ${filterGraduationYear}`}
+              </span>
+            </h2>
             <p className="text-muted-foreground text-sm">
               Kelola akun mahasiswa untuk mengakses kuesioner tracer study
             </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={() => { setFilterGraduationYear(""); setSearchQuery(""); setPage(1); }}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
+              Pilih Angkatan
+            </Button>
           </div>
           <div className="flex gap-2">
             <input
@@ -488,120 +689,7 @@ const StudentManagementPage = () => {
         </Card>
       </div>
 
-      {/* Add/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editingStudent ? "Edit Akun Mahasiswa" : "Tambah Akun Mahasiswa"}</DialogTitle>
-            <DialogDescription>
-              {editingStudent ? "Perbarui data akun mahasiswa" : "Buat akun baru untuk mahasiswa mengakses kuesioner"}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-2 gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="nim">NIM *</Label>
-                <Input
-                  id="nim"
-                  value={formData.nim}
-                  onChange={(e) => setFormData({ ...formData, nim: e.target.value })}
-                  placeholder="211511001"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="angkatan">Tahun Lulusan *</Label>
-                <Select value={formData.angkatan} onValueChange={(v) => setFormData({ ...formData, angkatan: v })}>
-                  <SelectTrigger><SelectValue placeholder="Pilih Tahun Lulusan" /></SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() + 2 - i)).map((y) => (
-                      <SelectItem key={y} value={y}>{y}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="prodi">Program Studi *</Label>
-                <Select
-                  value={formData.programId}
-                  onValueChange={(v) => setFormData({ ...formData, programId: v })}
-                >
-                  <SelectTrigger><SelectValue placeholder="Pilih Program Studi" /></SelectTrigger>
-                  <SelectContent>
-                    {programs.map((program) => (
-                      <SelectItem key={program.id} value={String(program.id)}>
-                        {program.name}{program.degree ? ` (${program.degree})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="username">Username *</Label>
-                <Input
-                  id="username"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  placeholder="mahasiswa123"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="nim@student.polban.ac.id"
-                  required
-                />
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="password">
-                  Password {editingStudent ? "(kosongkan jika tidak diganti)" : "*"}
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="Min. 8 karakter"
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </Button>
-                </div>
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="status">Status Akun</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(v: "aktif" | "nonaktif") => setFormData({ ...formData, status: v })}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="aktif">Aktif</SelectItem>
-                    <SelectItem value="nonaktif">Nonaktif</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Batal</Button>
-              <Button type="submit">{editingStudent ? "Simpan Perubahan" : "Buat Akun"}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {dialogMahasiswa}
 
       {/* Delete Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
