@@ -31,7 +31,7 @@ interface QForm {
 }
 
 const QuestionnaireResultsPage = () => {
-  const { selectedProdi, selectedJurusan, currentRole } = useRole();
+  const { selectedProdi, selectedProdiId, selectedJurusan, currentRole } = useRole();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -43,6 +43,17 @@ const QuestionnaireResultsPage = () => {
   const [isError, setIsError] = useState(false);
   const [search, setSearch] = useState("");
   const [alumniTotal, setAlumniTotal] = useState(0);
+  /**
+   * Jumlah ALUMNI yang sudah mengisi — bukan jumlah kiriman.
+   *
+   * Sebelumnya kartu ini menjumlahkan response_count tiap kuesioner. Satu
+   * alumni yang mengisi kuesioner wajib DAN kuesioner prodi terhitung dua
+   * kali, sehingga satu orang dari dua alumni tampil sebagai "2 responden,
+   * 100%" padahal 1 orang, 50%. Angkanya kini diambil dari /alumni/stats
+   * yang sudah menghitung alumni distinct, sumber yang sama dengan kartu
+   * tahun dan halaman Data Alumni supaya ketiganya tidak saling bertentangan.
+   */
+  const [alumniAnswered, setAlumniAnswered] = useState(0);
   const [graduationYears, setGraduationYears] = useState<number[]>([]);
   const [ready, setReady] = useState(false);
 
@@ -95,9 +106,13 @@ const QuestionnaireResultsPage = () => {
           // Total alumni pada angkatan terpilih, untuk kartu ringkasan.
           if (graduationYear !== null) {
             const { data } = await api.get("/alumni/stats", { params: { graduation_year: graduationYear } });
-            if (data.success) setAlumniTotal(data.data?.total ?? 0);
+            if (data.success) {
+              setAlumniTotal(data.data?.total ?? 0);
+              setAlumniAnswered(data.data?.answered ?? 0);
+            }
           } else {
             setAlumniTotal(statsRes.data.data?.total ?? 0);
+            setAlumniAnswered(statsRes.data.data?.answered ?? 0);
           }
         }
       } catch {
@@ -117,14 +132,20 @@ const QuestionnaireResultsPage = () => {
     const params: Record<string, unknown> = {};
     if (graduationYear !== null) params.graduation_year = graduationYear;
     api.get("/alumni/stats", { params }).then(({ data }) => {
-      if (data.success) setAlumniTotal(data.data?.total ?? 0);
+      if (data.success) {
+        setAlumniTotal(data.data?.total ?? 0);
+        setAlumniAnswered(data.data?.answered ?? 0);
+      }
     }).catch(() => {});
   }, [graduationYear, ready]);
 
   const scopedForms = useMemo(() => {
     let result = forms;
     if (currentRole === "kaprodi") {
-      result = result.filter((f) => f.is_global || (selectedProdi && programMap[f.program_id!] === selectedProdi));
+      // Dicocokkan dengan id prodi, bukan namanya. Tujuh nama prodi dipakai
+      // dua jenjang sekaligus, sehingga pencocokan nama membuat kaprodi D3
+      // ikut melihat kuesioner milik D4.
+      result = result.filter((f) => f.is_global || (selectedProdiId !== null && f.program_id === selectedProdiId));
     } else if (currentRole === "kajur" && selectedJurusan) {
       result = result.filter((f) => f.is_global || programJurusanMap[f.program_id!] === selectedJurusan);
     }
@@ -132,7 +153,7 @@ const QuestionnaireResultsPage = () => {
       result = result.filter((f) => !f.target_graduation_years?.length || f.target_graduation_years.includes(graduationYear));
     }
     return result;
-  }, [forms, currentRole, selectedProdi, selectedJurusan, programMap, programJurusanMap, graduationYear]);
+  }, [forms, currentRole, selectedProdiId, selectedJurusan, programJurusanMap, graduationYear]);
 
   const filtered = useMemo(() => {
     if (!search) return scopedForms;
@@ -142,7 +163,6 @@ const QuestionnaireResultsPage = () => {
 
   const stats = useMemo(() => ({
     total: scopedForms.length,
-    totalResponden: scopedForms.reduce((acc, f) => acc + (f.response_count ?? 0), 0),
   }), [scopedForms]);
 
   // ── Layar kartu tahun ────────────────────────────────────────────────
@@ -193,11 +213,11 @@ const QuestionnaireResultsPage = () => {
           </div></CardContent></Card>
           <Card><CardContent className="pt-4 pb-4"><div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center"><Users className="w-5 h-5 text-blue-600" /></div>
-            <div><p className="text-xs text-muted-foreground">Total Responden</p><p className="text-2xl font-bold">{stats.totalResponden}</p></div>
+            <div><p className="text-xs text-muted-foreground">Total Responden</p><p className="text-2xl font-bold">{alumniAnswered}</p></div>
           </div></CardContent></Card>
           <Card><CardContent className="pt-4 pb-4"><div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-purple-600" /></div>
-            <div><p className="text-xs text-muted-foreground">Response Rate</p><p className="text-2xl font-bold">{alumniTotal > 0 ? ((stats.totalResponden / alumniTotal) * 100).toFixed(1) : 0}%</p></div>
+            <div><p className="text-xs text-muted-foreground">Response Rate</p><p className="text-2xl font-bold">{alumniTotal > 0 ? ((alumniAnswered / alumniTotal) * 100).toFixed(1) : 0}%</p></div>
           </div></CardContent></Card>
         </div>
 

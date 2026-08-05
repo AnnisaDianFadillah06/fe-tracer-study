@@ -18,6 +18,16 @@ export { roleLabels, roleDescriptions };
 interface RoleContextType {
   currentRole: AppRole;
   selectedProdi: string | null;
+  /**
+   * Id prodi kaprodi — dipakai untuk MENYARING, sementara `selectedProdi`
+   * hanya untuk ditampilkan.
+   *
+   * Nama prodi tidak unik: tujuh nama dipakai dua prodi sekaligus pada
+   * jenjang berbeda (Teknik Informatika D3 dan D4, Akuntansi D3 dan D4, dan
+   * seterusnya). Menyaring dengan nama membuat kaprodi D3 ikut melihat
+   * kuesioner dan angka milik D4.
+   */
+  selectedProdiId: number | null;
   selectedJurusan: string | null;
   can: (permission: Permission) => boolean;
   canAny: (permissions: Permission[]) => boolean;
@@ -34,6 +44,9 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const selectedProdi =
     currentRole === "kaprodi" ? (user?.program_name ?? null) : null;
 
+  const selectedProdiId =
+    currentRole === "kaprodi" ? (user?.program_id ?? null) : null;
+
   const selectedJurusan =
     currentRole === "kajur" ? (user?.jurusan ?? null) : null;
 
@@ -44,7 +57,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
   return (
     <RoleContext.Provider
-      value={{ currentRole, selectedProdi, selectedJurusan, can, canAny, menu, defaultRoute }}
+      value={{ currentRole, selectedProdi, selectedProdiId, selectedJurusan, can, canAny, menu, defaultRoute }}
     >
       {children}
     </RoleContext.Provider>
