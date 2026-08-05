@@ -85,6 +85,12 @@ export function hintFor(q: Question): string | null {
 
   const code = q.code ?? q.id;
 
+  if (q.lookup) {
+    return q.lookup === "city"
+      ? "Pilih provinsi dahulu, daftar kabupaten/kota akan menyesuaikan."
+      : "Pilih dari daftar. Ketik untuk mencari.";
+  }
+
   if (CURRENCY_CODES.has(code)) {
     return "Isi angka saja, tanpa titik atau koma. Contoh: 5000000";
   }
@@ -131,6 +137,11 @@ export function validateAnswer(q: Question, answer: unknown): ValidationResult {
   }
 
   const text = typeof answer === "string" ? answer.trim() : String(answer);
+
+  // Isian referensi tidak diketik — nilainya selalu kunci baris yang dipilih
+  // dari daftar. Aturan teks bebas di bawah (panjang, format) tidak berlaku,
+  // dan kesahihannya dipastikan lagi di server dengan aturan `exists`.
+  if (q.lookup) return {};
 
   switch (q.backendType) {
     case "number": {

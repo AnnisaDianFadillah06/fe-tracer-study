@@ -59,6 +59,13 @@ export type BuilderQuestionType =
   | "multiple_choice"
   | "checkbox"
   | "dropdown"
+  /**
+   * Isian yang pilihannya diambil dari tabel referensi (prodi, provinsi,
+   * kab/kota), bukan diketik pembuat borang. Berbeda dari "dropdown" yang
+   * opsinya ditulis satu per satu — daftar 528 kab/kota tidak masuk akal
+   * ditulis manual, apalagi diulang tiap kuesioner baru.
+   */
+  | "lookup"
   | "file_upload"
   | "linear_scale"
   | "rating"
@@ -95,6 +102,12 @@ export interface BuilderQuestion {
   scaleMax?: number;
   scaleLabels?: string[];
   logic: QuestionLogic;
+  /** Tabel referensi sumber pilihan — hanya untuk type "lookup". */
+  lookup?: "program" | "province" | "city";
+  /** Kolom yang disimpan sebagai jawaban: id (wilayah) atau code (prodi). */
+  lookupValue?: "id" | "code";
+  /** Kode pertanyaan induk yang menyaring pilihan (kab/kota ikut provinsi). */
+  dependsOn?: string;
   // Group metadata for grouped boolean questions (preserved from template)
   group_code?: string;
   group_label?: string;
@@ -592,6 +605,9 @@ export const formListItemToApiPayload = (form: FormListItem & { targetGraduation
         group_code: q.group_code ?? undefined,
         group_label: q.group_label ?? undefined,
         group_title: q.group_title ?? undefined,
+        lookup: q.type === "lookup" ? q.lookup : undefined,
+        lookupValue: q.type === "lookup" ? q.lookupValue : undefined,
+        dependsOn: q.type === "lookup" ? q.dependsOn : undefined,
         logic: q.logic && q.logic.type === "in_array" && q.logic.dependsOn
           ? { type: "in_array", dependsOn: q.logic.dependsOn, values: q.logic.values }
           : null,

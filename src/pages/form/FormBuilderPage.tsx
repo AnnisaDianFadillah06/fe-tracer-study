@@ -64,6 +64,7 @@ const questionTypeOptions: Array<{ value: BuilderQuestionType; label: string }> 
   { value: "multiple_choice", label: "Multiple Choice" },
   { value: "checkbox", label: "Checkboxes" },
   { value: "dropdown", label: "Dropdown" },
+  { value: "lookup", label: "Referensi Data" },
   { value: "file_upload", label: "File Upload" },
   { value: "linear_scale", label: "Linear Scale" },
   { value: "rating", label: "Rating" },
@@ -568,6 +569,12 @@ const FormBuilderPage = () => {
       gridRows: isGridQuestionType(type) ? ["Baris 1", "Baris 2"] : [],
       gridColumns: isGridQuestionType(type) ? ["Kolom 1", "Kolom 2"] : [],
       allowOther: false,
+      // Penanda referensi ikut dibuang saat tipenya berganti — kalau tidak,
+      // pertanyaan yang sudah jadi kotak teks biasa tetap tersimpan dengan
+      // metadata lookup dan kembali dirender sebagai daftar referensi.
+      lookup: type === "lookup" ? "province" : undefined,
+      lookupValue: type === "lookup" ? "id" : undefined,
+      dependsOn: undefined,
     });
   };
 
@@ -1251,7 +1258,91 @@ interface QuestionEditorProps {
   onChange: (patch: Partial<BuilderQuestion>) => void;
 }
 
+/** Tabel referensi yang tersedia untuk isian bertipe lookup. */
+const LOOKUP_SOURCES: Array<{
+  value: NonNullable<BuilderQuestion["lookup"]>;
+  label: string;
+  hint: string;
+  defaultValueField: NonNullable<BuilderQuestion["lookupValue"]>;
+}> = [
+  { value: "program",  label: "Program Studi", hint: "36 prodi — menyimpan kode prodi", defaultValueField: "code" },
+  { value: "province", label: "Provinsi",      hint: "35 provinsi",                     defaultValueField: "id" },
+  { value: "city",     label: "Kabupaten/Kota", hint: "528 wilayah — disaring per provinsi", defaultValueField: "id" },
+];
+
 const QuestionEditor = ({ question, onChange }: QuestionEditorProps) => {
+  /**
+   * Isian referensi tidak punya daftar opsi untuk disunting — yang dipilih
+   * pembuat borang hanyalah tabel sumbernya. Daftar isinya diambil langsung
+   * dari basis data saat borang dibuka, jadi perubahan data master tidak
+   * menuntut penyuntingan kuesioner.
+   */
+  if (question.type === "lookup") {
+    const selected = LOOKUP_SOURCES.find((s) => s.value === question.lookup);
+
+    return (
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-muted-foreground">Sumber data</Label>
+          <Select
+            value={question.lookup ?? ""}
+            onValueChange={(value) => {
+              const source = LOOKUP_SOURCES.find((s) => s.value === value);
+              onChange({
+                lookup: source?.value,
+                lookupValue: source?.defaultValueField,
+                // Kab/kota selalu menempel ke provinsi; sumber lain berdiri
+                // sendiri, jadi induknya dibersihkan agar tidak tertinggal
+                // dari pilihan sebelumnya.
+                dependsOn: value === "city" ? question.dependsOn ?? "f5a1" : undefined,
+              });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Pilih tabel referensi" />
+            </SelectTrigger>
+            <SelectContent>
+              {LOOKUP_SOURCES.map((source) => (
+                <SelectItem key={source.value} value={source.value}>
+                  {source.label}
+                  <span className="ml-2 text-xs text-muted-foreground">{source.hint}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {question.lookup === "city" && (
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">
+              Kode pertanyaan provinsi
+            </Label>
+            <Input
+              value={question.dependsOn ?? ""}
+              onChange={(event) => onChange({ dependsOn: event.target.value })}
+              placeholder="f5a1"
+            />
+            <p className="text-xs text-muted-foreground">
+              Daftar kabupaten/kota disaring mengikuti jawaban pertanyaan ini,
+              supaya alumni tidak menelusuri 528 wilayah sekaligus.
+            </p>
+          </div>
+        )}
+
+        {selected && (
+          <p className="text-xs text-muted-foreground">
+            Pilihan diambil langsung dari basis data saat borang dibuka. Yang
+            tersimpan sebagai jawaban adalah{" "}
+            <span className="font-medium text-foreground">
+              {question.lookupValue === "code" ? "kode" : "id"}
+            </span>{" "}
+            baris terpilih, bukan teks yang tampil.
+          </p>
+        )}
+      </div>
+    );
+  }
+
   if (isOptionQuestionType(question.type)) {
     return (
       <div className="space-y-2">

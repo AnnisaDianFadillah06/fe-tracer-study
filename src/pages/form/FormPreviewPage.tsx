@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { type BuilderQuestion, type FormListItem, getInitialForms, backendToFormListItem } from "@/lib/formManagement";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import api from "@/lib/api";
+import LookupCombobox from "@/components/form/LookupCombobox";
 
 interface PreviewLocationState {
   form?: FormListItem;
@@ -29,6 +30,7 @@ const SUPPORTED_DEMO_TYPES = new Set([
   "multiple_choice",
   "checkbox",
   "dropdown",
+  "lookup",
   "multiple_choice_grid",
   "checkbox_grid",
   "file_upload",
@@ -377,6 +379,23 @@ const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQu
           placeholder="Jawaban singkat"
           className="bg-background"
         />
+      );
+
+    // Pratinjau memakai komponen yang sama persis dengan halaman pengisian,
+    // termasuk permintaan datanya — supaya pembuat borang melihat daftar
+    // referensi yang sesungguhnya, bukan tiruan.
+    case "lookup":
+      return question.lookup ? (
+        <LookupCombobox
+          source={question.lookup}
+          valueField={question.lookupValue ?? "id"}
+          value={typeof currentValue === "string" ? currentValue : ""}
+          onChange={(val) => onChange(val)}
+        />
+      ) : (
+        <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          Sumber data belum dipilih di penyunting pertanyaan.
+        </div>
       );
 
     case "paragraph":

@@ -32,6 +32,7 @@ import {
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import PolbanLogo from "@/components/common/PolbanLogo";
 import { useStudentAuth } from "@/hooks/auth/useStudentAuth";
+import LookupCombobox from "@/components/form/LookupCombobox";
 import { useTracerForm, isQuestionVisible } from "@/hooks/form/useTracerForm";
 import type { Question } from "@/hooks/form/useQuestionManagement";
 import { useState } from "react";
@@ -68,7 +69,19 @@ const FormPage = () => {
     handleBack,
     handleSubmit: submitToBackend,
     handleReset,
-  } = useTracerForm(kodeProdi, graduationYear, session?.nim);
+  } = useTracerForm(kodeProdi, graduationYear, session?.nim, {
+    // Bagian identitas diisi dari data yang sudah ada di basis data supaya
+    // alumni tidak mengetik ulang apa yang sudah diketahui sistem. Semuanya
+    // tetap bisa disunting — email dan telepon justru yang paling sering
+    // berubah setelah lulus, dan itulah yang ingin diperbarui tracer study.
+    // Kode PT tidak ikut: kolomnya tidak pernah diisi impor alumni.
+    nim: session?.nim,
+    name: session?.username,
+    email: session?.email,
+    phone: session?.phone,
+    kodeProdi,
+    graduationYear,
+  });
 
   // Wrap submit to include identity data from session
   // Only include fields genuinely known from session — nik/npwp/kode_pt come from form answers
@@ -335,10 +348,12 @@ const FormPage = () => {
                   <AnswerField
                     q={q}
                     answer={answers[q.id]}
+                    parentAnswer={q.dependsOn ? (answers[q.dependsOn] as string) : undefined}
                     setAnswer={setAnswer}
                     setCheckboxAnswer={setCheckboxAnswer}
                     onBlur={() => validateQuestion(q)}
                     invalid={!!errors[q.id]}
+                    lockedNim={q.code === "nimhsmsmh" ? session?.nim : undefined}
                   />
 
                   {errors[q.id] ? (
@@ -421,17 +436,68 @@ const FormPage = () => {
 interface AnswerFieldProps {
   q: Question;
   answer: unknown;
+  /** Jawaban pertanyaan induk, untuk isian referensi bertingkat (kab/kota). */
+  parentAnswer?: string;
   setAnswer: (qId: string, val: unknown) => void;
   setCheckboxAnswer: (qId: string, oId: string, checked: boolean) => void;
   /** Divalidasi saat pengguna meninggalkan isian, bukan tiap ketikan. */
   onBlur?: () => void;
   invalid?: boolean;
+  /**
+   * NIM pemegang token. Hanya diisi untuk pertanyaan NIM, dan membuatnya
+   * terkunci: server menolak submit bila NIM tidak sama persis dengan pemilik
+   * token, jadi membiarkannya bisa disunting hanya menunda kegagalan sampai
+   * seluruh borang selesai diisi.
+   */
+  lockedNim?: string;
 }
 
-const AnswerField = ({ q, answer, setAnswer, setCheckboxAnswer, onBlur, invalid }: AnswerFieldProps) => {
+const AnswerField = ({
+  q, answer, parentAnswer, setAnswer, setCheckboxAnswer, onBlur, invalid, lockedNim,
+}: AnswerFieldProps) => {
   const [hoverRating, setHoverRating] = useState<number | null>(null);
 
   const aria = { "aria-invalid": invalid || undefined } as const;
+
+  // Isian referensi: pilihannya dari tabel master, bukan dari opsi yang
+  // diketik pembuat borang. Diperiksa sebelum percabangan tipe karena di
+  // database tipenya tetap short_text.
+  if (q.lookup) {
+    return (
+      <div className="space-y-1.5">
+        <LookupCombobox
+          id={q.id}
+          source={q.lookup}
+          valueField={q.lookupValue ?? "id"}
+          value={(answer as string) ?? ""}
+          onChange={(val) => {
+            setAnswer(q.id, val);
+            onBlur?.();
+          }}
+          parentValue={parentAnswer}
+          hasError={!!invalid}
+        />
+      </div>
+    );
+  }
+
+  if (lockedNim) {
+    return (
+      <div className="space-y-1.5">
+        <Input
+          {...aria}
+          type="text"
+          value={lockedNim}
+          readOnly
+          className="bg-muted/60 text-muted-foreground"
+        />
+        <p className="text-xs text-muted-foreground">
+          Diambil dari akun Anda dan tidak dapat diubah. Bila keliru, hubungi
+          pengelola tracer study.
+        </p>
+      </div>
+    );
+  }
 
   /**
    * Isian angka.

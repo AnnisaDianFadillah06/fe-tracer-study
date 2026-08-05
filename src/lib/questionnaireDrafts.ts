@@ -16,6 +16,7 @@ const BUILDER_QUESTION_TYPES = new Set<BuilderQuestionType>([
   "multiple_choice",
   "checkbox",
   "dropdown",
+  "lookup",
   "file_upload",
   "linear_scale",
   "rating",
@@ -239,6 +240,13 @@ export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListIt
               group_code: question?.metadata?.group_code ?? undefined,
               group_label: question?.metadata?.group_label ?? undefined,
               group_title: question?.metadata?.group_title ?? undefined,
+              // Isian referensi: backend mengirimkannya di dua tempat — medan
+              // datar hasil mapQuestionFull() dan metadata mentah. Dibaca dari
+              // keduanya supaya borang lama yang hanya punya metadata tetap
+              // terbuka sebagai lookup, bukan berubah jadi kotak teks.
+              lookup: question?.lookup ?? question?.metadata?.lookup ?? undefined,
+              lookupValue: question?.lookupValue ?? question?.metadata?.lookup_value ?? undefined,
+              dependsOn: question?.dependsOn ?? question?.metadata?.depends_on ?? undefined,
             };
 
             if (type !== "linear_scale" && type !== "rating") {

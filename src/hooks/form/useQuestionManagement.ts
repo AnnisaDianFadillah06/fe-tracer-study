@@ -52,6 +52,19 @@ export interface Question {
   metadata?: Record<string, unknown>;
   /** Keterangan pendek per opsi, ditampilkan di bawah label pilihan. */
   optionHints?: Record<string, string>;
+
+  /**
+   * Tabel referensi sumber pilihan, bila isian ini bertipe lookup.
+   *
+   * Pertanyaan lookup tetap `short_text` di database — pembedanya hanya
+   * penanda di metadata. Ketiga medan berikut yang membuat perender
+   * menampilkan daftar referensi alih-alih kotak ketik.
+   */
+  lookup?: "program" | "province" | "city";
+  /** Kolom yang disimpan sebagai jawaban: `id` (wilayah) atau `code` (prodi). */
+  lookupValue?: "id" | "code";
+  /** Kode pertanyaan induk yang menyaring pilihan (kab/kota mengikuti provinsi). */
+  dependsOn?: string;
 }
 
 export interface FormSection {

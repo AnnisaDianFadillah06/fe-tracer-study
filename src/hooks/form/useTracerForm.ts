@@ -90,11 +90,80 @@ function mapSingleQuestion(q: any): Question {
     code: q.question_code ?? q.code ?? undefined,
     metadata: meta,
     optionHints: meta.option_hints ?? meta.optionHints ?? undefined,
+
+    // Isian referensi (Kode Prodi, Provinsi, Kab/Kota). Tipe backend-nya tetap
+    // short_text, jadi penanda inilah satu-satunya cara perender tahu harus
+    // menampilkan daftar referensi.
+    lookup: meta.lookup ?? undefined,
+    lookupValue: meta.lookup_value ?? meta.lookupValue ?? undefined,
+    dependsOn: meta.depends_on ?? meta.dependsOn ?? undefined,
   };
 }
 
 /** Separator used to namespace question IDs per questionnaire. */
 const QID_SEP = "___";
+
+/** Data alumni yang sudah diketahui sistem, dipakai mengisi bagian identitas. */
+export interface IdentityPrefill {
+  nim?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  kodeProdi?: string;
+  graduationYear?: number | null;
+}
+
+/**
+ * Kode pertanyaan identitas => medan sesi yang mengisinya.
+ *
+ * Kode PT sengaja TIDAK ikut: kolom kode_pt tidak pernah diisi impor alumni,
+ * jadi mengisinya dari sesi hanya akan menaruh nilai kosong. NIK dan NPWP juga
+ * tidak ada di basis data sama sekali — keduanya memang harus diketik alumni.
+ */
+const IDENTITY_MAP: Record<string, keyof IdentityPrefill> = {
+  nimhsmsmh:    "nim",
+  nmmhsmsmh:    "name",
+  emailmsmh:    "email",
+  telpomsmh:    "phone",
+  kdpstmsmh:    "kodeProdi",
+  tahun_lulus:  "graduationYear",
+};
+
+/**
+ * Isi otomatis bagian identitas dari data alumni yang sudah ada.
+ *
+ * Isian yang sudah terjawab — dari draf yang dipulihkan — TIDAK ditimpa;
+ * suntingan alumni selalu lebih baru daripada data impor. Pengecualiannya NIM:
+ * server menolak submit bila NIM tidak sama persis dengan pemegang token, jadi
+ * nilainya selalu diseragamkan dengan sesi dan isiannya dikunci di antarmuka.
+ */
+function applyIdentityPrefill(
+  sections: FormSection[],
+  answers: Record<string, unknown>,
+  identity?: IdentityPrefill,
+): Record<string, unknown> {
+  if (!identity) return answers;
+
+  const filled = { ...answers };
+
+  for (const section of sections) {
+    for (const q of section.questions) {
+      const field = q.code ? IDENTITY_MAP[q.code] : undefined;
+      if (!field) continue;
+
+      const raw = identity[field];
+      if (raw === undefined || raw === null || raw === "") continue;
+
+      const existing = filled[q.id];
+      const isEmpty = existing === undefined || existing === null || existing === "";
+      if (!isEmpty && q.code !== "nimhsmsmh") continue;
+
+      filled[q.id] = String(raw);
+    }
+  }
+
+  return filled;
+}
 
 /** Pangkas teks panjang agar isi toast tetap terbaca. */
 function truncate(text: string, max: number): string {
@@ -124,6 +193,12 @@ function mapBackendToSections(backendData: any[]): FormSection[] {
       // Prefix groupCode so merging stays within same questionnaire
       if (mapped.groupCode) {
         mapped.groupCode = prefix + mapped.groupCode;
+      }
+      // Sama untuk induk isian referensi: kab/kota harus membaca jawaban
+      // provinsi dari kuesioner yang SAMA, bukan dari kuesioner lain yang
+      // kebetulan memakai kode pertanyaan serupa.
+      if (mapped.dependsOn) {
+        mapped.dependsOn = prefix + mapped.dependsOn;
       }
       return mapped;
     });
@@ -343,7 +418,12 @@ const fallbackSections: FormSection[] = [
  *
  * Jika backend belum bisa diakses, akan fallback ke soal hardcoded.
  */
-export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?: string) => {
+export const useTracerForm = (
+  kodeProdi?: string,
+  graduationYear?: number,
+  nim?: string,
+  identity?: IdentityPrefill,
+) => {
   const { toast } = useToast();
   const [sections, setSections] = useState<FormSection[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
@@ -378,6 +458,14 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
    */
   const serverDraftDirty = useRef(false);
 
+  /**
+   * Identitas dibaca lewat ref, bukan dependensi effect: pemanggil menyusun
+   * objeknya inline sehingga acuannya berganti tiap render, dan menjadikannya
+   * dependensi akan memicu pengambilan ulang kuesioner tanpa henti.
+   */
+  const identityRef = useRef(identity);
+  identityRef.current = identity;
+
   // ── Fetch forms dari backend ──────────────────────────────────────────────
   useEffect(() => {
     const fetchForms = async () => {
@@ -398,6 +486,9 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
           const mapped = mapBackendToSections(data.data);
           setSections(mapped);
           setHasResponded(!!data.has_responded);
+
+          /** Jawaban awal sebelum draf — hanya berisi identitas yang sudah diketahui. */
+          let initialAnswers = applyIdentityPrefill(mapped, {}, identityRef.current);
 
           // Pulihkan isian yang tertinggal, kecuali kuesionernya sudah pernah
           // dikirim. Dilakukan setelah sections siap karena sidik kuesioner
@@ -420,7 +511,14 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
                 : { answers: local!.answers, section: local!.currentSection, savedAt: localAt };
 
             if (winner) {
-              setAnswers(winner.answers);
+              // Draf ditumpuk di atas identitas, lalu identitas dilewatkan
+              // sekali lagi supaya isian yang masih kosong di draf lama ikut
+              // terisi dan NIM tetap mengikuti pemegang token.
+              initialAnswers = applyIdentityPrefill(
+                mapped,
+                { ...initialAnswers, ...winner.answers },
+                identityRef.current,
+              );
               setCurrentSection(Math.min(winner.section, mapped.length - 1));
               setRestoredDraft({
                 count: countAnswered(winner.answers),
@@ -428,6 +526,8 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
               });
             }
           }
+
+          setAnswers(initialAnswers);
         } else {
           // Tidak ada kuesioner aktif untuk tahun lulus ini
           setSections([]);
@@ -589,7 +689,21 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
 
   // ── Answer management ─────────────────────────────────────────────────────
   const setAnswer = (questionId: string, value: unknown) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: value }));
+    // Isian referensi yang menempel pada pertanyaan ini — kab/kota mengikuti
+    // provinsi. Begitu induknya berganti, jawaban turunannya menjadi mustahil
+    // (kota dari provinsi lain), jadi dikosongkan alih-alih dibiarkan.
+    const dependents = sections
+      .flatMap((s) => s.questions)
+      .filter((q) => q.dependsOn === questionId)
+      .map((q) => q.id);
+
+    setAnswers((prev) => {
+      const next = { ...prev, [questionId]: value };
+      if (prev[questionId] !== value) {
+        for (const id of dependents) next[id] = "";
+      }
+      return next;
+    });
     setErrors((prev) => ({ ...prev, [questionId]: "" }));
   };
 
@@ -855,9 +969,16 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
   };
 
   // ── Reset ─────────────────────────────────────────────────────────────────
+  /**
+   * Keadaan "kosong" bukan berarti benar-benar hampa: identitas yang sudah
+   * diketahui sistem tetap terisi, sama seperti saat borang pertama dibuka.
+   * Mengosongkannya hanya memaksa alumni mengetik ulang data yang sudah ada.
+   */
+  const blankAnswers = () => applyIdentityPrefill(sections, {}, identityRef.current);
+
   const handleReset = () => {
     setSubmitted(false);
-    setAnswers({});
+    setAnswers(blankAnswers());
     setCurrentSection(0);
     setErrors({});
     setWarnings({});
@@ -893,7 +1014,7 @@ export const useTracerForm = (kodeProdi?: string, graduationYear?: number, nim?:
       });
     }
 
-    setAnswers({});
+    setAnswers(blankAnswers());
     setCurrentSection(0);
     setErrors({});
     setWarnings({});
