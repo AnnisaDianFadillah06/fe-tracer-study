@@ -42,6 +42,15 @@ export interface ResponseRatePieItem {
   name: string;
   value: number;
   pct: number;
+  /**
+   * Kunci status dari backend — lebih andal dipakai mencocokkan irisan
+   * daripada `name`, yang merupakan teks tampilan dan bisa berubah.
+   *
+   * Perhatikan kosakatanya: 'submitted' berarti selesai, 'ongoing' berarti
+   * draf sedang berjalan, dan 'started' justru berarti BELUM mulai.
+   * Penamaan itu warisan antarmuka lama yang sengaja dipertahankan.
+   */
+  status?: "submitted" | "ongoing" | "started";
 }
 
 export interface ResponseRatePieResponse {
