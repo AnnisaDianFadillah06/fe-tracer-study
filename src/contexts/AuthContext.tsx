@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 
 // ── Types matching backend ResponseAuthDTO & AuthService::me() ────────────
@@ -55,6 +56,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   });
 
+  /**
+   * Cache React Query WAJIB dikosongkan setiap kali pemilik sesi berganti.
+   *
+   * Kunci cache hanya berisi nama query dan parameter filter — tidak ada
+   * identitas pengguna di dalamnya. Padahal cakupan datanya ditentukan server
+   * dari token: permintaan tanpa filter apa pun mengembalikan 15 alumni untuk
+   * kaprodi, 29 untuk kajur, 505 untuk kepala tracer, semuanya di bawah kunci
+   * yang sama persis. Dengan staleTime 10 menit dan logout yang tidak
+   * membersihkan apa-apa, akun berikutnya disuguhi angka milik akun
+   * sebelumnya sampai cache basi — tanpa satu pun permintaan ke server.
+   *
+   * Dibersihkan di dua titik: saat logout (jangan tinggalkan jejak) dan saat
+   * login berhasil (jangan percayai apa pun yang tersisa di memori).
+   */
+  const queryClient = useQueryClient();
+
   // ── Login ────────────────────────────────────────────────────────────────
   const login = useCallback(async (email: string, password: string) => {
     setState((s) => ({ ...s, isLoading: true }));
@@ -65,6 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       localStorage.setItem("auth_token", token);
       localStorage.setItem("auth_user", JSON.stringify(user));
+
+      queryClient.clear();
 
       setState({
         user,
@@ -84,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         "Login gagal. Periksa email dan password.";
       throw new Error(message);
     }
-  }, []);
+  }, [queryClient]);
 
   // ── Logout ───────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
@@ -95,13 +114,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.removeItem("auth_token");
     localStorage.removeItem("auth_user");
+    queryClient.clear();
     setState({
       user: null,
       token: null,
       isAuthenticated: false,
       isLoading: false,
     });
-  }, []);
+  }, [queryClient]);
 
   // ── Fetch current user (refresh data) ────────────────────────────────────
   const fetchMe = useCallback(async () => {
