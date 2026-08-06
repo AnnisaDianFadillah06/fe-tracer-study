@@ -33,7 +33,20 @@ const normalizeArray = (value: unknown): string[] => {
 
 const normalizeQuestionType = (value: unknown): BuilderQuestionType => {
   const raw = String(value ?? "short");
-  // Map backend DB types → builder types
+
+  // PENTING: cek kosakata builder LEBIH DULU. "multiple_choice" ada di kedua
+  // kosakata dengan arti BERLAWANAN — di basis data artinya jawaban boleh
+  // lebih dari satu (checkbox), di builder artinya pilihan tunggal (radio).
+  // Backend sudah menerjemahkan ke kosakata builder sebelum mengirim
+  // (single_choice → multiple_choice di mapQuestionFull), jadi tanpa
+  // penjagaan ini pertanyaan radio yang sudah benar akan diterjemahkan
+  // sekali lagi menjadi checkbox. Itulah sebabnya f8 "Jelaskan status Anda
+  // saat ini?" — single_choice di seeder — terbuka sebagai Checkboxes.
+  if (BUILDER_QUESTION_TYPES.has(raw as BuilderQuestionType)) {
+    return raw as BuilderQuestionType;
+  }
+
+  // Sisanya memang tipe basis data mentah.
   const backendToBuilder: Record<string, BuilderQuestionType> = {
     short_text: "short",
     long_text: "paragraph",
@@ -59,6 +72,39 @@ const normalizeOptions = (options: unknown): string[] => {
       return "";
     })
     .filter((option) => option.trim().length > 0);
+};
+
+/**
+ * Sidecar metadata opsi (kode + status tersembunyi), sejajar indeks dengan
+ * daftar label hasil normalizeOptions().
+ *
+ * Ini gerbang muat: kalau panjangnya tidak sama persis dengan labelnya —
+ * draf lama dari versi builder sebelumnya, atau opsi yang labelnya kosong
+ * lalu tersaring — sidecar dibuang seluruhnya, bukan dipakai setengah.
+ * Sidecar yang miring satu indeks lebih berbahaya daripada tidak ada:
+ * kodenya akan menempel ke opsi yang salah dan jawaban lama ikut salah baca.
+ */
+const normalizeOptionMeta = (
+  raw: unknown,
+  labels: string[],
+): BuilderQuestion["_original_options"] => {
+  if (!Array.isArray(raw)) return undefined;
+
+  const meta = raw
+    .map((option) => {
+      if (typeof option === "string") {
+        return { label: option, code: "", is_hidden: false };
+      }
+      const record = (option ?? {}) as Record<string, unknown>;
+      return {
+        label: String(record.label ?? record.value ?? record.code ?? ""),
+        code: String(record.code ?? record.value ?? ""),
+        is_hidden: Boolean(record.is_hidden),
+      };
+    })
+    .filter((option) => option.label.trim().length > 0);
+
+  return meta.length === labels.length ? meta : undefined;
 };
 
 const normalizeScaleLabels = (minValue: number, maxValue: number, labels?: unknown): string[] => {
@@ -219,13 +265,14 @@ export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListIt
             const type = normalizeQuestionType(question?.type ?? question?.question_type);
             const scaleMin = Number(question?.scaleMin ?? question?.scale_min ?? 1) || 1;
             const scaleMax = Number(question?.scaleMax ?? question?.scale_max ?? 5) || 5;
+            const optionLabels = normalizeOptions(question?.options);
 
             const draftQuestion: BuilderQuestion = {
               id: String(question?.code ?? question?.question_code ?? question?.id ?? createId("q")),
               type,
               question: String(question?.question ?? question?.question_text ?? ""),
               description: question?.description ? String(question.description) : "",
-              options: normalizeOptions(question?.options),
+              options: optionLabels,
               required: Boolean(question?.required ?? question?.is_required ?? false),
               allowOther: Boolean(question?.allowOther ?? question?.allow_other ?? false),
               scaleMin,
@@ -233,9 +280,7 @@ export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListIt
               scaleLabels: normalizeScaleLabels(scaleMin, scaleMax, question?.scaleLabels ?? question?.scale_labels),
               gridRows: normalizeArray(question?.gridRows ?? question?.grid_rows),
               gridColumns: normalizeArray(question?.gridColumns ?? question?.grid_columns),
-              _original_options: Array.isArray(question?.options)
-                ? question.options.map((o: any) => ({ label: String(o?.label ?? o ?? ""), code: String(o?.code ?? o?.value ?? "") })).filter((o: any) => o.label)
-                : undefined,
+              _original_options: normalizeOptionMeta(question?.options, optionLabels),
               logic: resolveLogicFromMetadata(question),
               group_code: question?.metadata?.group_code ?? undefined,
               group_label: question?.metadata?.group_label ?? undefined,

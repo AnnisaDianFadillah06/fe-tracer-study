@@ -48,6 +48,8 @@ export interface BackendOption {
   label: string;
   value: string | null;
   order_no: number;
+  /** Disembunyikan dari borang alumni, tetapi barisnya tetap ada di basis data. */
+  is_hidden?: boolean;
 }
 
 // ── Local / Builder types ──────────────────────────────────────────────────────
@@ -114,9 +116,33 @@ export interface BuilderQuestion {
   group_title?: string;
   // Original individual question codes for grouped booleans (used to expand on save)
   _individual_codes?: string[];
-  // Original option objects with codes (preserved from backend for roundtrip)
-  _original_options?: Array<{ label: string; code: string }>;
+  /**
+   * Sidecar metadata per opsi, sejajar indeks dengan `options`.
+   *
+   * `options` hanya menyimpan label karena dipakai di banyak tempat sebagai
+   * daftar teks (pemicu logika bersyarat mencocokkan label, grid, pratinjau).
+   * Kode opsi dan status tersembunyi menumpang di sini, dan WAJIB dijaga
+   * panjangnya sama dengan `options` di setiap mutasi — lihat
+   * `mutateOptions()` di FormBuilderPage. Kalau tidak sinkron, kode opsi
+   * bergeser dan jawaban lama menunjuk ke opsi yang salah.
+   */
+  _original_options?: Array<{ label: string; code: string; is_hidden?: boolean }>;
 }
+
+/**
+ * Label opsi yang boleh dilihat alumni — opsi ber-`is_hidden` dibuang.
+ *
+ * Dipakai pratinjau, yang memuat borang lewat endpoint admin
+ * (`GET /questionnaires/{id}`). Endpoint itu sengaja mengirim opsi
+ * tersembunyi supaya tim tracer bisa menyalakannya lagi, jadi pratinjau
+ * harus menyaring sendiri kalau mau jujur menggambarkan tampilan alumni.
+ * Borang alumni yang sebenarnya tidak memerlukan ini: penyaringnya sudah
+ * di QuestionnaireFetchService.
+ */
+export const visibleOptions = (question: BuilderQuestion): string[] =>
+  question.options.filter(
+    (_, index) => !question._original_options?.[index]?.is_hidden,
+  );
 
 export const isOptionQuestionType = (type: BuilderQuestionType) =>
   type === "multiple_choice" || type === "checkbox" || type === "dropdown";
@@ -286,7 +312,11 @@ export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
       group_code: (q as any).metadata?.group_code ?? undefined,
       group_label: (q as any).metadata?.group_label ?? undefined,
       group_title: (q as any).metadata?.group_title ?? undefined,
-      _original_options: (q.options ?? []).map((o) => ({ label: o.label, code: o.code ?? o.value ?? "" })),
+      _original_options: (q.options ?? []).map((o) => ({
+        label: o.label,
+        code: o.code ?? o.value ?? "",
+        is_hidden: !!(o as { is_hidden?: boolean }).is_hidden,
+      })),
       logic: (() => {
         const showIf = (q as any).metadata?.show_if ?? (q as any).show_if;
         if (showIf && typeof showIf === "object") {
@@ -611,13 +641,25 @@ export const formListItemToApiPayload = (form: FormListItem & { targetGraduation
         logic: q.logic && q.logic.type === "in_array" && q.logic.dependsOn
           ? { type: "in_array", dependsOn: q.logic.dependsOn, values: q.logic.values }
           : null,
-        options: q._original_options && q._original_options.length === q.options.length
-          ? q._original_options.map((o) => ({ label: o.label, code: o.code }))
-          : q.options.map((opt, oi) =>
-              typeof opt === "string"
-                ? { label: opt, code: `opt_${oi + 1}` }
-                : opt
-            ),
+        // Label selalu diambil dari `options` (itu yang disunting pengguna);
+        // kode dan flag tersembunyi menumpang dari sidecar per indeks.
+        //
+        // Dulu di sini ada syarat panjang harus sama persis, jatuh ke
+        // pembuatan ulang `opt_1..n` kalau tidak. Akibatnya menghapus SATU
+        // opsi menyetel ulang kode SEMUA opsi, dan jawaban lama jadi
+        // menunjuk ke opsi yang salah. Sekarang sidecar dijaga sinkron di
+        // titik mutasi, dan dibuang di gerbang muat kalau terlanjur miring
+        // (lihat normalizeOptionMeta di questionnaireDrafts.ts), jadi
+        // penggabungan per indeks aman.
+        options: q.options.map((opt, oi) => {
+          const label = typeof opt === "string" ? opt : String(opt ?? "");
+          const meta = q._original_options?.[oi];
+          return {
+            label,
+            code: meta?.code || `opt_${oi + 1}`,
+            is_hidden: !!meta?.is_hidden,
+          };
+        }),
       }];
     }),
   })),

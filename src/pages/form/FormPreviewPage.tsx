@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { type BuilderQuestion, type FormListItem, getInitialForms, backendToFormListItem } from "@/lib/formManagement";
+import { type BuilderQuestion, type FormListItem, getInitialForms, backendToFormListItem, visibleOptions } from "@/lib/formManagement";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import LookupCombobox from "@/components/form/LookupCombobox";
@@ -421,7 +421,7 @@ const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQu
             value={isOtherSelected ? "Other" : (typeof currentValue === "string" ? currentValue : "")}
             onValueChange={(val) => onChange(val === "Other" ? "Other" : val)}
           >
-            {question.options.map((option, index) => (
+            {visibleOptions(question).map((option, index) => (
               <div key={`${question.id}-option-${index}`} className="flex items-center gap-2">
                 <RadioGroupItem value={option} id={`${question.id}-option-${index}`} />
                 <Label htmlFor={`${question.id}-option-${index}`}>{option}</Label>
@@ -456,7 +456,7 @@ const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQu
 
       return (
         <div className="space-y-2">
-          {question.options.map((option, index) => (
+          {visibleOptions(question).map((option, index) => (
             <div key={`${question.id}-check-${index}`} className="flex items-center gap-2">
               <Checkbox
                 checked={selected.includes(option)}
@@ -488,7 +488,7 @@ const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQu
             <SelectValue placeholder="Pilih opsi" />
           </SelectTrigger>
           <SelectContent>
-            {question.options.map((option, index) => (
+            {visibleOptions(question).map((option, index) => (
               <SelectItem key={`${question.id}-select-${index}`} value={option}>
                 {option}
               </SelectItem>

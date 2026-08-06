@@ -49,6 +49,7 @@ import {
   ChevronsUpDown,
   Copy,
   Eye,
+  EyeOff,
   FileImage,
   FileText,
   Film,
@@ -1344,41 +1345,116 @@ const QuestionEditor = ({ question, onChange }: QuestionEditorProps) => {
   }
 
   if (isOptionQuestionType(question.type)) {
+    // Sidecar kode+status opsi. Kalau belum ada (pertanyaan baru), dibentuk
+    // dari labelnya dengan kode kosong — formToBackend yang nanti membuatkan
+    // opt_1..n. Setiap mutasi di bawah menulis kedua larik sekaligus supaya
+    // indeksnya tidak pernah bergeser satu sama lain.
+    const optionMeta = question.options.map(
+      (label, index) =>
+        question._original_options?.[index] ?? { label, code: "", is_hidden: false },
+    );
+    const visibleCount = optionMeta.filter((meta) => !meta.is_hidden).length;
+
+    const mutateOptions = (
+      nextOptions: string[],
+      nextMeta: NonNullable<BuilderQuestion["_original_options"]>,
+    ) => onChange({ options: nextOptions, _original_options: nextMeta });
+
     return (
       <div className="space-y-2">
-        {question.options.map((option, optionIndex) => (
-          <div key={`${question.id}-option-${optionIndex}`} className="flex items-center gap-2">
-            <Input
-              value={option}
-              onChange={(event) => {
-                const nextOptions = [...question.options];
-                nextOptions[optionIndex] = event.target.value;
-                onChange({ options: nextOptions });
-              }}
-              placeholder={`Opsi ${optionIndex + 1}`}
-            />
-            {question.options.length > 1 && (
+        {question.options.map((option, optionIndex) => {
+          const hidden = !!optionMeta[optionIndex]?.is_hidden;
+          // Menyembunyikan opsi terakhir yang masih terlihat akan membuat
+          // pertanyaan mustahil dijawab, apalagi kalau wajib diisi.
+          const blockHiding = !hidden && visibleCount <= 1;
+
+          return (
+            <div key={`${question.id}-option-${optionIndex}`} className="flex items-center gap-2">
+              <Input
+                value={option}
+                onChange={(event) => {
+                  const nextOptions = [...question.options];
+                  nextOptions[optionIndex] = event.target.value;
+                  const nextMeta = optionMeta.map((meta, index) =>
+                    index === optionIndex ? { ...meta, label: event.target.value } : meta,
+                  );
+                  mutateOptions(nextOptions, nextMeta);
+                }}
+                placeholder={`Opsi ${optionIndex + 1}`}
+                className={hidden ? "text-muted-foreground line-through" : undefined}
+              />
+
+              {hidden && (
+                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                  Tersembunyi
+                </span>
+              )}
+
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
+                disabled={blockHiding}
+                title={
+                  blockHiding
+                    ? "Minimal satu opsi harus tetap terlihat oleh alumni"
+                    : hidden
+                      ? "Tampilkan lagi ke alumni"
+                      : "Sembunyikan dari alumni — opsi tetap tersimpan untuk pelaporan"
+                }
                 onClick={() => {
-                  const nextOptions = question.options.filter((_, index) => index !== optionIndex);
-                  onChange({ options: nextOptions });
+                  const nextMeta = optionMeta.map((meta, index) =>
+                    index === optionIndex ? { ...meta, is_hidden: !meta.is_hidden } : meta,
+                  );
+                  mutateOptions([...question.options], nextMeta);
                 }}
               >
-                <Trash2 className="h-4 w-4 text-muted-foreground" />
+                {hidden ? (
+                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                )}
               </Button>
-            )}
-          </div>
-        ))}
+
+              {question.options.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  title="Hapus opsi — jawaban lama yang menunjuk ke opsi ini akan kehilangan labelnya"
+                  onClick={() => {
+                    const nextOptions = question.options.filter((_, index) => index !== optionIndex);
+                    const nextMeta = optionMeta.filter((_, index) => index !== optionIndex);
+                    mutateOptions(nextOptions, nextMeta);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              )}
+            </div>
+          );
+        })}
+
+        {visibleCount < question.options.length && (
+          <p className="text-xs text-muted-foreground">
+            Opsi tersembunyi tidak muncul di borang alumni, tetapi barisnya tetap
+            tersimpan di basis data sehingga jawaban lama dan pelaporan
+            kementerian tidak berubah.
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => onChange({ options: [...question.options, `Opsi ${question.options.length + 1}`] })}
+            onClick={() => {
+              const label = `Opsi ${question.options.length + 1}`;
+              mutateOptions(
+                [...question.options, label],
+                [...optionMeta, { label, code: "", is_hidden: false }],
+              );
+            }}
           >
             <Plus className="mr-2 h-4 w-4" />
             Tambah Option
