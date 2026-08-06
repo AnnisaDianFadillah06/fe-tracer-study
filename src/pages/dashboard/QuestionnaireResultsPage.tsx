@@ -9,12 +9,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { useRole } from "@/contexts/RoleContext";
-import api from "@/lib/api";
 import {
-  ArrowLeft, CheckCircle2, Loader2, Search, Users,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useRole } from "@/contexts/RoleContext";
+import { useToast } from "@/hooks/common/use-toast";
+import api from "@/lib/api";
+import { exportQuestionnaire, type ExportFormat } from "@/lib/exportQuestionnaire";
+import {
+  ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, Search, Users,
 } from "lucide-react";
 import PilihTahun from "@/components/common/PilihTahun";
+
+/** Baris per halaman pada tabel daftar kuesioner. */
+const PER_PAGE = 100;
 
 interface QForm {
   id: number;
@@ -33,7 +41,10 @@ interface QForm {
 const QuestionnaireResultsPage = () => {
   const { selectedProdi, selectedProdiId, selectedJurusan, currentRole } = useRole();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [exportingId, setExportingId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
 
   const [forms, setForms] = useState<QForm[]>([]);
   const [programMap, setProgramMap] = useState<Record<number, string>>({});
@@ -165,6 +176,34 @@ const QuestionnaireResultsPage = () => {
     total: scopedForms.length,
   }), [scopedForms]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+
+  // Daftarnya menyusut saat pencarian/angkatan berubah; tanpa ini halaman
+  // bisa tertinggal di luar rentang dan tabel tampil kosong.
+  useEffect(() => {
+    setPage(1);
+  }, [search, graduationYear, currentRole]);
+
+  const pageForms = useMemo(
+    () => filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE),
+    [filtered, page],
+  );
+
+  /** Nomor urut mengikuti posisi di seluruh daftar, bukan di halaman ini. */
+  const firstIndexOnPage = (page - 1) * PER_PAGE;
+
+  const handleExport = async (form: QForm, format: ExportFormat = "label") => {
+    setExportingId(form.id);
+    const result = await exportQuestionnaire(form, format);
+    setExportingId(null);
+
+    toast({
+      title: result.ok ? "Export berhasil" : "Gagal",
+      description: result.message,
+      variant: result.ok ? undefined : "destructive",
+    });
+  };
+
   // ── Layar kartu tahun ────────────────────────────────────────────────
   if (graduationYear === undefined) {
     return (
@@ -255,18 +294,19 @@ const QuestionnaireResultsPage = () => {
                     <TableHead>Program Studi</TableHead>
                     <TableHead>Sasaran</TableHead>
                     <TableHead>Responden</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground"><div className="flex items-center justify-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />Memuat kuesioner…</div></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="py-10 text-center text-muted-foreground"><div className="flex items-center justify-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />Memuat kuesioner…</div></TableCell></TableRow>
                   ) : isError ? (
-                    <TableRow><TableCell colSpan={5} className="py-10 text-center text-destructive">Gagal memuat kuesioner.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="py-10 text-center text-destructive">Gagal memuat kuesioner.</TableCell></TableRow>
                   ) : filtered.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">{search ? "Tidak ada kuesioner yang cocok." : "Belum ada kuesioner."}</TableCell></TableRow>
-                  ) : filtered.map((form, index) => (
+                    <TableRow><TableCell colSpan={6} className="py-10 text-center text-muted-foreground">{search ? "Tidak ada kuesioner yang cocok." : "Belum ada kuesioner."}</TableCell></TableRow>
+                  ) : pageForms.map((form, index) => (
                     <TableRow key={form.id}>
-                      <TableCell className="font-medium">{index + 1}</TableCell>
+                      <TableCell className="font-medium">{firstIndexOnPage + index + 1}</TableCell>
                       <TableCell>
                         <div className="space-y-1">
                           <p className="font-medium leading-snug">{form.title}</p>
@@ -291,11 +331,70 @@ const QuestionnaireResultsPage = () => {
                           <Users className="mr-1 h-4 w-4" />{form.response_count ?? 0} responden
                         </Button>
                       </TableCell>
+                      <TableCell className="text-right">
+                        {/* Backend membatasi isinya sendiri sesuai role: wadir dapat
+                            seluruh prodi, kajur hanya jurusannya, kaprodi hanya
+                            prodinya. Kuesioner Kementerian menawarkan dua format
+                            karena filenya juga dipakai untuk unggah ke portal. */}
+                        {form.is_global ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={exportingId === form.id || (form.response_count ?? 0) === 0}
+                                title={(form.response_count ?? 0) === 0 ? "Tidak ada responden untuk diekspor" : "Export ke Excel"}
+                              >
+                                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                                {exportingId === form.id ? "Mengekspor…" : "Export"}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-64">
+                              <DropdownMenuItem onClick={() => handleExport(form, "label")}>
+                                Teks jawaban (untuk dibaca)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleExport(form, "code")}>
+                                Kode mentah (untuk unggah DIKTI)
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={exportingId === form.id || (form.response_count ?? 0) === 0}
+                            title={(form.response_count ?? 0) === 0 ? "Tidak ada responden untuk diekspor" : "Export ke Excel"}
+                            onClick={() => handleExport(form)}
+                          >
+                            <FileSpreadsheet className="mr-2 h-4 w-4" />
+                            {exportingId === form.id ? "Mengekspor…" : "Export"}
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between gap-4 border-t border-border/60 px-4 py-3">
+                <p className="text-sm text-muted-foreground">
+                  Menampilkan {firstIndexOnPage + 1}–{Math.min(firstIndexOnPage + PER_PAGE, filtered.length)} dari {filtered.length} kuesioner
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+                    <ChevronLeft className="h-4 w-4 mr-1" aria-hidden />
+                    Sebelumnya
+                  </Button>
+                  <span className="text-sm tabular-nums">Halaman {page} / {totalPages}</span>
+                  <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>
+                    Berikutnya
+                    <ChevronRight className="h-4 w-4 ml-1" aria-hidden />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
