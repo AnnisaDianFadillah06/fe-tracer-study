@@ -29,6 +29,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -203,29 +209,69 @@ const DaftarKuisionerPage = () => {
     }
   };
 
-  const handleExport = async (form: BackendQuestionnaire) => {
+  /**
+   * @param format "label" = jawaban tampil sebagai teks (untuk dibaca),
+   *               "code"  = nilai mentah 1/2/3 (format unggah portal DIKTI).
+   */
+  const handleExport = async (form: BackendQuestionnaire, format: "label" | "code" = "label") => {
+    // Endpoint /reports/export-alumni mewajibkan tahun_lulus (satu tahun saja),
+    // supaya header sheet "Data Kementrian" tidak mencampur question_code dari
+    // periode kuesioner yang berbeda. Sumbu yang dipakai adalah Tahun Lulusan
+    // (target_graduation_years), bukan period_year (tahun pelaksanaan).
+    const tahunLulus = form.target_graduation_years?.length
+      ? Math.max(...form.target_graduation_years)
+      : form.period_year;
+
+    if (!tahunLulus) {
+      toast({
+        title: "Gagal",
+        description: "Kuisioner ini belum punya Tahun Lulusan, jadi data tidak bisa diekspor.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setExportingId(form.id);
     try {
       const response = await api.get("/reports/export-alumni", {
-        params: { questionnaire_id: form.id },
+        params: { questionnaire_id: form.id, tahun_lulus: tahunLulus, format },
         responseType: "blob",
       });
-      const url = URL.createObjectURL(response.data);
+      const blob = new Blob([response.data], {
+        type: String(response.headers["content-type"] || "application/octet-stream"),
+      });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `export_${form.code}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const suffix = format === "code" ? "_kode" : "";
+      link.download = `export_${form.code}_${tahunLulus}${suffix}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       link.click();
       URL.revokeObjectURL(url);
       toast({
         title: "Export berhasil",
-        description: `File Excel untuk "${form.title}" sedang diunduh.`,
+        description: `File Excel untuk "${form.title}" (Lulusan ${tahunLulus}) sedang diunduh.`,
       });
-    } catch {
-      toast({
-        title: "Gagal",
-        description: "Gagal mengekspor data. Pastikan Anda sudah login sebagai admin.",
-        variant: "destructive",
-      });
+    } catch (err: any) {
+      // responseType blob bikin body error ikut jadi Blob, jadi pesan asli dari
+      // API harus dibaca ulang sebagai teks supaya tidak selalu tampil
+      // "pastikan sudah login" untuk error yang sebenarnya bukan soal auth.
+      let message = "Gagal mengekspor data.";
+      const status = err?.response?.status;
+      try {
+        const raw = err?.response?.data;
+        const text = raw instanceof Blob ? await raw.text() : null;
+        const parsed = text ? JSON.parse(text) : raw;
+        const firstError = parsed?.errors
+          ? (Object.values(parsed.errors)[0] as string[] | undefined)?.[0]
+          : undefined;
+        message = firstError || parsed?.message || message;
+      } catch {
+        // body bukan JSON — pakai pesan default
+      }
+      if (status === 401 || status === 403) {
+        message = "Sesi Anda tidak punya akses untuk mengekspor data. Silakan login ulang sebagai admin.";
+      }
+      toast({ title: "Gagal", description: message, variant: "destructive" });
     } finally {
       setExportingId(null);
     }
@@ -485,20 +531,53 @@ const DaftarKuisionerPage = () => {
                               <Edit className="mr-2 h-4 w-4" />
                               Edit
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={exportingId === form.id || (form.response_count ?? 0) === 0}
-                              title={
-                                (form.response_count ?? 0) === 0
-                                  ? "Tidak ada responden untuk diekspor"
-                                  : "Export ke Excel"
-                              }
-                              onClick={() => handleExport(form)}
-                            >
-                              <FileSpreadsheet className="mr-2 h-4 w-4" />
-                              {exportingId === form.id ? "Mengekspor..." : "Export"}
-                            </Button>
+                            {/* Kuesioner Kementerian punya dua kegunaan file yang
+                                berbeda (dibaca vs diunggah ke portal DIKTI), jadi
+                                tombolnya menawarkan pilihan format. Kuesioner
+                                tambahan prodi hanya pernah dibaca manusia, jadi
+                                tombolnya langsung mengekspor versi teks. */}
+                            {form.is_global ? (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={exportingId === form.id || (form.response_count ?? 0) === 0}
+                                    title={
+                                      (form.response_count ?? 0) === 0
+                                        ? "Tidak ada responden untuk diekspor"
+                                        : "Export ke Excel"
+                                    }
+                                  >
+                                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                                    {exportingId === form.id ? "Mengekspor..." : "Export"}
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-64">
+                                  <DropdownMenuItem onClick={() => handleExport(form, "label")}>
+                                    Teks jawaban (untuk dibaca)
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleExport(form, "code")}>
+                                    Kode mentah (untuk unggah DIKTI)
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={exportingId === form.id || (form.response_count ?? 0) === 0}
+                                title={
+                                  (form.response_count ?? 0) === 0
+                                    ? "Tidak ada responden untuk diekspor"
+                                    : "Export ke Excel"
+                                }
+                                onClick={() => handleExport(form)}
+                              >
+                                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                                {exportingId === form.id ? "Mengekspor..." : "Export"}
+                              </Button>
+                            )}
                             <Button
                               variant="destructive"
                               size="sm"
