@@ -25,6 +25,7 @@ import KpiOverviewPage from "./pages/dashboard/kpi/KpiOverviewPage";
 import ComparePage from "./pages/dashboard/ComparePage";
 import ProfilePage from "./pages/dashboard/ProfilePage";
 import AlumniDataPage from "./pages/dashboard/AlumniDataPage";
+import StakeholderContactsPage from "./pages/dashboard/StakeholderContactsPage";
 import QuestionnaireResultsPage from "./pages/dashboard/QuestionnaireResultsPage";
 
 // Konfigurasi OLAP / ETL
@@ -120,6 +121,10 @@ const App = () => (
                 <Route path="/dashboard/form-management/new/preview" element={<ProtectedRoute permission="admin.questionnaire"><FormPreviewPage /></ProtectedRoute>} />
                 <Route path="/dashboard/form-management/:formId/preview" element={<ProtectedRoute permission="admin.questionnaire"><FormPreviewPage /></ProtectedRoute>} />
                 <Route path="/dashboard/form-management/:formId/respondents" element={<ProtectedRoute permission="admin.questionnaire"><FormRespondentsPage /></ProtectedRoute>} />
+
+                {/* Kontak penilai — Ketua Tracer & Tim Tracer, sejalan dengan
+                    gate role:head_tracer,tracer_team di routes/api.php. */}
+                <Route path="/dashboard/stakeholder-contacts" element={<ProtectedRoute permission="admin.stakeholder"><StakeholderContactsPage /></ProtectedRoute>} />
 
                 {/* Akademik (Kaprodi / Kajur / Head Tracer) */}
                 <Route path="/dashboard/alumni-data" element={<ProtectedRoute permission="academic.alumni_data"><AlumniDataPage /></ProtectedRoute>} />

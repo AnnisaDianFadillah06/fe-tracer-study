@@ -15,6 +15,7 @@ import {
   Gauge,
   FileText,
   Globe,
+  Contact,
 } from "lucide-react";
 
 // ── Role definitions ─────────────────────────────────────────────────────────
@@ -70,6 +71,11 @@ export type Permission =
   // Ketua Tracer secara spesifik, jadi tidak menumpang admin.master yang juga
   // dipegang tracer_team.
   | "admin.public_report"
+  // Kontak penilai (atasan/senior/rekan yang disebut alumni). Isinya data
+  // pribadi pihak ketiga dan endpoint-nya tidak berlingkup prodi, jadi BE
+  // menggate /api/stakeholder-contacts dengan role:head_tracer,tracer_team —
+  // merekalah yang mengirim email blast penilaian.
+  | "admin.stakeholder"
   | "academic.alumni_data"
   | "academic.questionnaire_results"
   | "questionnaire.fill";
@@ -88,6 +94,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "admin.approval",
     "admin.master",
     "admin.public_report",
+    "admin.stakeholder",
   ],
   tracer_team: [
     "dashboard.overview",
@@ -98,6 +105,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "admin.questionnaire",
     "admin.questionnaire.request",
     "admin.approval",
+    "admin.stakeholder",
   ],
   wadir: [
     "dashboard.overview",
@@ -200,6 +208,7 @@ const adminItems: MenuItem[] = [
     },
   },
   { title: "Master Data", href: "/dashboard/master-data", icon: Building2, description: "Prodi, provinsi, kota", permission: "admin.master" },
+  { title: "Kontak Penilai", href: "/dashboard/stakeholder-contacts", icon: Contact, description: "Atasan & rekan yang disebut alumni, untuk survei penilaian", permission: "admin.stakeholder" },
   { title: "Laporan Publik", href: "/dashboard/public-reports", icon: FileText, description: "Unggah laporan tahunan untuk publik", permission: "admin.public_report" },
 ];
 
