@@ -979,10 +979,10 @@ const ComparePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {beTableData.map((row) => {
+                      {beTableData.map((row, __idx) => {
                         const sm = Object.fromEntries(row.statuses.map((s) => [s.label, s]));
                         return (
-                          <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                          <tr key={`${row.nama_prodi}-${__idx}`} className="border-t border-border/30 hover:bg-secondary/20">
                             <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
                             <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                             {beLabels.map((l) => {
@@ -1088,8 +1088,8 @@ const ComparePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {ksTableData.map((row) => (
-                        <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                      {ksTableData.map((row, __idx) => (
+                        <tr key={`${row.nama_prodi}-${__idx}`} className="border-t border-border/30 hover:bg-secondary/20">
                           <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
                           <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                           <td className="py-2 px-3">
@@ -1196,8 +1196,8 @@ const ComparePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {mtChartData.map((row) => (
-                        <tr key={row.fullProdi} className="border-t border-border/30 hover:bg-secondary/20">
+                      {mtChartData.map((row, __idx) => (
+                        <tr key={`${row.fullProdi}-${__idx}`} className="border-t border-border/30 hover:bg-secondary/20">
                           <td className="py-2 px-3 font-medium">{row.fullProdi}</td>
                           <td className="py-2 px-3 text-muted-foreground">{row.avg}</td>
                           {mtLabels.map((l) => (
@@ -1300,8 +1300,8 @@ const ComparePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {wsChartData.map((row) => (
-                        <tr key={row.fullProdi} className="border-t border-border/30 hover:bg-secondary/20">
+                      {wsChartData.map((row, __idx) => (
+                        <tr key={`${row.fullProdi}-${__idx}`} className="border-t border-border/30 hover:bg-secondary/20">
                           <td className="py-2 px-3 font-medium">{row.fullProdi}</td>
                           <td className="py-2 px-3 text-muted-foreground">{row.pct_wirausaha}%</td>
                           {wsLabels.map((l) => (
@@ -1407,10 +1407,10 @@ const ComparePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {(incomeTableData as PendapatanBandingkanItem[]).map((row) => {
+                      {(incomeTableData as PendapatanBandingkanItem[]).map((row, __idx) => {
                         const sm = Object.fromEntries(row.statuses.map((s) => [s.label, s]));
                         return (
-                          <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                          <tr key={`${row.nama_prodi}-${__idx}`} className="border-t border-border/30 hover:bg-secondary/20">
                             <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
                             <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                             {incomeLabels.map((l) => {
@@ -1520,10 +1520,10 @@ const ComparePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {(incomeKelompokTableData as PendapatanBandingkanItem[]).map((row) => {
+                      {(incomeKelompokTableData as PendapatanBandingkanItem[]).map((row, __idx) => {
                         const sm = Object.fromEntries(row.statuses.map((s) => [s.label, s]));
                         return (
-                          <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                          <tr key={`${row.nama_prodi}-${__idx}`} className="border-t border-border/30 hover:bg-secondary/20">
                             <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
                             <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                             {incomeKelompokLabels.map((l) => {
@@ -1628,8 +1628,8 @@ const ComparePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {(instansiBandingkanHook.data?.data ?? []).map((row) => (
-                        <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                      {(instansiBandingkanHook.data?.data ?? []).map((row, __idx) => (
+                        <tr key={`${row.nama_prodi}-${__idx}`} className="border-t border-border/30 hover:bg-secondary/20">
                           <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
                           <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                           {instansiJenisLabels.map((l) => {
@@ -1734,8 +1734,8 @@ const ComparePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {(instansiBandingkanHook.data?.data ?? []).map((row) => (
-                        <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                      {(instansiBandingkanHook.data?.data ?? []).map((row, __idx) => (
+                        <tr key={`${row.nama_prodi}-${__idx}`} className="border-t border-border/30 hover:bg-secondary/20">
                           <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
                           <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                           {instansiTingkatLabels.map((l) => {
@@ -1844,8 +1844,8 @@ const ComparePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {rrChartData.map((row) => (
-                        <tr key={row.prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                      {rrChartData.map((row, __idx) => (
+                        <tr key={`${row.prodi}-${__idx}`} className="border-t border-border/30 hover:bg-secondary/20">
                           <td className="py-2 px-3 font-medium">{row.fullProdi}</td>
                           <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                           {rrLabels.map((l) => (
@@ -1948,8 +1948,8 @@ const ComparePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {(pembiayaanBandingkanHook.data?.data ?? []).map((row) => (
-                        <tr key={row.nama_prodi} className="border-t border-border/30 hover:bg-secondary/20">
+                      {(pembiayaanBandingkanHook.data?.data ?? []).map((row, __idx) => (
+                        <tr key={`${row.nama_prodi}-${__idx}`} className="border-t border-border/30 hover:bg-secondary/20">
                           <td className="py-2 px-3 font-medium">{row.nama_prodi}</td>
                           <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                           {pembiayaanLabels.map((l) => {
@@ -2059,8 +2059,8 @@ const ComparePage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {competencyChartData.map((row) => (
-                      <tr key={row.fullProdi} className="border-t border-border/30 hover:bg-secondary/20">
+                    {competencyChartData.map((row, __idx) => (
+                      <tr key={`${row.fullProdi}-${__idx}`} className="border-t border-border/30 hover:bg-secondary/20">
                         <td className="py-2 px-3 font-medium">{row.fullProdi}</td>
                         <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                         {competencyLevels.map((l) => (
@@ -2167,8 +2167,8 @@ const ComparePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {learningChartData.map((row) => (
-                        <tr key={row.fullProdi} className="border-t border-border/30 hover:bg-secondary/20">
+                      {learningChartData.map((row, __idx) => (
+                        <tr key={`${row.fullProdi}-${__idx}`} className="border-t border-border/30 hover:bg-secondary/20">
                           <td className="py-2 px-3 font-medium">{row.fullProdi}</td>
                           <td className="py-2 px-3 text-muted-foreground">{row.total}</td>
                           {learningLevels.map((l) => (
@@ -2225,8 +2225,8 @@ const ComparePage = () => {
                   {YEARS.map((y) => <div key={y} className="flex-1 min-w-[80px] px-2 py-2 text-center text-sm font-medium">{y}</div>)}
                 </div>
                 <div className="flex flex-col gap-1">
-                  {heatmapData.map((row) => (
-                    <div key={row.prodi} className="flex gap-1">
+                  {heatmapData.map((row, __idx) => (
+                    <div key={`${row.prodi}-${__idx}`} className="flex gap-1">
                       <div className="w-48 flex-shrink-0 px-2 py-3 flex items-center bg-secondary/20 rounded-l-md">
                         <span className="text-xs font-medium truncate">{row.prodi}</span>
                       </div>
@@ -2318,8 +2318,8 @@ const ComparePage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {mockChartData.map((row) => (
-                      <tr key={row.fullProdi}>
+                    {mockChartData.map((row, __idx) => (
+                      <tr key={`${row.fullProdi}-${__idx}`}>
                         <td className="font-medium">{row.fullProdi}</td>
                         <td>{row.total}</td>
                         {categories.map((cat) => (

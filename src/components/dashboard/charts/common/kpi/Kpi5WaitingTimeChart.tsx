@@ -401,8 +401,8 @@ const Kpi5WaitingTimeChart = () => {
               </tr>
             </thead>
             <tbody>
-              {prodiSummary.map((r) => (
-                <tr key={r.prodi} className="border-b border-border/50 hover:bg-muted/40">
+              {prodiSummary.map((r, __idx) => (
+                <tr key={`${r.prodi}-${__idx}`} className="border-b border-border/50 hover:bg-muted/40">
                   <td className="py-2 px-3">{r.prodi}</td>
                   <td className="py-2 px-3 text-muted-foreground">{r.jurusan}</td>
                   <td className="py-2 px-3 text-right">{r.totalAlumni}</td>
