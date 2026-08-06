@@ -42,7 +42,9 @@ import {
   saveForms,
 } from "@/lib/formManagement";
 import api from "@/lib/api";
-import { BUILDER_DRAFT_STORAGE_KEY, createBlankFormDraft } from "@/lib/questionnaireDrafts";
+import {
+  BUILDER_DRAFT_STORAGE_KEY, createBlankFormDraft, readDraft, stampDraft,
+} from "@/lib/questionnaireDrafts";
 import {
   ArrowLeft,
   Check,
@@ -62,6 +64,7 @@ import {
 const questionTypeOptions: Array<{ value: BuilderQuestionType; label: string }> = [
   { value: "short", label: "Short Answer" },
   { value: "paragraph", label: "Paragraph" },
+  { value: "number", label: "Angka" },
   { value: "multiple_choice", label: "Multiple Choice" },
   { value: "checkbox", label: "Checkboxes" },
   { value: "dropdown", label: "Dropdown" },
@@ -76,6 +79,16 @@ const questionTypeOptions: Array<{ value: BuilderQuestionType; label: string }> 
 ];
 
 const PREVIEW_DRAFT_KEY = "tracer_form_preview_draft";
+
+/**
+ * Nilai penanda "tanpa format" pada dropdown Format isian.
+ *
+ * Radix Select menolak SelectItem bernilai string kosong — nilai kosong
+ * dipakainya untuk menandakan "belum ada pilihan". Jadi ketiadaan format
+ * diwakili penanda ini, lalu diterjemahkan kembali menjadi undefined saat
+ * disimpan.
+ */
+const NO_FORMAT = "__bebas__";
 
 const normalizeTargets = (data: FormListItem): FormListItem => {
   const rawTarget = (data as { target?: string | string[] }).target;
@@ -156,21 +169,23 @@ const FormBuilderPage = () => {
   const sourceForm = existingForms.find((item) => item.id === formId);
 
   const builderDraft = useMemo(() => {
-    if (typeof window === "undefined") return null;
     const key = formId ? `${BUILDER_DRAFT_STORAGE_KEY}:${formId}` : `${BUILDER_DRAFT_STORAGE_KEY}:new`;
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? (JSON.parse(raw) as FormListItem) : null;
-    } catch {
-      return null;
-    }
+    return readDraft<FormListItem>(key);
   }, [formId]);
+
+  /** Kuesioner tersimpan: bentuknya ditentukan server, bukan salinan lokal. */
+  const isServerQuestionnaire = Boolean(formId && /^\d+$/.test(formId));
 
   const [form, setForm] = useState<FormListItem>(() => {
     if (builderDraft) {
       return ensureFirstQuestionRequired(ensureQuestionLogic(normalizeTargets(builderDraft)));
     }
-    if (sourceForm) {
+    // Salinan di localStorage sengaja TIDAK dipakai menyemai kuesioner yang
+    // hidup di server. Ia bisa jauh lebih tua daripada datanya, dan karena
+    // borang sempat tergambar dengan bentuk lama sebelum permintaan selesai,
+    // pertanyaan angka bisa terlihat sebagai skala walau server mengirim
+    // angka. Layar tunggu lebih jujur daripada gambaran yang salah.
+    if (sourceForm && !isServerQuestionnaire) {
       const cloned = JSON.parse(JSON.stringify(sourceForm)) as FormListItem;
       return ensureFirstQuestionRequired(ensureQuestionLogic(normalizeTargets(cloned)));
     }
@@ -179,6 +194,27 @@ const FormBuilderPage = () => {
   });
 
   const [isLoadingForm, setIsLoadingForm] = useState(() => Boolean(formId && /^\d+$/.test(formId)));
+  /**
+   * Apakah kuesioner berhasil diambil dari server.
+   *
+   * Layar "tidak ditemukan" dulu hanya melihat daftar lokal dan draf di
+   * localStorage. Untuk kuesioner yang hidup di basis data, keduanya memang
+   * kosong pada kunjungan pertama, sehingga begitu pengambilan selesai layar
+   * itu muncul — padahal datanya sudah di tangan. Kunjungan berikutnya
+   * "sembuh" hanya karena draf sudah tersimpan di localStorage, yang membuat
+   * gejalanya tampak acak.
+   */
+  const [isFetchedFromApi, setIsFetchedFromApi] = useState(false);
+  /**
+   * Kuesionernya sudah tidak ada di server (404).
+   *
+   * Dibedakan dari kegagalan lain karena draf di localStorage bisa hidup lebih
+   * lama daripada kuesionernya. Tanpa penanda ini, membuka kembali kuesioner
+   * yang sudah dihapus akan tampak berhasil — draf lama dimuat seolah-olah
+   * datanya masih ada — dan baru gagal saat disimpan, dengan galat yang tidak
+   * menjelaskan apa pun.
+   */
+  const [isMissingOnServer, setIsMissingOnServer] = useState(false);
   const [targetGraduationYears, setTargetGraduationYears] = useState<number[]>([]);
 
   // Fetch from API when editing a backend questionnaire
@@ -189,6 +225,10 @@ const FormBuilderPage = () => {
 
     const fetchFromApi = async () => {
       setIsLoadingForm(true);
+      // Berpindah ke kuesioner lain berarti hasil pengambilan sebelumnya
+      // tidak berlaku lagi.
+      setIsFetchedFromApi(false);
+      setIsMissingOnServer(false);
       try {
         const { data } = await api.get(`/questionnaires/${formId}`);
         if (data.success && data.data) {
@@ -203,17 +243,30 @@ const FormBuilderPage = () => {
             } catch { /* ignore */ }
           }
           setForm(ensureFirstQuestionRequired(ensureQuestionLogic(normalizeTargets(converted))));
+          setIsFetchedFromApi(true);
           if (data.data.target_graduation_years) {
             setTargetGraduationYears(data.data.target_graduation_years);
           }
         }
       } catch (err) {
         console.error("[FormBuilder] Failed to fetch questionnaire from API:", err);
-        toast({
-          title: "Gagal",
-          description: "Tidak dapat memuat data kuesioner dari server.",
-          variant: "destructive",
-        });
+
+        if ((err as { response?: { status?: number } }).response?.status === 404) {
+          setIsMissingOnServer(true);
+
+          // Draf lokalnya ikut dibuang. Kalau dibiarkan, muat ulang berikutnya
+          // akan membuka kuesioner yang sudah tidak ada seolah-olah masih
+          // hidup — inilah yang membuat gejalanya tampak muncul-hilang.
+          if (typeof window !== "undefined") {
+            localStorage.removeItem(`${BUILDER_DRAFT_STORAGE_KEY}:${formId}`);
+          }
+        } else {
+          toast({
+            title: "Gagal",
+            description: "Tidak dapat memuat data kuesioner dari server.",
+            variant: "destructive",
+          });
+        }
       } finally {
         setIsLoadingForm(false);
       }
@@ -402,7 +455,7 @@ const FormBuilderPage = () => {
     if (typeof window === "undefined") return undefined;
     const key = formId ? `${BUILDER_DRAFT_STORAGE_KEY}:${formId}` : `${BUILDER_DRAFT_STORAGE_KEY}:new`;
     const timer = window.setTimeout(() => {
-      localStorage.setItem(key, JSON.stringify(form));
+      localStorage.setItem(key, JSON.stringify(stampDraft(form)));
     }, 400);
 
     return () => {
@@ -628,7 +681,7 @@ const FormBuilderPage = () => {
 
   const openPreview = () => {
     if (typeof window !== "undefined") {
-      localStorage.setItem(PREVIEW_DRAFT_KEY, JSON.stringify(form));
+      localStorage.setItem(PREVIEW_DRAFT_KEY, JSON.stringify(stampDraft(form)));
       const previewPath = isEditMode && formId
         ? `/dashboard/form-management/${formId}/preview`
         : "/dashboard/form-management/new/preview";
@@ -647,13 +700,21 @@ const FormBuilderPage = () => {
     );
   }
 
-  if (isEditMode && !sourceForm && !isLoadingForm && !builderDraft) {
+  // Dua sebab berbeda, satu layar: kuesionernya sudah dihapus di server, atau
+  // memang tidak ada di mana pun. Penanda isFetchedFromApi mencegah layar ini
+  // muncul setelah pengambilan yang justru BERHASIL — dulu itu terjadi pada
+  // kunjungan pertama, ketika daftar lokal dan draf sama-sama masih kosong.
+  if (isEditMode && !isLoadingForm && (isMissingOnServer || (!sourceForm && !builderDraft && !isFetchedFromApi))) {
     return (
       <div className="grid min-h-screen place-items-center bg-background px-6">
         <Card className="w-full max-w-md">
           <CardContent className="space-y-3 py-8 text-center">
             <h1 className="text-xl font-semibold">Kuisioner tidak ditemukan</h1>
-            <p className="text-sm text-muted-foreground">Data kuisioner yang ingin Anda edit tidak tersedia.</p>
+            <p className="text-sm text-muted-foreground">
+              {isMissingOnServer
+                ? "Kuisioner ini sudah tidak ada di server — kemungkinan sudah dihapus. Salinan lokalnya ikut dibersihkan."
+                : "Data kuisioner yang ingin Anda edit tidak tersedia."}
+            </p>
             <Button onClick={() => navigate("/dashboard/form-management")}>Kembali ke Manajemen Kuisioner</Button>
           </CardContent>
         </Card>
@@ -960,6 +1021,136 @@ const FormBuilderPage = () => {
                             question={question}
                             onChange={(patch) => updateQuestion(section.id, question.id, patch)}
                           />
+
+                          {/* Bantuan pengisian — semuanya opsional, dan
+                              tersimpan di metadata pertanyaan, sehingga bisa
+                              diubah tanpa deploy. Perender formulir alumni dan
+                              pratinjau membaca kunci yang sama. */}
+                          <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium">Bantuan Pengisian</p>
+                              <p className="text-xs text-muted-foreground">
+                                Opsional. Kosongkan bila pertanyaannya sudah jelas dengan sendirinya.
+                              </p>
+                            </div>
+
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Keterangan</Label>
+                                <Input
+                                  value={question.description ?? ""}
+                                  onChange={(event) =>
+                                    updateQuestion(section.id, question.id, { description: event.target.value })
+                                  }
+                                  placeholder="Kalimat penjelas di bawah pertanyaan"
+                                  maxLength={300}
+                                />
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-xs">Petunjuk pengisian</Label>
+                                <Input
+                                  value={question.hint ?? ""}
+                                  onChange={(event) =>
+                                    updateQuestion(section.id, question.id, { hint: event.target.value })
+                                  }
+                                  placeholder="Contoh: nama@email.com"
+                                  maxLength={300}
+                                />
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-xs">Format isian</Label>
+                                <Select
+                                  value={question.format ?? NO_FORMAT}
+                                  onValueChange={(value) =>
+                                    updateQuestion(section.id, question.id, {
+                                      format: value === NO_FORMAT ? undefined : (value as BuilderQuestion["format"]),
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value={NO_FORMAT}>Bebas</SelectItem>
+                                    {question.type === "number" ? (
+                                      <SelectItem value="currency">Rupiah</SelectItem>
+                                    ) : (
+                                      <>
+                                        <SelectItem value="email">Email</SelectItem>
+                                        <SelectItem value="phone">Nomor telepon</SelectItem>
+                                        <SelectItem value="url">Tautan (URL)</SelectItem>
+                                      </>
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                  {question.type === "number"
+                                    ? "Rupiah menampilkan “Terbaca: Rp 5.000.000” di bawah isian dan membersihkan titik atau koma yang terlanjur diketik."
+                                    : "Jawaban yang tidak sesuai format ditolak, di peramban maupun di server."}
+                                </p>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-xs">Pemisah sebelum pertanyaan</Label>
+                                <Input
+                                  value={question.dividerLabel ?? ""}
+                                  onChange={(event) =>
+                                    updateQuestion(section.id, question.id, { dividerLabel: event.target.value })
+                                  }
+                                  placeholder="Contoh: Penilai 1"
+                                  maxLength={300}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Garis bertajuk untuk memisahkan kelompok pertanyaan yang berpasangan.
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Batas kewajaran hanya masuk akal untuk isian
+                                angka, dan sengaja TIDAK menolak jawaban —
+                                gunanya menangkap salah ketik nol, bukan
+                                menghalangi alumni yang nilainya memang di
+                                luar kebiasaan. */}
+                            {question.type === "number" && (
+                              <div className="space-y-2 border-t border-border/70 pt-3">
+                                <div className="space-y-1">
+                                  <p className="text-sm font-medium">Batas kewajaran</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Di luar rentang ini alumni mendapat peringatan kuning, tapi jawabannya tetap bisa dikirim.
+                                    Kosongkan bila tidak perlu.
+                                  </p>
+                                </div>
+                                <div className="grid gap-3 md:grid-cols-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Batas bawah</Label>
+                                    <Input
+                                      type="number"
+                                      value={question.warnMin ?? ""}
+                                      onChange={(event) =>
+                                        updateQuestion(section.id, question.id, {
+                                          warnMin: event.target.value === "" ? undefined : Number(event.target.value),
+                                        })
+                                      }
+                                      placeholder="Contoh: 1000000"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Batas atas</Label>
+                                    <Input
+                                      type="number"
+                                      value={question.warnMax ?? ""}
+                                      onChange={(event) =>
+                                        updateQuestion(section.id, question.id, {
+                                          warnMax: event.target.value === "" ? undefined : Number(event.target.value),
+                                        })
+                                      }
+                                      placeholder="Contoh: 200000000"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
 
                           <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
                             <div className="flex flex-wrap items-center justify-between gap-3">

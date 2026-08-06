@@ -50,6 +50,49 @@ const SANITY_RANGES: Record<string, { min?: number; max?: number; messageMin?: s
 export const CURRENCY_CODES = new Set(["f505"]);
 
 /**
+ * Apakah isian ini bernilai uang.
+ *
+ * Dua sumber: daftar kode bawaan di atas, dan setelan `format: "currency"`
+ * yang bisa dipilih Tim Tracer di borang penyunting. Yang kedua membuat
+ * kuesioner baru bisa punya perilaku rupiah yang sama tanpa menyentuh kode.
+ */
+export function isCurrencyQuestion(q: Question): boolean {
+  const meta = (q.metadata ?? {}) as Record<string, unknown>;
+
+  return CURRENCY_CODES.has(q.code ?? q.id) || meta.format === "currency";
+}
+
+/**
+ * Batas kewajaran yang berlaku untuk sebuah pertanyaan.
+ *
+ * Setelan per pertanyaan menang atas daftar bawaan — Tim Tracer yang menyetel
+ * batas berarti sudah memutuskan, dan keputusan itu tidak boleh ditimpa nilai
+ * yang tertulis di kode.
+ */
+function sanityRangeFor(q: Question): { min?: number; max?: number; messageMin?: string; messageMax?: string } | undefined {
+  const meta = (q.metadata ?? {}) as Record<string, unknown>;
+  const min = typeof meta.warn_min === "number" ? meta.warn_min : undefined;
+  const max = typeof meta.warn_max === "number" ? meta.warn_max : undefined;
+
+  if (min !== undefined || max !== undefined) {
+    const asText = (n: number) => (isCurrencyQuestion(q) ? formatRupiah(n) : formatNumber(n));
+
+    return {
+      min,
+      max,
+      messageMin: min !== undefined
+        ? `Nilainya di bawah batas wajar (${asText(min)}). Mohon diperiksa kembali.`
+        : undefined,
+      messageMax: max !== undefined
+        ? `Nilainya di atas batas wajar (${asText(max)}). Mohon diperiksa kembali.`
+        : undefined,
+    };
+  }
+
+  return SANITY_RANGES[q.code ?? q.id];
+}
+
+/**
  * Bersihkan input value dari pemisah ribuan yang biasa diketik pengguna.
  *
  * Alumni terbiasa mengetik "5.000.000" atau "5,000,000". Menolak mentah-mentah
@@ -91,7 +134,7 @@ export function hintFor(q: Question): string | null {
       : "Pilih dari daftar. Ketik untuk mencari.";
   }
 
-  if (CURRENCY_CODES.has(code)) {
+  if (isCurrencyQuestion(q)) {
     return "Isi angka saja, tanpa titik atau koma. Contoh: 5000000";
   }
 
@@ -107,8 +150,9 @@ export function hintFor(q: Question): string | null {
 
   if (q.backendType === "date") return "Format tanggal: dd/mm/yyyy";
 
-  if (code === "telpomsmh") return "Contoh: 081234567890";
+  if (code === "telpomsmh" || meta.format === "phone") return "Contoh: 081234567890";
   if (code === "emailmsmh" || meta.format === "email") return "Contoh: nama@email.com";
+  if (meta.format === "url") return "Contoh: https://contoh.ac.id";
   if (code === "nik") return "16 digit, angka saja tanpa spasi.";
   if (code === "npwp") return "15 atau 16 digit, angka saja. Kosongkan bila belum punya.";
 
@@ -149,7 +193,7 @@ export function validateAnswer(q: Question, answer: unknown): ValidationResult {
 
       if (!/^-?\d+([.]\d+)?$/.test(cleaned)) {
         return {
-          error: CURRENCY_CODES.has(code)
+          error: isCurrencyQuestion(q)
             ? "Harus berupa angka. Tulis tanpa titik, koma, atau huruf. Contoh: 5000000"
             : "Harus berupa angka. Contoh: 6",
         };
@@ -168,7 +212,7 @@ export function validateAnswer(q: Question, answer: unknown): ValidationResult {
       }
 
       // Batas kewajaran: peringatan saja, pengisian tetap boleh dilanjutkan.
-      const range = SANITY_RANGES[code];
+      const range = sanityRangeFor(q);
       if (range) {
         if (range.min != null && value < range.min) return { warning: range.messageMin };
         if (range.max != null && value > range.max) return { warning: range.messageMax };
@@ -187,14 +231,22 @@ export function validateAnswer(q: Question, answer: unknown): ValidationResult {
 
     case "short_text":
       if (text.length > 500) return { error: "Maksimal 500 karakter." };
-      // Selain isian email identitas, pertanyaan mana pun boleh menandai
-      // dirinya sebagai surel lewat metadata.format — dipakai kontak penilai,
-      // dan aturannya sama dengan `email` di SubmitTracerStudyRequest.
-      const wantsEmail =
-        code === "emailmsmh" ||
-        ((q.metadata ?? {}) as Record<string, unknown>).format === "email";
-      if (wantsEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+      // Selain isian identitas, pertanyaan mana pun boleh menandai formatnya
+      // lewat metadata.format — disetel Tim Tracer di borang penyunting, dan
+      // aturannya sama dengan yang ditegakkan SubmitTracerStudyRequest.
+      const format = ((q.metadata ?? {}) as Record<string, unknown>).format;
+
+      if ((code === "emailmsmh" || format === "email") && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
         return { error: "Format email tidak valid. Contoh: nama@email.com" };
+      }
+      if (format === "phone" || code === "telpomsmh") {
+        const digits = text.replace(/[^\d]/g, "");
+        if (digits.length < 9 || digits.length > 15) {
+          return { error: "Nomor telepon harus 9–15 digit. Contoh: 081234567890" };
+        }
+      }
+      if (format === "url" && !/^https?:\/\/[^\s.]+\.[^\s]{2,}$/i.test(text)) {
+        return { error: "Tautan harus diawali http:// atau https://. Contoh: https://contoh.ac.id" };
       }
       if (code === "telpomsmh") {
         const digits = text.replace(/[^\d]/g, "");

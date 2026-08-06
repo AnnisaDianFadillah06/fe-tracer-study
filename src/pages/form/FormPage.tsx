@@ -27,7 +27,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  hintFor, parseNumericInput, formatRupiah, formatNumber, CURRENCY_CODES,
+  hintFor, parseNumericInput, formatRupiah, formatNumber, isCurrencyQuestion,
 } from "@/lib/formValidation";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import PolbanLogo from "@/components/common/PolbanLogo";
@@ -537,13 +537,13 @@ const AnswerField = ({
           value={text}
           onChange={(e) => setAnswer(q.id, e.target.value)}
           onBlur={onBlur}
-          placeholder={CURRENCY_CODES.has(q.code ?? "") ? "5000000" : "0"}
+          placeholder={isCurrencyQuestion(q) ? "5000000" : "0"}
         />
-        {numeric !== null && (showPreview || CURRENCY_CODES.has(q.code ?? "")) && (
+        {numeric !== null && (showPreview || isCurrencyQuestion(q)) && (
           <p className="text-xs text-muted-foreground">
             Terbaca:{" "}
             <span className="font-medium text-foreground">
-              {CURRENCY_CODES.has(q.code ?? "") ? formatRupiah(numeric) : formatNumber(numeric)}
+              {isCurrencyQuestion(q) ? formatRupiah(numeric) : formatNumber(numeric)}
             </span>
             {showPreview && <span> — dikirim sebagai {cleaned}</span>}
           </p>
