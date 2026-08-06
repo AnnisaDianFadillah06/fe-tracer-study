@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,8 @@ const FormPage = () => {
     discardDraft,
     section,
     isLastSection,
+    sectionPosition,
+    sectionCount,
     progressPercent,
     isLoadingForms,
     isSubmitting,
@@ -247,9 +249,9 @@ const FormPage = () => {
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => window.open(`${import.meta.env.VITE_API_URL ?? "/api"}/programs/download`, "_blank")}>Kode Prodi</Button>
           </div>
         )}
-        {sections.length > 1 && (
+        {sectionCount > 1 && (
           <div className="text-right text-xs text-muted-foreground">
-            Bagian {currentSection + 1} dari {sections.length}
+            Bagian {sectionPosition} dari {sectionCount}
           </div>
         )}
 
@@ -309,8 +311,20 @@ const FormPage = () => {
             {section.questions
               .filter((q) => isQuestionVisible(q, answers, section.questions))
               .map((q) => (
+              <Fragment key={q.id}>
+              {/* Pemisah bertajuk di antara kelompok pertanyaan yang saling
+                  berpasangan — mis. "Penilai 1" di atas pasangan nama dan
+                  surelnya. Satu pertanyaan tetap satu kartu, jadi tanpa ini
+                  enam kartu beruntun terbaca sebagai satu daftar panjang. */}
+              {typeof q.metadata?.divider_label === "string" && (
+                <div className="flex items-center gap-3 pt-4 pb-1 first:pt-0">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground shrink-0">
+                    {q.metadata.divider_label}
+                  </span>
+                  <span className="h-px flex-1 bg-border" aria-hidden />
+                </div>
+              )}
               <Card
-                key={q.id}
                 // data-question-id dipakai penggulir otomatis untuk membawa
                 // pengguna ke pertanyaan bermasalah pertama.
                 data-question-id={q.id}
@@ -371,10 +385,11 @@ const FormPage = () => {
                   ) : null}
                 </CardContent>
               </Card>
+              </Fragment>
             ))}
 
             <div className="flex justify-between pt-2">
-              {currentSection > 0 ? (
+              {sectionPosition > 1 ? (
                 <Button type="button" variant="outline" onClick={handleBack}>
                   Sebelumnya
                 </Button>

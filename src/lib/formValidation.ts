@@ -108,7 +108,7 @@ export function hintFor(q: Question): string | null {
   if (q.backendType === "date") return "Format tanggal: dd/mm/yyyy";
 
   if (code === "telpomsmh") return "Contoh: 081234567890";
-  if (code === "emailmsmh") return "Contoh: nama@email.com";
+  if (code === "emailmsmh" || meta.format === "email") return "Contoh: nama@email.com";
   if (code === "nik") return "16 digit, angka saja tanpa spasi.";
   if (code === "npwp") return "15 atau 16 digit, angka saja. Kosongkan bila belum punya.";
 
@@ -187,7 +187,13 @@ export function validateAnswer(q: Question, answer: unknown): ValidationResult {
 
     case "short_text":
       if (text.length > 500) return { error: "Maksimal 500 karakter." };
-      if (code === "emailmsmh" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+      // Selain isian email identitas, pertanyaan mana pun boleh menandai
+      // dirinya sebagai surel lewat metadata.format — dipakai kontak penilai,
+      // dan aturannya sama dengan `email` di SubmitTracerStudyRequest.
+      const wantsEmail =
+        code === "emailmsmh" ||
+        ((q.metadata ?? {}) as Record<string, unknown>).format === "email";
+      if (wantsEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
         return { error: "Format email tidak valid. Contoh: nama@email.com" };
       }
       if (code === "telpomsmh") {
@@ -245,6 +251,21 @@ export function validateCrossField(answersByCode: Record<string, unknown>): Reco
   }
   if (responded === null && applied !== null && interviewed !== null && interviewed > applied) {
     errors.f7a = `Tidak boleh lebih banyak daripada jumlah lamaran yang dikirim (${formatNumber(applied)}).`;
+  }
+
+  // Kontak penilai selalu berpasangan. Nama tanpa surel tidak bisa dikirimi
+  // kuesioner penilaian, dan surel tanpa nama tidak bisa disapa — keduanya
+  // ditolak backend saat diproyeksikan ke stakeholder_contacts, jadi lebih
+  // baik ketahuan di sini daripada hilang diam-diam setelah dikirim.
+  for (const no of [1, 2, 3]) {
+    const nameFilled = !isEmpty(answersByCode[`stk${no}_nama`]);
+    const emailFilled = !isEmpty(answersByCode[`stk${no}_email`]);
+
+    if (nameFilled && !emailFilled) {
+      errors[`stk${no}_email`] = "Surelnya belum diisi. Nama dan surel harus lengkap agar kontak ini bisa dipakai.";
+    } else if (emailFilled && !nameFilled) {
+      errors[`stk${no}_nama`] = "Namanya belum diisi. Nama dan surel harus lengkap agar kontak ini bisa dipakai.";
+    }
   }
 
   return errors;

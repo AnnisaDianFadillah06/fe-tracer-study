@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useToast } from "@/hooks/common/use-toast";
 import api from "@/lib/api";
 import type { FormSection, Question, Option } from "@/hooks/form/useQuestionManagement";
@@ -840,6 +840,41 @@ export const useTracerForm = (
   };
 
   // ── Navigation ────────────────────────────────────────────────────────────
+  //
+  // Sebagian bagian isinya bersyarat seluruhnya: "Studi Lanjut" hanya untuk
+  // f8 = 4, "Kontak Penilai" hanya untuk f8 = 1/3/4. Tanpa penyaringan di
+  // bawah, alumni yang tidak memenuhi syarat tetap melewati halaman berisi
+  // judul tanpa satu pun pertanyaan — dan ikut terhitung pada "Bagian X dari
+  // Y". Yang dilewati hanya bagian yang memang punya pertanyaan bersyarat;
+  // bagian kosong karena kuesionernya memang belum diisi tetap ditampilkan.
+  const visibleSectionIdx = useMemo(() => {
+    const idx = sections
+      .map((_, i) => i)
+      .filter((i) => {
+        const qs = sections[i].questions;
+        if (qs.length === 0) return true;
+        return qs.some((q) => isQuestionVisible(q, answers, qs));
+      });
+
+    return idx.length > 0 ? idx : sections.map((_, i) => i);
+  }, [sections, answers]);
+
+  /**
+   * Bagian yang sedang dibuka bisa mendadak tersembunyi — misalnya alumni
+   * kembali ke belakang lalu mengubah f8 dari "Melanjutkan Pendidikan"
+   * menjadi "Bekerja". Kalau itu terjadi, geser ke bagian terlihat terdekat
+   * supaya layar tidak membeku pada halaman tanpa isi.
+   */
+  useEffect(() => {
+    if (sections.length === 0) return;
+    if (visibleSectionIdx.includes(currentSection)) return;
+
+    const fallback =
+      [...visibleSectionIdx].reverse().find((i) => i < currentSection) ??
+      visibleSectionIdx[0];
+    setCurrentSection(fallback);
+  }, [visibleSectionIdx, currentSection, sections.length]);
+
   const handleNext = () => {
     const { errors, warnings, issueList } = checkSection(currentSection);
     setErrors(errors);
@@ -852,12 +887,18 @@ export const useTracerForm = (
       return;
     }
 
-    setCurrentSection((prev) => prev + 1);
+    const next = visibleSectionIdx.find((i) => i > currentSection);
+    if (next === undefined) return;
+
+    setCurrentSection(next);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleBack = () => {
-    setCurrentSection((prev) => prev - 1);
+    const prev = [...visibleSectionIdx].reverse().find((i) => i < currentSection);
+    if (prev === undefined) return;
+
+    setCurrentSection(prev);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -1023,12 +1064,15 @@ export const useTracerForm = (
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const progressPercent =
-    sections.length > 0
-      ? ((currentSection + 1) / sections.length) * 100
-      : 0;
+  // Penomoran mengikuti bagian yang benar-benar dilalui alumni, bukan seluruh
+  // bagian kuesioner — kalau tidak, "Bagian 3 dari 11" bisa melompat ke
+  // "Bagian 5 dari 11" begitu dua bagian bersyarat dilewati.
+  const sectionPosition = Math.max(visibleSectionIdx.indexOf(currentSection), 0) + 1;
+  const sectionCount = visibleSectionIdx.length;
+
+  const progressPercent = sectionCount > 0 ? (sectionPosition / sectionCount) * 100 : 0;
   const section = sections[currentSection];
-  const isLastSection = currentSection === sections.length - 1;
+  const isLastSection = visibleSectionIdx.every((i) => i <= currentSection);
 
   return {
     sections,
@@ -1043,6 +1087,8 @@ export const useTracerForm = (
     discardDraft,
     section,
     isLastSection,
+    sectionPosition,
+    sectionCount,
     progressPercent,
     isLoadingForms,
     isSubmitting,
