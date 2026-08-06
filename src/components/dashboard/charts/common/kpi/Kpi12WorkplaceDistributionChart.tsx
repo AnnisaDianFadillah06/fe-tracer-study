@@ -236,7 +236,7 @@ const Kpi12WorkplaceDistributionChart = () => {
                       onClick={(d: any) =>
                         openModal(
                           `${label} — ${d.prodi} (${d[label] ?? 0}% · ${d[`${label}_count`] ?? 0} alumni)`,
-                          { tingkat_instansi: label, nama_prodi: d.prodi }
+                          { tingkat_instansi: label, nama_prodi: d.prodi, tahun_lulus: displayTahun }
                         )
                       }
                       activeBar={{ stroke: "hsl(var(--foreground))", strokeWidth: 1.5 } as any}

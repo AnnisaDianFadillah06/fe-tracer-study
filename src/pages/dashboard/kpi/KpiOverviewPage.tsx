@@ -13,6 +13,7 @@ import {
   Kpi10LearningPerceptionChart,
   Kpi11FundingSourceChart,
   Kpi12WorkplaceDistributionChart,
+  Kpi13InstitutionComparisonChart,
 } from "@/components/dashboard/charts/common";
 
 const KpiOverviewPage = () => {
@@ -124,6 +125,14 @@ const KpiOverviewPage = () => {
           desc="Pie level instansi + Grouped bar antar periode."
         >
           <Kpi12WorkplaceDistributionChart />
+        </KpiSection>
+
+        <KpiSection
+          no="13"
+          title="Perbandingan KPI Lintas Program Studi"
+          desc="Bar chart institusi-wide, warna bar mengikuti status threshold LAM (Unggul/Baik/Kurang)."
+        >
+          <Kpi13InstitutionComparisonChart />
         </KpiSection>
       </div>
     </DashboardLayout>

@@ -223,7 +223,7 @@ const Kpi7EntrepreneurshipChart = () => {
                 >
                   {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
                 </Pie>
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n) => [`${v}%`, n]} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n, p: any) => [`${v}% (${p?.payload?.count ?? 0} alumni)`, n]} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>

@@ -18,7 +18,7 @@ import { C, tooltipStyle, KpiCard } from "../KpiCard";
 import { MethodologyBlock } from "./Methodology";
 import { markMax } from "./format";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
-import { useMasaTungguBar, useMasaTungguDistribusi, useMasaTungguDrillDown } from "@/hooks/useMasaTunggu";
+import { useMasaTungguBar, useMasaTungguDistribusi, useMasaTungguDrillDown, usePolaPencarianKerja, useMasaTungguPrediksi } from "@/hooks/useMasaTunggu";
 import { useKpiFormula, findFormulaGroup } from "@/hooks/useKpiFormula";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
@@ -35,6 +35,8 @@ const Kpi5WaitingTimeChart = () => {
   const barHook        = useMasaTungguBar(batasCepatBulan);
   const distribusiHook = useMasaTungguDistribusi();
   const drillHook      = useMasaTungguDrillDown();
+  const polaHook       = usePolaPencarianKerja();
+  const prediksiHook   = useMasaTungguPrediksi();
 
   // Label angka bulan yang ditampilkan (fallback 6 kalau belum ada konteks LAM/prodi).
   const batasLabel = batasCepatBulan ?? 6;
@@ -85,6 +87,94 @@ const Kpi5WaitingTimeChart = () => {
         total: v.total,
       }));
   }, [barHook.data]);
+
+  // FR-025: ringkasan rata-rata & median masa tunggu per prodi (weighted
+  // average lintas tahun yang sedang tampil di filter global) — dipakai
+  // tabel ringkasan di bawah, terpisah dari comboData (yang mengagregasi
+  // per tahun, lintas prodi).
+  //
+  // Catatan kejujuran statistik untuk kolom median: median TIDAK linear
+  // (tidak seperti rata-rata), jadi "rata-rata dari beberapa median per
+  // tahun" BUKAN median sebenarnya lintas tahun -- itu butuh data mentah
+  // per-alumni yang tidak tersedia lewat measure Cube.js teragregasi ini.
+  // Kalau hanya 1 tahun aktif di filter (kasus paling umum), nilainya PAS
+  // (median asli tahun tsb). Kalau "semua tahun", kolom ini adalah
+  // pendekatan (rata-rata median per tahun, weighted by jumlah alumni) --
+  // cukup representatif untuk ranking cepat/lambat antar prodi, tapi bukan
+  // definisi median murni.
+  const prodiSummary = useMemo(() => {
+    if (!barHook.data?.data) return [];
+    const byProdi = new Map<string, {
+      jenjang: string; jurusan: string;
+      totalAlumni: number; totalCepat: number; weightedWaktu: number; weightedMedian: number;
+    }>();
+    barHook.data.data.forEach((d) => {
+      const cur = byProdi.get(d.nama_prodi) ?? { jenjang: d.jenjang, jurusan: d.jurusan, totalAlumni: 0, totalCepat: 0, weightedWaktu: 0, weightedMedian: 0 };
+      byProdi.set(d.nama_prodi, {
+        jenjang: cur.jenjang,
+        jurusan: cur.jurusan,
+        totalAlumni:    cur.totalAlumni    + d.count_alumni,
+        totalCepat:     cur.totalCepat     + d.count_masa_tunggu_cepat,
+        weightedWaktu:  cur.weightedWaktu  + d.avg_masa_tunggu_bekerja * d.count_alumni,
+        weightedMedian: cur.weightedMedian + d.median_masa_tunggu_bekerja * d.count_alumni,
+      });
+    });
+    return [...byProdi.entries()]
+      .map(([prodi, v]) => ({
+        prodi,
+        jenjang: v.jenjang,
+        jurusan: v.jurusan,
+        totalAlumni: v.totalAlumni,
+        avgMasaTunggu: v.totalAlumni > 0 ? Math.round((v.weightedWaktu / v.totalAlumni) * 10) / 10 : 0,
+        medianMasaTunggu: v.totalAlumni > 0 ? Math.round((v.weightedMedian / v.totalAlumni) * 10) / 10 : 0,
+        pctCepat: v.totalAlumni > 0 ? Math.round((v.totalCepat / v.totalAlumni) * 100 * 10) / 10 : 0,
+      }))
+      .sort((a, b) => a.avgMasaTunggu - b.avgMasaTunggu);
+  }, [barHook.data]);
+
+  // FR-027: gabungkan titik historis + 1 titik prediksi jadi satu seri chart,
+  // dengan garis solid untuk historis dan garis putus-putus untuk prediksi.
+  // Titik historis terakhir diduplikasi ke kolom "predicted" supaya garis
+  // putus-putus tersambung visual dari titik terakhir, bukan melompat.
+  const prediksiChartData = useMemo(() => {
+    const d = prediksiHook.data;
+    if (!d || d.historis.length === 0) return [];
+    const rows: { tahun: string; actual: number | null; predicted: number | null }[] =
+      d.historis.map((h) => ({ tahun: h.tahun_lulus, actual: h.median, predicted: null }));
+    if (d.prediksi && rows.length > 0) {
+      rows[rows.length - 1].predicted = rows[rows.length - 1].actual;
+      rows.push({ tahun: d.prediksi.tahun_lulus, actual: null, predicted: d.prediksi.median });
+    }
+    return rows;
+  }, [prediksiHook.data]);
+
+  // FR-026: rata-rata bulan sebelum lulus mulai cari kerja — konteks penjelas
+  // pola masa tunggu (bukan chart besar berdiri sendiri). Weighted average
+  // lintas prodi/tahun yang sedang tampil di filter global.
+  const polaPencarian = useMemo(() => {
+    const rows = polaHook.data?.data ?? [];
+    if (rows.length === 0) return null;
+    let totalAlumni = 0, weightedTunggu = 0;
+    let totalSebelum = 0, weightedSebelum = 0;
+    let totalSesudah = 0, weightedSesudah = 0;
+    rows.forEach((r) => {
+      totalAlumni    += r.count_alumni;
+      weightedTunggu += r.avg_masa_tunggu_bekerja * r.count_alumni;
+      totalSebelum    += r.count_mulai_sebelum;
+      weightedSebelum += r.avg_bulan_sebelum_lulus * r.count_mulai_sebelum;
+      totalSesudah    += r.count_mulai_sesudah;
+      weightedSesudah += r.avg_bulan_sesudah_lulus * r.count_mulai_sesudah;
+    });
+    if (totalAlumni === 0) return null;
+    const totalMulai = totalSebelum + totalSesudah;
+    return {
+      avgMasaTunggu:    Math.round((weightedTunggu / totalAlumni) * 10) / 10,
+      avgSebelumLulus:  totalSebelum > 0 ? Math.round((weightedSebelum / totalSebelum) * 10) / 10 : null,
+      avgSesudahLulus:  totalSesudah > 0 ? Math.round((weightedSesudah / totalSesudah) * 10) / 10 : null,
+      pctMulaiSebelum:  totalMulai > 0 ? Math.round((totalSebelum / totalMulai) * 1000) / 10 : 0,
+      pctMulaiSesudah:  totalMulai > 0 ? Math.round((totalSesudah / totalMulai) * 1000) / 10 : 0,
+    };
+  }, [polaHook.data]);
 
   // Aggregate distribusi: semua prodi/tahun → total per rentang
   const distData = useMemo(() => {
@@ -249,6 +339,114 @@ const Kpi5WaitingTimeChart = () => {
           </div>
         </KpiCard>
       </div>
+
+      {/* ── FR-026: Konteks pola pencarian kerja (sebelum/sesudah lulus + durasi) ── */}
+      {polaPencarian && (
+        <div className="glass-card p-4 flex flex-wrap items-center gap-6">
+          <div>
+            <p className="text-xs text-muted-foreground">Mulai cari kerja sebelum lulus</p>
+            <p className="text-lg font-semibold">
+              {polaPencarian.pctMulaiSebelum.toFixed(1)}%
+              {polaPencarian.avgSebelumLulus != null && (
+                <span className="text-sm font-normal text-muted-foreground"> · rata-rata {polaPencarian.avgSebelumLulus.toFixed(1)} bulan sebelum</span>
+              )}
+            </p>
+          </div>
+          <div className="h-8 w-px bg-border" />
+          <div>
+            <p className="text-xs text-muted-foreground">Mulai cari kerja sesudah lulus</p>
+            <p className="text-lg font-semibold">
+              {polaPencarian.pctMulaiSesudah.toFixed(1)}%
+              {polaPencarian.avgSesudahLulus != null && (
+                <span className="text-sm font-normal text-muted-foreground"> · rata-rata {polaPencarian.avgSesudahLulus.toFixed(1)} bulan sesudah</span>
+              )}
+            </p>
+          </div>
+          <div className="h-8 w-px bg-border" />
+          <div>
+            <p className="text-xs text-muted-foreground">Rata-rata masa tunggu hingga bekerja</p>
+            <p className="text-lg font-semibold">{polaPencarian.avgMasaTunggu.toFixed(1)} bulan</p>
+          </div>
+          <p className="text-xs text-muted-foreground max-w-md">
+            Konteks tambahan untuk membaca pola masa tunggu di atas: kapan alumni mulai mencari kerja
+            relatif terhadap kelulusan, dan berapa lama sampai akhirnya bekerja.
+          </p>
+        </div>
+      )}
+
+      {/* ── FR-025: Tabel ringkasan rata-rata masa tunggu per prodi ── */}
+      <KpiCard
+        loading={isLoading} error={hasError}
+        empty={!isLoading && prodiSummary.length === 0}
+        title="Ringkasan Masa Tunggu per Program Studi"
+        subtitle="Rata-rata & median masa tunggu kerja (bulan) diurutkan tercepat ke terlama."
+        methodology={
+          <MethodologyBlock
+            description="Rata-rata dan median masa tunggu kerja per program studi, dihitung berbobot jumlah alumni lintas tahun kelulusan yang sedang tampil di filter."
+            formula={<>Rata-rata (bln) = Σ(avg_masa_tunggu_tahun × jumlah_alumni_tahun) / Σ(jumlah_alumni_tahun)</>}
+            notes="Kolom median memakai measure percentile_cont(0.5) langsung dari Cube.js. Saat filter tahun tunggal, nilainya median asli tahun tsb.; saat 'semua tahun' dipilih, nilainya adalah rata-rata berbobot dari median per tahun — pendekatan yang representatif untuk ranking, bukan median murni lintas tahun (median tidak bisa digabung linear seperti rata-rata)."
+          />
+        }
+      >
+        <div className="overflow-x-auto max-h-96">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-card">
+              <tr className="border-b border-border text-muted-foreground text-left">
+                <th className="py-2 px-3 font-medium">Program Studi</th>
+                <th className="py-2 px-3 font-medium">Jurusan</th>
+                <th className="py-2 px-3 font-medium text-right">Total Alumni</th>
+                <th className="py-2 px-3 font-medium text-right">Rata-rata (bln)</th>
+                <th className="py-2 px-3 font-medium text-right">Median (bln)</th>
+                <th className="py-2 px-3 font-medium text-right">% ≤ {batasLabel} bln</th>
+              </tr>
+            </thead>
+            <tbody>
+              {prodiSummary.map((r) => (
+                <tr key={r.prodi} className="border-b border-border/50 hover:bg-muted/40">
+                  <td className="py-2 px-3">{r.prodi}</td>
+                  <td className="py-2 px-3 text-muted-foreground">{r.jurusan}</td>
+                  <td className="py-2 px-3 text-right">{r.totalAlumni}</td>
+                  <td className="py-2 px-3 text-right font-medium">{r.avgMasaTunggu.toFixed(1)}</td>
+                  <td className="py-2 px-3 text-right font-medium">{r.medianMasaTunggu.toFixed(1)}</td>
+                  <td className="py-2 px-3 text-right">{r.pctCepat.toFixed(1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </KpiCard>
+
+      {/* ── FR-027: Prediksi tren median masa tunggu periode berikutnya ── */}
+      <KpiCard
+        loading={prediksiHook.loading} error={prediksiHook.error}
+        empty={!prediksiHook.loading && prediksiChartData.length === 0}
+        emptyMessage="Data historis belum cukup untuk membuat proyeksi (minimal 3 tahun)."
+        title="Prediksi Tren Median Masa Tunggu"
+        subtitle="Proyeksi periode berikutnya berbasis tren linier data historis (semua prodi, sesuai filter aktif)."
+        methodology={
+          <MethodologyBlock
+            description="Prediksi median masa tunggu kerja untuk tahun kelulusan berikutnya, dihitung dari regresi linier atas median tahun-tahun sebelumnya."
+            formula={<>median(tahun) ≈ slope × tahun + intercept</>}
+            notes={prediksiHook.data?.metodologi.catatan ?? "Proyeksi berbasis tren linier data historis; bukan jaminan, hanya estimasi arah tren."}
+          />
+        }
+      >
+        <div className="h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={prediksiChartData} margin={{ top: 20, right: 30, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+              <XAxis dataKey="tahun" fontSize={12} stroke="hsl(var(--muted-foreground))" />
+              <YAxis tickFormatter={(v) => `${v} bln`} fontSize={12} stroke="hsl(var(--muted-foreground))" />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                formatter={(v: number, n: string) => [`${v} bulan`, n === "actual" ? "Historis" : "Prediksi"]}
+              />
+              <Line type="monotone" dataKey="actual" name="Historis" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
+              <Line type="monotone" dataKey="predicted" name="Prediksi" stroke={C.orange} strokeWidth={2.5} strokeDasharray="6 3" dot={{ r: 4 }} connectNulls />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </KpiCard>
 
       {/* ── Drill-down Modal ── */}
       <DrillDownModal

@@ -17,6 +17,7 @@ export interface MasaTungguBarItem {
   count_masa_tunggu_cepat: number;
   pct_cepat: number;
   avg_masa_tunggu_bekerja: number;
+  median_masa_tunggu_bekerja: number;
 }
 
 export interface MasaTungguBarResponse {
@@ -75,6 +76,25 @@ export interface MasaTungguBandingkanResponse {
   filters: Record<string, string>;
   prodi_list: string[];
   data: MasaTungguBandingkanItem[];
+}
+
+// FR-026: pola pencarian kerja — bulan sebelum/sesudah lulus mulai cari kerja + durasi
+export interface PolaPencarianKerjaItem {
+  nama_prodi: string;
+  jenjang: string;
+  jurusan: string;
+  tahun_lulus: string;
+  count_alumni: number;
+  avg_bulan_sebelum_lulus: number;
+  avg_bulan_sesudah_lulus: number;
+  count_mulai_sebelum: number;
+  count_mulai_sesudah: number;
+  avg_masa_tunggu_bekerja: number;
+}
+
+export interface PolaPencarianKerjaResponse {
+  filters: Record<string, string>;
+  data: PolaPencarianKerjaItem[];
 }
 
 const BE_READY = true;
@@ -294,4 +314,81 @@ export function useMasaTungguBandingkan(enabled: boolean) {
   }, [enabled, paramKey]);
 
   return { data, loading, error };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook: usePolaPencarianKerja (FR-026)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// FR-027: prediksi tren median masa tunggu periode berikutnya
+export interface MasaTungguPrediksiPoint {
+  tahun_lulus: string;
+  median: number;
+  count_alumni?: number;
+  is_prediksi: boolean;
+}
+
+export interface MasaTungguPrediksiResponse {
+  filters: Record<string, string>;
+  historis: MasaTungguPrediksiPoint[];
+  prediksi: { tahun_lulus: string; median: number; is_prediksi: boolean } | null;
+  metodologi: {
+    metode: string;
+    jumlah_titik_historis: number;
+    slope?: number;
+    intercept?: number;
+    catatan: string;
+  };
+}
+
+export function useMasaTungguPrediksi() {
+  const { degree, jurusan, prodi, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
+
+  const params = useMemo(() => {
+    const p: Record<string, string> = {};
+    if (degree  && degree  !== "__all__") p.jenjang         = degree;
+    if (jurusan && jurusan !== "__all__") p.jurusan         = jurusan;
+    if (prodi   && prodi   !== "__all__") p.nama_prodi      = prodi;
+    if (weekKey)                          p.minggu_snapshot = weekKey;
+    return p;
+  }, [degree, jurusan, prodi, weekKey]);
+
+  const result = useQuery<MasaTungguPrediksiResponse>({
+    queryKey: ["masa-tunggu", "prediksi", params, updatedTs],
+    queryFn: ({ signal }) =>
+      apiService.get<any>("/dashboard/masa-tunggu/prediksi", { params, signal })
+        .then((res) => res?.data ?? res),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return {
+    data: result.data ?? null,
+    loading: result.isLoading,
+    error: (result.error as Error | null)?.message ?? null,
+  };
+}
+
+export function usePolaPencarianKerja() {
+  const { degree, jurusan, prodi, tahunLulus, weekKey, lastUpdatedAt } = useGlobalFilters();
+  const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
+
+  const params = useMemo(
+    () => buildParams(degree, jurusan, prodi, tahunLulus, weekKey),
+    [degree, jurusan, prodi, tahunLulus, weekKey]
+  );
+
+  const result = useQuery<PolaPencarianKerjaResponse>({
+    queryKey: ["masa-tunggu", "pola-pencarian", params, updatedTs],
+    queryFn: ({ signal }) =>
+      apiService.get<any>("/dashboard/masa-tunggu/pola-pencarian", { params, signal })
+        .then((res) => res?.data ?? res),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return {
+    data: result.data ?? null,
+    loading: result.isLoading,
+    error: (result.error as Error | null)?.message ?? null,
+  };
 }

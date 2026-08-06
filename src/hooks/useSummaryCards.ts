@@ -64,7 +64,7 @@ export function useOverviewSummary() {
 // ─── Education / Analisis Capaian Lulusan ────────────────────────────────────
 
 export interface EducationSummaryCards {
-  skor_kompetensi: { value: number; hint: string };
+  skor_kompetensi: { label: string; value: number; hint: string };
   gap_terbesar: { label: string; gap: number; hint: string };
   metode_terbaik: { label: string; skor: number; hint: string };
   avg_persepsi: { value: number; hint: string };
