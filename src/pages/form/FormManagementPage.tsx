@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import TablePagination from "@/components/common/TablePagination";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -551,35 +552,13 @@ const DaftarKuisionerPage = () => {
                 </TableBody>
               </Table>
             </div>
-            {paginationMeta.lastPage > 1 && (
-              <div className="flex items-center justify-between pt-4 border-t">
-                <p className="text-sm text-muted-foreground">Menampilkan halaman {paginationMeta.currentPage} dari {paginationMeta.lastPage} ({paginationMeta.total} kuesioner)</p>
-                <div className="flex items-center gap-1">
-                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(1)}>
-                    <span className="sr-only">First</span>«
-                  </Button>
-                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                    <span className="sr-only">Prev</span>‹
-                  </Button>
-                  {Array.from({ length: Math.min(5, paginationMeta.lastPage) }, (_, i) => {
-                    const start = Math.max(1, Math.min(page - 2, paginationMeta.lastPage - 4));
-                    const p = start + i;
-                    if (p > paginationMeta.lastPage) return null;
-                    return (
-                      <Button key={p} variant={p === page ? "default" : "outline"} size="icon" className="h-8 w-8" onClick={() => setPage(p)}>
-                        {p}
-                      </Button>
-                    );
-                  })}
-                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= paginationMeta.lastPage} onClick={() => setPage(page + 1)}>
-                    <span className="sr-only">Next</span>›
-                  </Button>
-                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= paginationMeta.lastPage} onClick={() => setPage(paginationMeta.lastPage)}>
-                    <span className="sr-only">Last</span>»
-                  </Button>
-                </div>
-              </div>
-            )}
+            <TablePagination
+              page={paginationMeta.currentPage}
+              totalPages={paginationMeta.lastPage}
+              total={paginationMeta.total}
+              itemLabel="kuesioner"
+              onPageChange={setPage}
+            />
           </CardContent>
         </Card>
       </div>

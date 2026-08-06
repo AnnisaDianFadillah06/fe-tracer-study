@@ -17,9 +17,10 @@ import { useToast } from "@/hooks/common/use-toast";
 import api from "@/lib/api";
 import { exportQuestionnaire, type ExportFormat } from "@/lib/exportQuestionnaire";
 import {
-  ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, Search, Users,
+  ArrowLeft, CheckCircle2, FileSpreadsheet, Loader2, Search, Users,
 } from "lucide-react";
 import PilihTahun from "@/components/common/PilihTahun";
+import TablePagination from "@/components/common/TablePagination";
 
 /** Baris per halaman pada tabel daftar kuesioner. */
 const PER_PAGE = 100;
@@ -377,24 +378,14 @@ const QuestionnaireResultsPage = () => {
               </Table>
             </div>
 
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between gap-4 border-t border-border/60 px-4 py-3">
-                <p className="text-sm text-muted-foreground">
-                  Menampilkan {firstIndexOnPage + 1}–{Math.min(firstIndexOnPage + PER_PAGE, filtered.length)} dari {filtered.length} kuesioner
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
-                    <ChevronLeft className="h-4 w-4 mr-1" aria-hidden />
-                    Sebelumnya
-                  </Button>
-                  <span className="text-sm tabular-nums">Halaman {page} / {totalPages}</span>
-                  <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>
-                    Berikutnya
-                    <ChevronRight className="h-4 w-4 ml-1" aria-hidden />
-                  </Button>
-                </div>
-              </div>
-            )}
+            <TablePagination
+              page={page}
+              totalPages={totalPages}
+              total={filtered.length}
+              perPage={PER_PAGE}
+              itemLabel="kuesioner"
+              onPageChange={setPage}
+            />
           </CardContent>
         </Card>
       </div>

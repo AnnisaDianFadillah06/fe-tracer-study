@@ -75,9 +75,15 @@ export async function exportQuestionnaire(
       tahunLulus,
       message: `File Excel untuk "${form.title}" (Lulusan ${tahunLulus}) sedang diunduh.`,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return { ok: false, message: await readErrorMessage(err) };
   }
+}
+
+/** Bentuk body galat yang dikirim backend Laravel. */
+interface ApiErrorBody {
+  message?: string;
+  errors?: Record<string, string[]>;
 }
 
 /**
@@ -85,22 +91,26 @@ export async function exportQuestionnaire(
  * harus dibaca ulang sebagai teks. Tanpa ini galat validasi (mis. tahun_lulus
  * kosong) terbaca sebagai masalah akses.
  */
-async function readErrorMessage(err: any): Promise<string> {
-  const status = err?.response?.status;
+async function readErrorMessage(err: unknown): Promise<string> {
+  const response = (err as { response?: { status?: number; data?: unknown } })?.response;
 
-  if (status === 401 || status === 403) {
+  if (response?.status === 401 || response?.status === 403) {
     return "Sesi Anda tidak punya akses untuk mengekspor data. Silakan login ulang.";
   }
 
+  const fallback = "Gagal mengekspor data.";
+
   try {
-    const raw = err?.response?.data;
-    const text = raw instanceof Blob ? await raw.text() : null;
-    const parsed = text ? JSON.parse(text) : raw;
-    const firstError = parsed?.errors
-      ? (Object.values(parsed.errors)[0] as string[] | undefined)?.[0]
-      : undefined;
-    return firstError || parsed?.message || "Gagal mengekspor data.";
+    const raw = response?.data;
+    const parsed: ApiErrorBody | undefined = raw instanceof Blob
+      ? JSON.parse(await raw.text())
+      : (raw as ApiErrorBody | undefined);
+
+    const firstError = parsed?.errors ? Object.values(parsed.errors)[0]?.[0] : undefined;
+
+    return firstError || parsed?.message || fallback;
   } catch {
-    return "Gagal mengekspor data.";
+    // Body bukan JSON (mis. halaman galat HTML) -- pesan bawaan saja.
+    return fallback;
   }
 }
