@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,18 +15,65 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { type BuilderQuestion, type FormListItem, getInitialForms, backendToFormListItem, visibleOptions } from "@/lib/formManagement";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowLeft, Info, Loader2 } from "lucide-react";
+import {
+  formatNumber, formatRupiah, hintFor, parseNumericInput, validateAnswer, validateCrossField,
+} from "@/lib/formValidation";
 import api from "@/lib/api";
+import { readDraft } from "@/lib/questionnaireDrafts";
 import LookupCombobox from "@/components/form/LookupCombobox";
 
 interface PreviewLocationState {
   form?: FormListItem;
 }
 
+/**
+ * Terjemahkan pertanyaan bentuk penyunting ke bentuk yang dipakai formulir
+ * alumni.
+ *
+ * hintFor() dan validateAnswer() dirancang untuk bentuk pertanyaan milik
+ * formulir alumni, sedangkan pratinjau memegang bentuk penyunting. Dijembatani
+ * di sini alih-alih menyalin aturannya, supaya pratinjau tidak pelan-pelan
+ * menyimpang dari apa yang sebenarnya dialami alumni — justru itu gunanya
+ * pratinjau.
+ *
+ * `id` pertanyaan di penyunting adalah kode pertanyaannya, jadi aturan yang
+ * bersandar pada kode (NIK 16 digit, NPWP, pendapatan dalam rupiah) ikut
+ * berlaku di sini tanpa perlakuan khusus.
+ */
+const toRendererQuestion = (question: BuilderQuestion) => {
+  const isScale = question.type === "linear_scale" || question.type === "rating";
+  const backendType = question.type === "date"
+    ? "date"
+    : isScale || question.type === "number"
+      ? "number"
+      : "short_text";
+
+  return {
+    id: question.id,
+    code: question.id,
+    question: question.question,
+    required: question.required,
+    backendType,
+    lookup: question.lookup,
+    metadata: {
+      hint: question.hint,
+      format: question.format,
+      warn_min: question.warnMin,
+      warn_max: question.warnMax,
+      ...(isScale ? { scale_min: question.scaleMin, scale_max: question.scaleMax } : {}),
+    },
+  } as unknown as Parameters<typeof hintFor>[0];
+};
+
+const previewHint = (question: BuilderQuestion): string | null =>
+  hintFor(toRendererQuestion(question));
+
 const PREVIEW_DRAFT_KEY = "tracer_form_preview_draft";
 const SUPPORTED_DEMO_TYPES = new Set([
   "short",
   "paragraph",
+  "number",
   "multiple_choice",
   "checkbox",
   "dropdown",
@@ -40,46 +87,6 @@ const SUPPORTED_DEMO_TYPES = new Set([
   "time",
 ]);
 
-const getScaleLabels = (min: number, max: number, customLabels?: string[]) => {
-  const count = Math.max(0, max - min + 1);
-  const hasCustom = Array.isArray(customLabels) && customLabels.some((label) => label.trim() !== "");
-  if (count === 5) {
-    return [
-      "Sangat tidak setuju",
-      "Tidak setuju",
-      "Netral",
-      "Setuju",
-      "Sangat setuju",
-    ];
-  }
-  if (count === 4) {
-    return ["Sangat buruk", "Buruk", "Baik", "Sangat baik"];
-  }
-  if (count === 3) {
-    return ["Rendah", "Sedang", "Tinggi"];
-  }
-  if (count === 7) {
-    return [
-      "Sangat rendah",
-      "Rendah",
-      "Agak rendah",
-      "Netral",
-      "Agak tinggi",
-      "Tinggi",
-      "Sangat tinggi",
-    ];
-  }
-  const defaults = Array.from({ length: count }, (_, index) => `Nilai ${min + index}`);
-
-  if (!hasCustom || !customLabels) {
-    return defaults;
-  }
-
-  return defaults.map((fallback, index) => {
-    const label = customLabels[index]?.trim();
-    return label ? label : fallback;
-  });
-};
 
 const isQuestionVisible = (
   question: BuilderQuestion,
@@ -112,13 +119,10 @@ const FormPreviewPage = () => {
   const isStudentMode = searchParams.get("mode") === "student";
 
   const draftForm = useMemo(() => {
-    if (!isDraftMode || typeof window === "undefined") return null;
-    try {
-      const raw = localStorage.getItem(PREVIEW_DRAFT_KEY);
-      return raw ? (JSON.parse(raw) as FormListItem) : null;
-    } catch {
-      return null;
-    }
+    if (!isDraftMode) return null;
+    // Draf berversi: salinan dari aplikasi versi lama diabaikan, bukan
+    // dipakai — lihat BUILDER_DRAFT_SCHEMA_VERSION.
+    return readDraft<FormListItem>(PREVIEW_DRAFT_KEY);
   }, [isDraftMode]);
 
   const fallbackForm = useMemo(() => {
@@ -129,24 +133,34 @@ const FormPreviewPage = () => {
   const [apiForm, setApiForm] = useState<FormListItem | null>(null);
   const [apiLoading, setApiLoading] = useState(false);
 
+  // Kuesioner yang sudah tersimpan SELALU diambil ulang dari server.
+  //
+  // Dulu salinan di localStorage (getInitialForms) didahulukan, dan karena
+  // salinan itu hampir selalu ada, permintaan ke server tidak pernah
+  // dijalankan. Akibatnya pratinjau menampilkan bentuk lama — pertanyaan
+  // pendapatan tetap tampil sebagai skala 1-5 walau di basis data sudah
+  // bertipe angka. Salinan lokal tetap dipakai, tapi hanya sebagai jaring
+  // pengaman kalau permintaannya gagal.
   useEffect(() => {
-    const localForm = state.form ?? draftForm ?? fallbackForm;
-    if (!localForm && formId && !apiLoading) {
-      setApiLoading(true);
-      api.get(`/questionnaires/${formId}`).then(({ data }) => {
-        if (data.success && data.data) {
-          setApiForm(backendToFormListItem(data.data));
-        }
-      }).catch(() => {}).finally(() => setApiLoading(false));
-    }
-  }, [formId, state.form, draftForm, fallbackForm]);
+    if (state.form || draftForm) return;
+    if (!formId || !/^\d+$/.test(formId)) return;
 
-  const form = state.form ?? draftForm ?? fallbackForm ?? apiForm;
+    setApiLoading(true);
+    api.get(`/questionnaires/${formId}`).then(({ data }) => {
+      if (data.success && data.data) {
+        setApiForm(backendToFormListItem(data.data));
+      }
+    }).catch(() => {}).finally(() => setApiLoading(false));
+  }, [formId, state.form, draftForm]);
+
+  const form = state.form ?? draftForm ?? apiForm ?? fallbackForm;
 
   const [answers, setAnswers] = useState<
     Record<string, string | number | string[] | Record<string, string> | Record<string, string[]>>
   >({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  /** Peringatan lunak — nilainya sah, tapi patut dikonfirmasi ulang. */
+  const [warnings, setWarnings] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [currentSection, setCurrentSection] = useState(0);
 
@@ -160,6 +174,16 @@ const FormPreviewPage = () => {
 
   const section = form.sections[currentSection];
   const isLastSection = currentSection === form.sections.length - 1;
+
+  /**
+   * Bagian yang dirender sekaligus.
+   *
+   * Pratinjau untuk pembuat borang menampilkan seluruh kuesioner dalam satu
+   * halaman — yang dicari di sana adalah gambaran utuh, dan menelusuri sebelas
+   * halaman hanya untuk memeriksa satu pertanyaan justru menghalanginya.
+   * Mode pengisian alumni tetap berhalaman.
+   */
+  const sectionsToRender = isStudentMode ? (section ? [section] : []) : form.sections;
 
   const backToBuilder = () => {
     if (isStudentMode) {
@@ -192,35 +216,81 @@ const FormPreviewPage = () => {
   const resetDemo = () => {
     setAnswers({});
     setErrors({});
+    setWarnings({});
     setSubmitted(false);
     setCurrentSection(0);
+  };
+
+  /**
+   * Periksa satu pertanyaan saja — dipanggil saat isiannya ditinggalkan.
+   *
+   * Sama seperti formulir alumni: kesalahan ketik ketahuan begitu pengguna
+   * berpindah isian, bukan ditahan sampai menekan tombol lanjut. Yang kosong
+   * tidak diapa-apakan di sini; "wajib diisi" baru relevan saat berpindah
+   * bagian, dan memerahkan isian yang belum sempat disentuh hanya membuat
+   * halaman terlihat rusak.
+   */
+  const validateQuestion = (question: BuilderQuestion) => {
+    const result = validateAnswer(toRendererQuestion(question), answers[question.id]);
+
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (result.error) next[question.id] = result.error;
+      else delete next[question.id];
+      return next;
+    });
+    setWarnings((prev) => {
+      const next = { ...prev };
+      if (result.warning) next[question.id] = result.warning;
+      else delete next[question.id];
+      return next;
+    });
   };
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     const nextErrors: Record<string, string> = {};
+    const nextWarnings: Record<string, string> = {};
 
-    section?.questions.forEach((question) => {
-      if (!question.required) return;
+    // Jawaban berkunci KODE, untuk validasi silang antar-pertanyaan.
+    const byCode: Record<string, unknown> = {};
+
+    // Seluruh bagian yang sedang tampil ikut diperiksa — di mode read-only
+    // itu berarti seisi kuesioner sekaligus.
+    const questionsToCheck = sectionsToRender.flatMap((sec) =>
+      sec.questions.map((question) => ({ question, siblings: sec.questions })),
+    );
+
+    questionsToCheck.forEach(({ question, siblings }) => {
       if (!SUPPORTED_DEMO_TYPES.has(question.type)) return;
-      if (!isQuestionVisible(question, answers, section.questions)) return;
+      if (!isQuestionVisible(question, answers, siblings)) return;
 
-      const value = answers[question.id];
-      const isEmpty =
-        value === undefined ||
-        value === null ||
-        (typeof value === "string" && value.trim() === "") ||
-        (Array.isArray(value) && value.length === 0);
+      byCode[question.id] = answers[question.id];
 
-      if (isEmpty) {
-        nextErrors[question.id] = "Pertanyaan ini wajib diisi.";
+      // Aturan yang sama persis dengan formulir alumni: wajib-tapi-kosong,
+      // tipe, panjang, format, rentang skala, dan kewajaran nilai. Sebelumnya
+      // pratinjau hanya memeriksa wajib-tapi-kosong, sehingga isian ngawur
+      // seperti "a" pada kolom surel lolos di sini tapi ditolak saat alumni
+      // benar-benar mengisi — persis kebalikan dari gunanya pratinjau.
+      const result = validateAnswer(toRendererQuestion(question), answers[question.id]);
+      if (result.error) {
+        nextErrors[question.id] = result.error;
+      } else if (result.warning) {
+        nextWarnings[question.id] = result.warning;
       }
     });
 
+    for (const [code, message] of Object.entries(validateCrossField(byCode))) {
+      if (!nextErrors[code]) nextErrors[code] = message;
+    }
+
     setErrors(nextErrors);
+    setWarnings(nextWarnings);
     if (Object.keys(nextErrors).length > 0) return;
 
-    if (isLastSection) {
+    // Read-only sudah menampilkan semuanya, jadi lolos pemeriksaan berarti
+    // selesai — tidak ada bagian berikutnya untuk dituju.
+    if (!isStudentMode || isLastSection) {
       setSubmitted(true);
       return;
     }
@@ -294,13 +364,14 @@ const FormPreviewPage = () => {
           </Card>
         ) : section ? (
           <form onSubmit={handleSubmit} className="space-y-5">
-            {form.sections.length > 1 && (
+            {isStudentMode && form.sections.length > 1 && (
               <div className="text-right text-xs text-muted-foreground">
                 Bagian {currentSection + 1} dari {form.sections.length}
               </div>
             )}
 
-            <Card className="shadow-sm">
+            {sectionsToRender.map((section) => (
+            <Card key={section.id} className="shadow-sm">
               <CardContent className="space-y-5 p-6">
                 <div>
                   <h3 className="text-lg font-semibold">{section.title}</h3>
@@ -312,34 +383,114 @@ const FormPreviewPage = () => {
                 {section.questions
                   .filter((question) => isQuestionVisible(question, answers, section.questions))
                   .map((question) => (
-                    <div key={question.id} className="space-y-3 rounded-lg border p-4">
+                    <Fragment key={question.id}>
+                    {question.dividerLabel && (
+                      <div className="flex items-center gap-3 pt-2">
+                        <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {question.dividerLabel}
+                        </span>
+                        <span className="h-px flex-1 bg-border" aria-hidden />
+                      </div>
+                    )}
+                    <div
+                      className={`space-y-3 rounded-lg border p-4 ${
+                        errors[question.id]
+                          ? "border-destructive"
+                          : warnings[question.id]
+                            ? "border-amber-500/60"
+                            : ""
+                      }`}
+                    >
                       <Label className="text-sm font-medium leading-snug">
                         {question.question || "Pertanyaan belum diisi"}
                         {question.required && <span className="ml-1 text-destructive">*</span>}
                       </Label>
+                      {question.description && (
+                        <p className="text-sm text-muted-foreground">{question.description}</p>
+                      )}
+                      {/* Petunjuk dihitung dengan fungsi yang sama seperti
+                          formulir alumni, jadi pratinjau menampilkan persis
+                          yang nanti dilihat pengisi — termasuk petunjuk
+                          otomatis yang diturunkan dari tipe pertanyaan. */}
+                      {previewHint(question) && (
+                        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                          <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+                          {previewHint(question)}
+                        </p>
+                      )}
                       <InteractiveQuestionPreview
                         question={question}
                         value={answers[question.id]}
-                        onChange={(value) =>
-                          setAnswers((prev) => ({ ...prev, [question.id]: value }))
+                        onChange={(value) => {
+                          setAnswers((prev) => {
+                            const next = { ...prev, [question.id]: value };
+
+                            // Jawaban turunan menjadi mustahil begitu induknya
+                            // berganti — kab/kota dari provinsi lain. Dikosongkan,
+                            // sama seperti di formulir alumni.
+                            if (prev[question.id] !== value) {
+                              for (const sec of form.sections) {
+                                for (const q of sec.questions) {
+                                  if (q.dependsOn === question.id) delete next[q.id];
+                                }
+                              }
+                            }
+
+                            return next;
+                          });
+                          // Pesan lama dibuang begitu pengguna mulai
+                          // memperbaiki; menahannya sampai blur membuat
+                          // isian terlihat masih salah padahal sudah benar.
+                          setErrors((prev) => {
+                            if (!prev[question.id]) return prev;
+                            const next = { ...prev };
+                            delete next[question.id];
+                            return next;
+                          });
+                        }}
+                        onBlur={() => validateQuestion(question)}
+                        parentValue={
+                          question.dependsOn
+                            ? (answers[question.dependsOn] as string | undefined)
+                            : undefined
                         }
                       />
-                      {errors[question.id] && (
-                        <p className="text-xs text-destructive">{errors[question.id]}</p>
-                      )}
+                      {errors[question.id] ? (
+                        <p className="flex items-start gap-1.5 text-xs text-destructive" role="alert">
+                          <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+                          {errors[question.id]}
+                        </p>
+                      ) : warnings[question.id] ? (
+                        <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-500">
+                          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+                          {warnings[question.id]}
+                        </p>
+                      ) : null}
                     </div>
+                    </Fragment>
                   ))}
               </CardContent>
             </Card>
+            ))}
 
-            <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={handleBack} disabled={currentSection === 0}>
-                Sebelumnya
-              </Button>
-              <Button type="submit">
-                {isLastSection ? "Kirim Demo" : "Berikutnya"}
-              </Button>
-            </div>
+            {/* Mode read-only menampilkan seluruh bagian sekaligus, jadi tidak
+                ada yang perlu dinavigasi — tombolnya cukup satu untuk
+                memeriksa seluruh isian. Mode pengisian alumni tetap
+                berhalaman, sebab di sanalah pemenggalan itu berguna. */}
+            {isStudentMode ? (
+              <div className="flex justify-between">
+                <Button type="button" variant="outline" onClick={handleBack} disabled={currentSection === 0}>
+                  Sebelumnya
+                </Button>
+                <Button type="submit">
+                  {isLastSection ? "Kirim Demo" : "Berikutnya"}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex justify-end">
+                <Button type="submit">Periksa Semua Jawaban</Button>
+              </div>
+            )}
           </form>
         ) : null}
       </main>
@@ -349,6 +500,13 @@ const FormPreviewPage = () => {
 
 interface InteractiveQuestionPreviewProps {
   question: BuilderQuestion;
+  /** Dipanggil saat isian ditinggalkan — memicu pemeriksaan satu pertanyaan. */
+  onBlur?: () => void;
+  /**
+   * Jawaban pertanyaan induk untuk isian referensi bertingkat — daftar
+   * kab/kota baru terbuka setelah provinsinya dipilih.
+   */
+  parentValue?: string;
   value:
     | string
     | number
@@ -359,7 +517,7 @@ interface InteractiveQuestionPreviewProps {
   onChange: (value: string | number | string[] | Record<string, string> | Record<string, string[]>) => void;
 }
 
-const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQuestionPreviewProps) => {
+const InteractiveQuestionPreview = ({ question, value, onChange, onBlur, parentValue }: InteractiveQuestionPreviewProps) => {
   const currentValue = value ?? "";
 
   if (!SUPPORTED_DEMO_TYPES.has(question.type)) {
@@ -376,10 +534,42 @@ const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQu
         <Input
           value={typeof currentValue === "string" ? currentValue : ""}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
           placeholder="Jawaban singkat"
           className="bg-background"
         />
       );
+
+    // Isian angka: papan tik ponsel langsung menampilkan angka, dan nilai
+    // rupiah memperlihatkan bacaan terformat seperti di formulir alumni.
+    case "number": {
+      const text = typeof currentValue === "string" ? currentValue : "";
+      const cleaned = parseNumericInput(text);
+      const numeric = /^\d+$/.test(cleaned) ? Number(cleaned) : null;
+      const isRupiah = question.format === "currency";
+
+      return (
+        <div className="space-y-1.5">
+          <Input
+            type="text"
+            inputMode="numeric"
+            value={text}
+            onChange={(event) => onChange(event.target.value)}
+            onBlur={onBlur}
+            placeholder={isRupiah ? "5000000" : "0"}
+            className="bg-background"
+          />
+          {numeric !== null && (isRupiah || cleaned !== text.trim()) && (
+            <p className="text-xs text-muted-foreground">
+              Terbaca:{" "}
+              <span className="font-medium text-foreground">
+                {isRupiah ? formatRupiah(numeric) : formatNumber(numeric)}
+              </span>
+            </p>
+          )}
+        </div>
+      );
+    }
 
     // Pratinjau memakai komponen yang sama persis dengan halaman pengisian,
     // termasuk permintaan datanya — supaya pembuat borang melihat daftar
@@ -391,6 +581,9 @@ const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQu
           valueField={question.lookupValue ?? "id"}
           value={typeof currentValue === "string" ? currentValue : ""}
           onChange={(val) => onChange(val)}
+          // Tanpa ini daftar kab/kota tidak pernah terbuka walau provinsinya
+          // sudah dipilih — pratinjau jadi memberi kesan borangnya rusak.
+          parentValue={parentValue}
         />
       ) : (
         <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
@@ -404,6 +597,7 @@ const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQu
           rows={3}
           value={typeof currentValue === "string" ? currentValue : ""}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
           placeholder="Jawaban panjang"
           className="bg-background"
         />
@@ -595,31 +789,40 @@ const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQu
     case "file_upload":
       return <Input type="file" className="max-w-xs bg-background" />;
 
+    // Bentuknya mengikuti formulir alumni: sederet tombol radio bernomor,
+    // dengan keterangan hanya di kedua ujungnya. Sebelumnya di sini setiap
+    // angka diberi label sendiri — dan karena kuesioner umumnya tidak
+    // menyimpan label per angka, yang muncul adalah label bawaan "Sangat
+    // tidak setuju" pada pertanyaan yang sama sekali bukan pernyataan sikap.
     case "linear_scale": {
       const min = question.scaleMin ?? 1;
       const max = question.scaleMax ?? 5;
       const values = Array.from({ length: Math.max(0, max - min + 1) }, (_, idx) => min + idx);
-      const labels = getScaleLabels(min, max, question.scaleLabels);
+      const labels = question.scaleLabels ?? [];
+      const minLabel = labels[0] ?? "";
+      const maxLabel = labels.length > 0 ? labels[labels.length - 1] : "";
 
       return (
-        <div className="space-y-3">
-          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${values.length}, minmax(0, 1fr))` }}>
-            {values.map((value, index) => (
-              <div key={`${question.id}-scale-${value}`} className="flex flex-col items-center gap-1">
-                <Button
-                  type="button"
-                  variant={currentValue === value ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => onChange(value)}
-                >
-                  {value}
-                </Button>
-                <span className="text-[11px] text-muted-foreground text-center">
-                  {labels[index]}
-                </span>
-              </div>
+        <div className="flex items-center gap-2">
+          {minLabel && (
+            <span className="w-20 text-right text-xs text-muted-foreground">{minLabel}</span>
+          )}
+          <div className="flex flex-1 justify-center gap-3">
+            {values.map((value) => (
+              <label key={`${question.id}-scale-${value}`} className="flex cursor-pointer flex-col items-center gap-1">
+                <input
+                  type="radio"
+                  name={question.id}
+                  value={value}
+                  checked={currentValue === value}
+                  onChange={() => onChange(value)}
+                  className="h-4 w-4 accent-primary"
+                />
+                <span className="text-xs text-muted-foreground">{value}</span>
+              </label>
             ))}
           </div>
+          {maxLabel && <span className="w-20 text-xs text-muted-foreground">{maxLabel}</span>}
         </div>
       );
     }
@@ -651,6 +854,7 @@ const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQu
           type="date"
           value={typeof currentValue === "string" ? currentValue : ""}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
           className="max-w-xs bg-background"
         />
       );
@@ -661,6 +865,7 @@ const InteractiveQuestionPreview = ({ question, value, onChange }: InteractiveQu
           type="time"
           value={typeof currentValue === "string" ? currentValue : ""}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
           className="max-w-xs bg-background"
         />
       );
