@@ -13,6 +13,8 @@ import {
   Workflow,
   AlertTriangle,
   Gauge,
+  FileText,
+  Globe,
 } from "lucide-react";
 
 // ── Role definitions ─────────────────────────────────────────────────────────
@@ -62,6 +64,12 @@ export type Permission =
   | "admin.questionnaire.request"
   | "admin.approval"
   | "admin.master"
+  // Publikasi ke masyarakat umum: unggah laporan tahunan dan atur rentang
+  // tahun halaman publik. BE menggate /api/admin/public-reports dan
+  // /api/admin/public-settings dengan role:head_tracer -- requirement menyebut
+  // Ketua Tracer secara spesifik, jadi tidak menumpang admin.master yang juga
+  // dipegang tracer_team.
+  | "admin.public_report"
   | "academic.alumni_data"
   | "academic.questionnaire_results"
   | "questionnaire.fill";
@@ -79,6 +87,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "admin.questionnaire",
     "admin.approval",
     "admin.master",
+    "admin.public_report",
   ],
   tracer_team: [
     "dashboard.overview",
@@ -156,6 +165,7 @@ const konfigurasiItems: MenuItem[] = [
   { title: "Master UMP", href: "/dashboard/master-ump", icon: Coins, description: "Referensi UMP per provinsi & tahun", permission: "admin.threshold" },
   { title: "Pemetaan Pertanyaan", href: "/dashboard/question-mapping", icon: Workflow, description: "Peta pertanyaan ke semantic role ETL", permission: "admin.etl" },
   { title: "Log Anomali ETL", href: "/dashboard/etl-anomaly-log", icon: AlertTriangle, description: "Riwayat anomali saat snapshot ETL", permission: "admin.etl" },
+  { title: "Halaman Publik", href: "/dashboard/public-settings", icon: Globe, description: "Rentang tahun yang tampil untuk publik", permission: "admin.public_report" },
 ];
 
 const adminItems: MenuItem[] = [
@@ -164,6 +174,7 @@ const adminItems: MenuItem[] = [
   { title: "Manajemen Kuesioner", href: "/dashboard/form-management", icon: ClipboardList, description: "Kelola kuesioner", permission: "admin.questionnaire" },
   { title: "Approval Request", href: "/dashboard/approvals", icon: ShieldCheck, description: "Riwayat & approval pengajuan", permission: "admin.approval" },
   { title: "Master Data", href: "/dashboard/master-data", icon: Building2, description: "Prodi, provinsi, kota", permission: "admin.master" },
+  { title: "Laporan Publik", href: "/dashboard/public-reports", icon: FileText, description: "Unggah laporan tahunan untuk publik", permission: "admin.public_report" },
 ];
 
 const academicItems: MenuItem[] = [
@@ -204,6 +215,8 @@ export const routePermissionMap: Record<string, Permission> = {
   "/dashboard/master-ump": "admin.threshold",
   "/dashboard/question-mapping": "admin.etl",
   "/dashboard/etl-anomaly-log": "admin.etl",
+  "/dashboard/public-reports": "admin.public_report",
+  "/dashboard/public-settings": "admin.public_report",
 };
 
 export function getDefaultRoute(role: AppRole): string {

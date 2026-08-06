@@ -9,10 +9,18 @@ import PolbanLogo from "@/components/common/PolbanLogo";
 const LandingNav = () => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const navLinks = [
+  /**
+   * `href` = jangkar di halaman ini, `to` = halaman publik tersendiri.
+   *
+   * "Statistik" sebelumnya menunjuk jangkar #stats, padahal StatsSection tidak
+   * ikut dirender di Landing.tsx -- menunya tidak melakukan apa-apa saat
+   * diklik. Sekarang mengarah ke halaman statistik publik yang sebenarnya.
+   */
+  const navLinks: Array<{ name: string; href?: string; to?: string }> = [
     { name: "Beranda", href: "#hero" },
     { name: "Fitur", href: "#features" },
-    { name: "Statistik", href: "#stats" },
+    { name: "Statistik", to: "/statistik" },
+    { name: "Laporan TS", to: "/laporan" },
     { name: "Tentang", href: "#about" },
   ];
 
@@ -33,13 +41,15 @@ const LandingNav = () => {
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-8">
             {navLinks.map((link) => (
-              <a
-                key={link.name}
-                href={link.href}
-                className="nav-link text-sm font-medium"
-              >
-                {link.name}
-              </a>
+              link.to ? (
+                <Link key={link.name} to={link.to} className="nav-link text-sm font-medium">
+                  {link.name}
+                </Link>
+              ) : (
+                <a key={link.name} href={link.href} className="nav-link text-sm font-medium">
+                  {link.name}
+                </a>
+              )
             ))}
           </div>
 
@@ -80,16 +90,18 @@ const LandingNav = () => {
             className="md:hidden py-4 border-t border-border/30"
           >
             <div className="flex flex-col gap-2">
-              {navLinks.map((link) => (
-                <a
-                  key={link.name}
-                  href={link.href}
-                  className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setIsOpen(false)}
-                >
-                  {link.name}
-                </a>
-              ))}
+              {navLinks.map((link) => {
+                const className = "px-4 py-2 text-muted-foreground hover:text-foreground transition-colors";
+                return link.to ? (
+                  <Link key={link.name} to={link.to} className={className} onClick={() => setIsOpen(false)}>
+                    {link.name}
+                  </Link>
+                ) : (
+                  <a key={link.name} href={link.href} className={className} onClick={() => setIsOpen(false)}>
+                    {link.name}
+                  </a>
+                );
+              })}
               <div className="flex gap-2 mt-4 px-4">
                 <ThemeToggle />
                 <Link to="/login" className="flex-1">

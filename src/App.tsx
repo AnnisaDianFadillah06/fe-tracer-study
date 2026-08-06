@@ -12,6 +12,10 @@ import Landing from "./pages/landing/Landing";
 import Login from "./pages/auth/Login";
 import Unauthorized from "./pages/common/Unauthorized";
 
+// Halaman publik (tanpa login)
+import LaporanPublikPage from "./pages/publik/LaporanPublikPage";
+import StatistikPublikPage from "./pages/publik/StatistikPublikPage";
+
 // Dashboard pages
 import OverviewPage from "./pages/dashboard/overview/OverviewPage";
 import EmploymentPage from "./pages/dashboard/employment/EmploymentPage";
@@ -38,6 +42,8 @@ import StaffManagementPage from "./pages/staff/StaffManagementPage";
 import StudentManagementPage from "./pages/student/StudentManagementPage";
 import ApprovalsPage from "./pages/admin/ApprovalsPage";
 import MasterDataPage from "./pages/admin/MasterDataPage";
+import PublicReportsPage from "./pages/admin/PublicReportsPage";
+import PublicSettingsPage from "./pages/admin/PublicSettingsPage";
 import DaftarKuisionerPage from "./pages/form/FormManagementPage";
 import FormCreationChoicePage from "./pages/form/FormCreationChoicePage";
 import FormBuilderPage from "./pages/form/FormBuilderPage";
@@ -76,6 +82,12 @@ const App = () => (
                 <Route path="/login" element={<Login />} />
                 <Route path="/unauthorized" element={<Unauthorized />} />
 
+                {/* Publik — sengaja di luar ProtectedRoute, endpoint-nya juga
+                    tanpa auth dan menegakkan sendiri batas publikasi + rentang
+                    tahun di sisi server. */}
+                <Route path="/laporan" element={<LaporanPublikPage />} />
+                <Route path="/statistik" element={<StatistikPublikPage />} />
+
                 {/* Default redirect */}
                 <Route path="/dashboard" element={<Navigate to="/dashboard/overview" replace />} />
 
@@ -96,6 +108,8 @@ const App = () => (
                 {/* Administration */}
                 <Route path="/dashboard/approvals" element={<ProtectedRoute permission="admin.approval"><ApprovalsPage /></ProtectedRoute>} />
                 <Route path="/dashboard/master-data" element={<ProtectedRoute permission="admin.master"><MasterDataPage /></ProtectedRoute>} />
+                <Route path="/dashboard/public-reports" element={<ProtectedRoute permission="admin.public_report"><PublicReportsPage /></ProtectedRoute>} />
+                <Route path="/dashboard/public-settings" element={<ProtectedRoute permission="admin.public_report"><PublicSettingsPage /></ProtectedRoute>} />
                 <Route path="/dashboard/team-management" element={<ProtectedRoute permission="admin.user"><TeamManagementPage /></ProtectedRoute>} />
                 <Route path="/dashboard/staff-management" element={<ProtectedRoute permission="admin.user"><StaffManagementPage /></ProtectedRoute>} />
                 <Route path="/dashboard/student-management" element={<ProtectedRoute permission="admin.user"><StudentManagementPage /></ProtectedRoute>} />
