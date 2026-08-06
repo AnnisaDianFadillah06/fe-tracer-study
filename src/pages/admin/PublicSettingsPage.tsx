@@ -110,8 +110,10 @@ const PublicSettingsPage = () => {
                   Rentang Tahun Lulusan
                 </CardTitle>
                 <CardDescription>
-                  Angkatan di luar rentang ini disembunyikan dari halaman publik.
-                  Dashboard internal tidak terpengaruh — staf tetap melihat semua tahun.
+                  Angkatan di luar rentang ini disembunyikan dari halaman Statistik publik.
+                  Tidak berpengaruh ke dashboard internal (staf tetap melihat semua tahun)
+                  maupun ke halaman Laporan TS — laporan diberi Tahun Pelaksanaan, bukan
+                  Tahun Lulusan, dan tampil selama statusnya sudah diterbitkan.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -150,8 +152,10 @@ const PublicSettingsPage = () => {
                   <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                   <p>
                     Mengosongkan salah satu kolom berarti sisi itu tanpa batas. Membatasi
-                    rentang membuat halaman statistik publik lebih ringan karena tidak
-                    perlu menghitung seluruh angkatan yang pernah ada.
+                    rentang membuat halaman Statistik publik lebih ringan karena tidak perlu
+                    menghitung seluruh angkatan yang pernah ada. Untuk menyembunyikan sebuah
+                    laporan, matikan “Tampil Publik” di halaman Laporan Publik — bukan lewat
+                    rentang ini.
                   </p>
                 </div>
 
