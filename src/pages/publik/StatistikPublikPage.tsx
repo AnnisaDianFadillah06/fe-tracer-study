@@ -53,10 +53,21 @@ interface ProgressPayload {
  * status, dan tabel angka di bawah chart -- sehingga makna tidak pernah
  * dibawa warna sendirian.
  */
+/**
+ * `ink` = warna angka di dalam sel tabel berwarna, dipilih dari hasil
+ * perhitungan kontras terhadap warna selnya sendiri (ambang teks normal 4,5:1):
+ *
+ *   hijau  #0ca30c : teks gelap 5,87  vs putih 3,35  -> gelap
+ *   kuning #fab219 : teks gelap 10,73 vs putih 1,83  -> gelap
+ *   merah  #d03b3b : putih 4,80       vs gelap 4,10  -> putih
+ *
+ * Situs lama memakai teks putih di ketiganya; di sel kuning itu hanya 1,83
+ * dan angkanya praktis tidak terbaca.
+ */
 const STATUS = {
-  finish:  { label: "Selesai",       color: "#0ca30c", icon: CheckCircle2 },
-  ongoing: { label: "Sedang Mengisi", color: "#fab219", icon: Clock },
-  belum:   { label: "Belum Mengisi",  color: "#d03b3b", icon: Circle },
+  finish:  { label: "Selesai",        color: "#0ca30c", ink: "#0b0b0b", icon: CheckCircle2 },
+  ongoing: { label: "Sedang Mengisi", color: "#fab219", ink: "#0b0b0b", icon: Clock },
+  belum:   { label: "Belum Mengisi",  color: "#d03b3b", ink: "#ffffff", icon: Circle },
 } as const;
 
 type StatusKey = keyof typeof STATUS;
@@ -64,6 +75,13 @@ const STATUS_ORDER: StatusKey[] = ["finish", "ongoing", "belum"];
 
 /** Tinggi per baris prodi pada chart batang horizontal. */
 const ROW_HEIGHT = 26;
+
+/**
+ * Garis di setiap sisi sel. Memakai border-separate di <Table> supaya garisnya
+ * tidak runtuh (collapse) — dengan border-collapse, latar warna sel menimpa
+ * garis kolom di sebelahnya dan batas antarblok warna ikut hilang.
+ */
+const CELL_BORDER = "border border-border px-3 py-2";
 
 const StatistikPublikPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -263,27 +281,40 @@ const StatistikPublikPage = () => {
               <CardTitle className="text-base">Rincian Angka</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
+              {/* Tabel bergaris penuh (bukan hanya garis antarbaris seperti tabel
+                  lain di aplikasi): dengan sel berwarna blok, batas antarkolom
+                  perlu terlihat supaya blok warna tidak menyatu jadi satu bidang. */}
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="border-separate border-spacing-0">
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Program Studi</TableHead>
-                      <TableHead className="text-right">{STATUS.finish.label}</TableHead>
-                      <TableHead className="text-right">{STATUS.ongoing.label}</TableHead>
-                      <TableHead className="text-right">{STATUS.belum.label}</TableHead>
-                      <TableHead className="text-right">Jumlah</TableHead>
-                      <TableHead className="text-right">Persentase</TableHead>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className={`${CELL_BORDER} bg-muted/50 font-semibold`}>Program Studi</TableHead>
+                      {STATUS_ORDER.map((key) => (
+                        <TableHead key={key} className={`${CELL_BORDER} bg-muted/50 text-center font-semibold`}>
+                          {STATUS[key].label}
+                        </TableHead>
+                      ))}
+                      <TableHead className={`${CELL_BORDER} bg-muted/50 text-center font-semibold`}>Jumlah</TableHead>
+                      <TableHead className={`${CELL_BORDER} bg-muted/50 text-center font-semibold`}>Persentase</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {payload.items.map((item) => (
-                      <TableRow key={item.prodi}>
-                        <TableCell className="font-medium">{item.prodi}</TableCell>
-                        <TableCell className="text-right tabular-nums">{item.finish}</TableCell>
-                        <TableCell className="text-right tabular-nums">{item.ongoing}</TableCell>
-                        <TableCell className="text-right tabular-nums">{item.belum}</TableCell>
-                        <TableCell className="text-right tabular-nums">{item.jumlah}</TableCell>
-                        <TableCell className="text-right tabular-nums">{item.persentase.toFixed(2)}%</TableCell>
+                      <TableRow key={item.prodi} className="hover:bg-transparent">
+                        <TableCell className={`${CELL_BORDER} font-medium`}>{item.prodi}</TableCell>
+                        {STATUS_ORDER.map((key) => (
+                          <TableCell
+                            key={key}
+                            className={`${CELL_BORDER} text-center font-semibold tabular-nums`}
+                            style={{ backgroundColor: STATUS[key].color, color: STATUS[key].ink }}
+                          >
+                            {item[key]}
+                          </TableCell>
+                        ))}
+                        <TableCell className={`${CELL_BORDER} text-center tabular-nums`}>{item.jumlah}</TableCell>
+                        <TableCell className={`${CELL_BORDER} text-center tabular-nums`}>
+                          {item.persentase.toFixed(2)}%
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -297,13 +328,25 @@ const StatistikPublikPage = () => {
   );
 };
 
+/**
+ * Ikon ditaruh DI DALAM kotak berwarna, bukan diwarnai langsung di atas latar
+ * kartu: ikon kuning di atas permukaan terang hanya berkontras 1,83 dan nyaris
+ * tak terlihat. Di dalam kotak, ikonnya memakai warna tinta yang sama dengan
+ * angka di tabel, jadi terbaca di ketiga status.
+ */
 const Legend = () => (
   <div className="flex flex-wrap items-center gap-4 pt-1">
     {STATUS_ORDER.map((key) => {
-      const { label, color, icon: Icon } = STATUS[key];
+      const { label, color, ink, icon: Icon } = STATUS[key];
       return (
-        <span key={key} className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Icon className="h-3.5 w-3.5" style={{ color }} aria-hidden />
+        <span key={key} className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span
+            className="flex h-5 w-5 items-center justify-center rounded ring-1 ring-inset ring-black/10"
+            style={{ backgroundColor: color, color: ink }}
+            aria-hidden
+          >
+            <Icon className="h-3 w-3" />
+          </span>
           {label}
         </span>
       );
