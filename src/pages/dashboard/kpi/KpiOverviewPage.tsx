@@ -89,7 +89,7 @@ const KpiOverviewPage = () => {
         <KpiSection
           no="8"
           title="Pendapatan Lulusan"
-          desc="Combo chart distribusi pendapatan + tren rata-rata + threshold UMK & 1,5x UMK."
+          desc="Combo chart distribusi pendapatan + tren rata-rata + threshold UMP dinamis per LAM (default 1,2x UMP)."
         >
           <Kpi8IncomeChart />
         </KpiSection>
