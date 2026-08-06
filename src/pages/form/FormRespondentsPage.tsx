@@ -35,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/common/use-toast";
 import api from "@/lib/api";
+import { useJurusan } from "@/hooks/common/useJurusan";
 import { useAuthContext } from "@/contexts/AuthContext";
 import {
   ArrowLeft,
@@ -198,7 +199,9 @@ const FormRespondentsPage = () => {
   });
 
   const programs = programsQuery.data ?? [];
-  const jurusanList = [...new Set(programs.map((p) => p.jurusan).filter(Boolean))] as string[];
+  // Penyaring jurusan diambil dari master data supaya sama di semua halaman,
+  // bukan diturunkan dari program studi yang kebetulan termuat.
+  const { jurusanNames: jurusanList } = useJurusan();
 
   const respondents = useMemo(() => {
     const rows = respondentsQuery.data?.data ?? [];

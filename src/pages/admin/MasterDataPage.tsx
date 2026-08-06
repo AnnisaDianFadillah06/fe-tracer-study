@@ -23,7 +23,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Plus, Edit, Trash2, Search, Building2, Loader2, AlertCircle } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { useJurusan, JURUSAN_QUERY_KEY, type Jurusan } from "@/hooks/common/useJurusan";
 
 // ── Prodi Tab ────────────────────────────────────────────────
 interface Prodi { id: string; name: string; code: string; dikti_code?: string; degree: string; jurusan: string; isActive: boolean; }
@@ -34,11 +36,10 @@ interface Provinsi { id: string; name: string; code: string; }
 // ── Kota Tab ─────────────────────────────────────────────────
 interface Kota { id: string; name: string; provinsiId: string; code: string; }
 
-const jurusanOptions = [
-  "Teknik Sipil", "Teknik Mesin", "Teknik Refrigerasi & Tata Udara",
-  "Teknik Konversi Energi", "Teknik Elektro", "Teknik Kimia",
-  "Teknik Komputer & Informatika", "Akuntansi", "Administrasi Niaga", "Bahasa Inggris",
-];
+// Daftar jurusan tidak lagi ditulis di sini. Larik hardcoded yang dulu ada
+// di tempat ini tertinggal dari basis data — "Teknik Aeronautika" tidak
+// tercantum, sehingga program studi di jurusan itu tidak pernah bisa dipilih
+// jurusannya dengan benar. Sekarang dari master data, lihat useJurusan().
 
 /**
  * Baris keterangan di dalam tabel untuk keadaan selain "ada data":
@@ -79,6 +80,63 @@ const TableStateRow = ({
 
 const MasterDataPage = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Jurusan — dari master data, bukan daftar tetap
+  const { jurusanList, isLoading: jurusanLoading, isError: jurusanError } = useJurusan();
+  const [jurusanDialog, setJurusanDialog] = useState(false);
+  const [editJurusan, setEditJurusan] = useState<Jurusan | null>(null);
+  const [jurusanForm, setJurusanForm] = useState({ name: "" });
+  const [deleteJurusanId, setDeleteJurusanId] = useState<number | null>(null);
+  const [jurusanSaving, setJurusanSaving] = useState(false);
+
+  const refreshJurusan = () => queryClient.invalidateQueries({ queryKey: JURUSAN_QUERY_KEY });
+
+  const saveJurusan = async () => {
+    const name = jurusanForm.name.trim();
+    if (!name) return;
+
+    setJurusanSaving(true);
+    try {
+      const { data } = editJurusan
+        ? await api.put(`/jurusans/${editJurusan.id}`, { name })
+        : await api.post("/jurusans", { name });
+
+      toast({ title: "Berhasil", description: data.message ?? "Jurusan tersimpan." });
+      setJurusanDialog(false);
+      setEditJurusan(null);
+      setJurusanForm({ name: "" });
+      await refreshJurusan();
+      // Nama jurusan menempel di program studi, jadi daftarnya ikut basi
+      // setelah penggantian nama.
+      await reloadProdi();
+    } catch (e: any) {
+      toast({
+        title: "Gagal",
+        description: e?.response?.data?.message ?? "Jurusan gagal disimpan.",
+        variant: "destructive",
+      });
+    } finally {
+      setJurusanSaving(false);
+    }
+  };
+
+  const confirmDeleteJurusan = async () => {
+    if (deleteJurusanId === null) return;
+    try {
+      const { data } = await api.delete(`/jurusans/${deleteJurusanId}`);
+      toast({ title: "Berhasil", description: data.message ?? "Jurusan dihapus." });
+      await refreshJurusan();
+    } catch (e: any) {
+      toast({
+        title: "Gagal",
+        description: e?.response?.data?.message ?? "Jurusan gagal dihapus.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteJurusanId(null);
+    }
+  };
 
   // Prodi state
   const [prodiList, setProdiList] = useState<Prodi[]>([]);
@@ -103,6 +161,27 @@ const MasterDataPage = () => {
   // menerjemahkan province_code menjadi nama provinsi.
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  /**
+   * Muat ulang daftar program studi saja.
+   *
+   * Dipakai setelah jurusan berganti nama: kolom `programs.jurusan` ikut
+   * diperbarui backend, jadi tanpa ini tabel Program Studi masih menampilkan
+   * nama jurusan yang lama.
+   */
+  const reloadProdi = async () => {
+    try {
+      const { data } = await api.get("/programs");
+      const programs = data.data ?? data;
+      setProdiList((programs as any[]).map((p: any) => ({
+        id: String(p.id), name: p.name, code: p.code, dikti_code: p.dikti_code ?? "",
+        degree: p.degree, jurusan: p.jurusan, isActive: p.is_active !== false,
+      })));
+    } catch {
+      // Kegagalan muat ulang tidak membatalkan penyimpanan yang sudah
+      // berhasil — tabelnya sekadar basi sampai halaman dibuka lagi.
+    }
+  };
 
   // Fetch data from API
   useEffect(() => {
@@ -230,15 +309,88 @@ const MasterDataPage = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Building2 className="h-6 w-6" /> Master Data</h1>
-          <p className="text-muted-foreground">Kelola data referensi: program studi, provinsi, dan kota</p>
+          <p className="text-muted-foreground">Kelola data referensi: jurusan, program studi, provinsi, dan kota</p>
         </div>
 
-        <Tabs defaultValue="prodi">
+        <Tabs defaultValue="jurusan">
           <TabsList>
+            <TabsTrigger value="jurusan">Jurusan ({countLabel(jurusanList.length)})</TabsTrigger>
             <TabsTrigger value="prodi">Program Studi ({countLabel(prodiList.length)})</TabsTrigger>
             <TabsTrigger value="provinsi">Provinsi ({countLabel(provList.length)})</TabsTrigger>
             <TabsTrigger value="kota">Kota ({countLabel(kotaList.length)})</TabsTrigger>
           </TabsList>
+
+          {/* ── JURUSAN TAB ── */}
+          <TabsContent value="jurusan" className="space-y-4">
+            <div className="flex justify-end">
+              <Button
+                onClick={() => {
+                  setEditJurusan(null);
+                  setJurusanForm({ name: "" });
+                  setJurusanDialog(true);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />Tambah Jurusan
+              </Button>
+            </div>
+            <Card>
+              <CardContent className="pt-6">
+                <Table>
+                  <TableHeader><TableRow>
+                    <TableHead>Nama Jurusan</TableHead>
+                    <TableHead className="text-center">Program Studi</TableHead>
+                    <TableHead className="text-center">Akun Staf</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    <TableStateRow
+                      colSpan={4}
+                      isLoading={jurusanLoading}
+                      error={jurusanError ? "Gagal memuat daftar jurusan." : null}
+                      isEmpty={jurusanList.length === 0}
+                      emptyText="Belum ada jurusan."
+                    />
+                    {jurusanList.map((j) => {
+                      const terpakai = j.program_count > 0 || j.user_count > 0;
+                      return (
+                        <TableRow key={j.id}>
+                          <TableCell className="font-medium">{j.name}</TableCell>
+                          <TableCell className="text-center text-muted-foreground">{j.program_count}</TableCell>
+                          <TableCell className="text-center text-muted-foreground">{j.user_count}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setEditJurusan(j);
+                                setJurusanForm({ name: j.name });
+                                setJurusanDialog(true);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={terpakai}
+                              title={
+                                terpakai
+                                  ? "Masih dipakai program studi atau akun staf"
+                                  : "Hapus jurusan"
+                              }
+                              onClick={() => setDeleteJurusanId(j.id)}
+                            >
+                              <Trash2 className={`h-4 w-4 ${terpakai ? "" : "text-destructive"}`} />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* ── PRODI TAB ── */}
           <TabsContent value="prodi" className="space-y-4">
@@ -354,7 +506,11 @@ const MasterDataPage = () => {
               <Label>Jurusan</Label>
               <Select value={prodiForm.jurusan} onValueChange={(v) => setProdiForm({ ...prodiForm, jurusan: v })}>
                 <SelectTrigger><SelectValue placeholder="Pilih jurusan" /></SelectTrigger>
-                <SelectContent>{jurusanOptions.map((j) => <SelectItem key={j} value={j}>{j}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  {jurusanList
+                    .filter((j) => j.is_active)
+                    .map((j) => <SelectItem key={j.id} value={j.name}>{j.name}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
           </div>
@@ -394,6 +550,55 @@ const MasterDataPage = () => {
       </Dialog>
 
       {/* ── Delete Confirmations ── */}
+      {/* ── Dialog tambah / ubah jurusan ── */}
+      <Dialog open={jurusanDialog} onOpenChange={setJurusanDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editJurusan ? "Ubah Jurusan" : "Tambah Jurusan"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Nama Jurusan</Label>
+              <Input
+                value={jurusanForm.name}
+                onChange={(e) => setJurusanForm({ name: e.target.value })}
+                placeholder="Contoh: Teknik Geodesi"
+              />
+            </div>
+            {editJurusan && editJurusan.name !== jurusanForm.name.trim() && (
+              <p className="text-xs text-muted-foreground">
+                Nama baru akan ikut diterapkan pada{" "}
+                <strong>{editJurusan.program_count} program studi</strong> dan{" "}
+                <strong>{editJurusan.user_count} akun staf</strong> yang memakai jurusan ini.
+                Lingkup akses Kajur mengikuti nama, jadi keduanya harus berubah bersama.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setJurusanDialog(false)}>Batal</Button>
+            <Button onClick={saveJurusan} disabled={jurusanSaving || !jurusanForm.name.trim()}>
+              {jurusanSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteJurusanId !== null} onOpenChange={() => setDeleteJurusanId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Jurusan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Jurusan hanya bisa dihapus kalau sudah tidak dipakai program studi maupun akun staf.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteJurusan} className="bg-destructive text-destructive-foreground">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!deleteProdiId} onOpenChange={() => setDeleteProdiId(null)}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Hapus Prodi?</AlertDialogTitle><AlertDialogDescription>Data prodi akan dihapus permanen.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={deleteProdi} className="bg-destructive text-destructive-foreground">Hapus</AlertDialogAction></AlertDialogFooter>

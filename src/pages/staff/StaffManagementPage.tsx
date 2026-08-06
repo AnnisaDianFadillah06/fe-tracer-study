@@ -34,6 +34,7 @@ import {
 import { Plus, Edit, Trash2, User, Mail, Search, Shield } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { useJurusan } from "@/hooks/common/useJurusan";
 import { useRoles } from "@/hooks/admin/useRoles";
 import { useStaff, StaffUser } from "@/hooks/admin/useStaff";
 import { Switch } from "@/components/ui/switch";
@@ -72,7 +73,11 @@ const StaffManagementPage = () => {
     },
   });
 
-  const jurusanList = [...new Set(programs.map((p) => p.jurusan).filter(Boolean))] as string[];
+  // Dari master data, bukan diturunkan dari daftar program studi. Kajur
+  // untuk jurusan yang baru dibuat dan belum punya prodi tetap harus bisa
+  // ditugaskan — dengan penurunan dari programs, jurusan itu tidak pernah
+  // muncul di pilihan.
+  const { jurusanNames: jurusanList } = useJurusan();
 
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("all");

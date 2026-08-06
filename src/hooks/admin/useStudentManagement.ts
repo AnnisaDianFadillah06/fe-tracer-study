@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useToast } from "@/hooks/common/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { useJurusan } from "@/hooks/common/useJurusan";
 
 // ── Types matching backend alumni_profiles + programs JOIN ─────────────────
 export interface AlumniRecord {
@@ -35,18 +36,10 @@ export interface Student {
   status: "aktif" | "nonaktif";
 }
 
-export const prodiList = [
-  "Teknik Informatika",
-  "Sistem Informasi",
-  "Teknik Elektro",
-  "Teknik Mesin",
-  "Teknik Sipil",
-  "Akuntansi",
-  "Administrasi Niaga",
-  "Teknik Kimia",
-  "Teknik Refrigerasi & Tata Udara",
-  "Teknik Konversi Energi",
-];
+// Larik `prodiList` yang dulu di sini sudah dihapus: tidak dipakai siapa pun,
+// isinya nama prodi karangan yang tidak ada di basis data ("Sistem
+// Informasi"), dan namanya menyesatkan karena sebagian isinya justru nama
+// jurusan. Daftar prodi yang sebenarnya datang dari `/programs`.
 
 export interface ProgramOption {
   id: number;
@@ -189,9 +182,11 @@ export const useStudentManagement = () => {
   // No more client-side filter — all done server-side
   const filtered = students;
 
-  const jurusanOptions = useMemo(() => {
-    return Array.from(new Set(students.map((s) => s.jurusan).filter(Boolean))).sort();
-  }, [students]);
+  // Dari master data, bukan diturunkan dari `students`. Daftar mahasiswa
+  // di sini terpotong paginasi, jadi turunannya membuat pilihan penyaring
+  // berubah-ubah mengikuti halaman yang sedang dibuka — jurusan yang
+  // kebetulan tidak punya wakil di halaman ini akan hilang dari penyaring.
+  const { jurusanNames: jurusanOptions } = useJurusan();
 
   // ── Mutations ───────────────────────────────────────────────────────────
   const createMutation = useMutation({
