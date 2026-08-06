@@ -6,13 +6,64 @@ import {
   type FormListItem,
   type QuestionLogic,
   type QuestionLogicType,
+  pickAnalyticsMeta,
 } from "@/lib/formManagement";
 
 export const BUILDER_DRAFT_STORAGE_KEY = "tracer_form_builder_draft";
 
+/**
+ * Versi bentuk draf yang tersimpan di localStorage.
+ *
+ * Draf itu berumur panjang — ia bertahan melewati pembaruan aplikasi, dan
+ * didahulukan daripada data server supaya suntingan yang belum disimpan tidak
+ * hilang. Kombinasi itu berbahaya begitu bentuk datanya berubah: draf yang
+ * dibuat versi lama akan terus menghidupkan bentuk usang, dan perbaikan
+ * apa pun tampak tidak berpengaruh sampai localStorage dibersihkan manual.
+ *
+ * Contohnya isian angka. Sebelum versi 2, tipe "number" dari basis data
+ * dipetakan menjadi "linear_scale", sehingga pertanyaan pendapatan tersimpan
+ * di draf sebagai skala 1-5. Menaikkan angka ini membuat draf semacam itu
+ * diabaikan, bukan dibiarkan menular.
+ *
+ * NAIKKAN setiap kali bentuk BuilderQuestion atau pemetaan tipenya berubah.
+ */
+export const BUILDER_DRAFT_SCHEMA_VERSION = 2;
+
+/** Bungkus draf dengan penanda versi sebelum disimpan. */
+export const stampDraft = <T extends object>(draft: T): T & { schemaVersion: number } => ({
+  ...draft,
+  schemaVersion: BUILDER_DRAFT_SCHEMA_VERSION,
+});
+
+/**
+ * Baca draf dari localStorage, abaikan yang versinya bukan versi sekarang.
+ *
+ * @returns draf yang masih sah, atau null bila tidak ada / sudah usang.
+ */
+export const readDraft = <T>(key: string): T | null => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as { schemaVersion?: number };
+    if (parsed?.schemaVersion !== BUILDER_DRAFT_SCHEMA_VERSION) {
+      // Dibuang sekalian supaya tidak diperiksa lagi tiap kali halaman dibuka.
+      localStorage.removeItem(key);
+      return null;
+    }
+
+    return parsed as T;
+  } catch {
+    return null;
+  }
+};
+
 const BUILDER_QUESTION_TYPES = new Set<BuilderQuestionType>([
   "short",
   "paragraph",
+  "number",
   "multiple_choice",
   "checkbox",
   "dropdown",
@@ -52,7 +103,11 @@ const normalizeQuestionType = (value: unknown): BuilderQuestionType => {
     long_text: "paragraph",
     single_choice: "multiple_choice",
     multiple_choice: "checkbox",
-    number: "linear_scale",
+    // Pertanyaan angka BERSKALA sudah dikirim server sebagai "linear_scale",
+    // jadi tipe mentah "number" yang sampai di sini adalah isian angka bebas.
+    // Dulu semuanya dijadikan skala, sehingga pertanyaan pendapatan pun
+    // terbuka sebagai lima tombol "Sangat tidak setuju".
+    number: "number",
     boolean: "multiple_choice",
   };
   const type = (backendToBuilder[raw] ?? raw) as BuilderQuestionType;
@@ -262,7 +317,19 @@ export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListIt
         const rawQuestions = Array.isArray(section?.questions) ? section.questions : [];
 
         const mappedQuestions = rawQuestions.map((question: any) => {
-            const type = normalizeQuestionType(question?.type ?? question?.question_type);
+            let type = normalizeQuestionType(question?.type ?? question?.question_type);
+
+            // Penjaga untuk sumber yang hanya membawa tipe mentah basis data:
+            // di sana pertanyaan skala dan isian angka sama-sama bertipe
+            // "number", dan yang membedakan hanya metadata skalanya.
+            //
+            // HANYA metadata yang boleh dijadikan penentu. Medan datar
+            // scaleMin/scaleMax selalu terisi 1 dan 5 oleh server sebagai
+            // nilai bawaan penyunting skala — ikut memeriksanya berarti
+            // menyatakan SEMUA pertanyaan angka sebagai skala.
+            if (type === "number" && question?.metadata?.scale_min != null) {
+              type = "linear_scale";
+            }
             const scaleMin = Number(question?.scaleMin ?? question?.scale_min ?? 1) || 1;
             const scaleMax = Number(question?.scaleMax ?? question?.scale_max ?? 5) || 5;
             const optionLabels = normalizeOptions(question?.options);
@@ -271,7 +338,18 @@ export const createFormDraftFromQuestionnaire = (questionnaire: any): FormListIt
               id: String(question?.code ?? question?.question_code ?? question?.id ?? createId("q")),
               type,
               question: String(question?.question ?? question?.question_text ?? ""),
-              description: question?.description ? String(question.description) : "",
+              // Medan bantu pengisian ikut disalin. Sebelumnya hanya medan
+              // yang disebut namanya di sini yang terbawa, sehingga menyalin
+              // kuesioner sebagai template membuang petunjuk, keterangan,
+              // format, dan pemisahnya — hilang bahkan sebelum disimpan.
+              description: String(question?.description ?? question?.metadata?.description ?? ""),
+              hint: question?.hint ?? question?.metadata?.hint ?? undefined,
+              format: question?.format ?? question?.metadata?.format ?? undefined,
+              dividerLabel: question?.divider_label ?? question?.metadata?.divider_label ?? undefined,
+              optionHints: question?.metadata?.option_hints ?? undefined,
+              analyticsMeta: pickAnalyticsMeta(question?.metadata),
+              warnMin: question?.warn_min ?? question?.metadata?.warn_min ?? undefined,
+              warnMax: question?.warn_max ?? question?.metadata?.warn_max ?? undefined,
               options: optionLabels,
               required: Boolean(question?.required ?? question?.is_required ?? false),
               allowOther: Boolean(question?.allowOther ?? question?.allow_other ?? false),

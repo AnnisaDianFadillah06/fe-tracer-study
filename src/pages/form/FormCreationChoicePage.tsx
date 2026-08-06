@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/common/use-toast";
 import { apiService } from "@/lib/apiClient";
 import {
   BUILDER_DRAFT_STORAGE_KEY,
+  stampDraft,
   createBlankFormDraft,
   createFormDraftFromQuestionnaire,
 } from "@/lib/questionnaireDrafts";
@@ -22,7 +23,7 @@ const FormCreationChoicePage = () => {
 
   const openBuilder = (draft: unknown) => {
     if (typeof window !== "undefined") {
-      localStorage.setItem(`${BUILDER_DRAFT_STORAGE_KEY}:new`, JSON.stringify(draft));
+      localStorage.setItem(`${BUILDER_DRAFT_STORAGE_KEY}:new`, JSON.stringify(stampDraft(draft as object)));
     }
     navigate("/dashboard/form-management/new/builder");
   };

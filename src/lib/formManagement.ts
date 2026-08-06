@@ -58,6 +58,12 @@ export type FormStatus = "aktif" | "nonaktif";
 export type BuilderQuestionType =
   | "short"
   | "paragraph"
+  /**
+   * Isian angka bebas — beda dari "linear_scale" yang nilainya terbatas pada
+   * rentang tombol. Punya penjagaan tipe, pemisah ribuan yang dibersihkan
+   * otomatis, dan batas kewajaran yang bisa disetel per pertanyaan.
+   */
+  | "number"
   | "multiple_choice"
   | "checkbox"
   | "dropdown"
@@ -94,7 +100,37 @@ export interface BuilderQuestion {
   id: string;
   type: BuilderQuestionType;
   question: string;
+  /** Kalimat penjelas di bawah pertanyaan. */
   description?: string;
+  /** Petunjuk pengisian — teks kecil di bawah kotak isian. */
+  hint?: string;
+  /** Aturan format isian tambahan; menyalakan validasi di kedua sisi. */
+  format?: "email" | "phone" | "url" | "currency";
+  /**
+   * Batas kewajaran isian angka — PERINGATAN, bukan penolakan.
+   *
+   * Dipakai menangkap salah ketik nol (pendapatan 500 juta sebulan, masa
+   * tunggu 600 bulan) tanpa menghalangi alumni yang nilainya memang di luar
+   * kebiasaan. Kosong berarti tidak ada peringatan.
+   */
+  warnMin?: number;
+  warnMax?: number;
+  /** Pemisah bertajuk yang dirender tepat sebelum pertanyaan ini. */
+  dividerLabel?: string;
+  /**
+   * Metadata semantik untuk ETL: `competency` + `dimension` pada pertanyaan
+   * kompetensi, `method` pada pertanyaan metode pembelajaran. Tidak tampil di
+   * layar mana pun, tapi IndikatorEvaluasiDimService memakainya untuk memberi
+   * nama indikator di dashboard. Dibawa apa adanya supaya salinan-dari-template
+   * tidak kehilangan sambungannya ke analitik.
+   */
+  analyticsMeta?: Record<string, string>;
+  /**
+   * Keterangan per opsi, berkunci kode opsi. Belum bisa disunting di borang
+   * penyunting; dibawa apa adanya supaya salinan-dari-template tidak
+   * membuangnya (lihat option_hints pada f5c).
+   */
+  optionHints?: Record<string, string>;
   options: string[];
   gridRows?: string[];
   gridColumns?: string[];
@@ -259,21 +295,47 @@ const mergeGroupedForBuilder = (questions: BuilderQuestion[]): BuilderQuestion[]
  * Convert a backend questionnaire (GET /api/questionnaires/:id) to a FormListItem
  * so the FormBuilder can edit seeded/backend questionnaires.
  */
+/** Kunci metadata semantik yang dibawa apa adanya lintas salinan. */
+export const ANALYTICS_META_KEYS = ["competency", "dimension", "method"] as const;
+
+export const pickAnalyticsMeta = (metadata: unknown): Record<string, string> | undefined => {
+  const meta = (metadata ?? {}) as Record<string, unknown>;
+  const picked: Record<string, string> = {};
+  for (const key of ANALYTICS_META_KEYS) {
+    if (typeof meta[key] === "string" && meta[key]) picked[key] = meta[key] as string;
+  }
+
+  return Object.keys(picked).length > 0 ? picked : undefined;
+};
+
 export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
   const VALID_BUILDER_TYPES = new Set([
-    "short", "paragraph", "multiple_choice", "checkbox", "dropdown",
+    "short", "paragraph", "number", "multiple_choice", "checkbox", "dropdown",
+    // "lookup" WAJIB ada di sini: tanpa itu isian referensi jatuh ke cabang
+    // pemetaan tipe basis data, tidak ketemu, lalu menjadi kotak teks biasa.
+    "lookup",
     "file_upload", "linear_scale", "rating", "multiple_choice_grid",
     "checkbox_grid", "date", "time",
   ]);
-  const mapType = (t: string): BuilderQuestionType => {
+  const mapType = (t: string, metadata?: Record<string, unknown>): BuilderQuestionType => {
     // If already a valid builder type, pass through
-    if (VALID_BUILDER_TYPES.has(t)) return t as BuilderQuestionType;
+    if (VALID_BUILDER_TYPES.has(t)) {
+      // Kecuali "number" yang membawa metadata skala — di basis data kedua
+      // bentuk itu bertipe sama, pembedanya hanya scale_min/scale_max.
+      if (t === "number" && (metadata?.scale_min != null || metadata?.scaleMin != null)) {
+        return "linear_scale";
+      }
+      return t as BuilderQuestionType;
+    }
     // Otherwise map from DB type
     const dbMap: Record<string, BuilderQuestionType> = {
       short_text: "short",
       long_text: "paragraph",
       single_choice: "multiple_choice",
-      number: "linear_scale",
+      // Pertanyaan angka BERSKALA sudah dikirim server sebagai "linear_scale"
+      // (lihat mapQuestionTypeToFrontend), jadi yang sampai ke sini dengan
+      // tipe mentah "number" adalah isian angka bebas.
+      number: "number",
       boolean: "multiple_choice",
       file: "file_upload",
     };
@@ -299,9 +361,27 @@ export function backendToFormListItem(bq: BackendQuestionnaire): FormListItem {
   const sections: BuilderSection[] = (bq.sections ?? []).map((sec) => {
     const mapped = (sec.questions ?? []).map((q): BuilderQuestion => ({
       id: q.code || String(q.id),
-      type: mapType(q.type),
+      type: mapType(q.type, (q as any).metadata),
       question: q.question_text || q.question || "",
-      description: q.description ?? undefined,
+      // Medan bantu pengisian. Server mengirimkannya di dua tempat: medan
+      // datar hasil mapQuestionFull() dan metadata mentah. Dibaca dari
+      // keduanya supaya kuesioner lama yang hanya punya metadata tetap
+      // terbuka dengan petunjuknya utuh.
+      description: q.description ?? (q as any).metadata?.description ?? undefined,
+      hint: (q as any).hint ?? (q as any).metadata?.hint ?? undefined,
+      format: (q as any).format ?? (q as any).metadata?.format ?? undefined,
+      dividerLabel: (q as any).divider_label ?? (q as any).metadata?.divider_label ?? undefined,
+      optionHints: (q as any).metadata?.option_hints ?? undefined,
+      analyticsMeta: pickAnalyticsMeta((q as any).metadata),
+      // Isian referensi bertingkat: kab/kota menempel pada provinsi. Tanpa
+      // medan ini daftar kab/kota tidak pernah terbuka di pratinjau, dan
+      // menyimpan kuesioner akan membuang tautannya sehingga formulir alumni
+      // ikut terkunci.
+      lookup: (q as any).lookup ?? (q as any).metadata?.lookup ?? undefined,
+      lookupValue: (q as any).lookupValue ?? (q as any).metadata?.lookup_value ?? undefined,
+      dependsOn: (q as any).dependsOn ?? (q as any).metadata?.depends_on ?? undefined,
+      warnMin: (q as any).warn_min ?? (q as any).metadata?.warn_min ?? undefined,
+      warnMax: (q as any).warn_max ?? (q as any).metadata?.warn_max ?? undefined,
       options: (q.options ?? []).map((o) => o.label),
       required: !!q.required,
       allowOther: !!q.allowOther,
@@ -549,10 +629,30 @@ const initialForms: FormListItem[] = [
   },
 ];
 
+/**
+ * Versi bentuk salinan kuesioner di localStorage.
+ *
+ * Salinan ini berumur panjang dan ikut menyemai borang penyunting maupun
+ * pratinjau, sehingga bentuk lama di dalamnya bisa terus muncul lama setelah
+ * kodenya diperbaiki — pertanyaan angka yang tampil sebagai skala 1-5 datang
+ * dari sini. NAIKKAN setiap kali bentuk BuilderQuestion berubah.
+ */
+export const FORM_CACHE_VERSION = 2;
+const FORM_CACHE_VERSION_KEY = `${FORM_STORAGE_KEY}:version`;
+
 export const getInitialForms = (): FormListItem[] => {
   if (typeof window === "undefined") return initialForms;
 
   try {
+    // Salinan dari versi lain dibuang, bukan dipakai. Ia hanya cadangan bagi
+    // data server, jadi membuangnya tidak menghilangkan apa pun yang tidak
+    // bisa diambil ulang.
+    if (localStorage.getItem(FORM_CACHE_VERSION_KEY) !== String(FORM_CACHE_VERSION)) {
+      localStorage.removeItem(FORM_STORAGE_KEY);
+      localStorage.setItem(FORM_CACHE_VERSION_KEY, String(FORM_CACHE_VERSION));
+      return initialForms;
+    }
+
     const saved = localStorage.getItem(FORM_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved) as Array<FormListItem & { target?: string | string[] }>;
@@ -578,6 +678,7 @@ export const getInitialForms = (): FormListItem[] => {
 export const saveForms = (forms: FormListItem[]) => {
   if (typeof window === "undefined") return;
   localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(forms));
+  localStorage.setItem(FORM_CACHE_VERSION_KEY, String(FORM_CACHE_VERSION));
 };
 
 
@@ -625,6 +726,18 @@ export const formListItemToApiPayload = (form: FormListItem & { targetGraduation
         question: q.question,
         type: q.type,
         required: q.required,
+        // Medan bantu pengisian ikut dikirim supaya suntingan Tim Tracer
+        // tersimpan, dan supaya salinan-dari-template membawanya serta —
+        // pada kuesioner baru belum ada baris lama di server yang bisa
+        // dijadikan sumber pelestarian.
+        description: q.description || undefined,
+        hint: q.hint || undefined,
+        format: q.format || undefined,
+        divider_label: q.dividerLabel || undefined,
+        option_hints: q.optionHints && Object.keys(q.optionHints).length > 0 ? q.optionHints : undefined,
+        ...(q.analyticsMeta ?? {}),
+        warn_min: Number.isFinite(q.warnMin) ? q.warnMin : undefined,
+        warn_max: Number.isFinite(q.warnMax) ? q.warnMax : undefined,
         order_no: qi + 1,
         allowOther: q.allowOther ?? false,
         scaleMin: q.scaleMin,
