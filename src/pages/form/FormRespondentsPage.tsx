@@ -31,6 +31,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/common/use-toast";
 import api from "@/lib/api";
 import { useAuthContext } from "@/contexts/AuthContext";
 import {
@@ -105,8 +108,19 @@ const FormRespondentsPage = () => {
   const [prodiFilter, setProdiFilter] = useState("");
   const [yearFilter, setYearFilter] = useState("");
   const [resetTarget, setResetTarget] = useState<RespondentItem | null>(null);
+  const [reopenNote, setReopenNote] = useState("");
+  const { toast } = useToast();
 
-  const canReset = user?.role === "head_tracer" || user?.role === "tracer_team";
+  // Kaprodi mencapai halaman ini lewat Hasil Kuesioner → "N responden"
+  // (rute questionnaire-results/:formId di App.tsx, digate
+  // academic.questionnaire_results). Ia berhak mengajukan pembukaan
+  // kembali (RBAC-12), jadi tombolnya perlu muncul untuknya juga.
+  const canReset =
+    user?.role === "head_tracer" || user?.role === "tracer_team" || user?.role === "kaprodi";
+
+  // Hanya Ketua Tracer yang boleh membuka langsung (RBAC-04). Peran lain
+  // mengajukan permintaan yang menunggu persetujuannya.
+  const isHeadTracer = user?.role === "head_tracer";
 
   const questionnaireQuery = useQuery({
     queryKey: ["questionnaire-detail", formId],
@@ -130,13 +144,48 @@ const FormRespondentsPage = () => {
 
   const resetMutation = useMutation({
     mutationFn: async (alumniId: number) => {
-      await api.post(`/alumni/${alumniId}/reset-response`, {
+      if (isHeadTracer) {
+        await api.post(`/alumni/${alumniId}/reset-response`, {
+          questionnaire_id: Number(formId),
+        });
+        return;
+      }
+
+      await api.post("/approvals/request-reopen", {
+        alumni_id: alumniId,
         questionnaire_id: Number(formId),
+        note: reopenNote,
       });
     },
     onSuccess: () => {
+      // Pengajuan belum mengubah status siapa pun, tapi memuat ulang daftar
+      // tetap murah dan menjaga tampilan tidak basi kalau ada perubahan lain.
       queryClient.invalidateQueries({ queryKey: ["questionnaire-respondents", formId] });
+      toast({
+        title: isHeadTracer ? "Pengisian dibuka kembali" : "Permintaan diajukan",
+        description: isHeadTracer
+          ? "Jawaban sebelumnya dipertahankan dan akan muncul kembali saat alumni membuka formulir."
+          : "Permintaan menunggu persetujuan Ketua Tracer.",
+      });
       setResetTarget(null);
+      setReopenNote("");
+
+      // Pemohon dilempar ke riwayat persetujuan: dari halaman responden,
+      // pengajuan tidak meninggalkan jejak apa pun yang terlihat -- status
+      // alumni tetap Finished sampai disetujui, sehingga tanpa ini pemohon
+      // tidak punya cara tahu permintaannya benar-benar tercatat.
+      //
+      // Ketua Tracer tidak ikut dialihkan: tindakannya langsung berlaku dan
+      // hasilnya terlihat di baris yang sedang ia lihat.
+      if (!isHeadTracer) {
+        navigate("/dashboard/approvals");
+      }
+    },
+    onError: (error: unknown) => {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        "Terjadi kesalahan. Coba lagi.";
+      toast({ title: "Gagal", description: message, variant: "destructive" });
     },
   });
 
@@ -424,30 +473,61 @@ const FormRespondentsPage = () => {
         </Card>
       </div>
 
-      {/* Reset Confirmation Dialog */}
-      <AlertDialog open={!!resetTarget} onOpenChange={(open) => !open && setResetTarget(null)}>
+      {/* Dialog buka kembali pengisian */}
+      <AlertDialog
+        open={!!resetTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResetTarget(null);
+            setReopenNote("");
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Reset Status Responden</AlertDialogTitle>
+            <AlertDialogTitle>
+              {isHeadTracer ? "Buka Kembali Pengisian" : "Ajukan Pembukaan Kembali"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Anda akan mereset status <strong>{resetTarget?.name}</strong> ({resetTarget?.nim}) dari{" "}
-              <strong>Finished</strong> ke <strong>Ongoing</strong>. Jawaban yang sudah disubmit akan dihapus dan alumni
-              harus mengisi ulang kuesioner.
+              Status <strong>{resetTarget?.name}</strong> ({resetTarget?.nim}) akan dikembalikan dari{" "}
+              <strong>Finished</strong> ke <strong>Ongoing</strong>. Jawaban yang sudah terkirim{" "}
+              <strong>tetap tersimpan</strong> dan akan muncul kembali saat alumni membuka formulir, sehingga
+              alumni hanya perlu memperbaiki bagian yang salah.
+              {!isHeadTracer && " Permintaan ini menunggu persetujuan Ketua Tracer dan belum mengubah apa pun."}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {!isHeadTracer && (
+            <div className="space-y-1.5">
+              <Label htmlFor="reopen-note">Alasan permintaan</Label>
+              <Textarea
+                id="reopen-note"
+                value={reopenNote}
+                onChange={(event) => setReopenNote(event.target.value)}
+                placeholder="Contoh: alumni salah mengisi pendapatan dan meminta koreksi"
+              />
+            </div>
+          )}
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={resetMutation.isPending}>Batal</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
-              disabled={resetMutation.isPending}
-              onClick={() => resetTarget && resetMutation.mutate(resetTarget.id)}
+              disabled={
+                resetMutation.isPending || (!isHeadTracer && reopenNote.trim().length === 0)
+              }
+              onClick={(event) => {
+                // Tanpa ini AlertDialogAction menutup dialog sebelum permintaan
+                // selesai, sehingga galat validasi tidak sempat terlihat.
+                event.preventDefault();
+                if (resetTarget) resetMutation.mutate(resetTarget.id);
+              }}
             >
               {resetMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <RotateCcw className="mr-2 h-4 w-4" />
               )}
-              Reset
+              {isHeadTracer ? "Buka Kembali" : "Ajukan"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

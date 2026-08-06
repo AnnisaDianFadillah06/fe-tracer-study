@@ -24,7 +24,13 @@ interface ApprovalRequest {
   id: number;
   requester: { id: number; name: string; email: string };
   type: string;
-  payload: { questionnaire_id?: number; title?: string };
+  payload: {
+    questionnaire_id?: number;
+    title?: string;
+    alumni_id?: number;
+    alumni_name?: string | null;
+    alumni_nim?: string | null;
+  };
   status: "pending" | "approved" | "rejected";
   note: string | null;
   created_at: string;
@@ -34,6 +40,43 @@ interface ApprovalRequest {
 const typeLabels: Record<string, string> = {
   add_questionnaire: "Tambah Kuesioner",
   delete_questionnaire: "Hapus Kuesioner",
+  reopen_response: "Buka Kembali Pengisian",
+};
+
+/**
+ * Kolom "Judul" diisi payload.title, yang hanya dimiliki permintaan
+ * seputar kuesioner. Permintaan pembukaan kembali menunjuk alumni, jadi
+ * tanpa ini barisnya tampil sebagai "—" dan penyetuju tidak tahu sasarannya.
+ */
+/**
+ * Ke mana tombol "Lihat" mengarah, per jenis permintaan.
+ *
+ * Ada dua tombol dengan tujuan yang sama — satu di baris tabel, satu di
+ * dialog Review — jadi tujuannya ditentukan di satu tempat. Sebelumnya
+ * keduanya menyalin URL pratinjau builder, dan permintaan pembukaan
+ * kembali ikut diarahkan ke borang kosong bermode read-only yang tidak
+ * menjawab apa pun.
+ */
+const reviewTargetPath = (req: ApprovalRequest): string | null => {
+  const qid = req.payload?.questionnaire_id;
+  if (!qid) return null;
+
+  return req.type === "reopen_response"
+    ? `/dashboard/form-management/${qid}/respondents`
+    : `/dashboard/form-management/${qid}/preview`;
+};
+
+const reviewTargetLabel = (req: ApprovalRequest): string =>
+  req.type === "reopen_response" ? "Lihat Status Pengisian Alumni" : "Lihat Isi Kuesioner";
+
+const targetLabel = (req: ApprovalRequest): string => {
+  if (req.type === "reopen_response") {
+    const { alumni_name, alumni_nim, alumni_id } = req.payload ?? {};
+    if (alumni_name) return alumni_nim ? `${alumni_name} (${alumni_nim})` : alumni_name;
+    // Permintaan yang dibuat sebelum nama ikut disimpan di payload.
+    return alumni_id ? `Alumni #${alumni_id}` : "—";
+  }
+  return req.payload?.title ?? "—";
 };
 
 const ApprovalsPage = () => {
@@ -104,7 +147,7 @@ const ApprovalsPage = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><ShieldCheck className="h-6 w-6" /> {isHeadTracer ? "Approval Request" : "Riwayat Pengajuan"}</h1>
-          <p className="text-muted-foreground">{isHeadTracer ? "Kelola permintaan dari Tim Tracer (tambah/hapus kuesioner)" : "Riwayat pengajuan tambah/hapus kuesioner Anda"}</p>
+          <p className="text-muted-foreground">{isHeadTracer ? "Kelola permintaan dari Tim Tracer dan Kaprodi (kuesioner & pembukaan kembali pengisian)" : "Riwayat pengajuan Anda"}</p>
         </div>
 
         {/* Stats */}
@@ -160,14 +203,19 @@ const ApprovalsPage = () => {
                   <TableRow key={req.id}>
                     <TableCell className="font-medium">{req.requester.name}</TableCell>
                     <TableCell><Badge variant="outline">{typeLabels[req.type] ?? req.type}</Badge></TableCell>
-                    <TableCell>{req.payload?.title ?? "—"}</TableCell>
+                    <TableCell>{targetLabel(req)}</TableCell>
                     <TableCell className="text-muted-foreground">{new Date(req.created_at).toLocaleDateString("id-ID")}</TableCell>
                     <TableCell>{statusBadge(req.status)}</TableCell>
                     <TableCell className="text-right">
                       {req.status === "pending" && isHeadTracer ? (
                         <div className="flex items-center justify-end gap-2">
-                          {req.payload?.questionnaire_id && (
-                            <Button size="sm" variant="outline" onClick={() => navigate(`/dashboard/form-management/${req.payload.questionnaire_id}/preview`)}>
+                          {reviewTargetPath(req) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              title={reviewTargetLabel(req)}
+                              onClick={() => navigate(reviewTargetPath(req)!)}
+                            >
                               <Eye className="h-4 w-4 mr-1" />Lihat
                             </Button>
                           )}
@@ -194,11 +242,20 @@ const ApprovalsPage = () => {
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div><span className="text-muted-foreground">Requester:</span> {selectedRequest.requester.name}</div>
                 <div><span className="text-muted-foreground">Tipe:</span> {typeLabels[selectedRequest.type] ?? selectedRequest.type}</div>
-                <div className="col-span-2"><span className="text-muted-foreground">Judul:</span> {selectedRequest.payload?.title ?? "—"}</div>
+                <div className="col-span-2"><span className="text-muted-foreground">Sasaran:</span> {targetLabel(selectedRequest)}</div>
               </div>
-              {selectedRequest.payload?.questionnaire_id && (
-                <Button variant="outline" className="w-full" onClick={() => { setSelectedRequest(null); navigate(`/dashboard/form-management/${selectedRequest.payload.questionnaire_id}/preview`); }}>
-                  <Eye className="h-4 w-4 mr-2" />Lihat Isi Kuesioner
+              {reviewTargetPath(selectedRequest) && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    const path = reviewTargetPath(selectedRequest)!;
+                    setSelectedRequest(null);
+                    navigate(path);
+                  }}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  {reviewTargetLabel(selectedRequest)}
                 </Button>
               )}
               <div><Label>Catatan (opsional)</Label><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Tambahkan catatan..." /></div>

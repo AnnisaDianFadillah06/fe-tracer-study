@@ -123,6 +123,12 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.kpi",
     "academic.alumni_data",
     "academic.questionnaire_results",
+    // Kaprodi mengajukan pembukaan kembali pengisian alumni (RBAC-12) dan
+    // perlu melihat status pengajuannya. BE membuka GET approvals untuk
+    // role ini, dan ApprovalController::index() hanya mengembalikan
+    // permintaan miliknya sendiri. Tombol setujui/tolak tetap tidak muncul
+    // karena digate isHeadTracer di halamannya.
+    "admin.approval",
   ],
   alumni: ["questionnaire.fill"],
 };
@@ -142,6 +148,13 @@ export interface MenuItem {
   icon: React.ElementType;
   description: string;
   permission: Permission;
+  /**
+   * Judul dan keterangan pengganti untuk peran tertentu, dipakai kalau satu
+   * halaman berarti berbeda tergantung siapa yang membukanya. Contohnya
+   * Approval Request: Ketua Tracer memutuskan di sana, sedangkan Tim Tracer
+   * dan Kaprodi hanya menengok pengajuannya sendiri.
+   */
+  overrideByRole?: Partial<Record<AppRole, { title?: string; description?: string }>>;
 }
 
 export interface MenuGroup {
@@ -172,7 +185,20 @@ const adminItems: MenuItem[] = [
   { title: "Kelola Staff", href: "/dashboard/staff-management", icon: Users, description: "CRUD semua akun user", permission: "admin.user" },
   { title: "Kelola Mahasiswa", href: "/dashboard/student-management", icon: Users, description: "CRUD akun mahasiswa/alumni", permission: "admin.user" },
   { title: "Manajemen Kuesioner", href: "/dashboard/form-management", icon: ClipboardList, description: "Kelola kuesioner", permission: "admin.questionnaire" },
-  { title: "Approval Request", href: "/dashboard/approvals", icon: ShieldCheck, description: "Riwayat & approval pengajuan", permission: "admin.approval" },
+  {
+    title: "Approval Request",
+    href: "/dashboard/approvals",
+    icon: ShieldCheck,
+    description: "Riwayat & approval pengajuan",
+    permission: "admin.approval",
+    // Pemohon tidak memutuskan apa pun di halaman ini — judulnya mengikuti
+    // apa yang halaman itu sendiri tampilkan bagi mereka (lihat
+    // ApprovalsPage: "Riwayat Pengajuan" untuk selain Ketua Tracer).
+    overrideByRole: {
+      tracer_team: { title: "Riwayat Pengajuan", description: "Status pengajuan Anda" },
+      kaprodi:     { title: "Riwayat Pengajuan", description: "Status pengajuan Anda" },
+    },
+  },
   { title: "Master Data", href: "/dashboard/master-data", icon: Building2, description: "Prodi, provinsi, kota", permission: "admin.master" },
   { title: "Laporan Publik", href: "/dashboard/public-reports", icon: FileText, description: "Unggah laporan tahunan untuk publik", permission: "admin.public_report" },
 ];
@@ -193,7 +219,12 @@ export function getMenuForRole(role: AppRole): MenuGroup[] {
   return allGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => hasPermission(role, item.permission)),
+      items: group.items
+        .filter((item) => hasPermission(role, item.permission))
+        .map((item) => {
+          const override = item.overrideByRole?.[role];
+          return override ? { ...item, ...override } : item;
+        }),
     }))
     .filter((group) => group.items.length > 0);
 }
