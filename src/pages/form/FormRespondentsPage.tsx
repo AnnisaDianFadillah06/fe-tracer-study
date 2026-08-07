@@ -165,7 +165,7 @@ const FormRespondentsPage = () => {
       toast({
         title: isHeadTracer ? "Pengisian dibuka kembali" : "Permintaan diajukan",
         description: isHeadTracer
-          ? "Jawaban sebelumnya dipertahankan dan akan muncul kembali saat alumni membuka formulir."
+          ? "Hanya kuesioner ini yang dibuka. Jawaban sebelumnya dipertahankan dan akan muncul kembali saat alumni membuka formulir."
           : "Permintaan menunggu persetujuan Ketua Tracer.",
       });
       setResetTarget(null);
@@ -493,7 +493,9 @@ const FormRespondentsPage = () => {
             </AlertDialogTitle>
             <AlertDialogDescription>
               Status <strong>{resetTarget?.name}</strong> ({resetTarget?.nim}) akan dikembalikan dari{" "}
-              <strong>Finished</strong> ke <strong>Ongoing</strong>. Jawaban yang sudah terkirim{" "}
+              <strong>Finished</strong> ke <strong>Ongoing</strong>, khusus pada kuesioner{" "}
+              <strong>{questionnaireQuery.data?.title ?? "ini"}</strong>. Kuesioner lain yang sudah
+              dikirim alumni tersebut tidak ikut dibuka. Jawaban yang sudah terkirim{" "}
               <strong>tetap tersimpan</strong> dan akan muncul kembali saat alumni membuka formulir, sehingga
               alumni hanya perlu memperbaiki bagian yang salah.
               {!isHeadTracer && " Permintaan ini menunggu persetujuan Ketua Tracer dan belum mengubah apa pun."}

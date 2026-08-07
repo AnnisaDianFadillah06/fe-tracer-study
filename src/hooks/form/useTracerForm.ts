@@ -483,9 +483,30 @@ export const useTracerForm = (
         });
 
         if (data.success && data.data && data.data.length > 0) {
-          const mapped = mapBackendToSections(data.data);
+          // Kuesioner yang sudah dikirim disembunyikan sama sekali, bukan
+          // ditampilkan terkunci. Alumni yang kuesioner prodinya dibuka
+          // kembali hanya melihat bagian itu — jawaban kuesioner umumnya
+          // tidak ikut tampil, jadi tidak ada yang bisa tertimpa kosong.
+          //
+          // Daftar bagian yang tersisa inilah yang nantinya dikirim sebagai
+          // `questionnaire_ids` saat submit, sehingga backend tahu persis
+          // kuesioner mana yang sedang diisi.
+          const respondedIds = new Set<number>(
+            ((data.responded_questionnaire_ids ?? []) as unknown[]).map(Number),
+          );
+          const openForms = (data.data as any[]).filter(
+            (qnr) => !respondedIds.has(Number(qnr.id)),
+          );
+
+          // Formulir baru benar-benar tertutup kalau TIDAK ADA satu pun
+          // kuesioner tersisa. Backend sudah mengirim has_responded dengan
+          // arti yang sama ("semua sudah"), tapi panjang openForms dihitung
+          // ulang di sini supaya keduanya tidak bisa berselisih.
+          const allDone = openForms.length === 0;
+
+          const mapped = mapBackendToSections(openForms);
           setSections(mapped);
-          setHasResponded(!!data.has_responded);
+          setHasResponded(allDone);
 
           /** Jawaban awal sebelum draf — hanya berisi identitas yang sudah diketahui. */
           let initialAnswers = applyIdentityPrefill(mapped, {}, identityRef.current);
@@ -493,7 +514,7 @@ export const useTracerForm = (
           // Pulihkan isian yang tertinggal, kecuali kuesionernya sudah pernah
           // dikirim. Dilakukan setelah sections siap karena sidik kuesioner
           // dihitung dari daftar pertanyaannya.
-          if (nim && !data.has_responded) {
+          if (nim && !allDone) {
             const fingerprint = questionnaireFingerprint(mapped.flatMap((s) => s.questions.map((q) => q.id)));
             const local = readDraft(nim, fingerprint);
             const server = await fetchServerDraft(mapped);
