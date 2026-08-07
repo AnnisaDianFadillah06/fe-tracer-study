@@ -95,7 +95,7 @@ const DaftarKuisionerPage = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">((searchParams.get("status") as any) || "all");
   const [exportingId, setExportingId] = useState<number | null>(null);
   const [page, setPageRaw] = useState(Number(searchParams.get("page")) || 1);
-  // "" = angkatan belum dipilih (layar kartu tahun), "all" = lintas angkatan,
+  // "" = tahun lulus belum dipilih (layar kartu tahun), "all" = lintas lulusan,
   // selain itu berisi satu tahun lulusan.
   const [graduationYearFilter, setGraduationYearFilterRaw] = useState(searchParams.get("year") ?? "");
   const [paginationMeta, setPaginationMeta] = useState({ currentPage: 1, lastPage: 1, total: 0 });
@@ -293,7 +293,7 @@ const DaftarKuisionerPage = () => {
             <h2 className="font-heading text-2xl font-bold sm:text-3xl">
               Manajemen Kuisioner
               <span className="font-normal text-muted-foreground">
-                {" — "}{graduationYearFilter === "all" ? "Semua Angkatan" : `Lulusan ${graduationYearFilter}`}
+                {" — "}{graduationYearFilter === "all" ? "Semua Lulusan" : `Lulusan ${graduationYearFilter}`}
               </span>
             </h2>
             <p className="max-w-2xl text-sm text-muted-foreground">

@@ -230,7 +230,7 @@ const QuestionnaireResultsPage = () => {
             <h2 className="text-2xl font-heading font-bold">
               Hasil Kuesioner
               <span className="text-muted-foreground font-normal">
-                {" — "}{graduationYear === null ? "Semua Angkatan" : `Lulusan ${graduationYear}`}
+                {" — "}{graduationYear === null ? "Semua Lulusan" : `Lulusan ${graduationYear}`}
               </span>
             </h2>
             <p className="text-muted-foreground text-sm">Daftar kuesioner dan ringkasan responden</p>

@@ -15,12 +15,12 @@ import { useRingkasanTahun, YearSummary } from "@/hooks/useRingkasanTahun";
  * Dipakai empat halaman: alumni-data, student-management,
  * questionnaire-results, dan form-management. Sebelumnya keempatnya
  * langsung menarik data begitu dibuka -- daftar kuesioner saja ~279 KB --
- * padahal pengguna hampir selalu bekerja pada satu angkatan saja.
+ * padahal pengguna hampir selalu bekerja pada satu tahun lulus saja.
  *
  * Halaman pemanggil menentukan tahun terpilih lewat query string `?year=`:
  *   - `?year=` tidak ada  -> komponen ini yang tampil
  *   - `?year=2024`        -> halaman menampilkan tabelnya sendiri
- *   - `?year=all`         -> lintas angkatan
+ *   - `?year=all`         -> lintas tahun lulus
  *
  * Dengan begitu tombol kembali, muat ulang, dan berbagi tautan tetap
  * bekerja tanpa perlu menambah route baru.
@@ -33,7 +33,7 @@ import { useRingkasanTahun, YearSummary } from "@/hooks/useRingkasanTahun";
  * halaman Kontak Penilai tidak berurusan dengan progres pengisian sama
  * sekali, dan menampilkannya di sana menjawab pertanyaan yang tidak sedang
  * ditanyakan siapa pun. Yang berguna di sana adalah berapa kontak yang akan
- * dikerjakan pada angkatan itu.
+ * dikerjakan pada tahun lulus itu.
  */
 export type YearMode = "alumni" | "kuesioner" | "kontak";
 
@@ -51,13 +51,21 @@ interface Props {
 
 const nf = new Intl.NumberFormat("id-ID");
 
-/** Kartu satu tahun. Diredupkan bila tidak ada yang bisa dibuka pada mode ini. */
+/**
+ * Kartu satu tahun LULUS, bukan tahun masuk.
+ *
+ * Istilah "angkatan" sengaja tidak dipakai di teks yang terlihat pengguna:
+ * angkatan berarti tahun masuk, dan satu angkatan yang sama lulus pada tahun
+ * berbeda antara D3 dan D4. Seluruh pengelompokan di aplikasi ini memakai
+ * tahun lulus, jadi menyebutnya angkatan menyesatkan.
+ */
+/** Diredupkan bila tidak ada yang bisa dibuka pada mode ini. */
 const YearCard = ({
   data, mode, onSelect,
 }: { data: YearSummary; mode: YearMode; onSelect: (year: number) => void }) => {
-  // Pada mode kuesioner, angkatan yang belum disasar kuesioner apa pun tidak
-  // ada isinya untuk dibuka. Kartunya tetap ditampilkan (bukan disembunyikan)
-  // supaya pengguna sadar angkatan itu ada tapi belum digarap.
+  // Pada mode kuesioner, tahun lulus yang belum disasar kuesioner apa pun
+  // tidak ada isinya untuk dibuka. Kartunya tetap ditampilkan (bukan
+  // disembunyikan) supaya pengguna sadar tahun itu ada tapi belum digarap.
   const disabled = mode === "kuesioner" && data.kuesioner === 0;
 
   return (
@@ -95,7 +103,7 @@ const YearCard = ({
 
         {disabled ? (
           <p className="text-sm text-muted-foreground">
-            Belum ada kuesioner yang menyasar angkatan ini.
+            Belum ada kuesioner yang menyasar lulusan ini.
           </p>
         ) : (
           <div className="flex items-baseline gap-2">
@@ -130,8 +138,8 @@ const YearCard = ({
             <span>{nf.format(data.sudah_mengisi)} sudah mengisi</span>
           </div>
 
-          {/* Bilah tingkat respons — memberi gambaran cepat angkatan mana
-              yang paling perlu ditindaklanjuti. */}
+          {/* Bilah tingkat respons — memberi gambaran cepat tahun lulus
+              mana yang paling perlu ditindaklanjuti. */}
           <div
             className="h-1.5 w-full rounded-full bg-muted overflow-hidden"
             role="img"
@@ -211,7 +219,7 @@ export const PilihTahun = ({
 
       {onSearch && (
         <p className="text-xs text-muted-foreground -mt-1">
-          Tekan Enter untuk mencari lintas seluruh angkatan.
+          Tekan Enter untuk mencari lintas seluruh lulusan.
         </p>
       )}
 
@@ -227,8 +235,8 @@ export const PilihTahun = ({
           ))
         ) : (
           <>
-            {/* Kartu lintas angkatan — dibutuhkan saat staf mencari satu
-                alumni tanpa tahu angkatannya. */}
+            {/* Kartu lintas tahun lulus — dibutuhkan saat staf mencari satu
+                alumni tanpa tahu tahun lulusnya. */}
             <Card
               role="button"
               tabIndex={0}
@@ -242,7 +250,7 @@ export const PilihTahun = ({
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <h3 className="text-lg font-semibold leading-tight">Semua Tahun</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">Lintas angkatan</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Lintas lulusan</p>
                   </div>
                   <Layers className="h-4 w-4 text-muted-foreground shrink-0 mt-1" aria-hidden />
                 </div>
@@ -260,7 +268,7 @@ export const PilihTahun = ({
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {mode === "kontak"
-                    ? `Dari ${nf.format(total.alumni)} alumni lintas angkatan`
+                    ? `Dari ${nf.format(total.alumni)} alumni lintas lulusan`
                     : `${nf.format(total.responded)} dari ${nf.format(total.alumni)} alumni sudah mengisi`}
                 </p>
               </CardContent>

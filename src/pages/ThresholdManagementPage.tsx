@@ -591,9 +591,9 @@ const ThresholdManagementPage = () => {
                                 </div>
 
                                 <MethodologyBlock
-                                  description="Nilai indikator ini dihitung otomatis oleh sistem memakai formula Slovin, berdasarkan jumlah lulusan tiap angkatan per program studi — bukan diisi manual."
+                                  description="Nilai indikator ini dihitung otomatis oleh sistem memakai formula Slovin, berdasarkan jumlah lulusan tiap tahun lulus per program studi — bukan diisi manual."
                                   formula="n = N / (1 + N·e²)"
-                                  notes="n = jumlah responden minimum (threshold), N = total lulusan angkatan tsb., e = margin of error (2,3%)"
+                                  notes="n = jumlah responden minimum (threshold), N = total lulusan tahun tsb., e = margin of error (2,3%)"
                                 />
 
                                 {!stdForm.lam_id ? (
@@ -615,7 +615,7 @@ const ThresholdManagementPage = () => {
                                         <div className="flex flex-col gap-1 pl-2 mt-0.5">
                                           {prodi.history.map((h) => (
                                             <div key={h.graduated_year} className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                                              <span className="min-w-[90px]">Angkatan {h.graduated_year}</span>
+                                              <span className="min-w-[90px]">Lulusan {h.graduated_year}</span>
                                               <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100 border-0 text-[10px] px-2">
                                                 {h.threshold_value}%
                                               </Badge>

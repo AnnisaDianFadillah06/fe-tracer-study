@@ -639,7 +639,7 @@ const FormBuilderPage = () => {
     }
 
     if (form.target.length === 0) {
-      toast({ title: "Sasaran wajib dipilih", description: "Pilih minimal satu sasaran angkatan.", variant: "destructive" });
+      toast({ title: "Sasaran wajib dipilih", description: "Pilih minimal satu sasaran lulusan.", variant: "destructive" });
       return;
     }
 
@@ -786,7 +786,7 @@ const FormBuilderPage = () => {
                   <SelectTrigger id="form-target">
                     <SelectValue
                       placeholder={
-                        isAlumniLoading ? "Memuat data alumni..." : "Pilih angkatan alumni"
+                        isAlumniLoading ? "Memuat data alumni..." : "Pilih tahun lulus alumni"
                       }
                     />
                   </SelectTrigger>

@@ -253,7 +253,7 @@ const StatistikPublikPage = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   /**
-   * Nilai `semua` pada query string berarti gabungan seluruh angkatan yang
+   * Nilai `semua` pada query string berarti gabungan seluruh tahun lulus yang
    * boleh ditampilkan publik — bukan seluruh angkatan yang pernah ada.
    * Angkatan di luar rentang pengarsipan tetap tidak terhitung, dan batas itu
    * ditegakkan server, bukan di sini.
@@ -280,7 +280,7 @@ const StatistikPublikPage = () => {
         if (data.success) {
           const list: number[] = data.data.years ?? [];
           setYears(list);
-          // Pilihan "semua angkatan" dibiarkan apa adanya; yang perlu
+          // Pilihan "semua lulusan" dibiarkan apa adanya; yang perlu
           // dibetulkan hanya tahun tunggal yang tidak ada di daftar.
           if (
             !isAllYears &&
@@ -291,7 +291,7 @@ const StatistikPublikPage = () => {
           }
         }
       } catch {
-        setErrorMessage("Gagal memuat daftar angkatan.");
+        setErrorMessage("Gagal memuat daftar tahun lulus.");
       } finally {
         setLoadingYears(false);
       }
@@ -317,7 +317,7 @@ const StatistikPublikPage = () => {
         const status = (err as { response?: { status?: number } })?.response?.status;
         setErrorMessage(
           status === 404
-            ? "Data angkatan tersebut tidak ditampilkan untuk publik."
+            ? "Data lulusan tersebut tidak ditampilkan untuk publik."
             : "Gagal memuat data statistik.",
         );
         setPayload(null);
@@ -346,7 +346,7 @@ const StatistikPublikPage = () => {
                 <SelectValue placeholder="Pilih tahun" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL_YEARS}>Semua Angkatan</SelectItem>
+                <SelectItem value={ALL_YEARS}>Semua Lulusan</SelectItem>
                 {years.map((y) => (
                   <SelectItem key={y} value={String(y)}>Tahun {y}</SelectItem>
                 ))}
@@ -357,11 +357,11 @@ const StatistikPublikPage = () => {
       }
     >
       {isLoadingYears ? (
-        <LoadingCard label="Memuat angkatan…" />
+        <LoadingCard label="Memuat tahun lulus…" />
       ) : years.length === 0 ? (
         <Card>
           <CardContent className="py-20 text-center text-muted-foreground">
-            Belum ada angkatan yang ditampilkan untuk publik.
+            Belum ada tahun lulus yang ditampilkan untuk publik.
           </CardContent>
         </Card>
       ) : errorMessage ? (

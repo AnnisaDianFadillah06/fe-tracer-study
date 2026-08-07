@@ -48,10 +48,10 @@ const StakeholderContactsPage = () => {
   const { jurusanNames } = useJurusan();
 
   /**
-   * Angkatan yang sedang dibuka. Tiga keadaan, dan bedanya penting:
-   *   ""     — belum memilih, layar kartu angkatan yang tampil
-   *   "all"  — sengaja memilih lintas angkatan
-   *   "2024" — satu angkatan
+   * Tahun lulus yang sedang dibuka. Tiga keadaan, dan bedanya penting:
+   *   ""     — belum memilih, layar kartu tahun lulus yang tampil
+   *   "all"  — sengaja memilih lintas tahun lulus
+   *   "2024" — satu tahun lulus
    *
    * Pola ini menyamai Kelola Mahasiswa dan Kelola Kuesioner, supaya ketiga
    * halaman pengelolaan dimasuki dengan cara yang sama.
@@ -105,7 +105,7 @@ const StakeholderContactsPage = () => {
    * Unduhan berdialog, dengan penyaringnya sendiri.
    *
    * Lingkupnya TIDAK lagi mengikuti penyaring tabel. Kiriman survei penilaian
-   * dilakukan per angkatan atau per jurusan, dan itu belum tentu sama dengan
+   * dilakukan per tahun lulus atau per jurusan, dan itu belum tentu sama dengan
    * yang sedang dilihat petugas di layar — memaksa keduanya sama berarti
    * petugas harus mengubah tampilan tabelnya dulu hanya untuk mengunduh.
    * Nilai awal dialog tetap diambil dari penyaring tabel supaya jalur yang
@@ -197,7 +197,7 @@ const StakeholderContactsPage = () => {
             <Select value={dlYear} onValueChange={setDlYear}>
               <SelectTrigger id="dl-year"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>Semua angkatan</SelectItem>
+                <SelectItem value={ALL}>Semua lulusan</SelectItem>
                 {years.map((y) => (
                   <SelectItem key={y.tahun} value={String(y.tahun)}>Lulusan {y.tahun}</SelectItem>
                 ))}
@@ -278,11 +278,11 @@ const StakeholderContactsPage = () => {
     </Dialog>
   );
 
-  // ── Layar kartu angkatan ──────────────────────────────────────────────
+  // ── Layar kartu tahun lulus ───────────────────────────────────────────
   // Halaman ini dimasuki dengan cara yang sama seperti Kelola Mahasiswa dan
-  // Kelola Kuesioner: pilih angkatan dulu, baru daftarnya terbuka. Kartunya
-  // bertambah sendiri seiring angkatan baru masuk, karena daftar tahunnya
-  // datang dari ringkasan tahun, bukan ditulis tetap di dalam kode.
+  // Kelola Kuesioner: pilih tahun lulus dulu, baru daftarnya terbuka.
+  // Kartunya bertambah sendiri seiring tahun lulus baru muncul, karena
+  // daftarnya datang dari ringkasan tahun, bukan ditulis tetap di kode.
   if (yearSelection === "") {
     return (
       <DashboardLayout>
@@ -291,7 +291,7 @@ const StakeholderContactsPage = () => {
             <h1 className="font-heading text-2xl font-bold">Kontak Penilai</h1>
             <p className="text-muted-foreground text-sm mt-1 max-w-2xl">
               Atasan, senior, dan rekan kerja yang dituliskan alumni pada bagian akhir kuesioner.
-              Pilih angkatan untuk melihat daftarnya.
+              Pilih tahun lulus untuk melihat daftarnya.
             </p>
           </div>
 
@@ -337,7 +337,7 @@ const StakeholderContactsPage = () => {
               onClick={() => { setYearSelection(""); setSearchInput(""); setPage(1); }}
             >
               <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
-              Pilih Angkatan
+              Pilih Tahun Lulus
             </Button>
           </div>
 

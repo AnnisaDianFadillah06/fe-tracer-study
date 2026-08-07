@@ -104,15 +104,15 @@ const StudentManagementPage = () => {
   // "" berarti tidak menyaring pada sumbu itu. Jurusan tanpa prodi berarti
   // seluruh prodi di bawahnya; keduanya berarti irisannya; tidak satu pun
   // berarti seluruh alumni.
-  /** Angkatan sasaran penerbitan; "" berarti seluruh angkatan. */
+  /** Tahun lulus sasaran penerbitan; "" berarti seluruh tahun lulus. */
   const [credYear, setCredYear] = useState("");
   const [credJurusan, setCredJurusan] = useState("");
   const [credProdi, setCredProdi] = useState("");
   /** Kemajuan penerbitan berpotong; null saat tidak sedang berjalan. */
   const [credProgress, setCredProgress] = useState<{ done: number; remaining: number } | null>(null);
 
-  // Daftar angkatan dipakai pemilih di dalam dialog. Sumber yang sama dengan
-  // kartu tahun di layar awal, jadi pilihannya selalu sinkron.
+  // Daftar tahun lulus dipakai pemilih di dalam dialog. Sumber yang sama
+  // dengan kartu tahun di layar awal, jadi pilihannya selalu sinkron.
   const { years: yearSummaries } = useRingkasanTahun();
 
   /**
@@ -666,16 +666,16 @@ const StudentManagementPage = () => {
 
         <div className="space-y-4 text-sm">
           <div className="space-y-1.5">
-            <Label htmlFor="cred-year">Angkatan</Label>
+            <Label htmlFor="cred-year">Tahun Lulus</Label>
             <Select
               value={credYear === "" ? "all" : credYear}
               onValueChange={(v) => setCredYear(v === "all" ? "" : v)}
             >
               <SelectTrigger id="cred-year">
-                <SelectValue placeholder="Pilih angkatan" />
+                <SelectValue placeholder="Pilih tahun lulus" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Semua angkatan</SelectItem>
+                <SelectItem value="all">Semua lulusan</SelectItem>
                 {yearSummaries.map((y) => (
                   <SelectItem key={y.tahun} value={String(y.tahun)}>
                     Lulusan {y.tahun}
@@ -839,7 +839,7 @@ const StudentManagementPage = () => {
           <div>
             <h2 className="font-heading text-2xl font-bold">Manajemen Akun Mahasiswa</h2>
             <p className="text-muted-foreground text-sm">
-              Pilih angkatan untuk mengelola akun mahasiswa
+              Pilih tahun lulus untuk mengelola akun mahasiswa
             </p>
           </div>
           <PilihTahun
@@ -869,7 +869,7 @@ const StudentManagementPage = () => {
             <h2 className="font-heading text-2xl font-bold">
               Manajemen Akun Mahasiswa
               <span className="font-normal text-muted-foreground">
-                {" — "}{filterGraduationYear === "all" ? "Semua Angkatan" : `Lulusan ${filterGraduationYear}`}
+                {" — "}{filterGraduationYear === "all" ? "Semua Lulusan" : `Lulusan ${filterGraduationYear}`}
               </span>
             </h2>
             <p className="text-muted-foreground text-sm">
@@ -882,7 +882,7 @@ const StudentManagementPage = () => {
               onClick={() => { setFilterGraduationYear(""); setSearchQuery(""); setPage(1); }}
             >
               <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
-              Pilih Angkatan
+              Pilih Tahun Lulus
             </Button>
           </div>
           <div className="flex gap-2">

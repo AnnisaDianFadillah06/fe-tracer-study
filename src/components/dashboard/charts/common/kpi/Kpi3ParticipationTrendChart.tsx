@@ -83,7 +83,7 @@ const Kpi3ParticipationTrendChart = () => {
     ? "Memuat data…"
     : thresholdByYear.size === 0
     ? "Threshold belum tersedia — akan muncul otomatis setelah ada data lulusan"
-    : "Threshold minimum dihitung otomatis per tahun angkatan (formula Slovin)";
+    : "Threshold minimum dihitung otomatis per tahun lulus (formula Slovin)";
 
   // Icon centang/silang di ujung segmen hijau/merah — menandai tercapai/tidaknya
   // threshold KHUSUS tahun tsb (beda dari komponen serupa lain yg statik 1 threshold).
@@ -137,9 +137,9 @@ const Kpi3ParticipationTrendChart = () => {
             notes="Periode dihitung berdasarkan tahun kelulusan."
           />
           <MethodologyBlock
-            description="Threshold minimum tiap tahun dihitung otomatis dari jumlah lulusan angkatan tsb — bukan nilai tetap, karena tiap angkatan punya jumlah lulusan berbeda."
+            description="Threshold minimum tiap tahun dihitung otomatis dari jumlah lulusan tahun tsb — bukan nilai tetap, karena tiap tahun lulus punya jumlah lulusan berbeda."
             formula={<>n = N / (1 + N·e²)</>}
-            notes="n = responden minimum (threshold), N = total lulusan angkatan tsb., e = margin of error (2,3%)."
+            notes="n = responden minimum (threshold), N = total lulusan tahun tsb., e = margin of error (2,3%)."
           />
         </>
       }>
@@ -160,7 +160,7 @@ const Kpi3ParticipationTrendChart = () => {
                 }}
                 labelFormatter={(label: string, payload: any) => {
                   const th = payload?.[0]?.payload?.threshold;
-                  return th != null ? `Angkatan ${label} — Min. threshold: ${th.toFixed(1)}%` : `Angkatan ${label}`;
+                  return th != null ? `Lulusan ${label} — Min. threshold: ${th.toFixed(1)}%` : `Lulusan ${label}`;
                 }} />
 
               <Bar dataKey="positive" stackId="a" name="Response Rate" cursor="pointer"
