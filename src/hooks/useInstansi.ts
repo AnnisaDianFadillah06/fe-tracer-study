@@ -194,6 +194,24 @@ export function useInstansiDrillDown() {
       const searchParams = new URLSearchParams(params);
       jenisArr.forEach((j) => searchParams.append("jenis_instansi[]", j));
 
+      // Klik irisan "Lainnya" bisa menghasilkan jenisArr kosong (semua label
+      // mentahnya kosong/tidak bisa difilter). Tanpa jenis_instansi[] ATAU
+      // tingkat_instansi, backend menganggap ini request tak lengkap dan
+      // membalas 422 — padahal maksudnya sah: "tidak ada kandidat untuk
+      // difilter". Short-circuit di sini supaya modal langsung menampilkan
+      // kosong, bukan pesan error mentah dari server.
+      if (jenisArr.length === 0 && !extra.tingkat_instansi) {
+        setData({
+          data: [],
+          page: Number(params.page),
+          per_page: Number(params.per_page),
+          total_on_page: 0,
+          total_count: 0,
+        } as any);
+        setLoading(false);
+        return;
+      }
+
       apiService
         .get<any>(`/dashboard/sebaraninstansi/drill-down?${searchParams.toString()}`, { signal: abortRef.current.signal })
         .then((res) => { setData(res?.data ?? res); setLoading(false); })

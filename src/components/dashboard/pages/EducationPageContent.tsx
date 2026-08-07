@@ -10,7 +10,7 @@ import {
 import { useEducationSummary, EducationSummaryCards } from "@/hooks/useSummaryCards";
 
 const FALLBACK_SUMMARY: SummaryCardItem[] = [
-  { title: "Skor Kompetensi", value: "—", hint: "Avg Likert", icon: Award, color: "bg-blue-500/10 text-blue-500" },
+  { title: "Skor Kompetensi", value: "—", hint: "Skor tertinggi", icon: Award, color: "bg-blue-500/10 text-blue-500" },
   { title: "Gap Terbesar", value: "—", hint: "—", icon: Activity, color: "bg-destructive/10 text-destructive" },
   { title: "Metode Terbaik", value: "—", hint: "—", icon: Sparkles, color: "bg-emerald-500/10 text-emerald-500" },
   { title: "Avg Persepsi", value: "—", hint: "Semua metode", icon: BookOpen, color: "bg-purple-500/10 text-purple-500" },
@@ -24,7 +24,7 @@ function formatNumber(n: number): string {
 
 function buildEducationCards(cards: EducationSummaryCards): SummaryCardItem[] {
   return [
-    { title: "Skor Kompetensi", value: formatNumber(cards.skor_kompetensi.value), hint: cards.skor_kompetensi.hint, icon: Award, color: "bg-blue-500/10 text-blue-500" },
+    { title: "Skor Kompetensi", value: cards.skor_kompetensi.label, hint: cards.skor_kompetensi.hint, icon: Award, color: "bg-blue-500/10 text-blue-500" },
     { title: "Gap Terbesar", value: cards.gap_terbesar.label, hint: cards.gap_terbesar.hint, icon: Activity, color: "bg-destructive/10 text-destructive" },
     { title: "Metode Terbaik", value: cards.metode_terbaik.label, hint: cards.metode_terbaik.hint, icon: Sparkles, color: "bg-emerald-500/10 text-emerald-500" },
     { title: "Avg Persepsi", value: formatNumber(cards.avg_persepsi.value), hint: cards.avg_persepsi.hint, icon: BookOpen, color: "bg-purple-500/10 text-purple-500" },

@@ -135,7 +135,7 @@ const Kpi8IncomeChart = () => {
               <ComposedChart data={avgData} margin={{ top: 30, right: hasUmpData ? 50 : 20, left: 20, bottom: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
                 {tahunLulus !== "all" && (
-                  <ReferenceArea x1={tahunLulus} x2={tahunLulus} fill="hsl(var(--foreground))" fillOpacity={0.06}
+                  <ReferenceArea yAxisId="left" x1={tahunLulus} x2={tahunLulus} fill="hsl(var(--foreground))" fillOpacity={0.06}
                     stroke="hsl(var(--foreground))" strokeOpacity={0.3} strokeDasharray="3 3" />
                 )}
                 <XAxis

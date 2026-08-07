@@ -32,6 +32,7 @@ const InnerLabel = (props: any) => {
       fontWeight={700}
       textAnchor="middle"
       dominantBaseline="central"
+      pointerEvents="none"
     >
       {value}%
     </text>

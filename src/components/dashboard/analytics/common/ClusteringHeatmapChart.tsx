@@ -242,8 +242,8 @@ const ClusteringHeatmapChart = ({
 
           {/* Data Rows */}
           <div className="flex flex-col gap-1">
-            {heatmapData.map((row) => (
-              <div key={row.prodi} className="flex gap-1">
+            {heatmapData.map((row, __idx) => (
+              <div key={`${row.prodi}-${__idx}`} className="flex gap-1">
                 <div className="w-48 flex-shrink-0 px-2 py-2 flex items-center bg-secondary/20 rounded-l-md">
                   <span className="text-xs font-medium truncate">{row.prodi}</span>
                 </div>
