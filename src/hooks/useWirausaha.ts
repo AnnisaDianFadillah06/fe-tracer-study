@@ -57,16 +57,14 @@ export interface WirausahaDrillDownStudent {
 }
 
 export interface WirausahaDrillDownResponse {
-  tingkat: string;
+  jabatan: string | null;
   filters: Record<string, string>;
   pagination: { page: number; per_page: number; total_on_page: number };
   data: WirausahaDrillDownStudent[];
 }
 
 export interface WirausahaDrillDownParams {
-  tingkat?: string;
   jabatan?: string;
-  jabatan_values?: string[];
   tahun_lulus?: string;
   nama_prodi?: string;
   page?: number;
@@ -201,9 +199,7 @@ export function useWirausahaDrillDown() {
 
       const params: Record<string, string> = {
         ...buildParams(degree, jurusan, prodi, extra.tahun_lulus ?? tahunLulus, weekKey),
-        ...(extra.tingkat ? { tingkat: extra.tingkat } : {}),
         ...(extra.jabatan ? { jabatan: extra.jabatan } : {}),
-        ...(extra.jabatan_values?.length ? { jabatan_values: extra.jabatan_values.join(',') } : {}),
         ...(extra.nama_prodi ? { nama_prodi: extra.nama_prodi } : {}),
         page:     String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),

@@ -38,15 +38,17 @@ const Kpi7EntrepreneurshipChart = () => {
     open: boolean;
     title: string;
     jabatan?: string;
-    jabatanValues?: string[];
     tahunLulus?: string;
   }>({ open: false, title: "" });
 
-  const openPieModal = (title: string, tingkat: string, jabatanValues?: string[]) => {
-    setModal({ open: true, title, jabatan: tingkat, jabatanValues });
+  const openPieModal = (title: string, jabatan: string) => {
+    // Pie sudah discope ke pieTahun (default: tahun terbaru) -- drill-down
+    // harus pakai tahun yang sama, kalau tidak count di modal (semua tahun)
+    // tidak akan pernah cocok dengan count di pie (satu tahun).
+    setModal({ open: true, title, jabatan, tahunLulus: pieTahun });
     drillHook.fetch({
-      tingkat,
-      ...(jabatanValues?.length ? { jabatan_values: jabatanValues } : {}),
+      jabatan,
+      tahun_lulus: pieTahun,
       page: 1,
     });
   };
@@ -59,8 +61,8 @@ const Kpi7EntrepreneurshipChart = () => {
   const handlePageChange = (page: number, search?: string) => {
     if (modal.jabatan) {
       drillHook.fetch({
-        tingkat: modal.jabatan,
-        ...(modal.jabatanValues?.length ? { jabatan_values: modal.jabatanValues } : {}),
+        jabatan: modal.jabatan,
+        tahun_lulus: modal.tahunLulus,
         page, search,
       });
     } else if (modal.tahunLulus) {
@@ -89,15 +91,16 @@ const Kpi7EntrepreneurshipChart = () => {
       }));
   }, [barHook.data]);
 
-  // Pie: dari field `posisi` (bukan `data` atau `tingkat`) di response
+  // Pie: dari field `posisi` (bukan `data` atau `tingkat`) di response.
+  // d.label sudah label mentah DimWirausaha.jabatan (tanpa prettify), jadi
+  // aman dikirim langsung sebagai filter `jabatan` equals ke drill-down.
   const pieData = useMemo(() => {
     if (!pieHook.data?.posisi) return [];
     return pieHook.data.posisi.map((d, i) => ({
-      name:       d.label,
-      value:      d.pct,
-      count:      d.count,
-      sub_labels: d.sub_labels,
-      color:      PIE_COLORS[i % PIE_COLORS.length],
+      name:  d.label,
+      value: d.pct,
+      count: d.count,
+      color: PIE_COLORS[i % PIE_COLORS.length],
     }));
   }, [pieHook.data]);
 
@@ -218,7 +221,7 @@ const Kpi7EntrepreneurshipChart = () => {
                   activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                   onClick={(d: any) => openPieModal(
-                    `${d.name} (${d.value}% · ${d.count} alumni)`, d.name, d.sub_labels
+                    `${d.name} (${d.value}% · ${d.count} alumni)`, d.name
                   )}
                 >
                   {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}

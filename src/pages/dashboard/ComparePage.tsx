@@ -325,21 +325,39 @@ const ComparePage = () => {
   const ksTableData = ksBandingkanHook.data?.data ?? [];
 
   // Masa Tunggu — transform data BE ke stacked bar per prodi
+  // BE mengembalikan satu baris per (prodi, jenjang, tahun_lulus) -- kalau
+  // di-map langsung tanpa agregasi, prodi dengan >1 jenjang/tahun akan
+  // menghasilkan beberapa bar berlabel sama (duplicate React key, sebagian
+  // data hilang secara diam-diam). Agregasi ke level prodi dulu.
   const mtChartData = useMemo(() => {
     if (!isWaktuTunggu || !mtBandingkanHook.data?.data) return [];
-    return mtBandingkanHook.data.data.map((d) => {
-      const total = d.count_tunggu_0_3_bulan + d.count_tunggu_3_6_bulan + d.count_tunggu_lebih_6_bulan || 1;
+    const byProdi = new Map<string, {
+      c03: number; c36: number; c6plus: number; weightedAvgSum: number; n: number;
+    }>();
+    mtBandingkanHook.data.data.forEach((d) => {
+      const rowTotal = d.count_tunggu_0_3_bulan + d.count_tunggu_3_6_bulan + d.count_tunggu_lebih_6_bulan;
+      const cur = byProdi.get(d.nama_prodi) ?? { c03: 0, c36: 0, c6plus: 0, weightedAvgSum: 0, n: 0 };
+      byProdi.set(d.nama_prodi, {
+        c03:            cur.c03    + d.count_tunggu_0_3_bulan,
+        c36:            cur.c36    + d.count_tunggu_3_6_bulan,
+        c6plus:         cur.c6plus + d.count_tunggu_lebih_6_bulan,
+        weightedAvgSum: cur.weightedAvgSum + d.avg_masa_tunggu_bekerja * rowTotal,
+        n:              cur.n + rowTotal,
+      });
+    });
+    return [...byProdi.entries()].map(([namaProdi, v]) => {
+      const total = v.c03 + v.c36 + v.c6plus || 1;
       return {
-        prodi:            d.nama_prodi.length > 28 ? d.nama_prodi.slice(0, 26) + "…" : d.nama_prodi,
-        fullProdi:        d.nama_prodi,
+        prodi:            namaProdi.length > 28 ? namaProdi.slice(0, 26) + "…" : namaProdi,
+        fullProdi:        namaProdi,
         total,
-        "< 3 bulan":     Math.round(d.count_tunggu_0_3_bulan    / total * 100 * 10) / 10,
-        "3-6 bulan":     Math.round(d.count_tunggu_3_6_bulan    / total * 100 * 10) / 10,
-        "> 6 bulan":     Math.round(d.count_tunggu_lebih_6_bulan / total * 100 * 10) / 10,
-        "< 3 bulanCount": d.count_tunggu_0_3_bulan,
-        "3-6 bulanCount": d.count_tunggu_3_6_bulan,
-        "> 6 bulanCount": d.count_tunggu_lebih_6_bulan,
-        avg: Math.round(d.avg_masa_tunggu_bekerja),
+        "< 3 bulan":     Math.round(v.c03    / total * 100 * 10) / 10,
+        "3-6 bulan":     Math.round(v.c36    / total * 100 * 10) / 10,
+        "> 6 bulan":     Math.round(v.c6plus / total * 100 * 10) / 10,
+        "< 3 bulanCount": v.c03,
+        "3-6 bulanCount": v.c36,
+        "> 6 bulanCount": v.c6plus,
+        avg: v.n > 0 ? Math.round(v.weightedAvgSum / v.n) : 0,
       };
     });
   }, [isWaktuTunggu, mtBandingkanHook.data]);
@@ -431,6 +449,25 @@ const ComparePage = () => {
       d.jenis.forEach((j) => seen.add(normJenis(j.label)))
     );
     return JENIS_ORDER_CMP.filter((l) => seen.has(l));
+  }, [instansiBandingkanHook.data]);
+
+  // Label MENTAH per nama prettified — dipakai saat drill-down karena backend
+  // memfilter exact-match ke label mentah di gudang data, sama seperti fix di
+  // Kpi12WorkplaceDistributionChart.tsx (mengirim label prettified langsung
+  // membuat drill-down kosong untuk kategori yang raw-nya beda kapitalisasi
+  // atau lebih panjang dari nama tampilannya).
+  const instansiJenisRawLabels = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    if (!instansiBandingkanHook.data?.data) return map;
+    instansiBandingkanHook.data.data.forEach((d) =>
+      d.jenis.forEach((j) => {
+        if (!j.label) return;
+        const label = normJenis(j.label);
+        if (!map[label]) map[label] = [];
+        if (!map[label].includes(j.label)) map[label].push(j.label);
+      })
+    );
+    return map;
   }, [instansiBandingkanHook.data]);
 
   const instansiJenisColorMap = useMemo(
@@ -656,7 +693,7 @@ const ComparePage = () => {
   const [mtModal, setMtModal] = useState<{ open: boolean; title: string; rentang?: "0-3" | "3-6" | ">6"; namaProdi?: string }>({ open: false, title: "" });
   const [wsModal, setWsModal]         = useState<{ open: boolean; title: string; tingkat?: string; namaProdi?: string }>({ open: false, title: "" });
   const [incomeModal, setIncomeModal] = useState<{ open: boolean; title: string; segmen?: "above_ump" | "below_ump"; tahun_lulus?: string; namaProdi?: string }>({ open: false, title: "" });
-  const [instansiModal, setInstansiModal] = useState<{ open: boolean; title: string; jenis_instansi?: string; tingkat_instansi?: string; namaProdi?: string }>({ open: false, title: "" });
+  const [instansiModal, setInstansiModal] = useState<{ open: boolean; title: string; jenis_instansi?: string | string[]; tingkat_instansi?: string; namaProdi?: string }>({ open: false, title: "" });
 
   const handleBeBarClick = (barData: any, statusLabel: string) => {
     const namaProdi = barData.fullProdi ?? barData.prodi;
@@ -679,8 +716,9 @@ const ComparePage = () => {
 
   const handleInstansiJenisClick = (barData: any, jenisLabel: string) => {
     const prodi = barData.fullProdi ?? barData.prodi;
-    setInstansiModal({ open: true, title: `${prodi} — ${jenisLabel}`, jenis_instansi: jenisLabel, namaProdi: prodi });
-    instansiDrillHook.fetch({ jenis_instansi: jenisLabel, nama_prodi: prodi, page: 1 });
+    const rawLabels = instansiJenisRawLabels[jenisLabel] ?? [jenisLabel];
+    setInstansiModal({ open: true, title: `${prodi} — ${jenisLabel}`, jenis_instansi: rawLabels, namaProdi: prodi });
+    instansiDrillHook.fetch({ jenis_instansi: rawLabels, nama_prodi: prodi, page: 1 });
   };
 
   const handleInstansiTingkatClick = (barData: any, tingkatLabel: string) => {
@@ -896,7 +934,7 @@ const ComparePage = () => {
             : isWirausaha
             ? (wsBandingkanHook.data?.prodi_list ?? [])
             : isWaktuTunggu
-            ? (mtBandingkanHook.data?.data?.map((d) => d.nama_prodi) ?? [])
+            ? (mtBandingkanHook.data?.prodi_list ?? [])
             : isSumberBiaya
             ? (pembiayaanBandingkanHook.data?.prodi_list ?? [])
             : (isCompletion || isParticipation)

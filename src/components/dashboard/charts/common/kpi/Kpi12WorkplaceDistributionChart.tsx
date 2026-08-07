@@ -95,16 +95,26 @@ const Kpi12WorkplaceDistributionChart = () => {
       }));
   }, [jenisHook.data]);
 
-  // Label MENTAH yang jatuh ke irisan "Lainnya". Sebelumnya "0" ikut dibuang di
-  // sini padahal normalizeJenis() memasukkannya ke irisan ini — akibatnya isi
-  // modal selalu lebih sedikit dari angka pada irisannya, dan kalau seluruh
-  // "Lainnya" kebetulan berasal dari "0" array-nya kosong dan backend membalas
-  // 422. Yang dibuang cukup label kosong, karena tidak bisa difilter.
-  const lainnyaRawLabels = useMemo(() => {
-    if (!jenisHook.data?.data) return [] as string[];
-    return jenisHook.data.data
-      .filter((d) => normalizeJenis(d.jenis) === "Lainnya" && !!d.jenis)
-      .map((d) => d.jenis);
+  // Label MENTAH yang jatuh ke tiap irisan pie, dikelompokkan per nama
+  // prettified (normalizeJenis()). Backend memfilter dengan exact-match ke
+  // label mentah di gudang data ("Perusahaan swasta"), bukan ke nama
+  // prettified yang ditampilkan di pie ("Perusahaan Swasta") -- mengirim
+  // d.name langsung sebagai filter jenis_instansi membuat drill-down 4 dari
+  // 6 kategori selalu kosong (hanya BUMN/BUMD dan Institusi/Organisasi
+  // Multilateral yang kebetulan raw = prettified). Map ini dipakai untuk
+  // SEMUA kategori saat drill-down, bukan cuma "Lainnya" seperti sebelumnya.
+  // "0" sengaja ikut dikumpulkan (bukan dibuang) karena normalizeJenis()
+  // memasukkannya ke "Lainnya"; yang dibuang cukup label kosong, karena
+  // tidak bisa difilter.
+  const rawLabelsByDisplay = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    if (!jenisHook.data?.data) return map;
+    jenisHook.data.data.forEach((d) => {
+      if (!d.jenis) return;
+      const label = normalizeJenis(d.jenis);
+      (map[label] ??= []).push(d.jenis);
+    });
+    return map;
   }, [jenisHook.data]);
 
   const pieTotal = jenisHook.data?.total ?? pieData.reduce((s, d) => s + d.count, 0);
@@ -179,9 +189,9 @@ const Kpi12WorkplaceDistributionChart = () => {
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                   cursor="pointer"
                   onClick={(d: any) => {
-                    const params: InstansiDrillDownParams = d.name === "Lainnya"
-                      ? { jenis_instansi: lainnyaRawLabels }
-                      : { jenis_instansi: d.name };
+                    const params: InstansiDrillDownParams = {
+                      jenis_instansi: rawLabelsByDisplay[d.name] ?? [d.name],
+                    };
                     openModal(`${d.name} (${d.value}% · ${d.count} alumni)`, params);
                   }}
                 >
