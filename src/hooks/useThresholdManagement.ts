@@ -94,6 +94,7 @@ function mapApiLam(apiLam: ApiLam): Lam {
 }
 
 function mapApiStandar(apiLam: ApiLam, version: LamVersion): Standar {
+  const versionThresholds = (version as any).thresholds ?? apiLam.thresholds ?? [];
   return {
     id: `ver-${version.id}`,
     _versionId: version.id,
@@ -103,13 +104,13 @@ function mapApiStandar(apiLam: ApiLam, version: LamVersion): Standar {
     year: version.year,
     year_end: version.year_end ?? null,
     is_active: version.is_active,
-    thresholds: apiLam.thresholds.map((t) => ({
+    thresholds: versionThresholds.map((t: any) => ({
       indicator_id: t.indicator_id,
       indicator_name: t.indicator_name,
-      baik_threshold_id: t.baik.threshold_id,
-      baik: t.baik.value,
-      unggul_threshold_id: t.unggul.threshold_id,
-      unggul: t.unggul.value,
+      baik_threshold_id: t.baik?.threshold_id,
+      baik: t.baik?.value ?? 0,
+      unggul_threshold_id: t.unggul?.threshold_id,
+      unggul: t.unggul?.value ?? 0,
       param_value: t.dynamic_param?.value ?? undefined,
       is_system_calculated: t.is_system_calculated,
     })),

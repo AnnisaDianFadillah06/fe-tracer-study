@@ -35,8 +35,11 @@ const SegmentLabel = (props: any) => {
   const { x, y, width, height, value } = props;
   if (height < 20) return null;
   return (
+    // pointer-events="none" -- tanpa ini <text> menutupi rect <Bar> di
+    // bawahnya dan menelan klik, sehingga drill-down (klik bar "Belum
+    // Mengisi") tidak pernah sampai ke handler onClick milik <Bar>.
     <text x={x + width / 2} y={y + height / 2} fill="#fff" fontSize={11} fontWeight={600}
-      textAnchor="middle" dominantBaseline="central">
+      textAnchor="middle" dominantBaseline="central" pointerEvents="none">
       {Number(value).toFixed(1)}%
     </text>
   );
