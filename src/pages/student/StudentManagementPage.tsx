@@ -47,6 +47,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle, FileSpreadsheet, Loader2, ArrowLeft, KeyRound } from "lucide-react";
 import PilihTahun from "@/components/common/PilihTahun";
 import { useAuth } from "@/hooks/auth/useAuth";
+import { useRingkasanTahun } from "@/hooks/useRingkasanTahun";
 
 const StudentManagementPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,15 +55,6 @@ const StudentManagementPage = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
 
-  // ── Penerbitan kredensial alumni (RBAC-16) ────────────────────────────────
-  // Hanya Ketua Tracer: berkas hasilnya adalah daftar kata sandi banyak orang
-  // sekaligus. Backend menegakkan batas yang sama lewat role:head_tracer —
-  // penyembunyian tombol di sini murni supaya peran lain tidak menemui 403.
-  const { user } = useAuth();
-  const isHeadTracer = user?.role === "head_tracer";
-  const [isCredDialogOpen, setIsCredDialogOpen] = useState(false);
-  const [isIssuingCreds, setIsIssuingCreds] = useState(false);
-  const [onlyWithoutCreds, setOnlyWithoutCreds] = useState(true);
   const {
     students,
     filtered,
@@ -95,6 +87,39 @@ const StudentManagementPage = () => {
     confirmDelete,
     isLoading,
   } = useStudentManagement();
+
+  // ── Penerbitan kredensial alumni (RBAC-16) ────────────────────────────────
+  // Hanya Ketua Tracer: berkas hasilnya adalah daftar kata sandi banyak orang
+  // sekaligus. Backend menegakkan batas yang sama lewat role:head_tracer —
+  // penyembunyian tombol di sini murni supaya peran lain tidak menemui 403.
+  const { user } = useAuth();
+  const isHeadTracer = user?.role === "head_tracer";
+  const [isCredDialogOpen, setIsCredDialogOpen] = useState(false);
+  const [isIssuingCreds, setIsIssuingCreds] = useState(false);
+  const [onlyWithoutCreds, setOnlyWithoutCreds] = useState(true);
+  /** Angkatan sasaran penerbitan; "" berarti seluruh angkatan. */
+  const [credYear, setCredYear] = useState("");
+
+  // Daftar angkatan dipakai pemilih di dalam dialog. Sumber yang sama dengan
+  // kartu tahun di layar awal, jadi pilihannya selalu sinkron.
+  const { years: yearSummaries } = useRingkasanTahun();
+
+  /**
+   * Dialog penerbitan harus bisa dibuka DARI LAYAR KARTU TAHUN juga.
+   *
+   * Semula angkatannya diambil dari penyaring halaman, sehingga tombolnya
+   * tidak berguna sebelum petugas masuk ke salah satu angkatan — dan karena
+   * dialognya dulu hanya dipasang di cabang render setelah angkatan dipilih,
+   * menekannya di layar kartu tidak memunculkan apa pun sama sekali.
+   * Angkatan kini dipilih di dalam dialog, dengan penyaring halaman sebagai
+   * nilai awal bila memang sedang aktif.
+   */
+  const openCredDialog = () => {
+    const fromFilter =
+      filterGraduationYear && filterGraduationYear !== "all" ? filterGraduationYear : "";
+    setCredYear(fromFilter);
+    setIsCredDialogOpen(true);
+  };
 
   /**
    * Export data mahasiswa ke file .xlsx proper — tiap field jadi kolom terpisah.
@@ -213,9 +238,11 @@ const StudentManagementPage = () => {
       const payload: Record<string, unknown> = {
         only_without_credentials: onlyWithoutCreds,
       };
-      if (filterGraduationYear && filterGraduationYear !== "all") {
-        payload.graduation_year = Number(filterGraduationYear);
+      if (credYear) {
+        payload.graduation_year = Number(credYear);
       }
+      // Penyaring program studi hanya ikut kalau petugas memang sedang berada
+      // di dalam satu angkatan; di layar kartu tahun penyaring itu belum ada.
       if (filterProdi && filterProdi !== "all") {
         payload.program_id = Number(filterProdi);
       }
@@ -451,7 +478,7 @@ const StudentManagementPage = () => {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setIsCredDialogOpen(true)}
+          onClick={openCredDialog}
           title="Terbitkan kata sandi alumni dan unduh berkasnya untuk kiriman surel"
         >
           <KeyRound className="mr-2 h-4 w-4" />
@@ -463,6 +490,106 @@ const StudentManagementPage = () => {
         Tambah Mahasiswa
       </Button>
     </>
+  );
+
+  /**
+   * Dialog penerbitan kredensial (RBAC-16).
+   *
+   * Disimpan sebagai variabel, bukan ditulis langsung di satu cabang render,
+   * karena halaman ini punya DUA layar: kartu tahun dan daftar per angkatan.
+   * Tombolnya tampil di keduanya, jadi dialognya harus terpasang di keduanya
+   * juga — pola yang sama sudah dipakai `studentDialog` di atas.
+   */
+  const credentialDialog = (
+    <Dialog open={isCredDialogOpen} onOpenChange={setIsCredDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Terbitkan Kredensial Alumni</DialogTitle>
+          <DialogDescription>
+            Kata sandi baru dibuat acak untuk tiap alumni, lalu berkasnya langsung terunduh.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 text-sm">
+          <div className="space-y-1.5">
+            <Label htmlFor="cred-year">Angkatan</Label>
+            <Select
+              value={credYear === "" ? "all" : credYear}
+              onValueChange={(v) => setCredYear(v === "all" ? "" : v)}
+            >
+              <SelectTrigger id="cred-year">
+                <SelectValue placeholder="Pilih angkatan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua angkatan</SelectItem>
+                {yearSummaries.map((y) => (
+                  <SelectItem key={y.tahun} value={String(y.tahun)}>
+                    Lulusan {y.tahun}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Terbitkan bertahap per angkatan. Kelompok yang terlalu besar akan ditolak server,
+              karena pencincangan kata sandi sengaja lambat.
+              {filterProdi && filterProdi !== "all" && (
+                <>
+                  {" "}Penyaring program studi yang sedang aktif —{" "}
+                  <strong>
+                    {programs.find((p) => String(p.id) === String(filterProdi))?.name ?? filterProdi}
+                  </strong>{" "}
+                  — ikut diterapkan.
+                </>
+              )}
+            </p>
+          </div>
+
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="only-without-creds"
+              checked={onlyWithoutCreds}
+              onCheckedChange={(v) => setOnlyWithoutCreds(v === true)}
+            />
+            <Label htmlFor="only-without-creds" className="font-normal leading-snug">
+              Hanya alumni yang belum pernah menerima kredensial
+              <span className="block text-muted-foreground">
+                Biarkan tercentang saat menjangkau alumni baru, supaya kata sandi orang yang
+                sudah terlanjur dikirimi surel tidak ikut berganti.
+              </span>
+            </Label>
+          </div>
+
+          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-1">
+            <p className="font-medium text-destructive">Berkasnya hanya bisa diunduh sekali</p>
+            <p className="text-muted-foreground">
+              Kata sandi disimpan dalam bentuk tersandi satu arah, jadi tidak bisa dibuka lagi
+              setelah ini. Bila berkasnya hilang, satu-satunya jalan adalah menerbitkan ulang —
+              dan kata sandi lama akan mati. Isinya setara daftar kata sandi banyak orang:
+              simpan di tempat aman, dan hapus setelah kiriman surel selesai.
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsCredDialogOpen(false)} disabled={isIssuingCreds}>
+            Batal
+          </Button>
+          <Button onClick={handleIssueCredentials} disabled={isIssuingCreds}>
+            {isIssuingCreds ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Menerbitkan…
+              </>
+            ) : (
+              <>
+                <KeyRound className="mr-2 h-4 w-4" />
+                Terbitkan &amp; Unduh
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 
   // ── Layar kartu tahun ────────────────────────────────────────────────
@@ -486,8 +613,10 @@ const StudentManagementPage = () => {
         </div>
 
         {/* Dialog tambah/ubah tetap dipasang supaya tombol Tambah Mahasiswa
-            di layar kartu tetap berfungsi. */}
+            di layar kartu tetap berfungsi. Begitu pula dialog kredensial —
+            tanpa ini tombolnya tertekan tapi tidak memunculkan apa pun. */}
         {studentDialog}
+        {credentialDialog}
       </DashboardLayout>
     );
   }
@@ -778,81 +907,7 @@ const StudentManagementPage = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Terbitkan Kredensial — RBAC-16 */}
-      <Dialog open={isCredDialogOpen} onOpenChange={setIsCredDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Terbitkan Kredensial Alumni</DialogTitle>
-            <DialogDescription>
-              Kata sandi baru dibuat acak untuk tiap alumni, lalu berkasnya langsung terunduh.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 text-sm">
-            <div className="rounded-md border p-3 space-y-1">
-              <p className="font-medium">Lingkup mengikuti penyaring halaman ini</p>
-              <p className="text-muted-foreground">
-                Tahun lulus:{" "}
-                <strong>
-                  {filterGraduationYear && filterGraduationYear !== "all"
-                    ? filterGraduationYear
-                    : "semua"}
-                </strong>
-                {" • "}Program studi:{" "}
-                <strong>
-                  {filterProdi && filterProdi !== "all"
-                    ? programs.find((p) => String(p.id) === String(filterProdi))?.name ?? filterProdi
-                    : "semua"}
-                </strong>
-              </p>
-            </div>
-
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="only-without-creds"
-                checked={onlyWithoutCreds}
-                onCheckedChange={(v) => setOnlyWithoutCreds(v === true)}
-              />
-              <Label htmlFor="only-without-creds" className="font-normal leading-snug">
-                Hanya alumni yang belum pernah menerima kredensial
-                <span className="block text-muted-foreground">
-                  Biarkan tercentang saat menjangkau alumni baru, supaya kata sandi orang yang
-                  sudah terlanjur dikirimi surel tidak ikut berganti.
-                </span>
-              </Label>
-            </div>
-
-            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-1">
-              <p className="font-medium text-destructive">Berkasnya hanya bisa diunduh sekali</p>
-              <p className="text-muted-foreground">
-                Kata sandi disimpan dalam bentuk tersandi satu arah, jadi tidak bisa dibuka lagi
-                setelah ini. Bila berkasnya hilang, satu-satunya jalan adalah menerbitkan ulang —
-                dan kata sandi lama akan mati. Isinya setara daftar kata sandi banyak orang:
-                simpan di tempat aman, dan hapus setelah kiriman surel selesai.
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCredDialogOpen(false)} disabled={isIssuingCreds}>
-              Batal
-            </Button>
-            <Button onClick={handleIssueCredentials} disabled={isIssuingCreds}>
-              {isIssuingCreds ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Menerbitkan…
-                </>
-              ) : (
-                <>
-                  <KeyRound className="mr-2 h-4 w-4" />
-                  Terbitkan &amp; Unduh
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {credentialDialog}
     </DashboardLayout>
   );
 };
