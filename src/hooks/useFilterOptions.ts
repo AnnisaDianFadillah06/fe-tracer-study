@@ -5,6 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import { apiService } from "@/lib/apiClient";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 export interface RawJurusan {
   jurusan: string;
@@ -149,13 +150,35 @@ export function useFilterOptions(): FilterOptions {
   const [loading, setLoading] = useState<boolean>(!readCache());
   const [error, setError] = useState<string | null>(null);
 
+  // Endpoint opsi filter berada di balik `auth:sanctum`, sedangkan pemakainya
+  // — GlobalFiltersProvider — dipasang DI LUAR <BrowserRouter> sehingga hidup
+  // di setiap halaman, termasuk /login, / dan halaman publik. Tanpa penjaga
+  // ini, permintaan pertama selalu terkirim tanpa token dan dibalas 401.
+  const { isAuthenticated } = useAuthContext();
+
   useEffect(() => {
     // Already hydrated from cache in initial state — no fetch needed
     if (derived) return;
 
+    // Belum ada sesi: jangan menembak endpoint terlindung. Galat 401-nya bukan
+    // sekadar berisik — efek ini tidak punya percobaan ulang, jadi pesannya
+    // menempel sepanjang umur SPA dan baru hilang setelah muat ulang halaman.
+    // Alumni yang login berikutnya tetap melihat "Gagal memuat opsi filter"
+    // di dasbor padahal datanya berhasil diambil.
+    //
+    // isAuthenticated menjadi dependensi supaya pengambilan berjalan sendiri
+    // begitu sesi terbentuk, tanpa menunggu komponen ini di-mount ulang —
+    // perpindahan dari /login ke dasbor tidak me-mount ulang providernya.
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     async function fetchOptions() {
+      setLoading(true);
+      setError(null);
       try {
         const res = await apiService.getFilterOptions();
         if (cancelled) return;
@@ -171,7 +194,7 @@ export function useFilterOptions(): FilterOptions {
     fetchOptions();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isAuthenticated]);
 
   const empty: FilterOptions = {
     tahunLulus: [], weekOptions: [], weekKeys: [],
