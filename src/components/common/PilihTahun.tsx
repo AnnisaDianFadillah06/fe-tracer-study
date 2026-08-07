@@ -26,7 +26,16 @@ import { useRingkasanTahun, YearSummary } from "@/hooks/useRingkasanTahun";
  * bekerja tanpa perlu menambah route baru.
  */
 
-export type YearMode = "alumni" | "kuesioner";
+/**
+ * Angka apa yang ditonjolkan kartu, dan apa yang pantas ikut ditampilkan.
+ *
+ * "kontak" sengaja TIDAK menampilkan bilah maupun persentase tingkat respons:
+ * halaman Kontak Penilai tidak berurusan dengan progres pengisian sama
+ * sekali, dan menampilkannya di sana menjawab pertanyaan yang tidak sedang
+ * ditanyakan siapa pun. Yang berguna di sana adalah berapa kontak yang akan
+ * dikerjakan pada angkatan itu.
+ */
+export type YearMode = "alumni" | "kuesioner" | "kontak";
 
 interface Props {
   /** "alumni" menyoroti jumlah alumni; "kuesioner" menyoroti jumlah kuesioner. */
@@ -91,14 +100,27 @@ const YearCard = ({
         ) : (
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-bold tabular-nums">
-              {nf.format(mode === "kuesioner" ? data.kuesioner : data.alumni)}
+              {nf.format(
+                mode === "kuesioner" ? data.kuesioner
+                  : mode === "kontak" ? data.kontak
+                  : data.alumni,
+              )}
             </span>
             <span className="text-sm text-muted-foreground">
-              {mode === "kuesioner" ? "kuesioner" : "alumni"}
+              {mode === "kuesioner" ? "kuesioner" : mode === "kontak" ? "kontak" : "alumni"}
             </span>
           </div>
         )}
 
+        {mode === "kontak" ? (
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <GraduationCap className="h-3 w-3" aria-hidden />
+              {nf.format(data.alumni)} alumni
+            </span>
+            <span>{nf.format(data.sudah_mengisi)} mengisi kuesioner</span>
+          </div>
+        ) : (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
@@ -131,6 +153,7 @@ const YearCard = ({
             )}
           </div>
         </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -225,14 +248,20 @@ export const PilihTahun = ({
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-bold tabular-nums">
-                    {nf.format(mode === "kuesioner" ? total.questionnaires : total.alumni)}
+                    {nf.format(
+                      mode === "kuesioner" ? total.questionnaires
+                        : mode === "kontak" ? total.kontak
+                        : total.alumni,
+                    )}
                   </span>
                   <span className="text-sm text-muted-foreground">
-                    {mode === "kuesioner" ? "kuesioner" : "alumni"}
+                    {mode === "kuesioner" ? "kuesioner" : mode === "kontak" ? "kontak" : "alumni"}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {nf.format(total.responded)} dari {nf.format(total.alumni)} alumni sudah mengisi
+                  {mode === "kontak"
+                    ? `Dari ${nf.format(total.alumni)} alumni lintas angkatan`
+                    : `${nf.format(total.responded)} dari ${nf.format(total.alumni)} alumni sudah mengisi`}
                 </p>
               </CardContent>
             </Card>

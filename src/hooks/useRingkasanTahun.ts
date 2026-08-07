@@ -8,6 +8,8 @@ export interface YearSummary {
   belum_mengisi: number;
   response_rate: number;
   kuesioner: number;
+  /** Jumlah kontak penilai milik angkatan ini. Dipakai kartu di Kontak Penilai. */
+  kontak: number;
   /** Tahun pelaksanaan tracer yang menyasar angkatan ini. Kosong bila belum ada. */
   periode: number[];
 }
@@ -44,6 +46,7 @@ export function useRingkasanTahun() {
       alumni: years.reduce((a, r) => a + r.alumni, 0),
       responded: years.reduce((a, r) => a + r.sudah_mengisi, 0),
       questionnaires: years.reduce((a, r) => a + r.kuesioner, 0),
+      kontak: years.reduce((a, r) => a + r.kontak, 0),
     },
   };
 }

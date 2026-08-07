@@ -296,7 +296,7 @@ const StakeholderContactsPage = () => {
           </div>
 
           <PilihTahun
-            mode="alumni"
+            mode="kontak"
             onSelect={(t) => { setYearSelection(t === null ? ALL : String(t)); setPage(1); }}
             onSearch={(q) => { setSearchInput(q); setYearSelection(ALL); setPage(1); }}
             searchPlaceholder="Cari nama kontak, surel, NIM, atau nama alumni..."
