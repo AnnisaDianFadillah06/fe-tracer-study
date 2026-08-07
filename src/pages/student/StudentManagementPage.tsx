@@ -99,6 +99,8 @@ const StudentManagementPage = () => {
   const [onlyWithoutCreds, setOnlyWithoutCreds] = useState(true);
   /** Angkatan sasaran penerbitan; "" berarti seluruh angkatan. */
   const [credYear, setCredYear] = useState("");
+  /** Kemajuan penerbitan berpotong; null saat tidak sedang berjalan. */
+  const [credProgress, setCredProgress] = useState<{ done: number; remaining: number } | null>(null);
 
   // Daftar angkatan dipakai pemilih di dalam dialog. Sumber yang sama dengan
   // kartu tahun di layar awal, jadi pilihannya selalu sinkron.
@@ -220,70 +222,139 @@ const StudentManagementPage = () => {
     }
   };
 
+  /** Satu baris kredensial hasil penerbitan. */
+  type IssuedCredential = { nim: string; name: string; email: string; password: string };
+
   /**
    * Terbitkan kata sandi alumni, lalu unduh berkasnya.
    *
-   * Membangkitkan dan mengunduh terjadi dalam SATU permintaan, dan itu bukan
-   * pilihan gaya: kata sandi disimpan sebagai cincangan yang tidak dapat
-   * dibalik, sehingga teks polosnya hanya ada pada detik ia dibangkitkan.
-   * Tidak akan pernah ada tombol "unduh ulang" — kalau berkasnya hilang,
-   * satu-satunya jalan adalah menerbitkan ulang, dan kata sandi lama mati.
+   * BERJALAN BERPOTONG. Pencincangan kata sandi sengaja lambat — sekitar
+   * sepertiga detik per orang — sehingga satu angkatan yang berisi ribuan
+   * alumni tidak mungkin selesai dalam satu permintaan HTTP. Server
+   * menerbitkan satu potong lalu memberi tahu berapa yang tersisa; perulangan
+   * di sini melanjutkan dengan kursor `after_nim` sampai habis.
    *
-   * Lingkupnya mengikuti penyaring yang sedang aktif di halaman ini, supaya
-   * yang diterbitkan persis sama dengan yang sedang dilihat petugas.
+   * Hasil tiap potong dikumpulkan di memori peramban, dan berkasnya baru
+   * dirakit setelah semuanya selesai. Server tidak boleh menyimpan hasil
+   * antara: isinya kata sandi polos, dan menaruhnya di disk walau sementara
+   * persis yang harus dihindari.
+   *
+   * Formatnya .xlsx, bukan CSV. Berkas CSV berpemisah koma dibuka Excel
+   * berlokal Indonesia dengan seluruh kolom menempel jadi satu — masalah yang
+   * sama sudah pernah ditemui pada ekspor data mahasiswa di atas.
+   *
+   * Tidak akan pernah ada tombol "unduh ulang". Kata sandi tersimpan tersandi
+   * satu arah, jadi bila berkasnya hilang satu-satunya jalan adalah
+   * menerbitkan ulang — dan kata sandi lama mati.
    */
   const handleIssueCredentials = async () => {
     setIsIssuingCreds(true);
+    setCredProgress(null);
+
+    const rows: IssuedCredential[] = [];
+    let cursor: string | null = null;
+
     try {
-      const payload: Record<string, unknown> = {
-        only_without_credentials: onlyWithoutCreds,
-      };
-      if (credYear) {
-        payload.graduation_year = Number(credYear);
+      // Perulangan tak bersyarat dengan penjaga di dalam: berhenti saat server
+      // melaporkan tidak ada sisa, atau saat satu potong tidak menghasilkan
+      // apa-apa (penjaga kedua, supaya kekeliruan di sisi server tidak pernah
+      // berubah menjadi perulangan tanpa akhir di peramban).
+      for (;;) {
+        const payload: Record<string, unknown> = {
+          only_without_credentials: onlyWithoutCreds,
+        };
+        if (credYear) payload.graduation_year = Number(credYear);
+        // Penyaring program studi hanya ikut kalau petugas memang sedang
+        // berada di dalam satu angkatan; di layar kartu tahun belum ada.
+        if (filterProdi && filterProdi !== "all") payload.program_id = Number(filterProdi);
+        if (cursor) payload.after_nim = cursor;
+
+        const { data } = await api.post("/alumni/credentials/issue", payload);
+        const batch: IssuedCredential[] = data?.data?.issued ?? [];
+        const remaining: number = Number(data?.data?.remaining ?? 0);
+
+        rows.push(...batch);
+        cursor = data?.data?.last_nim ?? null;
+        setCredProgress({ done: rows.length, remaining });
+
+        if (batch.length === 0 || remaining <= 0 || !cursor) break;
       }
-      // Penyaring program studi hanya ikut kalau petugas memang sedang berada
-      // di dalam satu angkatan; di layar kartu tahun penyaring itu belum ada.
-      if (filterProdi && filterProdi !== "all") {
-        payload.program_id = Number(filterProdi);
+
+      if (rows.length === 0) {
+        throw new Error("Tidak ada kredensial yang diterbitkan.");
       }
 
-      const response = await api.post("/alumni/credentials/issue", payload, {
-        responseType: "blob",
-      });
-
-      // Header ini diekspos khusus lewat config/cors.php; tanpa itu peramban
-      // tidak bisa membacanya sama sekali.
-      const count = response.headers["x-issued-count"] ?? "?";
-
-      const url = URL.createObjectURL(response.data);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `kredensial_alumni_${new Date().toISOString().slice(0, 10)}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
+      await downloadCredentialWorkbook(rows);
 
       setIsCredDialogOpen(false);
       toast({
         title: "Kredensial diterbitkan",
         description:
-          `${count} kata sandi dibuat dan berkasnya terunduh. Berkas ini satu-satunya salinan — ` +
-          `simpan di tempat aman, dan hapus setelah kiriman surel selesai.`,
+          `${rows.length} kata sandi dibuat dan berkasnya terunduh. Berkas ini satu-satunya ` +
+          `salinan — simpan di tempat aman, dan hapus setelah kiriman surel selesai.`,
         duration: 12000,
       });
     } catch (error: any) {
-      // responseType blob membuat badan galat ikut jadi Blob, sehingga pesan
-      // dari server tidak terbaca kalau tidak diurai lebih dulu.
-      let message = "Gagal menerbitkan kredensial.";
-      try {
-        const text = await error.response?.data?.text?.();
-        if (text) message = JSON.parse(text).message ?? message;
-      } catch {
-        /* biarkan pesan bawaan */
+      const message =
+        error?.response?.data?.message ?? error?.message ?? "Gagal menerbitkan kredensial.";
+
+      // Potongan yang sudah terbit TIDAK dapat dibatalkan — kata sandinya
+      // sudah berganti di basis data. Berkasnya tetap diunduh supaya
+      // kredensial itu tidak hilang bersama kegagalannya; tanpa ini, alumni
+      // pada potongan tersebut terkunci tanpa siapa pun tahu kata sandinya.
+      if (rows.length > 0) {
+        await downloadCredentialWorkbook(rows);
+        toast({
+          title: "Penerbitan terhenti di tengah",
+          description:
+            `${message} ${rows.length} kredensial yang terlanjur terbit sudah diunduh dan tetap ` +
+            `berlaku. Jalankan lagi dengan pilihan "hanya yang belum pernah menerima kredensial" ` +
+            `untuk melanjutkan sisanya.`,
+          variant: "destructive",
+          duration: 20000,
+        });
+      } else {
+        toast({ title: "Gagal", description: message, variant: "destructive", duration: 12000 });
       }
-      toast({ title: "Gagal", description: message, variant: "destructive", duration: 12000 });
     } finally {
       setIsIssuingCreds(false);
+      setCredProgress(null);
     }
+  };
+
+  /** Rakit dan unduh berkas kredensial. Dipakai jalur sukses maupun jalur gagal-sebagian. */
+  const downloadCredentialWorkbook = async (rows: IssuedCredential[]) => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "Tracer Study Polban";
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet("Kredensial Alumni");
+    sheet.columns = [
+      { header: "NIM", key: "nim", width: 20 },
+      { header: "Nama", key: "name", width: 32 },
+      { header: "Surel", key: "email", width: 32 },
+      { header: "Kata Sandi", key: "password", width: 20 },
+    ];
+
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: "FF1F2937" } };
+    headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDBEAFE" } };
+    headerRow.alignment = { horizontal: "center", vertical: "middle" };
+    headerRow.height = 24;
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+
+    rows.forEach((r) => sheet.addRow(r));
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Kredensial_Alumni_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -530,8 +601,10 @@ const StudentManagementPage = () => {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Terbitkan bertahap per angkatan. Kelompok yang terlalu besar akan ditolak server,
-              karena pencincangan kata sandi sengaja lambat.
+              Angkatan sebesar apa pun ditangani sekaligus. Prosesnya dipecah otomatis menjadi
+              beberapa tahap karena pencincangan kata sandi sengaja lambat, jadi untuk angkatan
+              besar penerbitan bisa berjalan beberapa menit — biarkan jendela ini terbuka sampai
+              selesai.
               {filterProdi && filterProdi !== "all" && (
                 <>
                   {" "}Penyaring program studi yang sedang aktif —{" "}
@@ -558,6 +631,31 @@ const StudentManagementPage = () => {
               </span>
             </Label>
           </div>
+
+          {credProgress && (
+            <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium">Menerbitkan…</span>
+                <span className="text-muted-foreground">
+                  {credProgress.done} selesai
+                  {credProgress.remaining > 0 && ` • ${credProgress.remaining} tersisa`}
+                </span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{
+                    width: `${Math.round(
+                      (credProgress.done / Math.max(1, credProgress.done + credProgress.remaining)) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Jangan tutup jendela ini — berkasnya baru dirakit setelah seluruh tahap selesai.
+              </p>
+            </div>
+          )}
 
           <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-1">
             <p className="font-medium text-destructive">Berkasnya hanya bisa diunduh sekali</p>
