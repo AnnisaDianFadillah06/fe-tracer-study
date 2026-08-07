@@ -71,7 +71,7 @@ const LaporanPublikPage = () => {
               <CardHeader className="border-b border-border/60">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <CardTitle className="text-lg">{report.title}</CardTitle>
+                    <CardTitle className="font-heading text-2xl font-bold">{report.title}</CardTitle>
                     {report.description && (
                       <p className="mt-1 text-sm text-muted-foreground">{report.description}</p>
                     )}

@@ -112,8 +112,14 @@ function YearSection({ group }: { group: ProgressGroup }) {
 
   return (
     <section className="space-y-4">
-      <h2 className="font-heading text-lg font-semibold">
-        Progress Pengisian Tracer Study Untuk Lulusan Tahun {group.graduation_year}
+      {/* Judul angkatan sengaja BESAR: halaman ini menumpuk beberapa angkatan
+          ke bawah, dan judulnya adalah satu-satunya pemisah antarbagian.
+          Pada ukuran sedang, keempat bagian terbaca seperti satu daftar
+          panjang. Angka tahunnya diberi bobot lebih supaya terbaca lebih
+          dahulu daripada kalimat di sekitarnya. */}
+      <h2 className="border-b border-border/60 pb-3 font-heading text-2xl font-bold sm:text-3xl">
+        Progress Pengisian Tracer Study Untuk Lulusan{" "}
+        <span className="text-primary">Tahun {group.graduation_year}</span>
       </h2>
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

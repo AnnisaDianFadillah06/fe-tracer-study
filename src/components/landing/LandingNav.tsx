@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,19 @@ import PolbanLogo from "@/components/common/PolbanLogo";
 
 const LandingNav = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const { pathname } = useLocation();
+
+  /**
+   * Navbar ini dipakai halaman depan MAUPUN halaman publik lain (Statistik,
+   * Laporan TS), supaya menunya tidak berganti bentuk saat pengunjung
+   * berpindah halaman.
+   *
+   * Konsekuensinya jangkar harus sadar tempat: `#features` hanya berarti
+   * sesuatu di halaman depan. Dibiarkan apa adanya, menekan "Fitur" dari
+   * halaman Statistik tidak melakukan apa pun. Di luar halaman depan,
+   * jangkarnya diubah menjadi tautan ke halaman depan beserta jangkarnya.
+   */
+  const isLanding = pathname === "/";
 
   /**
    * `href` = jangkar di halaman ini, `to` = halaman publik tersendiri.
@@ -16,12 +29,15 @@ const LandingNav = () => {
    * ikut dirender di Landing.tsx -- menunya tidak melakukan apa-apa saat
    * diklik. Sekarang mengarah ke halaman statistik publik yang sebenarnya.
    */
+  const anchor = (hash: string) =>
+    isLanding ? { href: hash } : { to: `/${hash}` };
+
   const navLinks: Array<{ name: string; href?: string; to?: string }> = [
-    { name: "Beranda", href: "#hero" },
-    { name: "Fitur", href: "#features" },
+    { name: "Beranda", ...anchor("#hero") },
+    { name: "Fitur", ...anchor("#features") },
     { name: "Statistik", to: "/statistik" },
     { name: "Laporan TS", to: "/laporan" },
-    { name: "Tentang", href: "#about" },
+    { name: "Tentang", ...anchor("#about") },
   ];
 
   return (
