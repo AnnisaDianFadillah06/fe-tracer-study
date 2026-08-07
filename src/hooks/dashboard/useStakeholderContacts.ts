@@ -35,6 +35,8 @@ export interface StakeholderFilters {
   graduationYear: number | null;
   alumniStatus: string | null;
   contactType: string | null;
+  /** Nama jurusan; bebas dari programCode — jurusan saja berarti seluruh prodi di bawahnya. */
+  jurusan: string | null;
   programCode: string | null;
   page: number;
   perPage?: number;
@@ -51,6 +53,7 @@ export function stakeholderQueryParams(f: Omit<StakeholderFilters, "page" | "per
   if (f.graduationYear) params.graduation_year = String(f.graduationYear);
   if (f.alumniStatus) params.alumni_status = f.alumniStatus;
   if (f.contactType) params.contact_type = f.contactType;
+  if (f.jurusan) params.jurusan = f.jurusan;
   if (f.programCode) params.program_code = f.programCode;
   return params;
 }
@@ -95,9 +98,13 @@ export const useProgramOptions = () => {
       const { data } = await api.get("/programs");
       const rows = data?.data ?? [];
 
-      return (rows as Array<{ code: string; name: string; degree?: string }>).map((p) => ({
+      return (rows as Array<{ code: string; name: string; degree?: string; jurusan?: string }>).map((p) => ({
         code: p.code,
         label: p.degree ? `${p.degree} ${p.name}` : p.name,
+        // Dipakai menyempitkan daftar prodi begitu jurusan dipilih di dialog
+        // unduhan; tanpa ini daftarnya memuat prodi dari jurusan lain dan
+        // kombinasinya menghasilkan irisan kosong tanpa petunjuk.
+        jurusan: p.jurusan ?? null,
       }));
     },
     staleTime: 30 * 60_000,
