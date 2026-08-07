@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import PublicPageShell from "@/components/publik/PublicPageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,10 +35,22 @@ interface ProgressItem {
   persentase: number;
 }
 
-interface ProgressPayload {
+/** Satu angkatan beserta angkanya sendiri. */
+interface ProgressGroup {
   graduation_year: number;
   items: ProgressItem[];
   summary: { finish: number; ongoing: number; belum: number; jumlah: number };
+}
+
+interface ProgressPayload {
+  /** Angkatan yang benar-benar disertakan, terbaru lebih dahulu. */
+  included_years: number[];
+  /**
+   * Satu kelompok per angkatan. Memilih satu angkatan menghasilkan satu
+   * kelompok; memilih semua angkatan menghasilkan beberapa, dan angkanya tetap
+   * terpisah — tidak pernah dilebur menjadi satu.
+   */
+  groups: ProgressGroup[];
 }
 
 /**
@@ -83,6 +95,148 @@ const ROW_HEIGHT = 26;
  */
 const CELL_BORDER = "border border-border px-3 py-2";
 
+/**
+ * Satu angkatan: kartu ringkas, grafik, dan tabel rinciannya.
+ *
+ * Dijadikan komponen tersendiri karena halaman ini menampilkan SATU BAGIAN PER
+ * ANGKATAN dan menumpuknya ke bawah, mengikuti bentuk situs lama. Angka
+ * antarangkatan sengaja tidak pernah dilebur: satu program studi yang sudah
+ * rampung pada satu angkatan tetapi tertinggal pada angkatan lain akan tampak
+ * sedang-sedang saja bila keduanya dijumlahkan, sehingga justru menyembunyikan
+ * keadaan yang perlu terlihat.
+ */
+function YearSection({ group }: { group: ProgressGroup }) {
+  const summary = group.summary;
+  const overallPercent = summary.jumlah > 0 ? (summary.finish / summary.jumlah) * 100 : 0;
+  const chartHeight = Math.max(320, group.items.length * ROW_HEIGHT + 40);
+
+  return (
+    <section className="space-y-4">
+      <h2 className="font-heading text-lg font-semibold">
+        Progress Pengisian Tracer Study Untuk Lulusan Tahun {group.graduation_year}
+      </h2>
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <SummaryTile label="Total Alumni" value={summary.jumlah} />
+          <SummaryTile label={STATUS.finish.label} value={summary.finish} color={STATUS.finish.color} />
+          <SummaryTile label={STATUS.ongoing.label} value={summary.ongoing} color={STATUS.ongoing.color} />
+          <SummaryTile
+            label="Persentase Selesai"
+            value={`${overallPercent.toFixed(2)}%`}
+          />
+        </div>
+
+        <Card className="overflow-hidden">
+          <CardHeader className="border-b border-border/60 pb-3">
+            <CardTitle className="text-base">Progress per Program Studi</CardTitle>
+            <Legend />
+          </CardHeader>
+          <CardContent className="pt-4">
+            {/* Batang HORIZONTAL, bukan vertikal seperti situs lama: dengan
+                38 program studi, label vertikal harus dimiringkan 45 derajat
+                dan jadi sulit dibaca. Arah horizontal membuat nama prodi
+                terbaca normal dan tinggi chart tumbuh mengikuti jumlah baris. */}
+            <div style={{ height: chartHeight }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={group.items}
+                  layout="vertical"
+                  margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
+                  barCategoryGap={4}
+                >
+                  <CartesianGrid horizontal={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="prodi"
+                    width={230}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                  />
+                  <Tooltip content={<ProgressTooltip />} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} />
+                  {STATUS_ORDER.map((key, index) => (
+                    <Bar
+                      key={key}
+                      dataKey={key}
+                      stackId="progress"
+                      fill={STATUS[key].color}
+                      // Sudut membulat hanya di ujung tumpukan, supaya batang
+                      // tetap terbaca sebagai satu kesatuan.
+                      radius={index === STATUS_ORDER.length - 1 ? [0, 4, 4, 0] : undefined}
+                      isAnimationActive={false}
+                    >
+                      {group.items.map((item) => (
+                        // Celah 2px antar segmen: tanpa ini dua warna
+                        // bersebelahan menempel dan batasnya kabur.
+                        <Cell key={item.prodi} stroke="hsl(var(--card))" strokeWidth={2} />
+                      ))}
+                    </Bar>
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden">
+          <CardHeader className="border-b border-border/60 pb-3">
+            <CardTitle className="text-base">Rincian Angka</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {/* Tabel bergaris penuh (bukan hanya garis antarbaris seperti tabel
+                lain di aplikasi): dengan sel berwarna blok, batas antarkolom
+                perlu terlihat supaya blok warna tidak menyatu jadi satu bidang. */}
+            <div className="overflow-x-auto">
+              <Table className="border-separate border-spacing-0">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className={`${CELL_BORDER} bg-muted/50 font-semibold`}>Program Studi</TableHead>
+                    {STATUS_ORDER.map((key) => (
+                      <TableHead key={key} className={`${CELL_BORDER} bg-muted/50 text-center font-semibold`}>
+                        {STATUS[key].label}
+                      </TableHead>
+                    ))}
+                    <TableHead className={`${CELL_BORDER} bg-muted/50 text-center font-semibold`}>Jumlah</TableHead>
+                    <TableHead className={`${CELL_BORDER} bg-muted/50 text-center font-semibold`}>Persentase</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {group.items.map((item) => (
+                    <TableRow key={item.prodi} className="hover:bg-transparent">
+                      <TableCell className={`${CELL_BORDER} font-medium`}>{item.prodi}</TableCell>
+                      {STATUS_ORDER.map((key) => (
+                        <TableCell
+                          key={key}
+                          className={`${CELL_BORDER} text-center font-semibold tabular-nums`}
+                          style={{ backgroundColor: STATUS[key].color, color: STATUS[key].ink }}
+                        >
+                          {item[key]}
+                        </TableCell>
+                      ))}
+                      <TableCell className={`${CELL_BORDER} text-center tabular-nums`}>{item.jumlah}</TableCell>
+                      <TableCell className={`${CELL_BORDER} text-center tabular-nums`}>
+                        {item.persentase.toFixed(2)}%
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </section>
+  );
+}
+
 const StatistikPublikPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -92,10 +246,19 @@ const StatistikPublikPage = () => {
   const [isLoadingData, setLoadingData] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const yearParam = searchParams.get("tahun");
-  const selectedYear = yearParam ? Number(yearParam) : null;
+  /**
+   * Nilai `semua` pada query string berarti gabungan seluruh angkatan yang
+   * boleh ditampilkan publik — bukan seluruh angkatan yang pernah ada.
+   * Angkatan di luar rentang pengarsipan tetap tidak terhitung, dan batas itu
+   * ditegakkan server, bukan di sini.
+   */
+  const ALL_YEARS = "semua";
 
-  const setSelectedYear = (year: number) => {
+  const yearParam = searchParams.get("tahun");
+  const isAllYears = yearParam === ALL_YEARS;
+  const selectedYear = yearParam && !isAllYears ? Number(yearParam) : null;
+
+  const setSelectedYear = (year: number | typeof ALL_YEARS) => {
     const params = new URLSearchParams(searchParams);
     params.set("tahun", String(year));
     setSearchParams(params, { replace: true });
@@ -111,7 +274,13 @@ const StatistikPublikPage = () => {
         if (data.success) {
           const list: number[] = data.data.years ?? [];
           setYears(list);
-          if (list.length > 0 && (selectedYear === null || !list.includes(selectedYear))) {
+          // Pilihan "semua angkatan" dibiarkan apa adanya; yang perlu
+          // dibetulkan hanya tahun tunggal yang tidak ada di daftar.
+          if (
+            !isAllYears &&
+            list.length > 0 &&
+            (selectedYear === null || !list.includes(selectedYear))
+          ) {
             setSelectedYear(list[0]);
           }
         }
@@ -126,14 +295,16 @@ const StatistikPublikPage = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedYear === null) return;
+    if (selectedYear === null && !isAllYears) return;
 
     const fetchProgress = async () => {
       setLoadingData(true);
       setErrorMessage(null);
       try {
+        // Tanpa parameter tahun, server menggabungkan seluruh angkatan yang
+        // boleh ditampilkan publik.
         const { data } = await api.get("/public/statistics/progress", {
-          params: { graduation_year: selectedYear },
+          params: isAllYears ? {} : { graduation_year: selectedYear },
         });
         if (data.success) setPayload(data.data);
       } catch (err: unknown) {
@@ -149,17 +320,7 @@ const StatistikPublikPage = () => {
       }
     };
     fetchProgress();
-  }, [selectedYear]);
-
-  const summary = payload?.summary;
-  const overallPercent = summary && summary.jumlah > 0
-    ? (summary.finish / summary.jumlah) * 100
-    : 0;
-
-  const chartHeight = useMemo(
-    () => Math.max(320, (payload?.items.length ?? 0) * ROW_HEIGHT + 40),
-    [payload],
-  );
+  }, [selectedYear, isAllYears]);
 
   return (
     <PublicPageShell
@@ -172,13 +333,14 @@ const StatistikPublikPage = () => {
               Lulusan
             </label>
             <Select
-              value={selectedYear !== null ? String(selectedYear) : ""}
-              onValueChange={(v) => setSelectedYear(Number(v))}
+              value={isAllYears ? ALL_YEARS : selectedYear !== null ? String(selectedYear) : ""}
+              onValueChange={(v) => setSelectedYear(v === ALL_YEARS ? ALL_YEARS : Number(v))}
             >
-              <SelectTrigger id="tahun-lulusan" className="w-[150px]">
+              <SelectTrigger id="tahun-lulusan" className="w-[170px]">
                 <SelectValue placeholder="Pilih tahun" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={ALL_YEARS}>Semua Angkatan</SelectItem>
                 {years.map((y) => (
                   <SelectItem key={y} value={String(y)}>Tahun {y}</SelectItem>
                 ))}
@@ -203,125 +365,10 @@ const StatistikPublikPage = () => {
       ) : isLoadingData || !payload ? (
         <LoadingCard label="Memuat data…" />
       ) : (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <SummaryTile label="Total Alumni" value={summary!.jumlah} />
-            <SummaryTile label={STATUS.finish.label} value={summary!.finish} color={STATUS.finish.color} />
-            <SummaryTile label={STATUS.ongoing.label} value={summary!.ongoing} color={STATUS.ongoing.color} />
-            <SummaryTile
-              label="Persentase Selesai"
-              value={`${overallPercent.toFixed(2)}%`}
-            />
-          </div>
-
-          <Card className="overflow-hidden">
-            <CardHeader className="border-b border-border/60 pb-3">
-              <CardTitle className="text-base">
-                Progress per Program Studi — Lulusan {payload.graduation_year}
-              </CardTitle>
-              <Legend />
-            </CardHeader>
-            <CardContent className="pt-4">
-              {/* Batang HORIZONTAL, bukan vertikal seperti situs lama: dengan
-                  38 program studi, label vertikal harus dimiringkan 45 derajat
-                  dan jadi sulit dibaca. Arah horizontal membuat nama prodi
-                  terbaca normal dan tinggi chart tumbuh mengikuti jumlah baris. */}
-              <div style={{ height: chartHeight }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={payload.items}
-                    layout="vertical"
-                    margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
-                    barCategoryGap={4}
-                  >
-                    <CartesianGrid horizontal={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
-                    <XAxis
-                      type="number"
-                      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                      axisLine={false}
-                      tickLine={false}
-                      allowDecimals={false}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="prodi"
-                      width={230}
-                      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                      axisLine={false}
-                      tickLine={false}
-                      interval={0}
-                    />
-                    <Tooltip content={<ProgressTooltip />} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} />
-                    {STATUS_ORDER.map((key, index) => (
-                      <Bar
-                        key={key}
-                        dataKey={key}
-                        stackId="progress"
-                        fill={STATUS[key].color}
-                        // Sudut membulat hanya di ujung tumpukan, supaya batang
-                        // tetap terbaca sebagai satu kesatuan.
-                        radius={index === STATUS_ORDER.length - 1 ? [0, 4, 4, 0] : undefined}
-                        isAnimationActive={false}
-                      >
-                        {payload.items.map((item) => (
-                          // Celah 2px antar segmen: tanpa ini dua warna
-                          // bersebelahan menempel dan batasnya kabur.
-                          <Cell key={item.prodi} stroke="hsl(var(--card))" strokeWidth={2} />
-                        ))}
-                      </Bar>
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="overflow-hidden">
-            <CardHeader className="border-b border-border/60 pb-3">
-              <CardTitle className="text-base">Rincian Angka</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {/* Tabel bergaris penuh (bukan hanya garis antarbaris seperti tabel
-                  lain di aplikasi): dengan sel berwarna blok, batas antarkolom
-                  perlu terlihat supaya blok warna tidak menyatu jadi satu bidang. */}
-              <div className="overflow-x-auto">
-                <Table className="border-separate border-spacing-0">
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className={`${CELL_BORDER} bg-muted/50 font-semibold`}>Program Studi</TableHead>
-                      {STATUS_ORDER.map((key) => (
-                        <TableHead key={key} className={`${CELL_BORDER} bg-muted/50 text-center font-semibold`}>
-                          {STATUS[key].label}
-                        </TableHead>
-                      ))}
-                      <TableHead className={`${CELL_BORDER} bg-muted/50 text-center font-semibold`}>Jumlah</TableHead>
-                      <TableHead className={`${CELL_BORDER} bg-muted/50 text-center font-semibold`}>Persentase</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {payload.items.map((item) => (
-                      <TableRow key={item.prodi} className="hover:bg-transparent">
-                        <TableCell className={`${CELL_BORDER} font-medium`}>{item.prodi}</TableCell>
-                        {STATUS_ORDER.map((key) => (
-                          <TableCell
-                            key={key}
-                            className={`${CELL_BORDER} text-center font-semibold tabular-nums`}
-                            style={{ backgroundColor: STATUS[key].color, color: STATUS[key].ink }}
-                          >
-                            {item[key]}
-                          </TableCell>
-                        ))}
-                        <TableCell className={`${CELL_BORDER} text-center tabular-nums`}>{item.jumlah}</TableCell>
-                        <TableCell className={`${CELL_BORDER} text-center tabular-nums`}>
-                          {item.persentase.toFixed(2)}%
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="space-y-10">
+          {payload.groups.map((g) => (
+            <YearSection key={g.graduation_year} group={g} />
+          ))}
         </div>
       )}
     </PublicPageShell>
