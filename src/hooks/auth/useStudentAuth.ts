@@ -1,6 +1,7 @@
 import { useState } from "react";
 import api from "@/lib/api";
 import { clearAllDrafts } from "@/lib/formDraft";
+import { toLoginError } from "@/lib/authErrors";
 
 const SESSION_KEY = "tracer_student_session";
 /** Kunci ini juga dibaca langsung di src/lib/api.ts — impor dari sini akan
@@ -59,10 +60,18 @@ export const useStudentAuth = () => {
   });
 
   const login = async (nimOrEmail: string, password: string): Promise<StudentSession> => {
-    const { data } = await api.post("/auth/alumni-login", {
-      nim_or_email: nimOrEmail,
-      password,
-    });
+    let data: any;
+    try {
+      ({ data } = await api.post("/auth/alumni-login", {
+        nim_or_email: nimOrEmail,
+        password,
+      }));
+    } catch (err) {
+      // Galat axios mentah dibentuk ulang supaya pemanggil menerima pesan yang
+      // sama rasa dengan jalur staf — termasuk pesan pembatas laju beserta
+      // sisa waktunya.
+      throw toLoginError(err, "Login gagal. Periksa NIM/email dan password.");
+    }
 
     if (!data.success) {
       throw new Error(data.message || "Login gagal");

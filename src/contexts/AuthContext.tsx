@@ -7,6 +7,7 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { toLoginError } from "@/lib/authErrors";
 
 // ── Types matching backend ResponseAuthDTO & AuthService::me() ────────────
 export interface AuthUser {
@@ -96,12 +97,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       setState((s) => ({ ...s, isLoading: false }));
 
-      // Backend throws ValidationException → response 422 with { errors: { email: [...] } }
-      const message =
-        error.response?.data?.errors?.email?.[0] ||
-        error.response?.data?.message ||
-        "Login gagal. Periksa email dan password.";
-      throw new Error(message);
+      // Bentuknya diseragamkan lewat toLoginError: 422 dari ValidationException
+      // ({ errors: { email: [...] } }), 429 dari pembatas laju beserta sisa
+      // waktunya, dan sisanya jatuh ke pesan umum. Status ikut terbawa supaya
+      // pemanggil bisa membedakan — Login.tsx tidak boleh meneruskan 429 ke
+      // percobaan rute alumni.
+      throw toLoginError(error, "Login gagal. Periksa email dan password.");
     }
   }, [queryClient]);
 

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/common/use-toast";
 import { useAuth } from "@/hooks/auth/useAuth";
 import { useStudentAuth } from "@/hooks/auth/useStudentAuth";
+import { isRateLimited } from "@/lib/authErrors";
 import PolbanLogo from "@/components/common/PolbanLogo";
 
 const Login = () => {
@@ -34,7 +35,16 @@ const Login = () => {
           navigate("/dashboard/overview");
         }
         return;
-      } catch {
+      } catch (staffErr: any) {
+        // Kegagalan rute staf memang lumrah — alumni SELALU gagal di sini
+        // sebelum jatuh ke rute alumni di bawah. Tapi 429 bukan kegagalan
+        // kredensial, melainkan pintu yang sedang tertutup: meneruskannya
+        // hanya menambah satu permintaan yang pasti ikut ditolak, dan
+        // menyembunyikan sebab sebenarnya di balik pesan "NIM tidak
+        // ditemukan" yang menyesatkan.
+        if (isRateLimited(staffErr)) {
+          throw staffErr;
+        }
         await alumniLogin(identifier, password);
         toast({
           title: "Login Berhasil",
@@ -43,10 +53,14 @@ const Login = () => {
         navigate("/form/fill");
       }
     } catch (err: any) {
+      const limited = isRateLimited(err);
       toast({
-        title: "Login Gagal",
+        title: limited ? "Terlalu Banyak Percobaan" : "Login Gagal",
         description: err?.message || "Login gagal",
         variant: "destructive",
+        // Pesan pembatas laju menyebut sisa waktu tunggu; beri kesempatan
+        // membacanya sebelum hilang.
+        duration: limited ? 10000 : undefined,
       });
     }
   };
