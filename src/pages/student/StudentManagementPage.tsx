@@ -97,8 +97,14 @@ const StudentManagementPage = () => {
   const [isCredDialogOpen, setIsCredDialogOpen] = useState(false);
   const [isIssuingCreds, setIsIssuingCreds] = useState(false);
   const [onlyWithoutCreds, setOnlyWithoutCreds] = useState(true);
+  // Tiga penyaring lingkup penerbitan. Semuanya opsional dan saling bebas:
+  // "" berarti tidak menyaring pada sumbu itu. Jurusan tanpa prodi berarti
+  // seluruh prodi di bawahnya; keduanya berarti irisannya; tidak satu pun
+  // berarti seluruh alumni.
   /** Angkatan sasaran penerbitan; "" berarti seluruh angkatan. */
   const [credYear, setCredYear] = useState("");
+  const [credJurusan, setCredJurusan] = useState("");
+  const [credProdi, setCredProdi] = useState("");
   /** Kemajuan penerbitan berpotong; null saat tidak sedang berjalan. */
   const [credProgress, setCredProgress] = useState<{ done: number; remaining: number } | null>(null);
 
@@ -117,11 +123,34 @@ const StudentManagementPage = () => {
    * nilai awal bila memang sedang aktif.
    */
   const openCredDialog = () => {
-    const fromFilter =
+    const yearFromFilter =
       filterGraduationYear && filterGraduationYear !== "all" ? filterGraduationYear : "";
-    setCredYear(fromFilter);
+    setCredYear(yearFromFilter);
+    setCredJurusan(filterJurusan && filterJurusan !== "all" ? filterJurusan : "");
+    setCredProdi(filterProdi && filterProdi !== "all" ? String(filterProdi) : "");
     setIsCredDialogOpen(true);
   };
+
+  /**
+   * Prodi yang boleh dipilih, menyempit begitu jurusan dipilih.
+   *
+   * Tanpa penyempitan ini daftarnya memuat prodi dari jurusan lain, dan
+   * memilihnya menghasilkan irisan kosong — nol alumni, tanpa petunjuk apa
+   * pun bahwa sebabnya kombinasi yang mustahil.
+   *
+   * Penyaringan hanya dilakukan bila daftar prodi memang MEMBAWA keterangan
+   * jurusan. Kalau tidak ada satu pun yang membawanya, menyaring berarti
+   * mengosongkan seluruh pilihan berdasarkan data yang tidak kita punya —
+   * petugas melihat dropdown kosong tanpa tahu sebabnya, dan tidak ada jalan
+   * memilih prodi sama sekali. Dalam keadaan itu lebih baik menampilkan
+   * semuanya: penyaring jurusan tetap ditegakkan di server, jadi lingkup
+   * penerbitannya tidak melebar.
+   */
+  const programsCarryJurusan = programs.some((p) => !!p.jurusan);
+  const credProdiOptions =
+    credJurusan && programsCarryJurusan
+      ? programs.filter((p) => p.jurusan === credJurusan)
+      : programs;
 
   /**
    * Export data mahasiswa ke file .xlsx proper — tiap field jadi kolom terpisah.
@@ -264,9 +293,8 @@ const StudentManagementPage = () => {
           only_without_credentials: onlyWithoutCreds,
         };
         if (credYear) payload.graduation_year = Number(credYear);
-        // Penyaring program studi hanya ikut kalau petugas memang sedang
-        // berada di dalam satu angkatan; di layar kartu tahun belum ada.
-        if (filterProdi && filterProdi !== "all") payload.program_id = Number(filterProdi);
+        if (credJurusan) payload.jurusan = credJurusan;
+        if (credProdi) payload.program_id = Number(credProdi);
         if (cursor) payload.after_nim = cursor;
 
         const { data } = await api.post("/alumni/credentials/issue", payload);
@@ -600,22 +628,80 @@ const StudentManagementPage = () => {
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Angkatan sebesar apa pun ditangani sekaligus. Prosesnya dipecah otomatis menjadi
-              beberapa tahap karena pencincangan kata sandi sengaja lambat, jadi untuk angkatan
-              besar penerbitan bisa berjalan beberapa menit — biarkan jendela ini terbuka sampai
-              selesai.
-              {filterProdi && filterProdi !== "all" && (
-                <>
-                  {" "}Penyaring program studi yang sedang aktif —{" "}
-                  <strong>
-                    {programs.find((p) => String(p.id) === String(filterProdi))?.name ?? filterProdi}
-                  </strong>{" "}
-                  — ikut diterapkan.
-                </>
-              )}
-            </p>
           </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="cred-jurusan">Jurusan</Label>
+              <Select
+                value={credJurusan === "" ? "all" : credJurusan}
+                onValueChange={(v) => {
+                  const next = v === "all" ? "" : v;
+                  setCredJurusan(next);
+                  // Prodi yang sudah dipilih dilepas kalau tidak bernaung di
+                  // jurusan yang baru — kalau dibiarkan, irisannya kosong dan
+                  // penerbitan gagal tanpa sebab yang terlihat.
+                  setCredProdi((prev) => {
+                    if (!prev || !next) return prev;
+                    const p = programs.find((x) => String(x.id) === prev);
+                    return p && p.jurusan === next ? prev : "";
+                  });
+                }}
+              >
+                <SelectTrigger id="cred-jurusan">
+                  <SelectValue placeholder="Semua jurusan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua jurusan</SelectItem>
+                  {jurusanOptions.map((j) => (
+                    <SelectItem key={j} value={j}>
+                      {j}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cred-prodi">Program studi</Label>
+              <Select
+                value={credProdi === "" ? "all" : credProdi}
+                onValueChange={(v) => setCredProdi(v === "all" ? "" : v)}
+              >
+                <SelectTrigger id="cred-prodi">
+                  <SelectValue placeholder="Semua program studi" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    {credJurusan ? "Semua prodi jurusan ini" : "Semua program studi"}
+                  </SelectItem>
+                  {credProdiOptions.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name}
+                      {p.degree ? ` (${p.degree})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {credProdiOptions.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {programs.length === 0
+                    ? "Daftar program studi belum termuat. Muat ulang halaman bila tetap kosong."
+                    : `Tidak ada program studi terdaftar di bawah ${credJurusan}.`}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Ketiga penyaring opsional. Yang dibiarkan kosong berarti tidak menyaring pada sumbu itu
+            — memilih jurusan saja berarti seluruh program studi di bawahnya, dan tidak memilih apa
+            pun berarti seluruh alumni.
+            <br />
+            Lingkup sebesar apa pun ditangani sekaligus: prosesnya dipecah otomatis menjadi beberapa
+            tahap karena pencincangan kata sandi sengaja lambat. Untuk lingkup besar penerbitan bisa
+            berjalan beberapa menit — biarkan jendela ini terbuka sampai selesai.
+          </p>
 
           <div className="flex items-start gap-2">
             <Checkbox

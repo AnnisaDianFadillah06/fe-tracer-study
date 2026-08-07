@@ -46,6 +46,8 @@ export interface ProgramOption {
   name: string;
   code?: string | null;
   degree?: string | null;
+  /** Jurusan induk. Dipakai menyaring daftar prodi begitu jurusan dipilih. */
+  jurusan?: string | null;
 }
 
 // ── Map backend alumni → frontend Student ─────────────────────────────────
@@ -136,6 +138,7 @@ export const useStudentManagement = () => {
         name: item.name,
         code: item.code ?? null,
         degree: item.degree ?? null,
+        jurusan: item.jurusan ?? null,
       }));
     }
 
