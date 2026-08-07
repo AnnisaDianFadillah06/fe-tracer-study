@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/common/use-toast";
 import api from "@/lib/api";
 import { formatFileSize, publicReportPreviewUrl } from "@/lib/publicReports";
 import {
-  Download, ExternalLink, FileText, Loader2, Plus, Trash2, Upload,
+  Download, ExternalLink, FileText, Loader2, Pencil, Plus, Trash2, Upload,
 } from "lucide-react";
 
 interface PublicReport {
@@ -55,6 +55,17 @@ const PublicReportsPage = () => {
   const [isSubmitting, setSubmitting] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+
+  // ── Penyuntingan keterangan laporan ────────────────────────────────────
+  // Berkas PDF-nya sendiri TIDAK dapat diganti dari sini; yang disunting
+  // hanya judul, keterangan, dan tahun. Untuk mengganti berkasnya, laporan
+  // dihapus lalu diunggah ulang — sengaja, supaya jumlah unduhan dan tanggal
+  // terbit tidak menempel pada berkas yang isinya sudah berbeda.
+  const [editTarget, setEditTarget] = useState<PublicReport | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editYear, setEditYear] = useState("");
+  const [isSavingEdit, setSavingEdit] = useState(false);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -113,6 +124,49 @@ const PublicReportsPage = () => {
       toast({ title: "Gagal", description: uploadErrorMessage(err), variant: "destructive" });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openEdit = (report: PublicReport) => {
+    setEditTarget(report);
+    setEditTitle(report.title);
+    setEditDescription(report.description ?? "");
+    setEditYear(String(report.report_year));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editTarget) return;
+
+    const judul = editTitle.trim();
+    if (!judul) {
+      toast({ title: "Judul wajib diisi", variant: "destructive" });
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const { data } = await api.put(`/admin/public-reports/${editTarget.id}`, {
+        title: judul,
+        // Keterangan kosong dikirim sebagai null, bukan untai kosong, supaya
+        // pengosongan benar-benar tersimpan sebagai tidak ada keterangan.
+        description: editDescription.trim() || null,
+        report_year: Number(editYear),
+      });
+      if (data.success) {
+        setReports((prev) => prev.map((r) => (r.id === editTarget.id ? data.data : r)));
+        setEditTarget(null);
+        toast({ title: "Berhasil", description: "Keterangan laporan diperbarui." });
+      }
+    } catch (err: unknown) {
+      toast({
+        title: "Gagal",
+        description:
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          ?? "Gagal menyimpan perubahan.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -255,6 +309,15 @@ const PublicReportsPage = () => {
                             <ExternalLink className="h-4 w-4" aria-hidden />
                           </Button>
                           <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9"
+                            title="Sunting judul, keterangan, dan tahun"
+                            onClick={() => openEdit(report)}
+                          >
+                            <Pencil className="h-4 w-4" aria-hidden />
+                          </Button>
+                          <Button
                             variant="destructive"
                             size="icon"
                             className="h-9 w-9"
@@ -338,6 +401,64 @@ const PublicReportsPage = () => {
               ) : (
                 <><Upload className="mr-2 h-4 w-4" aria-hidden />Unggah</>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sunting keterangan laporan */}
+      <Dialog open={editTarget !== null} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sunting Laporan</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-title">Judul</Label>
+              <Input
+                id="edit-title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Laporan Tracer Study 2025"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-description">Keterangan</Label>
+              <Textarea
+                id="edit-description"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Opsional"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-year">Tahun laporan</Label>
+              <Input
+                id="edit-year"
+                type="number"
+                value={editYear}
+                onChange={(e) => setEditYear(e.target.value)}
+              />
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Berkas PDF-nya tidak dapat diganti dari sini. Untuk mengganti berkas, hapus
+              laporan ini lalu unggah ulang — jumlah unduhan dan tanggal terbit sengaja tidak
+              dibawa ke berkas yang isinya sudah berbeda.
+              {editTarget?.is_published && " Perubahan langsung terlihat di halaman publik."}
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={isSavingEdit}>
+              Batal
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={isSavingEdit || !editTitle.trim()}>
+              {isSavingEdit && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}
+              Simpan
             </Button>
           </DialogFooter>
         </DialogContent>
