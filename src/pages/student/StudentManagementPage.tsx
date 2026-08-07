@@ -53,6 +53,8 @@ const StudentManagementPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
+  /** Kemajuan pengambilan lintas halaman saat ekspor; null bila tidak berjalan. */
+  const [exportProgress, setExportProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
 
   const {
@@ -69,6 +71,7 @@ const StudentManagementPage = () => {
     page,
     setPage,
     paginationMeta,
+    fetchAllStudents,
     jurusanOptions,
     programs,
     isDialogOpen,
@@ -153,11 +156,22 @@ const StudentManagementPage = () => {
       : programs;
 
   /**
-   * Export data mahasiswa ke file .xlsx proper — tiap field jadi kolom terpisah.
+   * Ekspor data alumni ke berkas .xlsx.
    *
-   * Sebelumnya pakai CSV dengan separator `,` — di Excel locale Indonesia
-   * (expected `;`) semua field menempel ke kolom A. Fix: pakai exceljs
-   * untuk generate binary .xlsx yang tidak bergantung locale.
+   * KOLOMNYA SAMA PERSIS DENGAN TEMPLAT IMPOR (DATA-06), berikut urutannya,
+   * supaya berkas hasil ekspor dapat disunting lalu diunggah kembali tanpa
+   * menyusun ulang apa pun. Acuannya `AlumniTemplateSheet` di backend; kalau
+   * salah satunya berubah, keduanya harus ikut berubah.
+   *
+   * Sebelumnya kolomnya berbeda jauh: hanya tujuh kolom, tanpa Kode PT, Kode
+   * Prodi, No. HP, NIK, dan NPWP, ditambah satu kolom Status yang tidak
+   * dikenal templat. Berkasnya karena itu SELALU ditolak saat diunggah balik,
+   * karena Kode Prodi diwajibkan importer dan nama program studi tidak
+   * menggantikannya. Kolom Status dibuang: nilainya selalu "aktif" dan
+   * importer mengabaikannya.
+   *
+   * Berformat .xlsx, bukan CSV berpemisah koma — di Excel berlokal Indonesia
+   * yang mengharapkan titik koma, seluruh kolom menempel menjadi satu.
    */
   const handleExport = async () => {
     if (students.length === 0) {
@@ -165,20 +179,43 @@ const StudentManagementPage = () => {
       return;
     }
     setIsExporting(true);
+    setExportProgress(null);
     try {
+      // Seluruh halaman ditarik, bukan hanya yang sedang terbuka. Daftar di
+      // layar dipetak per seratus baris; ekspor yang mengikuti petakan itu
+      // akan terpotong diam-diam, dan berkas terpotong tetap terlihat lengkap
+      // saat hendak diunggah kembali.
+      const rows = await fetchAllStudents((loaded, total) =>
+        setExportProgress({ loaded, total }),
+      );
+
+      if (rows.length === 0) {
+        toast({
+          title: "Tidak ada data",
+          description: "Tidak ada alumni yang cocok dengan penyaring saat ini.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const workbook = new ExcelJS.Workbook();
       workbook.creator = "Tracer Study Polban";
       workbook.created = new Date();
 
-      const sheet = workbook.addWorksheet("Data Mahasiswa");
+      const sheet = workbook.addWorksheet("Data Alumni");
+      // Judul dan lebar kolom mengikuti AlumniTemplateSheet di backend.
       sheet.columns = [
-        { header: "NIM",           key: "nim",      width: 20 },
-        { header: "Nama",          key: "username", width: 32 },
-        { header: "Email",         key: "email",    width: 32 },
-        { header: "Program Studi", key: "prodi",    width: 32 },
-        { header: "Jurusan",       key: "jurusan",  width: 28 },
-        { header: "Tahun Lulus",   key: "angkatan", width: 14 },
-        { header: "Status",        key: "status",   width: 12 },
+        { header: "Kode PT",       key: "kodePt",    width: 12 },
+        { header: "Kode Prodi",    key: "kodeProdi", width: 14 },
+        { header: "NIM",           key: "nim",       width: 20 },
+        { header: "Nama",          key: "username",  width: 32 },
+        { header: "No. HP",        key: "phone",     width: 18 },
+        { header: "Surel",         key: "email",     width: 32 },
+        { header: "Tahun Lulus",   key: "angkatan",  width: 14 },
+        { header: "NIK",           key: "nik",       width: 22 },
+        { header: "NPWP",          key: "npwp",      width: 22 },
+        { header: "Program Studi", key: "namaProdi", width: 36 },
+        { header: "Jurusan",       key: "jurusan",   width: 28 },
       ];
 
       // Styling header
@@ -194,16 +231,28 @@ const StudentManagementPage = () => {
       sheet.views = [{ state: "frozen", ySplit: 1 }];
 
       // Data rows
-      students.forEach((s) => {
+      rows.forEach((s) => {
         sheet.addRow({
-          nim:      s.nim,
-          username: s.username,
-          email:    s.email,
-          prodi:    s.prodi,
-          jurusan:  s.jurusan,
-          angkatan: s.angkatan,
-          status:   s.status,
+          kodePt:    s.kodePt,
+          kodeProdi: s.kodeProdi,
+          nim:       s.nim,
+          username:  s.username,
+          phone:     s.phone,
+          email:     s.email,
+          angkatan:  s.angkatan,
+          nik:       s.nik,
+          npwp:      s.npwp,
+          namaProdi: s.namaProdi,
+          jurusan:   s.jurusan,
         });
+      });
+
+      // NIM, No. HP, NIK, dan NPWP ditulis sebagai TEKS, bukan angka. Excel
+      // memangkas nol di depan dan mengubah rangkaian digit panjang menjadi
+      // notasi ilmiah; NIK enam belas digit bahkan kehilangan ketelitiannya.
+      // Berkas yang rusak begitu tidak akan cocok lagi saat diunggah kembali.
+      ["C", "E", "H", "I"].forEach((col) => {
+        sheet.getColumn(col).numFmt = "@";
       });
 
       const buffer = await workbook.xlsx.writeBuffer();
@@ -213,16 +262,22 @@ const StudentManagementPage = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Data_Mahasiswa_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      link.download = `Data_Alumni_${new Date().toISOString().slice(0, 10)}.xlsx`;
       link.click();
       URL.revokeObjectURL(url);
 
-      toast({ title: "Berhasil", description: `${students.length} data mahasiswa terunduh (.xlsx).` });
+      toast({
+        title: "Berhasil",
+        description:
+          `${rows.length} data alumni terunduh (.xlsx), mencakup seluruh halaman ` +
+          `sesuai penyaring yang sedang aktif.`,
+      });
     } catch (err) {
       console.error("[StudentManagement] export failed:", err);
-      toast({ title: "Gagal", description: "Gagal mengunduh data mahasiswa.", variant: "destructive" });
+      toast({ title: "Gagal", description: "Gagal mengunduh data alumni.", variant: "destructive" });
     } finally {
       setIsExporting(false);
+      setExportProgress(null);
     }
   };
 
@@ -872,7 +927,12 @@ const StudentManagementPage = () => {
               ) : (
                 <Upload className="w-4 h-4 mr-2" />
               )}
-              Export
+              {/* Kemajuan ditampilkan karena pengambilan lintas halaman pada
+                  angkatan besar berlangsung beberapa detik; tanpa penanda,
+                  tombol yang diam terlihat seperti macet. */}
+              {isExporting && exportProgress
+                ? `Menyiapkan ${exportProgress.loaded}/${exportProgress.total}`
+                : "Export"}
             </Button>
             <Button onClick={handleOpenAdd}>
               <Plus className="mr-2 h-4 w-4" />

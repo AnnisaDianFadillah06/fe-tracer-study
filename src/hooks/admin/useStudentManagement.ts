@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useToast } from "@/hooks/common/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -13,6 +13,7 @@ export interface AlumniRecord {
   phone: string | null;
   program_id: number | null;
   program_name: string | null; // from JOIN
+  program_code: string | null; // from JOIN — Kode Prodi, dipakai ekspor & impor
   jurusan_name: string | null; // from JOIN
   graduation_year: number | null;
   kode_pt: string | null;
@@ -34,6 +35,20 @@ export interface Student {
   programId: string;
   angkatan: string;
   status: "aktif" | "nonaktif";
+  // ── Medan di bawah ini dipakai ekspor alumni (DATA-06) ──────────────────
+  // Berkas ekspor harus berkolom sama persis dengan templat impor supaya
+  // dapat disunting lalu diunggah kembali tanpa menyusun ulang kolomnya.
+  // Tanpa medan-medan ini, ekspornya kehilangan Kode PT, Kode Prodi, No. HP,
+  // NIK, dan NPWP — dan Kode Prodi adalah kolom yang DIWAJIBKAN importer,
+  // sehingga berkasnya pasti ditolak.
+  kodePt: string;
+  /** Kode program studi, bukan namanya. Inilah yang dibaca importer. */
+  kodeProdi: string;
+  phone: string;
+  nik: string;
+  npwp: string;
+  /** Nama program studi tanpa imbuhan jenjang, sebagaimana bentuk di templat. */
+  namaProdi: string;
 }
 
 // Larik `prodiList` yang dulu di sini sudah dihapus: tidak dipakai siapa pun,
@@ -64,6 +79,15 @@ function alumniToStudent(a: AlumniRecord): Student {
     programId: a.program_id ? String(a.program_id) : "",
     angkatan: a.graduation_year ? String(a.graduation_year) : "",
     status: "aktif",
+    kodePt: a.kode_pt ?? "",
+    kodeProdi: a.program_code ?? "",
+    phone: a.phone ?? "",
+    nik: a.nik ?? "",
+    npwp: a.npwp ?? "",
+    // Sengaja TANPA imbuhan jenjang, berbeda dari `prodi` di atas yang
+    // dipakai tampilan. Templat impor memuat nama program studi apa adanya,
+    // dan menambahkan "(D3)" akan membuat berkas ekspor tidak sebangun.
+    namaProdi: a.program_name ?? "",
   };
 }
 
@@ -145,6 +169,62 @@ export const useStudentManagement = () => {
     return [];
   }, [programsResponse]);
 
+  /**
+   * Penyaring yang sedang aktif, tanpa halaman.
+   *
+   * Dipakai kueri daftar MAUPUN pengambilan seluruh halaman untuk ekspor.
+   * Ditaruh di satu tempat supaya keduanya tidak pernah menyimpang — ekspor
+   * yang penyaringnya berbeda dari yang terlihat di layar adalah kekeliruan
+   * yang sulit disadari, karena berkasnya tampak wajar.
+   */
+  const buildAlumniParams = useCallback((): Record<string, string> => {
+    const params: Record<string, string> = { sort: "-graduation_year" };
+    if (searchQuery) params.search = searchQuery;
+    if (filterProdi !== "all") params.program_id = filterProdi;
+    if (filterJurusan !== "all") params.jurusan = filterJurusan;
+    if (filterGraduationYear !== "all") params.graduation_year = filterGraduationYear;
+    return params;
+  }, [searchQuery, filterProdi, filterJurusan, filterGraduationYear]);
+
+  /**
+   * Seluruh alumni yang cocok dengan penyaring aktif, lintas halaman.
+   *
+   * Daftar di layar sengaja dipetak per seratus baris, dan ekspor yang hanya
+   * membawa halaman yang sedang terbuka akan terpotong diam-diam pada baris
+   * keseratus. Itu berbahaya justru karena berkas ekspor dimaksudkan untuk
+   * disunting lalu diunggah kembali: berkas yang terpotong tetap terlihat
+   * lengkap dan sah.
+   *
+   * Pengambilannya bertahap per halaman, bukan sekali tarik dengan `per_page`
+   * raksasa, supaya satu permintaan tidak pernah membengkak tak terkendali
+   * pada angkatan besar.
+   */
+  const fetchAllStudents = useCallback(async (
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<Student[]> => {
+    const out: Student[] = [];
+    let pageNo = 1;
+    let lastPage = 1;
+
+    do {
+      const { data } = await api.get("/alumni", {
+        params: { ...buildAlumniParams(), per_page: "200", page: String(pageNo) },
+      });
+      const rows: AlumniRecord[] = data?.data?.data ?? [];
+      out.push(...rows.map(alumniToStudent));
+      lastPage = Number(data?.data?.last_page ?? 1);
+      onProgress?.(out.length, Number(data?.data?.total ?? out.length));
+
+      // Penjaga kedua: halaman yang tidak menghasilkan baris menghentikan
+      // perulangan, supaya kekeliruan paginasi di server tidak pernah
+      // berubah menjadi perulangan tanpa akhir di peramban.
+      if (rows.length === 0) break;
+      pageNo += 1;
+    } while (pageNo <= lastPage);
+
+    return out;
+  }, [buildAlumniParams]);
+
   // ── Fetch alumni dari backend ───────────────────────────────────────────
   const {
     data: apiResponse,
@@ -153,12 +233,9 @@ export const useStudentManagement = () => {
   } = useQuery({
     queryKey: ["alumni", searchQuery, filterProdi, filterJurusan, filterGraduationYear, page],
     queryFn: async () => {
-      const params: Record<string, string> = { per_page: "100", page: String(page), sort: "-graduation_year" };
-      if (searchQuery) params.search = searchQuery;
-      if (filterProdi !== "all") params.program_id = filterProdi;
-      if (filterJurusan !== "all") params.jurusan = filterJurusan;
-      if (filterGraduationYear !== "all") params.graduation_year = filterGraduationYear;
-      const { data } = await api.get("/alumni", { params });
+      const { data } = await api.get("/alumni", {
+        params: { ...buildAlumniParams(), per_page: "100", page: String(page) },
+      });
       return data;
     },
     retry: 1,
@@ -344,6 +421,7 @@ export const useStudentManagement = () => {
     page,
     setPage,
     paginationMeta,
+    fetchAllStudents,
     jurusanOptions,
     programs,
     isDialogOpen,
