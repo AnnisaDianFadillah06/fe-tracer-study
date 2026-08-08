@@ -71,6 +71,7 @@ const FormPage = () => {
     handleBack,
     handleSubmit: submitToBackend,
     handleReset,
+    flushDraftNow,
   } = useTracerForm(kodeProdi, graduationYear, session?.nim, {
     // Bagian identitas diisi dari data yang sudah ada di basis data supaya
     // alumni tidak mengetik ulang apa yang sudah diketahui sistem. Semuanya
@@ -83,10 +84,14 @@ const FormPage = () => {
     phone: session?.phone,
     kodeProdi,
     graduationYear,
+    nik: session?.nik,
+    npwp: session?.npwp,
   });
 
-  // Wrap submit to include identity data from session
-  // Only include fields genuinely known from session — nik/npwp/kode_pt come from form answers
+  // Wrap submit to include identity data from session.
+  // NIK dan NPWP sengaja tidak dititipkan di sini walau sesi sudah membawanya:
+  // keduanya isian yang boleh disunting alumni, jadi yang dikirim harus nilai
+  // dari formulir. Sesi hanya dipakai sebagai nilai awal (IDENTITY_MAP).
   const handleSubmit = (e: React.FormEvent) => {
     const identityData = session
       ? {
@@ -110,7 +115,13 @@ const FormPage = () => {
 
   if (!isLoggedIn) return null;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Simpan dulu, baru keluar. logout() menghapus SELURUH draf lokal
+    // (clearAllDrafts) demi privasi, jadi isian yang belum sempat terkirim ke
+    // server — autosave-nya berjalan tiap 15 detik — akan hilang tanpa sisa
+    // kalau urutannya dibalik. Kegagalan menyimpan tidak boleh menahan alumni
+    // keluar dari sesinya, karena itu galatnya ditelan di dalam flushDraftNow.
+    await flushDraftNow();
     logout();
     navigate("/login");
   };
@@ -664,6 +675,12 @@ const AnswerField = ({
       const min = q.scaleMin ?? 1;
       const max = q.scaleMax ?? 5;
       const scale = Array.from({ length: max - min + 1 }, (_, i) => i + min);
+      // Draf lokal menyimpan angka, tapi jawaban yang datang dari server selalu
+      // teks ("4" — response_answers.answer_text). Perbandingan ketat terhadap
+      // angka membuat pilihan yang sudah tersimpan tampak kosong setiap kali
+      // pengisian dimuat ulang dari server (mis. setelah reset ke Ongoing).
+      const picked =
+        answer === undefined || answer === null || answer === "" ? null : Number(answer);
       return (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -679,7 +696,7 @@ const AnswerField = ({
                     type="radio"
                     name={q.id}
                     value={v}
-                    checked={answer === v}
+                    checked={picked === v}
                     onChange={() => setAnswer(q.id, v)}
                     className="w-4 h-4 accent-primary"
                   />

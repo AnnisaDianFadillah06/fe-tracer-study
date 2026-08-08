@@ -111,14 +111,23 @@ export interface IdentityPrefill {
   phone?: string;
   kodeProdi?: string;
   graduationYear?: number | null;
+  nik?: string;
+  npwp?: string;
 }
 
 /**
  * Kode pertanyaan identitas => medan sesi yang mengisinya.
  *
  * Kode PT sengaja TIDAK ikut: kolom kode_pt tidak pernah diisi impor alumni,
- * jadi mengisinya dari sesi hanya akan menaruh nilai kosong. NIK dan NPWP juga
- * tidak ada di basis data sama sekali — keduanya memang harus diketik alumni.
+ * jadi mengisinya dari sesi hanya akan menaruh nilai kosong.
+ *
+ * NIK dan NPWP ikut, dan itu perbaikan atas catatan lama di sini yang menyebut
+ * keduanya "tidak ada di basis data". Kolomnya ada di alumni_profiles dan diisi
+ * saat submit lewat upsertByNim(). Yang tidak ada adalah jejaknya di
+ * response_answers — jalur submit sengaja membuangnya (IDENTITY_KEYS) karena
+ * tempatnya di alumni_profiles. Akibatnya, tanpa prefill ini isian NIK/NPWP
+ * selalu kembali kosong setiap kali formulir dimuat dari server, paling terasa
+ * setelah pengisian dikembalikan ke Ongoing.
  */
 const IDENTITY_MAP: Record<string, keyof IdentityPrefill> = {
   nimhsmsmh:    "nim",
@@ -127,6 +136,8 @@ const IDENTITY_MAP: Record<string, keyof IdentityPrefill> = {
   telpomsmh:    "phone",
   kdpstmsmh:    "kodeProdi",
   tahun_lulus:  "graduationYear",
+  nik:          "nik",
+  npwp:         "npwp",
 };
 
 /**
@@ -613,7 +624,28 @@ export const useTracerForm = (
       for (const q of s.questions) {
         const code = q.code ?? stripPrefix(q.id);
         const value = raw[code];
-        if (value === undefined) continue;
+        if (value === undefined) {
+          // Kelompok checkbox yang jawabannya sudah pernah DIKIRIM, lalu
+          // pengisiannya dibuka kembali (reset ke Ongoing).
+          //
+          // Draf menyimpannya utuh di bawah kode kelompok
+          // ("q16_cara_cari_kerja" → JSON array), tapi jalur submit memecahnya
+          // jadi satu baris per opsi (f401='1', f402='0', …) dan membuang kode
+          // kelompoknya — lihat TracerStudySubmitService::expandCheckboxGroups().
+          // Karena itu setelah dibuka kembali kode kelompok tidak ada di
+          // response_answers, dan tanpa perakitan ulang di bawah ini kartunya
+          // tampil kosong padahal jawabannya masih tersimpan.
+          if (q.type === "checkbox" && q.options?.length) {
+            const picked = q.options
+              .filter((o) => {
+                const flag = raw[stripPrefix(o.id)];
+                return flag !== undefined && String(flag) === "1";
+              })
+              .map((o) => o.id);
+            if (picked.length > 0) out[q.id] = picked;
+          }
+          continue;
+        }
 
         // Checkbox disimpan sebagai JSON array oleh backend.
         if (typeof value === "string" && value.startsWith("[")) {
@@ -668,6 +700,66 @@ export const useTracerForm = (
       console.warn("[useTracerForm] draf server gagal disimpan:", e);
     }
   };
+
+  /**
+   * Kirim draf saat halaman ditinggalkan — refresh, tab ditutup, atau pindah
+   * aplikasi.
+   *
+   * Tidak bisa memakai `flushServerDraft()` biasa: permintaan axios ikut
+   * dibatalkan begitu dokumennya dibongkar, jadi justru pada saat yang paling
+   * dibutuhkan ia tidak pernah sampai. `fetch` dengan `keepalive` tetap
+   * diteruskan peramban setelah halaman hilang.
+   *
+   * Tanpa ini, jendela kehilangan selebar satu siklus autosave (15 detik):
+   * alumni yang mengisi sebentar lalu menutup tab tidak meninggalkan jejak apa
+   * pun di server. Pada penutupan tab draf lokal masih menambal, tapi pada
+   * KELUAR SESI tidak — logout sengaja menghapus seluruh draf lokal
+   * (clearAllDrafts, demi privasi di komputer bersama), sehingga draf server
+   * adalah satu-satunya yang tersisa.
+   */
+  const flushServerDraftOnUnload = () => {
+    if (!serverDraftDirty.current || !nim || submitted || hasResponded) return;
+
+    const token = getStudentToken();
+    if (!token) return;
+
+    const payload = toServerAnswers(answersRef.current);
+    if (Object.keys(payload).length === 0) return;
+
+    serverDraftDirty.current = false;
+    try {
+      void fetch(`${api.defaults.baseURL}/tracer-study/draft`, {
+        method: "POST",
+        keepalive: true,
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ answers: payload }),
+      }).catch(() => { serverDraftDirty.current = true; });
+    } catch {
+      serverDraftDirty.current = true;
+    }
+  };
+
+  useEffect(() => {
+    if (!nim || submitted || hasResponded) return;
+
+    // Dua pemicu karena tidak ada satu pun yang menyala di semua keadaan:
+    // 'pagehide' tidak terkirim di sebagian peramban seluler, dan
+    // 'visibilitychange' tidak menyala saat tab ditutup di sebagian yang lain.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushServerDraftOnUnload();
+    };
+
+    window.addEventListener("pagehide", flushServerDraftOnUnload);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", flushServerDraftOnUnload);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [nim, submitted, hasResponded]);
 
   // Tandai ada perubahan yang belum terkirim.
   useEffect(() => {
@@ -1120,5 +1212,11 @@ export const useTracerForm = (
     handleBack,
     handleSubmit,
     handleReset,
+    /**
+     * Simpan draf ke server SEKARANG. Dipakai tombol "Keluar": logout menghapus
+     * seluruh draf lokal, jadi apa pun yang belum terkirim harus diamankan dulu
+     * sebelum sesinya ditutup.
+     */
+    flushDraftNow: flushServerDraft,
   };
 };

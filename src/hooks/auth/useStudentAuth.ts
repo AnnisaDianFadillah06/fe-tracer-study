@@ -31,6 +31,8 @@ export interface StudentSession {
   username: string;
   email: string;
   phone: string;
+  nik: string;
+  npwp: string;
   prodi: string;
   kodeProdi: string;
   angkatan: string;
@@ -84,6 +86,8 @@ export const useStudentAuth = () => {
       username: alumniData.name,
       email: alumniData.email ?? "",
       phone: alumniData.phone ?? "",
+      nik: alumniData.nik ?? "",
+      npwp: alumniData.npwp ?? "",
       prodi: alumniData.program_name ?? "",
       kodeProdi: alumniData.program_code ?? "",
       angkatan: alumniData.entry_year ? String(alumniData.entry_year) : "",
