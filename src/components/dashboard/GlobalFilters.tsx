@@ -21,15 +21,25 @@ import { useGlobalFilters, ALL } from "@/contexts/GlobalFiltersContext";
 import { Badge } from "@/components/ui/badge";
 
 interface Props {
-  /** "kaprodi" hides degree/jurusan/prodi filters (single-prodi view). */
-  mode?: "full" | "kaprodi";
+  /**
+   * "kaprodi" hides degree/jurusan/prodi filters (single-prodi view).
+   * "kajur" keeps degree & prodi but pins jurusan to the one they lead.
+   */
+  mode?: "full" | "kaprodi" | "kajur";
   /** Whether this page uses realtime data (overview) vs snapshot (employment/education) */
   dataMode?: "realtime" | "snapshot";
   /** Prodi name shown for kaprodi badge */
   kaprodiName?: string;
+  /**
+   * Jurusan yang dipimpin Kajur. Dipakai sebagai kunci, bukan sekadar nilai
+   * awal: datanya memang sudah tersaring di sisi server, tapi dropdown yang
+   * tetap menawarkan sebelas jurusan membuat Kajur mengira ada data lain yang
+   * bisa dibuka — lalu memilihnya dan mendapat halaman kosong tanpa penjelasan.
+   */
+  kajurJurusan?: string;
 }
 
-const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
+const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: Props) => {
   const location = useLocation();
   const inferredDataMode: "realtime" | "snapshot" =
     dataMode ?? (location.pathname.includes("/overview") ? "realtime" : "snapshot");
@@ -62,15 +72,28 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
   const [pTahun, setPTahun] = useState(tahunLulus);
   const [pWeek, setPWeek] = useState(week);
 
+  /** Jurusan yang tidak boleh dilepas Kajur; null untuk peran lain. */
+  const lockedJurusan = mode === "kajur" ? (kajurJurusan ?? null) : null;
+
   useEffect(() => { setPDegree(degree); }, [degree]);
   useEffect(() => { setPJurusan(jurusan); }, [jurusan]);
+
+  // Kunci jurusan Kajur sejak render pertama, termasuk setelah Reset — kalau
+  // dibiarkan ALL, permintaan pertama berangkat tanpa penyaring jurusan.
+  useEffect(() => {
+    if (lockedJurusan && pJurusan !== lockedJurusan) setPJurusan(lockedJurusan);
+  }, [lockedJurusan, pJurusan]);
   useEffect(() => { setPProdi(prodi); }, [prodi]);
   useEffect(() => { setPTahun(tahunLulus); }, [tahunLulus]);
   useEffect(() => { setPWeek(week); }, [week]);
 
+  // Jurusan yang terkunci tidak pernah dihitung sebagai perubahan tertunda:
+  // nilainya dipasang komponen ini sendiri, bukan dipilih Kajur, sehingga
+  // menandai "Terapkan *" sejak halaman terbuka hanya membuat penanda itu
+  // kehilangan artinya.
   const dirty =
     pDegree !== degree ||
-    pJurusan !== jurusan ||
+    (!lockedJurusan && pJurusan !== jurusan) ||
     pProdi !== prodi ||
     pTahun !== tahunLulus ||
     pWeek !== week;
@@ -91,6 +114,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
   /** Prodi available for the selected jenjang + jurusan */
   const availableProdi = useMemo(() => {
     let list = prodiList;
+    if (lockedJurusan) list = list.filter((p) => p.jurusan === lockedJurusan);
     if (pDegree !== ALL) list = list.filter((p) => p.jenjang === pDegree);
     if (pJurusan !== ALL) list = list.filter((p) => p.jurusan === pJurusan);
     // Deduplicate by nama_prodi
@@ -100,13 +124,13 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
       seen.add(p.nama_prodi);
       return true;
     });
-  }, [pDegree, pJurusan, prodiList]);
+  }, [pDegree, pJurusan, prodiList, lockedJurusan]);
 
   // ── Cascade handlers ──────────────────────────────────────────────────────
 
   const handleDegree = (v: string) => {
     setPDegree(v);
-    if (v !== ALL && pJurusan !== ALL) {
+    if (v !== ALL && pJurusan !== ALL && !lockedJurusan) {
       const stillValid = (jurusanMap[pJurusan] ?? []).some((name) =>
         prodiList.some((p) => p.nama_prodi === name && p.jenjang === v)
       );
@@ -149,7 +173,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
 
   const handleReset = () => {
     setPDegree(ALL);
-    setPJurusan(ALL);
+    setPJurusan(lockedJurusan ?? ALL);
     setPProdi(ALL);
     setPTahun("all");
     setPWeek(weekOptions[0] ?? "");
@@ -185,7 +209,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
       )}
 
       <div className="w-full flex flex-wrap items-end gap-3 px-6 py-3">
-        {mode === "full" ? (
+        {mode !== "kaprodi" ? (
           <>
             {/* Jenjang */}
             <div className="flex flex-col gap-1">
@@ -207,24 +231,33 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
               </Select>
             </div>
 
-            {/* Jurusan */}
+            {/* Jurusan — terkunci untuk Kajur */}
             <div className="flex flex-col gap-1">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Jurusan
               </label>
-              <Select value={pJurusan} onValueChange={handleJurusan} disabled={isDisabled}>
-                <SelectTrigger className="h-9 w-[240px] text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>Semua Jurusan</SelectItem>
-                  {availableJurusan.map((j) => (
-                    <SelectItem key={j} value={j}>
-                      {j}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {lockedJurusan ? (
+                <Badge
+                  variant="secondary"
+                  className="h-9 w-[240px] justify-start text-sm font-semibold px-3"
+                >
+                  {lockedJurusan}
+                </Badge>
+              ) : (
+                <Select value={pJurusan} onValueChange={handleJurusan} disabled={isDisabled}>
+                  <SelectTrigger className="h-9 w-[240px] text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>Semua Jurusan</SelectItem>
+                    {availableJurusan.map((j) => (
+                      <SelectItem key={j} value={j}>
+                        {j}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             {/* Prodi */}

@@ -52,15 +52,27 @@ import {
   Copy,
   Eye,
   EyeOff,
-  FileImage,
   FileText,
-  Film,
   GripVertical,
   Plus,
   Save,
   Trash2,
 } from "lucide-react";
 
+/**
+ * Tipe pertanyaan yang boleh dipilih penyusun kuesioner (KSN-09).
+ *
+ * "File Upload" sengaja TIDAK ada di sini: kuesioner tracer study dibatasi
+ * pada isian teks deskriptif, dan unggah media tidak pernah bisa tersimpan —
+ * kolom questionnaire_questions.question_type punya CHECK constraint yang
+ * hanya menerima short_text/long_text/single_choice/multiple_choice/number/
+ * date/boolean. Menawarkannya di pemilih hanya membuat penyusun merakit
+ * pertanyaan yang akan ditolak basis data saat disimpan.
+ *
+ * Tipe `file_upload` tetap dikenali di lapisan tipe & pratinjau supaya draf
+ * lama yang terlanjur menyimpannya di localStorage tidak membuat halaman
+ * pecah — yang dicabut hanya kemampuan membuat yang baru.
+ */
 const questionTypeOptions: Array<{ value: BuilderQuestionType; label: string }> = [
   { value: "short", label: "Short Answer" },
   { value: "paragraph", label: "Paragraph" },
@@ -69,7 +81,6 @@ const questionTypeOptions: Array<{ value: BuilderQuestionType; label: string }> 
   { value: "checkbox", label: "Checkboxes" },
   { value: "dropdown", label: "Dropdown" },
   { value: "lookup", label: "Referensi Data" },
-  { value: "file_upload", label: "File Upload" },
   { value: "linear_scale", label: "Linear Scale" },
   { value: "rating", label: "Rating" },
   { value: "multiple_choice_grid", label: "Multiple Choice Grid" },
@@ -216,6 +227,16 @@ const FormBuilderPage = () => {
    */
   const [isMissingOnServer, setIsMissingOnServer] = useState(false);
   const [targetGraduationYears, setTargetGraduationYears] = useState<number[]>([]);
+  /**
+   * Jumlah alumni yang sudah menjawab kuesioner ini (KSN-10).
+   *
+   * Lebih dari nol berarti borangnya terkunci: daftar kuesioner sudah
+   * mematikan tombol Edit, tapi tautan langsung ke /…/edit tetap bisa dibuka
+   * dari riwayat peramban atau tab lama. Penjagaan di sini menahan pintu itu,
+   * dan server tetap menjadi kata terakhir dengan 422.
+   */
+  const [responseCount, setResponseCount] = useState(0);
+  const isLocked = responseCount > 0;
 
   // Fetch from API when editing a backend questionnaire
   useEffect(() => {
@@ -244,6 +265,7 @@ const FormBuilderPage = () => {
           }
           setForm(ensureFirstQuestionRequired(ensureQuestionLogic(normalizeTargets(converted))));
           setIsFetchedFromApi(true);
+          setResponseCount(Number(data.data.response_count ?? 0));
           if (data.data.target_graduation_years) {
             setTargetGraduationYears(data.data.target_graduation_years);
           }
@@ -675,10 +697,6 @@ const FormBuilderPage = () => {
     }
   };
 
-  const floatingAction = (label: string) => {
-    toast({ title: label, description: "Aksi ini sudah disiapkan untuk integrasi tahap berikutnya." });
-  };
-
   const openPreview = () => {
     if (typeof window !== "undefined") {
       localStorage.setItem(PREVIEW_DRAFT_KEY, JSON.stringify(stampDraft(form)));
@@ -754,6 +772,7 @@ const FormBuilderPage = () => {
               <span className="text-xs text-muted-foreground">Status</span>
               <Switch
                 checked={form.status === "aktif"}
+                disabled={isLocked}
                 onCheckedChange={(checked) =>
                   setForm((prev) => ({ ...prev, status: checked ? "aktif" : "nonaktif" }))
                 }
@@ -765,7 +784,15 @@ const FormBuilderPage = () => {
               Preview
             </Button>
             <Button variant="outline" onClick={() => navigate("/dashboard/form-management")}>Kembali</Button>
-            <Button onClick={saveForm}>
+            <Button
+              onClick={saveForm}
+              disabled={isLocked}
+              title={
+                isLocked
+                  ? `Terkunci: sudah ada ${responseCount} responden`
+                  : "Simpan kuisioner"
+              }
+            >
               <Save className="mr-2 h-4 w-4" />
               Simpan
             </Button>
@@ -775,6 +802,19 @@ const FormBuilderPage = () => {
 
       <main className="mx-auto grid max-w-[1320px] grid-cols-1 gap-6 px-4 py-6 md:grid-cols-[1fr_72px] sm:px-6">
         <div className="space-y-5">
+          {isLocked && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm">
+              <p className="font-semibold text-destructive">
+                Kuisioner terkunci — sudah dijawab {responseCount} alumni
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Pertanyaan dan statusnya tidak bisa diubah lagi. Menyunting borang yang sudah dijawab
+                membuat jawaban lama menunjuk pertanyaan yang berubah arti atau hilang, tanpa jejak
+                yang bisa ditelusuri. Bila pertanyaannya memang perlu berubah, buat versi baru —
+                jawaban periode ini tetap utuh di versi lamanya.
+              </p>
+            </div>
+          )}
           <Card className="shadow-sm">
             <CardContent className="grid gap-4 p-5 md:grid-cols-2">
               <div className="space-y-2">
@@ -1406,34 +1446,6 @@ const FormBuilderPage = () => {
                 onClick={addSection}
                 title="Tambah section baru"
                 aria-label="Tambah section baru"
-              >
-                <FileText className="h-4 w-4" />
-              </Button>
-              <Separator />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => floatingAction("Tambah gambar")}
-                title="Tambah gambar"
-                aria-label="Tambah gambar"
-              >
-                <FileImage className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => floatingAction("Tambah video")}
-                title="Tambah video"
-                aria-label="Tambah video"
-              >
-                <Film className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => floatingAction("Tambah deskripsi teks")}
-                title="Tambah deskripsi teks"
-                aria-label="Tambah deskripsi teks"
               >
                 <FileText className="h-4 w-4" />
               </Button>

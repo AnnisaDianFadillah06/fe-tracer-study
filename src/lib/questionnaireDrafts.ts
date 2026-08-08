@@ -187,7 +187,12 @@ export const createBlankFormDraft = (): FormListItem => ({
   id: `form-${createId("new")}`,
   title: "Untitled Form",
   description: "",
-  status: "aktif",
+  // Kuesioner baru lahir sebagai draf, bukan aktif (KSN-10). "Aktif" berarti
+  // published — alumni yang kebetulan membuka halaman pengisian saat itu juga
+  // langsung menerima borang yang pertanyaannya belum selesai disusun, dan
+  // jawabannya terlanjur masuk. Penyusun menaikkannya sendiri lewat saklar
+  // Status begitu isinya siap.
+  status: "nonaktif",
   target: [],
   targetProdi: [],
   respondents: [],

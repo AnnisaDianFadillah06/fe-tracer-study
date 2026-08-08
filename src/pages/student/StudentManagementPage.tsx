@@ -56,6 +56,12 @@ const StudentManagementPage = () => {
   /** Kemajuan pengambilan lintas halaman saat ekspor; null bila tidak berjalan. */
   const [exportProgress, setExportProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
+  /**
+   * Rincian baris yang ditolak saat impor. Toast hanya memuat tiga baris
+   * pertama — daftar penuhnya perlu tempat sendiri karena petugas harus
+   * memperbaiki berkasnya baris per baris.
+   */
+  const [importErrors, setImportErrors] = useState<string[]>([]);
 
   const {
     students,
@@ -452,21 +458,36 @@ const StudentManagementPage = () => {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      toast({
-        title: "Berhasil",
-        description: data.message || `${data.data?.imported ?? 0} data alumni berhasil diimpor.`,
-      });
+      const imported: number = data.data?.imported ?? 0;
+      const errors: string[] = data.data?.errors ?? [];
 
-      if (data.data?.errors?.length > 0) {
+      // Backend membalas 200 meski tidak ada satu baris pun yang masuk —
+      // "berhasil" di sini berarti berkasnya terbaca, bukan datanya diterima.
+      // Membedakan keduanya penting: sebelumnya impor yang menolak seluruh
+      // baris tetap memunculkan toast "Berhasil", lalu halaman langsung
+      // dimuat ulang sehingga petugas tidak melihat apa pun dan mengira
+      // datanya sudah masuk.
+      if (errors.length > 0) {
+        setImportErrors(errors);
         toast({
-          title: "Peringatan",
-          description: `${data.data.errors.length} baris gagal diimpor. Periksa format data.`,
+          title:
+            imported > 0
+              ? `${imported} baris masuk, ${errors.length} ditolak`
+              : `Impor gagal — ${errors.length} baris ditolak`,
+          description: errors.slice(0, 3).join(" · ") +
+            (errors.length > 3 ? ` · …dan ${errors.length - 3} lainnya` : ""),
           variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Berhasil",
+          description: data.message || `${imported} data alumni berhasil diimpor.`,
         });
       }
 
-      // Refresh data
-      window.location.reload();
+      // Muat ulang daftar hanya bila memang ada yang berubah, dan tanpa
+      // reload penuh supaya toast & rincian galat tetap terbaca.
+      if (imported > 0) fetchAllStudents();
     } catch (error: any) {
       const msg = error.response?.data?.message || "Gagal mengimpor file";
       toast({ title: "Error", description: msg, variant: "destructive" });
@@ -831,6 +852,33 @@ const StudentManagementPage = () => {
     </Dialog>
   );
 
+  // Rincian penolakan impor. Toast lewat dalam hitungan detik dan hanya
+  // memuat tiga baris; daftar penuh inilah yang dipakai petugas untuk
+  // membetulkan berkasnya.
+  const importErrorDialog = (
+    <Dialog open={importErrors.length > 0} onOpenChange={(o) => { if (!o) setImportErrors([]); }}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{importErrors.length} baris ditolak saat impor</DialogTitle>
+          <DialogDescription>
+            Baris berikut tidak masuk ke basis data. Perbaiki di berkas Excel-nya, lalu unggah ulang —
+            baris yang sudah berhasil masuk tidak akan terduplikasi karena NIM-nya sudah terdaftar.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[50vh] overflow-y-auto rounded-md border border-border bg-muted/30 p-3">
+          <ul className="space-y-1 text-sm">
+            {importErrors.map((e, i) => (
+              <li key={i} className="text-destructive">{e}</li>
+            ))}
+          </ul>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setImportErrors([])}>Tutup</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   // ── Layar kartu tahun ────────────────────────────────────────────────
   if (filterGraduationYear === "") {
     return (
@@ -856,6 +904,7 @@ const StudentManagementPage = () => {
             tanpa ini tombolnya tertekan tapi tidak memunculkan apa pun. */}
         {studentDialog}
         {credentialDialog}
+        {importErrorDialog}
       </DashboardLayout>
     );
   }
@@ -1129,6 +1178,7 @@ const StudentManagementPage = () => {
       </div>
 
       {studentDialog}
+      {importErrorDialog}
 
       {/* Delete Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

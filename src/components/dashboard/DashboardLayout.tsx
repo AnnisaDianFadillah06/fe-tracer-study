@@ -34,14 +34,15 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { currentRole, selectedProdi, menu } = useRole();
+  const { currentRole, selectedProdi, selectedJurusan, menu } = useRole();
 
   // Filter global hanya relevan di halaman data OLAP; halaman admin/konfigurasi
   // punya filternya sendiri.
   const showGlobalFilters = /\/dashboard\/(overview|employment|education|kpi)/.test(
     location.pathname,
   );
-  const filtersMode = currentRole === "kaprodi" ? "kaprodi" : "full";
+  const filtersMode =
+    currentRole === "kaprodi" ? "kaprodi" : currentRole === "kajur" ? "kajur" : "full";
   const { user, logout } = useAuth();
 
   const handleLogout = async () => {
@@ -201,7 +202,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Filter global sticky di bawah top bar */}
         {showGlobalFilters && (
           <div className="sticky top-16 z-20">
-            <GlobalFilters mode={filtersMode} kaprodiName={selectedProdi ?? undefined} />
+            <GlobalFilters
+              mode={filtersMode}
+              kaprodiName={selectedProdi ?? undefined}
+              kajurJurusan={selectedJurusan ?? undefined}
+            />
           </div>
         )}
 

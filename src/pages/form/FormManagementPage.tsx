@@ -469,9 +469,22 @@ const DaftarKuisionerPage = () => {
                               <Eye className="mr-2 h-4 w-4" />
                               Lihat
                             </Button>
+                            {/* KSN-10 — kuesioner yang sudah dijawab terkunci.
+                                Penyuntingan menghapus lalu membuat ulang seluruh
+                                pertanyaan, jadi jawaban yang sudah masuk bisa
+                                kehilangan pertanyaannya tanpa jejak. Server
+                                menolaknya dengan 422; tombol ini dimatikan agar
+                                penolakan itu tidak datang setelah petugas
+                                terlanjur menyusun ulang satu borang penuh. */}
                             <Button
                               variant="outline"
                               size="sm"
+                              disabled={(form.response_count ?? 0) > 0}
+                              title={
+                                (form.response_count ?? 0) > 0
+                                  ? `Terkunci: sudah ada ${form.response_count} responden. Buat versi baru bila pertanyaannya perlu berubah.`
+                                  : "Ubah kuisioner"
+                              }
                               onClick={() => handleEdit(form)}
                             >
                               <Edit className="mr-2 h-4 w-4" />
