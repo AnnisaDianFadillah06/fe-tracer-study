@@ -178,7 +178,7 @@ const Kpi3ParticipationTrendChart = () => {
                   const fill = met === null ? C.gray : met ? C.green : C.red;
                   return <Cell key={i} fill={fill} />;
                 })}
-                <LabelList content={SegmentLabel} />
+                <LabelList dataKey="positive" content={SegmentLabel} />
                 <LabelList content={CheckIcon} />
               </Bar>
               {/* Segmen "Belum Mengisi" juga bisa di-drill down. Backend memetakan
@@ -192,7 +192,7 @@ const Kpi3ParticipationTrendChart = () => {
                   setModal({ open: true, title: `Belum Mengisi — ${d.year} (${n}/${total})`, status: "started", tahun_lulus: d.year });
                   drillHook.fetch({ status: "started", tahun_lulus: d.year, page: 1 });
                 }}>
-                <LabelList content={SegmentLabel} />
+                <LabelList dataKey="negative" content={SegmentLabel} />
               </Bar>
               <Line type="monotone" dataKey="positive" name="Tren Response Rate" stroke={C.blueDark} strokeWidth={2.5}
                 dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
