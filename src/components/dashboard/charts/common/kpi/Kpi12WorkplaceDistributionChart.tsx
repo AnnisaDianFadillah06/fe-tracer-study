@@ -24,7 +24,6 @@ import {
 } from "@/hooks/useInstansi";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
-import { buildColorMap } from "@/lib/chartColors";
 
 const OFFICIAL_JENIS_MAP: Record<string, string> = {
   "instansi pemerintah": "Instansi Pemerintah",
@@ -134,7 +133,23 @@ const Kpi12WorkplaceDistributionChart = () => {
     return [...seen].sort();
   }, [tingkatHook.data]);
 
-  const tingkatColor = useMemo(() => buildColorMap(tingkatLabels), [tingkatLabels]);
+  // Warna tetap per kategori (bukan auto-palette dari buildColorMap) --
+  // Lokal = mint, Nasional = biru, Multinasional/Internasional = navy tua.
+  // Diklasifikasikan dari kata kunci karena label mentah dari BE panjang
+  // dan tidak seragam persis ("Lokal/Wilayah/Wiraswasta tidak berbadan
+  // hukum", dst).
+  const classifyTingkatColor = (label: string): string => {
+    const l = label.toLowerCase();
+    if (l.includes("internasional") || l.includes("multinasional")) return "#1e3a8a";
+    if (l.includes("nasional")) return "#3b82f6";
+    return "#6ee7b7";
+  };
+
+  const tingkatColor = useMemo(() => {
+    const map: Record<string, string> = {};
+    tingkatLabels.forEach((l) => { map[l] = classifyTingkatColor(l); });
+    return map;
+  }, [tingkatLabels]);
 
   // Penjelasan tiap warna — label mentah dari BE ("Lokal/Wilayah/Wiraswasta
   // tidak berbadan hukum", dst) cukup teknis, jadi ditambahkan catatan arti

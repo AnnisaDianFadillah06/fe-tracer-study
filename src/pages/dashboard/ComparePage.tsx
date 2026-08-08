@@ -506,10 +506,20 @@ const ComparePage = () => {
     return [...seen].sort();
   }, [instansiBandingkanHook.data]);
 
-  const instansiTingkatColorMap = useMemo(
-    () => buildColorMap(instansiTingkatLabels),
-    [instansiTingkatLabels]
-  );
+  // Warna tetap per kategori (bukan auto-palette) -- Lokal = mint,
+  // Nasional = biru, Multinasional/Internasional = navy tua.
+  const classifyTingkatColor = (label: string): string => {
+    const l = label.toLowerCase();
+    if (l.includes("internasional") || l.includes("multinasional")) return "#1e3a8a";
+    if (l.includes("nasional")) return "#3b82f6";
+    return "#6ee7b7";
+  };
+
+  const instansiTingkatColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    instansiTingkatLabels.forEach((l) => { map[l] = classifyTingkatColor(l); });
+    return map;
+  }, [instansiTingkatLabels]);
 
   // Penjelasan arti tiap warna/kategori tingkat instansi — sama seperti
   // catatan di Kpi12WorkplaceDistributionChart.tsx (chart dashboard yang
