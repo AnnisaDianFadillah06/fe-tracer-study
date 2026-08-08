@@ -256,8 +256,8 @@ const Kpi5WaitingTimeChart = () => {
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}
-                  formatter={(v: number, _name, p: any) =>
-                    [`${v}% (${p.payload.n}/${p.payload.total} lulusan)`, `≤ ${batasLabel} bulan`]
+                  formatter={(v: number, name, p: any) =>
+                    [`${v}% (${p.payload.n}/${p.payload.total} lulusan)`, name]
                   }
                 />
                 {tahunLulus !== "all" && (
