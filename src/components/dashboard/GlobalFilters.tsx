@@ -52,7 +52,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
     filterOptions,
   } = useGlobalFilters();
 
-  const { tahunLulus: tahunOptions, weekOptions, jenjang: jenjangOptions,
+  const { tahunLulus: tahunOptions, weekOptions, weekKeys, jenjang: jenjangOptions,
           jurusanList, jurusanMap, prodiList, loading: optLoading, error: optError } = filterOptions;
 
   // ── Local pending state — committed only on "Terapkan" ────────────────────
@@ -87,6 +87,12 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
       )
     );
   }, [pDegree, jurusanList, jurusanMap, prodiList]);
+
+  /** Display label for the currently active snapshot id (`week`). */
+  const activeWeekLabel = useMemo(() => {
+    const idx = weekKeys.indexOf(week);
+    return idx !== -1 ? weekOptions[idx] : "";
+  }, [week, weekKeys, weekOptions]);
 
   /** Prodi available for the selected jenjang + jurusan */
   const availableProdi = useMemo(() => {
@@ -152,7 +158,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
     setPJurusan(ALL);
     setPProdi(ALL);
     setPTahun("all");
-    setPWeek(weekOptions[0] ?? "");
+    setPWeek(weekKeys[0] ?? "");
     reset();
   };
 
@@ -284,9 +290,13 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {weekOptions.map((w) => (
-                  <SelectItem key={w} value={w}>
-                    {w}
+                {/* value/key = weekKeys[i] (unique id_waktu), label = weekOptions[i].
+                    Two snapshots can share an identical label (same-week ETL
+                    re-run); keying off the label would make one of them
+                    permanently unselectable. */}
+                {weekKeys.map((k, i) => (
+                  <SelectItem key={k} value={k}>
+                    {weekOptions[i]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -341,7 +351,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName }: Props) => {
               className="h-6 px-2 gap-1 border-primary/30 bg-primary/5 text-foreground"
             >
               <Calendar className="w-3 h-3" />
-              Snapshot aktif: <span className="font-semibold">{week}</span>
+              Snapshot aktif: <span className="font-semibold">{activeWeekLabel}</span>
             </Badge>
           ) : (
             <Badge

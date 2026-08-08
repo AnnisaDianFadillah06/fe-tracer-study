@@ -253,12 +253,12 @@ export function useResponseRateDrillDown() {
       setLoading(true);
       setError(null);
 
-      const searchUpper = extra.search?.toUpperCase().trim();
+      const searchTrimmed = extra.search?.trim();
       const params: Record<string, string> = {
         status: extra.status,
         page: String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),
-        ...(searchUpper ? { search: searchUpper } : {}),
+        ...(searchTrimmed ? { search: searchTrimmed } : {}),
       };
       if (degree && degree !== "__all__") params.jenjang = degree;
       if (extra.nama_prodi) {

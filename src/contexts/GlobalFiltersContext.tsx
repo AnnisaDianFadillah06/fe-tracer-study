@@ -17,8 +17,9 @@ export interface GlobalFiltersState {
   jurusan: string;
   prodi: string;
   tahunLulus: string;
+  /** Unique snapshot id (DimWaktu.id_waktu) -- this IS the selection value, not a label. */
   week: string;
-  /** Raw ISO week key (e.g. "2024-W06") matching the selected week label */
+  /** Alias of `week`, kept for existing call sites that read the raw filter key. */
   weekKey: string;
   setDegree: (v: string) => void;
   setJurusan: (v: string) => void;
@@ -45,21 +46,22 @@ const Ctx = createContext<GlobalFiltersState | undefined>(undefined);
 export function GlobalFiltersProvider({ children }: { children: ReactNode }) {
   const filterOptions = useFilterOptions();
 
-  // ── Derived defaults (wait until BE data arrives) ──────────────────────────
-  const defaultWeek = filterOptions.weekOptions[0] ?? "";
-
   const [degree, setDegreeRaw] = useState<string>(ALL);
   const [jurusan, setJurusanRaw] = useState<string>(ALL);
   const [prodi, setProdiRaw] = useState<string>(ALL);
   const [tahunLulus, setTahunLulusRaw] = useState<string>("all");
+  // `week` holds the unique snapshot id (weekKeys entry), NOT the display
+  // label. Two snapshots can share an identical label (e.g. two ETL runs in
+  // the same calendar week), and matching by label would make the second
+  // one permanently unselectable -- see FilterMetaRepository::getSnapshot().
   const [week, setWeekRaw] = useState<string>("");
 
   // Once BE data loads, initialise week to the latest snapshot
   useEffect(() => {
-    if (!filterOptions.loading && filterOptions.weekOptions.length > 0 && week === "") {
-      setWeekRaw(filterOptions.weekOptions[0]);
+    if (!filterOptions.loading && filterOptions.weekKeys.length > 0 && week === "") {
+      setWeekRaw(filterOptions.weekKeys[0]);
     }
-  }, [filterOptions.loading, filterOptions.weekOptions, week]);
+  }, [filterOptions.loading, filterOptions.weekKeys, week]);
 
   const [isApplying, setIsApplying] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date>(() => new Date());
@@ -98,11 +100,9 @@ export function GlobalFiltersProvider({ children }: { children: ReactNode }) {
     [triggerApply]
   );
 
-  // Derive the raw ISO key that corresponds to the selected week label
-  const weekKey = useMemo(() => {
-    const idx = filterOptions.weekOptions.indexOf(week);
-    return idx !== -1 ? filterOptions.weekKeys[idx] : filterOptions.weekKeys[0] ?? "";
-  }, [week, filterOptions.weekOptions, filterOptions.weekKeys]);
+  // `week` already IS the unique id; `weekKey` is just an alias for callers
+  // that were written against the old name.
+  const weekKey = week;
 
   const value = useMemo<GlobalFiltersState>(
     () => ({
@@ -122,7 +122,7 @@ export function GlobalFiltersProvider({ children }: { children: ReactNode }) {
         setJurusanRaw(ALL);
         setProdiRaw(ALL);
         setTahunLulusRaw("all");
-        setWeekRaw(filterOptions.weekOptions[0] ?? "");
+        setWeekRaw(filterOptions.weekKeys[0] ?? "");
         triggerApply();
       },
       isApplying,
