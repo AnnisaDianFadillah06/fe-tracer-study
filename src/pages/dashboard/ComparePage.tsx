@@ -492,12 +492,37 @@ const ComparePage = () => {
     });
   }, [isJenisInstansi, instansiBandingkanHook.data]);
 
-  // Tingkat Instansi — transform data BE ke stacked bar per prodi
-  const instansiTingkatLabels = ["Lokal", "Nasional", "Internasional"];
-  const instansiTingkatColorMap: Record<string, string> = {
-    "Lokal":         "#6ee7b7",
-    "Nasional":      "#3b82f6",
-    "Internasional": "#1e3a8a",
+  // Tingkat Instansi — transform data BE ke stacked bar per prodi.
+  // Label raw dari BE ("Lokal/Wilayah/Wiraswasta tidak berbadan hukum", dst)
+  // TIDAK sama dengan string pendek yang dulu di-hardcode di sini — dataKey
+  // Bar yang hardcode itu tidak pernah match row[t.label] hasil raw, jadi
+  // semua bar render kosong. Turunkan label langsung dari data seperti
+  // Kpi12WorkplaceDistributionChart.tsx (chart yang sama tapi tidak bermasalah).
+  const instansiTingkatLabels = useMemo(() => {
+    const seen = new Set<string>();
+    instansiBandingkanHook.data?.data?.forEach((d) =>
+      d.tingkat.forEach((t) => { if (t.label) seen.add(t.label); }),
+    );
+    return [...seen].sort();
+  }, [instansiBandingkanHook.data]);
+
+  const instansiTingkatColorMap = useMemo(
+    () => buildColorMap(instansiTingkatLabels),
+    [instansiTingkatLabels]
+  );
+
+  // Penjelasan arti tiap warna/kategori tingkat instansi — sama seperti
+  // catatan di Kpi12WorkplaceDistributionChart.tsx (chart dashboard yang
+  // memakai kategori sama).
+  const instansiTingkatExplain = (label: string): string => {
+    const l = label.toLowerCase();
+    if (l.includes("internasional") || l.includes("multinasional")) {
+      return "Perusahaan/instansi multinasional atau beroperasi lintas negara.";
+    }
+    if (l.includes("nasional")) {
+      return "Perusahaan/instansi berskala nasional dan berbadan hukum resmi.";
+    }
+    return "Perusahaan/instansi lokal, kewilayahan, atau wiraswasta yang belum berbadan hukum.";
   };
 
   const instansiTingkatChartData = useMemo(() => {
@@ -509,6 +534,7 @@ const ComparePage = () => {
         total:    d.total,
       };
       d.tingkat.forEach((t) => {
+        if (!t.label) return;
         row[t.label] = +(t.pct).toFixed(1);
         row[`${t.label}Count`] = t.count;
       });
@@ -1719,6 +1745,7 @@ const ComparePage = () => {
               ) : instansiTingkatChartData.length === 0 ? (
                 <div className="flex items-center justify-center h-64 text-muted-foreground">Tidak ada data</div>
               ) : (
+                <>
                 <div className="overflow-y-auto max-h-[600px]">
                   <div style={{ minHeight: chartHeight }}>
                     <ResponsiveContainer width="100%" height={chartHeight}>
@@ -1754,6 +1781,21 @@ const ComparePage = () => {
                     </ResponsiveContainer>
                   </div>
                 </div>
+
+                <div className="mt-4 pt-4 border-t border-border space-y-1.5">
+                  {instansiTingkatLabels.map((label) => (
+                    <div key={label} className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <span
+                        className="inline-block w-3 h-3 rounded-sm mt-0.5 shrink-0"
+                        style={{ backgroundColor: instansiTingkatColorMap[label] }}
+                      />
+                      <span>
+                        <strong className="text-foreground">{label}</strong> — {instansiTingkatExplain(label)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                </>
               )}
             </motion.div>
 

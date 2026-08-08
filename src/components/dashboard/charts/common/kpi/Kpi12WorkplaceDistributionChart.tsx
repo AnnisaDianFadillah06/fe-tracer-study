@@ -136,6 +136,20 @@ const Kpi12WorkplaceDistributionChart = () => {
 
   const tingkatColor = useMemo(() => buildColorMap(tingkatLabels), [tingkatLabels]);
 
+  // Penjelasan tiap warna — label mentah dari BE ("Lokal/Wilayah/Wiraswasta
+  // tidak berbadan hukum", dst) cukup teknis, jadi ditambahkan catatan arti
+  // singkatnya di bawah chart supaya tidak perlu ditebak dari nama kategori.
+  const tingkatExplain = (label: string): string => {
+    const l = label.toLowerCase();
+    if (l.includes("internasional") || l.includes("multinasional")) {
+      return "Perusahaan/instansi multinasional atau beroperasi lintas negara.";
+    }
+    if (l.includes("nasional")) {
+      return "Perusahaan/instansi berskala nasional dan berbadan hukum resmi.";
+    }
+    return "Perusahaan/instansi lokal, kewilayahan, atau wiraswasta yang belum berbadan hukum.";
+  };
+
   const tingkatData = useMemo(() => {
     if (!tingkatHook.data?.data) return [];
     return tingkatHook.data.data.map((p) => {
@@ -257,6 +271,20 @@ const Kpi12WorkplaceDistributionChart = () => {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          </div>
+
+          <div className="mt-3 pt-3 border-t border-border space-y-1.5">
+            {tingkatLabels.map((label) => (
+              <div key={label} className="flex items-start gap-2 text-xs text-muted-foreground">
+                <span
+                  className="inline-block w-3 h-3 rounded-sm mt-0.5 shrink-0"
+                  style={{ backgroundColor: tingkatColor[label] }}
+                />
+                <span>
+                  <strong className="text-foreground">{label}</strong> — {tingkatExplain(label)}
+                </span>
+              </div>
+            ))}
           </div>
         </KpiCard>
       </div>
