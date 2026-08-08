@@ -139,9 +139,9 @@ const Kpi4AbsorptionChart = () => {
                   label={{ value: "Keterserapan (%)", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                 />
                 <Tooltip contentStyle={tooltipStyle}
-                  formatter={(v: number, _n, p: any) => [
+                  formatter={(v: number, n, p: any) => [
                     formatPctCount(v, p?.payload?.n ?? 0, p?.payload?.total ?? 0),
-                    "Keterserapan",
+                    n,
                   ]}
                 />
                 {tahunLulus !== "all" && (

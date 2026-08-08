@@ -175,8 +175,8 @@ const Kpi6FieldRelevanceChart = () => {
                 <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} fontSize={12} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip
                   contentStyle={tooltipStyle}
-                  formatter={(v: number, _n, p: any) =>
-                    [formatPctCount(v, p.payload.n, p.payload.total), "Kesesuaian"]
+                  formatter={(v: number, n, p: any) =>
+                    [formatPctCount(v, p.payload.n, p.payload.total), n]
                   }
                 />
                 {tahunLulus !== "all" && (
@@ -207,7 +207,7 @@ const Kpi6FieldRelevanceChart = () => {
                     p.value ? <text x={p.x + p.width / 2} y={p.y - 6} fontSize={11} fontWeight={700} fill="hsl(38 92% 38%)" textAnchor="middle">★ Tertinggi</text> : null
                   } />
                 </Bar>
-                <Line type="monotone" dataKey="value" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
+                <Line type="monotone" dataKey="value" name="Tren" stroke={C.blueDark} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
                 {showRefLine && (
                   <ReferenceLine
                     y={lam.threshold} stroke={C.red} strokeDasharray="6 3" strokeWidth={2}

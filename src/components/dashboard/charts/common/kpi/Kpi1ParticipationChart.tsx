@@ -149,12 +149,14 @@ const Kpi1ParticipationChart = () => {
                 <Tooltip
                   contentStyle={tooltipStyle}
                   formatter={(v: number, n, p: any) => {
+                    // `n` di sini SUDAH berisi label dari prop `name` pada <Bar>
+                    // ("Sudah Merespons" / "Belum Merespons"), bukan dataKey
+                    // mentahnya ("responded"/"notResponded") -- membandingkan
+                    // n === "responded" selalu false, jadi tooltip lama selalu
+                    // jatuh ke "Belum Merespons" untuk kedua seri.
                     const total = p?.payload?.total ?? 0;
                     const count = Math.round((v / 100) * total);
-                    return [
-                      formatPctCount(v, count, total),
-                      n === "responded" ? "Sudah Merespons" : "Belum Merespons",
-                    ];
+                    return [formatPctCount(v, count, total), n];
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
