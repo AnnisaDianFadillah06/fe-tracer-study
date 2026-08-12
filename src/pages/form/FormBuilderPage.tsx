@@ -26,7 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/common/use-toast";
-import { useDashboardData } from "@/hooks/dashboard/useDashboardData";
+import { useRingkasanTahun } from "@/hooks/useRingkasanTahun";
 import {
   createDefaultQuestion,
   createId,
@@ -173,7 +173,7 @@ const FormBuilderPage = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { formId } = useParams<{ formId: string }>();
-  const { alumni, isLoading: isAlumniLoading } = useDashboardData();
+  const { years: ringkasanTahun, isLoading: isAngkatanLoading } = useRingkasanTahun();
 
   const existingForms = useMemo(() => getInitialForms(), []);
   const isEditMode = Boolean(formId);
@@ -326,20 +326,23 @@ const FormBuilderPage = () => {
     fetchProdi();
   }, []);
 
-  const angkatanOptions = useMemo(() => {
-    const counts = new Map<number, number>();
-
-    alumni.forEach((item) => {
-      if (!item.graduation_year) return;
-      const year = item.graduation_year;
-      if (!Number.isFinite(year)) return;
-      counts.set(year, (counts.get(year) ?? 0) + 1);
-    });
-
-    return Array.from(counts.entries())
-      .sort((a, b) => b[0] - a[0])
-      .map(([year, count]) => ({ year: String(year), count }));
-  }, [alumni]);
+  /**
+   * Daftar angkatan diambil dari ringkasan agregat, BUKAN dihitung dari
+   * cuplikan alumni yang termuat.
+   *
+   * Sebelumnya isinya diturunkan dari `/alumni?per_page=1000`. Karena backend
+   * mengurutkan tahun lulus menurun dan angkatan 2024 sendirian berisi 1.912
+   * orang, seribu baris pertama seluruhnya 2024 — lima angkatan lain tidak
+   * pernah sampai ke dropdown, dan jumlah yang tertulis ("1000 alumni")
+   * adalah batas halaman, bukan jumlah lulusannya.
+   */
+  const angkatanOptions = useMemo(
+    () =>
+      [...ringkasanTahun]
+        .sort((a, b) => b.tahun - a.tahun)
+        .map(({ tahun, alumni: jumlah }) => ({ year: String(tahun), count: jumlah })),
+    [ringkasanTahun],
+  );
 
   const targetOptions = useMemo(() => {
     const options: Array<{ value: string; label: string }> = [];
@@ -826,7 +829,7 @@ const FormBuilderPage = () => {
                   <SelectTrigger id="form-target">
                     <SelectValue
                       placeholder={
-                        isAlumniLoading ? "Memuat data alumni..." : "Pilih tahun lulus alumni"
+                        isAngkatanLoading ? "Memuat daftar angkatan..." : "Pilih tahun lulus alumni"
                       }
                     />
                   </SelectTrigger>
