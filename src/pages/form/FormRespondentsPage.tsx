@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
@@ -36,6 +36,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/common/use-toast";
 import api from "@/lib/api";
 import { useJurusan } from "@/hooks/common/useJurusan";
+import TablePagination from "@/components/common/TablePagination";
 import { useAuthContext } from "@/contexts/AuthContext";
 import {
   ArrowLeft,
@@ -58,6 +59,7 @@ interface QuestionnaireDetail {
   response_count: number;
   program_id: number | null;
   is_global: boolean;
+  target_graduation_years: number[] | null;
 }
 
 interface RespondentItem {
@@ -80,6 +82,19 @@ interface RespondentItem {
 interface RespondentPaginator {
   data: RespondentItem[];
   total: number;
+  per_page: number;
+  current_page: number;
+  last_page: number;
+  from: number | null;
+  to: number | null;
+}
+
+/** Hitungan seluruh responden kuesioner ini — bukan hanya halaman aktif. */
+interface RespondentStats {
+  total: number;
+  finished: number;
+  ongoing: number;
+  not_started: number;
 }
 
 interface Program {
@@ -89,6 +104,13 @@ interface Program {
 }
 
 type StatusFilter = "all" | "not_started" | "ongoing" | "finished";
+
+/**
+ * Satu kuesioner bisa menyasar ribuan alumni (kuesioner lulusan 2024 saja
+ * 1.912). Sebelumnya halaman ini meminta 500 baris sekaligus tanpa navigasi
+ * halaman, jadi sisanya tidak pernah bisa dilihat sama sekali.
+ */
+const PER_PAGE = 100;
 
 const formatDateTime = (value: string | null) => {
   if (!value) return "-";
@@ -108,6 +130,7 @@ const FormRespondentsPage = () => {
   const [jurusanFilter, setJurusanFilter] = useState("");
   const [prodiFilter, setProdiFilter] = useState("");
   const [yearFilter, setYearFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [resetTarget, setResetTarget] = useState<RespondentItem | null>(null);
   const [reopenNote, setReopenNote] = useState("");
   const { toast } = useToast();
@@ -132,13 +155,51 @@ const FormRespondentsPage = () => {
     enabled: !!formId,
   });
 
+  // Seluruh penyaring dijalankan basis data, bukan di sini. Menyaring di sisi
+  // klien hanya menyaring baris yang kebetulan ada di halaman aktif, sehingga
+  // "Semua Prodi → D-3 Teknik Mesin" akan tampak kosong hanya karena tidak ada
+  // mahasiswa Teknik Mesin di 100 nama pertama.
+  const serverFilters = useMemo(
+    () => ({
+      questionnaire_id: formId,
+      search: search || undefined,
+      jurusan: jurusanFilter && jurusanFilter !== "all" ? jurusanFilter : undefined,
+      program_id: prodiFilter && prodiFilter !== "all" ? prodiFilter : undefined,
+      graduation_year: yearFilter && yearFilter !== "all" ? yearFilter : undefined,
+      response_status: statusFilter !== "all" ? statusFilter : undefined,
+    }),
+    [formId, search, jurusanFilter, prodiFilter, yearFilter, statusFilter],
+  );
+
+  // Penyaring berubah → kembali ke halaman 1. Tanpa ini, menyaring saat berada
+  // di halaman 15 meminta halaman 15 dari hasil yang mungkin hanya 2 halaman,
+  // dan tabelnya kosong tanpa sebab yang terlihat.
+  useEffect(() => {
+    setPage(1);
+  }, [serverFilters]);
+
   const respondentsQuery = useQuery({
-    queryKey: ["questionnaire-respondents", formId, search],
+    queryKey: ["questionnaire-respondents", serverFilters, page],
     queryFn: async () => {
       const { data } = await api.get("/alumni", {
-        params: { questionnaire_id: formId, search, per_page: 500 },
+        params: { ...serverFilters, per_page: PER_PAGE, page },
       });
       return data.data as RespondentPaginator;
+    },
+    enabled: !!formId,
+    placeholderData: (previous) => previous,
+  });
+
+  // Kartu ringkasan punya sumber sendiri: ia harus menghitung seluruh responden,
+  // sedangkan daftarnya hanya memuat satu halaman. Penyaring status sengaja
+  // tidak ikut dikirim supaya ketiga angkanya tetap tampil saat daftar sedang
+  // disaring ke salah satu status.
+  const statsQuery = useQuery({
+    queryKey: ["questionnaire-respondent-stats", { ...serverFilters, response_status: undefined }],
+    queryFn: async () => {
+      const { response_status: _ignored, ...params } = serverFilters;
+      const { data } = await api.get("/alumni/respondent-stats", { params });
+      return data.data as RespondentStats;
     },
     enabled: !!formId,
   });
@@ -161,7 +222,11 @@ const FormRespondentsPage = () => {
     onSuccess: () => {
       // Pengajuan belum mengubah status siapa pun, tapi memuat ulang daftar
       // tetap murah dan menjaga tampilan tidak basi kalau ada perubahan lain.
-      queryClient.invalidateQueries({ queryKey: ["questionnaire-respondents", formId] });
+      // Cukup awalannya: kunci lengkapnya memuat objek penyaring dan nomor
+      // halaman, jadi mencantumkan formId saja tidak akan cocok dengan
+      // cache mana pun.
+      queryClient.invalidateQueries({ queryKey: ["questionnaire-respondents"] });
+      queryClient.invalidateQueries({ queryKey: ["questionnaire-respondent-stats"] });
       toast({
         title: isHeadTracer ? "Pengisian dibuka kembali" : "Permintaan diajukan",
         description: isHeadTracer
@@ -203,31 +268,30 @@ const FormRespondentsPage = () => {
   // bukan diturunkan dari program studi yang kebetulan termuat.
   const { jurusanNames: jurusanList } = useJurusan();
 
-  const respondents = useMemo(() => {
-    const rows = respondentsQuery.data?.data ?? [];
-    return rows.filter((item) => {
-      if (statusFilter !== "all" && item.response_status !== statusFilter) return false;
-      if (jurusanFilter && jurusanFilter !== "all" && item.jurusan_name !== jurusanFilter) return false;
-      if (prodiFilter && prodiFilter !== "all" && String(item.program_id) !== prodiFilter) return false;
-      if (yearFilter && yearFilter !== "all" && String(item.graduation_year) !== yearFilter) return false;
-      return true;
-    });
-  }, [respondentsQuery.data?.data, statusFilter, jurusanFilter, prodiFilter, yearFilter]);
+  const respondents = respondentsQuery.data?.data ?? [];
+  const paginator = respondentsQuery.data;
+  const totalPages = paginator?.last_page ?? 1;
+  const firstRowNumber = paginator?.from ?? 0;
 
   const stats = useMemo(() => {
-    const rows = respondentsQuery.data?.data ?? [];
-    const finished = rows.filter((r) => r.response_status === "finished").length;
-    const ongoing = rows.filter((r) => r.response_status === "ongoing").length;
-    const notStarted = rows.filter((r) => r.response_status === "not_started").length;
-    return { finished, ongoing, notStarted, total: rows.length };
-  }, [respondentsQuery.data?.data]);
+    const source = statsQuery.data;
+    return {
+      finished: source?.finished ?? 0,
+      ongoing: source?.ongoing ?? 0,
+      notStarted: source?.not_started ?? 0,
+      total: source?.total ?? 0,
+    };
+  }, [statsQuery.data]);
 
-  const yearList = useMemo(() => {
-    const rows = respondentsQuery.data?.data ?? [];
-    return [...new Set(rows.map((r) => r.graduation_year).filter(Boolean))].sort((a, b) => b! - a!) as number[];
-  }, [respondentsQuery.data?.data]);
+  // Diturunkan dari target kuesioner, bukan dari baris yang termuat: daftar
+  // tahun tidak boleh menyusut hanya karena halaman aktif kebetulan berisi
+  // satu angkatan saja.
+  const yearList = useMemo(
+    () => [...(questionnaireQuery.data?.target_graduation_years ?? [])].sort((a, b) => b - a),
+    [questionnaireQuery.data?.target_graduation_years],
+  );
 
-  const isLoading = questionnaireQuery.isLoading || respondentsQuery.isLoading;
+  const isLoading = questionnaireQuery.isLoading || respondentsQuery.isLoading || statsQuery.isLoading;
   const isError = questionnaireQuery.isError || respondentsQuery.isError;
 
   return (
@@ -375,7 +439,7 @@ const FormRespondentsPage = () => {
           <CardHeader className="border-b border-border/60 pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Users className="h-4 w-4" />
-              Daftar Responden ({respondents.length})
+              Daftar Responden ({paginator?.total ?? 0})
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -423,7 +487,7 @@ const FormRespondentsPage = () => {
                     !isError &&
                     respondents.map((item, index) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-medium">{index + 1}</TableCell>
+                        <TableCell className="font-medium">{firstRowNumber + index}</TableCell>
                         <TableCell className="font-mono text-sm">{item.nim}</TableCell>
                         <TableCell>
                           <div className="space-y-0.5">
@@ -472,6 +536,16 @@ const FormRespondentsPage = () => {
                 </TableBody>
               </Table>
             </div>
+
+            {!isError && (
+              <TablePagination
+                page={page}
+                totalPages={totalPages}
+                total={paginator?.total ?? 0}
+                itemLabel="responden"
+                onPageChange={setPage}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
