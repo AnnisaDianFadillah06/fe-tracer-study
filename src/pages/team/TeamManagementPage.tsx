@@ -24,7 +24,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2, User, Mail, Phone } from "lucide-react";
+import { Plus, Edit, Trash2, User, Mail, Phone, Users } from "lucide-react";
+import { staffEmailPlaceholder } from "@/config/institution";
 
 interface TeamMember {
   id: string;
@@ -35,45 +36,16 @@ interface TeamMember {
   isLead: boolean;
 }
 
-const initialTeamMembers: TeamMember[] = [
-  {
-    id: "1",
-    name: "Dr. Tomy Andrianto, S.S.T., M-M.Par.",
-    role: "Wakil Direktur Bidang Kemahasiswaan",
-    email: "wadir3@polban.ac.id",
-    isLead: true,
-  },
-  {
-    id: "2",
-    name: "Rony Pasonang Sihombing, S.T., M.Eng.",
-    role: "Tim Tracer Study",
-    isLead: false,
-  },
-  {
-    id: "3",
-    name: "Hanny Madiawati, S.S.T., M.T.",
-    role: "Tim Tracer Study",
-    isLead: false,
-  },
-  {
-    id: "4",
-    name: "Yeti Nugraheni, S.T., M.T.",
-    role: "Tim Tracer Study",
-    isLead: false,
-  },
-  {
-    id: "5",
-    name: "Asri Maspupah, S.S.T., M.T.",
-    role: "Tim Tracer Study",
-    isLead: false,
-  },
-  {
-    id: "6",
-    name: "Susilawati, S.T., M.Eng.",
-    role: "Tim Tracer Study",
-    isLead: false,
-  },
-];
+/**
+ * Daftar koordinator berangkat dari kosong.
+ *
+ * Sebelumnya berisi enam nama dan gelar pejabat sungguhan beserta surelnya.
+ * Data orang tidak boleh tinggal di berkas sumber: susunan tim berganti tiap
+ * periode, dan SmartTracer dipasang di perguruan tinggi mana pun. Isi lewat
+ * tombol "Tambah Koordinator".
+ */
+const initialTeamMembers: TeamMember[] = [];
+
 
 const TeamManagementPage = () => {
   const { toast } = useToast();
@@ -250,6 +222,18 @@ const TeamManagementPage = () => {
           </Card>
         )}
 
+        {teamMembers.length === 0 && (
+          <Card className="glass-card">
+            <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
+              <Users className="h-10 w-10 text-muted-foreground" />
+              <p className="font-medium">Belum ada koordinator</p>
+              <p className="text-sm text-muted-foreground">
+                Tambahkan anggota tim tracer study agar tampil di halaman muka.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Team Members Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {regularMembers.map((member) => (
@@ -329,7 +313,7 @@ const TeamManagementPage = () => {
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="email@polban.ac.id"
+                    placeholder={staffEmailPlaceholder}
                   />
                 </div>
                 <div className="space-y-2">

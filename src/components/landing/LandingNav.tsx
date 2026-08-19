@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
-import PolbanLogo from "@/components/common/PolbanLogo";
+import InstitutionLogo from "@/components/common/InstitutionLogo";
 
 const LandingNav = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -51,7 +51,7 @@ const LandingNav = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3">
-            <PolbanLogo compact title="Tracer Study" subtitle="POLBAN" />
+            <InstitutionLogo compact title="Tracer Study" />
           </Link>
 
           {/* Desktop Nav */}

@@ -552,7 +552,7 @@ const ComparePage = () => {
     });
   }, [isTingkatInstansi, instansiBandingkanHook.data]);
 
-  // Sumber Biaya — 7 kategori resmi + "Lainnya" (merge Beasiswa Polban, dll)
+  // Sumber Biaya — 7 kategori resmi + "Lainnya" (merge beasiswa institusi, dll)
   const BIAYA_OFFICIAL = new Set([
     "Biaya Sendiri/Keluarga", "Beasiswa BIDIKMISI", "Beasiswa PPA",
     "Beasiswa Perusahaan/Swasta", "Beasiswa AFIRMASI", "Beasiswa ADIK", "Tidak Mengisi",

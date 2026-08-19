@@ -30,7 +30,7 @@ import {
   hintFor, parseNumericInput, formatRupiah, formatNumber, isCurrencyQuestion,
 } from "@/lib/formValidation";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
-import PolbanLogo from "@/components/common/PolbanLogo";
+import InstitutionLogo from "@/components/common/InstitutionLogo";
 import { useStudentAuth } from "@/hooks/auth/useStudentAuth";
 import LookupCombobox from "@/components/form/LookupCombobox";
 import { useTracerForm, isQuestionVisible } from "@/hooks/form/useTracerForm";
@@ -225,7 +225,7 @@ const FormPage = () => {
     <div className="min-h-screen bg-background">
       {/* Top Nav */}
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-lg border-b border-border flex items-center justify-between px-6 h-14">
-        <PolbanLogo compact title="Tracer Study" subtitle="POLBAN" textClassName="hidden sm:block" />
+        <InstitutionLogo compact title="Tracer Study" textClassName="hidden sm:block" />
         <div className="flex items-center gap-2">
           {session && (
             <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">

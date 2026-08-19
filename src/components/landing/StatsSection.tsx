@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { 
+import { institution } from "@/config/institution";
   GraduationCap, 
   Briefcase, 
   TrendingUp, 
@@ -73,8 +74,7 @@ const StatsSection = () => {
             Statistik <span className="gradient-text-cyan">Tracer Study 2023</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Gambaran umum hasil penelusuran alumni Politeknik Negeri Bandung
-            lulusan tahun 2022
+            Gambaran umum hasil penelusuran alumni {institution.name}
           </p>
         </motion.div>
 

@@ -9,7 +9,8 @@ import { useToast } from "@/hooks/common/use-toast";
 import { useAuth } from "@/hooks/auth/useAuth";
 import { useStudentAuth } from "@/hooks/auth/useStudentAuth";
 import { isRateLimited } from "@/lib/authErrors";
-import PolbanLogo from "@/components/common/PolbanLogo";
+import InstitutionLogo from "@/components/common/InstitutionLogo";
+import { staffEmailPlaceholder } from "@/config/institution";
 
 const Login = () => {
   const [identifier, setIdentifier] = useState("");
@@ -85,7 +86,7 @@ const Login = () => {
           </Link>
 
           {/* Logo */}
-          <PolbanLogo className="mb-8" markClassName="h-12 w-12" title="Tracer Study" subtitle="POLBAN" />
+          <InstitutionLogo className="mb-8" markClassName="h-12 w-12" title="Tracer Study" />
 
           {/* Header */}
           <div className="mb-8">
@@ -102,7 +103,7 @@ const Login = () => {
               <Input
                 id="identifier"
                 type="text"
-                placeholder="nama@polban.ac.id"
+                placeholder={staffEmailPlaceholder}
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="bg-secondary/50 border-border/50 focus:border-primary/50 h-12"

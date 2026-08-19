@@ -48,6 +48,7 @@ import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Uploa
 import PilihTahun from "@/components/common/PilihTahun";
 import { useAuth } from "@/hooks/auth/useAuth";
 import { useRingkasanTahun } from "@/hooks/useRingkasanTahun";
+import { studentEmailPlaceholder, workbookCreator } from "@/config/institution";
 
 const StudentManagementPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -205,7 +206,7 @@ const StudentManagementPage = () => {
       }
 
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = "Tracer Study Polban";
+      workbook.creator = workbookCreator;
       workbook.created = new Date();
 
       const sheet = workbook.addWorksheet("Data Alumni");
@@ -414,7 +415,7 @@ const StudentManagementPage = () => {
   /** Rakit dan unduh berkas kredensial. Dipakai jalur sukses maupun jalur gagal-sebagian. */
   const downloadCredentialWorkbook = async (rows: IssuedCredential[]) => {
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = "Tracer Study Polban";
+    workbook.creator = workbookCreator;
     workbook.created = new Date();
 
     const sheet = workbook.addWorksheet("Kredensial Alumni");
@@ -564,7 +565,7 @@ const StudentManagementPage = () => {
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="nim@student.polban.ac.id"
+                    placeholder={studentEmailPlaceholder}
                     required
                   />
                 </div>

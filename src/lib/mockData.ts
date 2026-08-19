@@ -41,12 +41,24 @@ export const JENIS_INSTANSI_OPTIONS = [
   "Lainnya"
 ];
 
+/**
+ * Jenjang program studi yang dikenali antarmuka.
+ *
+ * Sengaja tidak dibatasi D3/D4 saja: SmartTracer dipasang di universitas dan
+ * sekolah tinggi juga, bukan politeknik saja. Backend sudah menerima S1 di
+ * enum `programs.degree` maupun di seluruh validasi filter analitik.
+ */
+export type Jenjang = "D3" | "D4" | "S1" | "S2" | "S3";
+
+/** Urutan tampil jenjang di penyaring dan legenda grafik. */
+export const JENJANG_LIST: Jenjang[] = ["D3", "D4", "S1", "S2", "S3"];
+
 export interface Student {
   id: string;
   nama: string;
   nim: string;
   prodi: string;
-  jenjang: "D3" | "D4" | "S2";
+  jenjang: Jenjang;
   tahunLulus: number;
   gender: "Pria" | "Wanita";
   status: string;
@@ -104,7 +116,7 @@ export interface Student {
 export interface Prodi {
   id: string;
   name: string;
-  jenjang: "D3" | "D4" | "S2";
+  jenjang: Jenjang;
   lam: string;
   threshold: number;
 }

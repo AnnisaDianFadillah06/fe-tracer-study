@@ -25,7 +25,7 @@ const KpiOverviewPage = () => {
             Ringkasan KPI Tracer Study
           </h1>
           <p className="text-sm text-muted-foreground">
-            Halaman ini menggabungkan 13 KPI utama dashboard tracer study Polban
+            Halaman ini menggabungkan 13 KPI utama dashboard tracer study
             sesuai spesifikasi visualisasi dan psikologi warna (BAN-PT, LAM
             Teknik, LAM Infokom, IKU PT).
           </p>

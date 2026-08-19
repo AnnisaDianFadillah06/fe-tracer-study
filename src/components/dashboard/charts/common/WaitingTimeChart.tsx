@@ -24,7 +24,6 @@ interface WaitingTimeChartProps {
 }
 
 const defaultData = [
-  { name: "POLBAN", "< 3 bulan": 605, "3-6 bulan": 378, "> 6 bulan": 234 },
   { name: "D-IV", "< 3 bulan": 284, "3-6 bulan": 154, "> 6 bulan": 89 },
   { name: "D-III", "< 3 bulan": 315, "3-6 bulan": 218, "> 6 bulan": 143 },
   { name: "S-2", "< 3 bulan": 6, "3-6 bulan": 6, "> 6 bulan": 2 },

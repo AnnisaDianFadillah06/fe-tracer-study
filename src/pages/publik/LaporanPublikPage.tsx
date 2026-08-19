@@ -7,6 +7,7 @@ import {
   formatFileSize, publicReportDownloadUrl, publicReportPreviewUrl, type PublicReport,
 } from "@/lib/publicReports";
 import { Download, FileText, Loader2, Maximize2 } from "lucide-react";
+import { institution } from "@/config/institution";
 
 /**
  * Halaman "Laporan TS" untuk masyarakat umum.
@@ -42,7 +43,7 @@ const LaporanPublikPage = () => {
   return (
     <PublicPageShell
       title="Laporan Tracer Study"
-      description="Hasil tracer study Politeknik Negeri Bandung dituangkan dalam laporan sesuai tahun pelaksanaan. Berkas dapat dibaca langsung di halaman ini atau diunduh dalam format PDF."
+      description={`Hasil tracer study ${institution.name} dituangkan dalam laporan sesuai tahun pelaksanaan. Berkas dapat dibaca langsung di halaman ini atau diunduh dalam format PDF.`}
     >
       {isLoading ? (
         <Card>

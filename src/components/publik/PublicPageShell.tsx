@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import LandingNav from "@/components/landing/LandingNav";
+import { institution } from "@/config/institution";
 
 /**
  * Kerangka halaman publik (tanpa login).
@@ -40,7 +41,7 @@ const PublicPageShell = ({ title, description, actions, children }: PublicPageSh
 
       <footer className="border-t border-border/60 py-6">
         <div className="mx-auto max-w-7xl px-4 text-sm text-muted-foreground sm:px-6">
-          Tracer Study Politeknik Negeri Bandung
+          Tracer Study {institution.name}
         </div>
       </footer>
     </div>

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Mail, Phone, MapPin } from "lucide-react";
-import PolbanLogo from "@/components/common/PolbanLogo";
+import InstitutionLogo from "@/components/common/InstitutionLogo";
+import { institution } from "@/config/institution";
 
 const FooterSection = () => {
   return (
@@ -9,24 +10,31 @@ const FooterSection = () => {
         <div className="grid md:grid-cols-4 gap-12">
           {/* Brand */}
           <div className="md:col-span-2">
-            <PolbanLogo className="mb-4" compact title="Tracer Study" subtitle="POLBAN" />
+            <InstitutionLogo className="mb-4" compact title="Tracer Study" />
             <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mb-6">
-              Platform analitik komprehensif untuk penelusuran alumni Politeknik Negeri Bandung. 
-              Mendukung penjaminan mutu pendidikan dengan data-driven insights.
+              Platform analitik komprehensif untuk penelusuran alumni{" "}
+              {institution.name}. Mendukung penjaminan mutu pendidikan dengan
+              keputusan berbasis data.
             </p>
+            {/* Alamat dan telepon boleh kosong di konfigurasi: barisnya ikut hilang
+                daripada menampilkan label tanpa isi. */}
             <div className="space-y-2 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                <span>Jl. Gegerkalong Hilir, Bandung 40559</span>
-              </div>
+              {institution.address && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  <span>{institution.address}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4" />
-                <span>tracerstudy@polban.ac.id</span>
+                <span>{institution.email}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4" />
-                <span>(022) 2013789</span>
-              </div>
+              {institution.phone && (
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4" />
+                  <span>{institution.phone}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -73,10 +81,10 @@ const FooterSection = () => {
         {/* Bottom */}
         <div className="mt-12 pt-8 border-t border-border/30 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Politeknik Negeri Bandung. All rights reserved.
+            © {new Date().getFullYear()} {institution.name}. Seluruh hak cipta dilindungi.
           </p>
           <p className="text-sm text-muted-foreground">
-            Kantor Wakil Direktur Bidang Kemahasiswaan
+            {institution.unit}
           </p>
         </div>
       </div>

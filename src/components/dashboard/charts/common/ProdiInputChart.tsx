@@ -172,7 +172,7 @@ const ProdiInputChart = ({ data = defaultData }: ProdiInputChartProps) => {
 
   const handleBarClick = (name: string) => {
     // Extract prodi name without jenjang prefix
-    const prodiName = name.replace(/^(D3|D4|S2)-/, "");
+    const prodiName = name.replace(/^(D3|D4|S1|S2|S3)-/, "");
     navigate(`/dashboard/responden?prodi=${encodeURIComponent(prodiName)}`);
   };
 

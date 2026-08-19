@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
-import PolbanLogo from "@/components/common/PolbanLogo";
+import InstitutionLogo from "@/components/common/InstitutionLogo";
 import { useStudentAuth } from "@/hooks/auth/useStudentAuth";
 import { ArrowRight, LogOut, Loader2 } from "lucide-react";
 import api from "@/lib/api";
@@ -73,7 +73,7 @@ const StudentFormListPage = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-lg border-b border-border flex items-center justify-between px-6 h-14">
-        <PolbanLogo compact title="Tracer Study" subtitle="POLBAN" textClassName="hidden sm:block" />
+        <InstitutionLogo compact title="Tracer Study" textClassName="hidden sm:block" />
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">

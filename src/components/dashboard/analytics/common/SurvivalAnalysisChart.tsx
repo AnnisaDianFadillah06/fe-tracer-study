@@ -47,7 +47,9 @@ const INDICATOR_CONFIG: Record<IndicatorType, {
       { key: "overall", name: "Overall", color: "#f97316", filter: () => true },
       { key: "diii", name: "D-III", color: "#0ea5e9", filter: (s) => s.jenjang === "D3" },
       { key: "div", name: "D-IV", color: "#10b981", filter: (s) => s.jenjang === "D4" },
-      { key: "s2", name: "S2-Terapan", color: "#8b5cf6", filter: (s) => s.jenjang === "S2" },
+      { key: "s1", name: "S-1", color: "#f59e0b", filter: (s) => s.jenjang === "S1" },
+      { key: "s2", name: "S-2", color: "#8b5cf6", filter: (s) => s.jenjang === "S2" },
+      { key: "s3", name: "S-3", color: "#ec4899", filter: (s) => s.jenjang === "S3" },
     ]
   },
   gender: {
@@ -110,7 +112,13 @@ const SurvivalAnalysisChart = () => {
         }))
       ];
     }
-    return INDICATOR_CONFIG[indicator].lines;
+    // Buang seri yang tidak punya satu pun responden. Tanpa ini jenjang yang
+    // tidak dipakai institusi ini (mis. S-3 di politeknik) tetap digambar
+    // sebagai garis datar di 0% — terbaca seolah tidak ada satu pun alumninya
+    // yang pernah dapat kerja.
+    return INDICATOR_CONFIG[indicator].lines.filter(
+      (line) => line.key === "overall" || MOCK_STUDENTS.some(line.filter),
+    );
   }, [indicator, selectedProdi, prodiNames]);
 
   // Generate Kaplan-Meier survival data

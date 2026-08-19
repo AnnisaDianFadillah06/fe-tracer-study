@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, Users, TrendingUp, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { institution } from "@/config/institution";
 
 const HeroSection = () => {
   return (
@@ -49,9 +50,7 @@ const HeroSection = () => {
             <h1 className="font-heading text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
               <span className="text-foreground">Tracer Study</span>
               <br />
-              <span className="gradient-text">Politeknik Negeri</span>
-              <br />
-              <span className="gradient-text-cyan">Bandung</span>
+              <span className="gradient-text">{institution.name}</span>
             </h1>
 
             <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto lg:mx-0">
@@ -113,7 +112,7 @@ const HeroSection = () => {
                     <div className="w-3 h-3 rounded-full bg-yellow-500" />
                     <div className="w-3 h-3 rounded-full bg-green-500" />
                   </div>
-                  <span className="text-xs text-muted-foreground">tracer-study.polban.ac.id</span>
+                  <span className="text-xs text-muted-foreground">{institution.appDomain}</span>
                 </div>
 
                 {/* Stats Row */}

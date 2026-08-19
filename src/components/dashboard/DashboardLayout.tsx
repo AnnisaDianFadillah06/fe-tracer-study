@@ -22,7 +22,7 @@ import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { useRole, roleLabels } from "@/contexts/RoleContext";
 import { useAuth } from "@/hooks/auth/useAuth";
 import { Badge } from "@/components/ui/badge";
-import PolbanLogo from "@/components/common/PolbanLogo";
+import InstitutionLogo from "@/components/common/InstitutionLogo";
 import GlobalFilters from "@/components/dashboard/GlobalFilters";
 import DownloadDataButton from "@/components/dashboard/DownloadDataButton";
 
@@ -66,7 +66,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Logo */}
         <div className="p-4 border-b border-sidebar-border">
           <Link to="/dashboard/overview" className="flex items-center gap-3">
-            <PolbanLogo compact title="Tracer Study" subtitle="Dashboard" showText={!collapsed} />
+            <InstitutionLogo compact title="Tracer Study" subtitle="Dashboard" showText={!collapsed} />
           </Link>
         </div>
 
