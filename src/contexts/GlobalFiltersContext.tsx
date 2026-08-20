@@ -9,6 +9,7 @@ import {
   ReactNode,
 } from "react";
 import { useFilterOptions, FilterOptions } from "@/hooks/useFilterOptions";
+import { useOrgLevels, OrgLevelsState } from "@/hooks/useOrgLevels";
 
 export const ALL = "__all__";
 
@@ -39,12 +40,21 @@ export interface GlobalFiltersState {
   lastUpdatedAt: Date;
   /** Full filter-options from BE (pass-through so children avoid double-fetch) */
   filterOptions: FilterOptions;
+  /**
+   * Fase 5 (DFR-20/21) — jumlah & label level struktur organisasi aktif
+   * (pass-through, sama pola dengan `filterOptions`). `isGeneric` selalu
+   * false untuk template 1-level (Politeknik/POLBAN) atau saat endpoint
+   * admin-nya tidak bisa diakses (role selain head_tracer) -- GlobalFilters
+   * dijamin merender UI lama tanpa perubahan pada kasus itu.
+   */
+  orgLevels: OrgLevelsState;
 }
 
 const Ctx = createContext<GlobalFiltersState | undefined>(undefined);
 
 export function GlobalFiltersProvider({ children }: { children: ReactNode }) {
   const filterOptions = useFilterOptions();
+  const orgLevels = useOrgLevels();
 
   const [degree, setDegreeRaw] = useState<string>(ALL);
   const [jurusan, setJurusanRaw] = useState<string>(ALL);
@@ -130,6 +140,7 @@ export function GlobalFiltersProvider({ children }: { children: ReactNode }) {
       applyAll,
       lastUpdatedAt,
       filterOptions,
+      orgLevels,
     }),
     [
       degree,
@@ -143,6 +154,7 @@ export function GlobalFiltersProvider({ children }: { children: ReactNode }) {
       applyAll,
       lastUpdatedAt,
       filterOptions,
+      orgLevels,
     ]
   );
 
@@ -164,6 +176,13 @@ export function useGlobalFilters(): GlobalFiltersState {
       loading: false,
       error: null,
     };
+    const noopOrgLevels: OrgLevelsState = {
+      levels: [{ id: -1, institution_type: "politeknik", level_index: 1, label: "Jurusan", is_required: true }],
+      institutionType: "politeknik",
+      isGeneric: false,
+      loading: false,
+      error: null,
+    };
     return {
       degree: ALL,
       jurusan: ALL,
@@ -182,6 +201,7 @@ export function useGlobalFilters(): GlobalFiltersState {
       applyAll: () => {},
       lastUpdatedAt: new Date(),
       filterOptions: noopFilterOptions,
+      orgLevels: noopOrgLevels,
     };
   }
   return ctx;

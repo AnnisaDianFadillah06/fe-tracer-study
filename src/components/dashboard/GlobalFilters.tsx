@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/select";
 import { useGlobalFilters, ALL } from "@/contexts/GlobalFiltersContext";
 import { Badge } from "@/components/ui/badge";
+import { useOrgUnitTree } from "@/hooks/useOrgUnitTree";
+import { flattenOrgTree, optionsForLevel, resetDescendantSelections, breadcrumbLabels } from "@/lib/orgLevelCascade";
 
 interface Props {
   /**
@@ -60,10 +62,61 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
     lastUpdatedAt,
     applyAll,
     filterOptions,
+    orgLevels,
   } = useGlobalFilters();
 
   const { tahunLulus: tahunOptions, weekOptions, weekKeys, jenjang: jenjangOptions,
           jurusanList, jurusanMap, prodiList, loading: optLoading, error: optError } = filterOptions;
+
+  // ── Fase 5 (DFR-20/21): struktur organisasi berkedalaman-N ────────────────
+  // `orgLevels.isGeneric` HANYA true kalau template institusi aktif benar-benar
+  // >1 level (lihat useOrgLevels.ts) -- untuk Politeknik/POLBAN (1 level) atau
+  // role selain head_tracer, ini selalu false, dan blok render di bawah jatuh
+  // ke JSX lama yang TIDAK berubah sama sekali.
+  const isGenericLevels = orgLevels.isGeneric;
+  const orgTree = useOrgUnitTree(isGenericLevels);
+  const flatOrgUnits = useMemo(
+    () => (isGenericLevels ? flattenOrgTree(orgTree.tree) : []),
+    [isGenericLevels, orgTree.tree]
+  );
+  // pPath[i] = id unit terpilih di level ke-(i+1); null = "Semua".
+  const [pPath, setPPath] = useState<(number | null)[]>(
+    () => orgLevels.levels.map(() => null)
+  );
+  useEffect(() => {
+    setPPath((prev) =>
+      prev.length === orgLevels.levels.length ? prev : orgLevels.levels.map(() => null)
+    );
+    // Depend on .length only -- `orgLevels.levels` is a new array reference
+    // every render (pass-through from useOrgLevels), depending on it would
+    // reset pPath every render instead of only when the level COUNT changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgLevels.levels.length]);
+
+  const handlePathLevelChange = (levelPos: number, idStr: string) => {
+    const id = idStr === ALL ? null : Number(idStr);
+    setPPath((prev) => resetDescendantSelections([...prev.slice(0, levelPos), id, ...prev.slice(levelPos + 1)], levelPos, null));
+  };
+
+  // Level terdalam yang terpilih menentukan cakupan prodi -- diselaraskan ke
+  // `pJurusan` supaya seluruh logic Prodi/apply/scoping di bawahnya (dan di
+  // seluruh hook data lain yang membaca `jurusan` dari context) tetap satu
+  // kontrak yang sama persis dengan sebelumnya, tanpa perlu tahu apa pun
+  // soal N-level.
+  const deepestSelectedName = useMemo(() => {
+    for (let i = pPath.length - 1; i >= 0; i--) {
+      if (pPath[i] != null) {
+        const node = flatOrgUnits.find((n) => n.id === pPath[i]);
+        if (node) return node.name;
+      }
+    }
+    return null;
+  }, [pPath, flatOrgUnits]);
+
+  const orgBreadcrumb = useMemo(
+    () => (isGenericLevels ? breadcrumbLabels(flatOrgUnits, pPath) : []),
+    [isGenericLevels, flatOrgUnits, pPath]
+  );
 
   // ── Local pending state — committed only on "Terapkan" ────────────────────
   const [pDegree, setPDegree] = useState(degree);
@@ -77,6 +130,15 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
 
   useEffect(() => { setPDegree(degree); }, [degree]);
   useEffect(() => { setPJurusan(jurusan); }, [jurusan]);
+
+  // Fase 5: saat N-level generik aktif, level terdalam yang dipilih di pohon
+  // org unit MENGGANTIKAN pilihan Jurusan manual (dropdown lama disembunyikan
+  // di jalur ini -- lihat render di bawah). Tidak berlaku sama sekali saat
+  // isGenericLevels false, jadi tidak menyentuh perilaku Politeknik.
+  useEffect(() => {
+    if (!isGenericLevels) return;
+    setPJurusan(deepestSelectedName ?? ALL);
+  }, [isGenericLevels, deepestSelectedName]);
 
   // Kunci jurusan Kajur sejak render pertama, termasuk setelah Reset — kalau
   // dibiarkan ALL, permintaan pertama berangkat tanpa penyaring jurusan.
@@ -183,6 +245,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
     setPProdi(ALL);
     setPTahun("all");
     setPWeek(weekKeys[0] ?? "");
+    if (isGenericLevels) setPPath(orgLevels.levels.map(() => null));
     reset();
   };
 
@@ -237,34 +300,69 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
               </Select>
             </div>
 
-            {/* Jurusan — terkunci untuk Kajur */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Jurusan
-              </label>
-              {lockedJurusan ? (
-                <Badge
-                  variant="secondary"
-                  className="h-9 w-[240px] justify-start text-sm font-semibold px-3"
-                >
-                  {lockedJurusan}
-                </Badge>
-              ) : (
-                <Select value={pJurusan} onValueChange={handleJurusan} disabled={isDisabled}>
-                  <SelectTrigger className="h-9 w-[240px] text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Semua Jurusan</SelectItem>
-                    {availableJurusan.map((j) => (
-                      <SelectItem key={j} value={j}>
-                        {j}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+            {/* Jurusan — terkunci untuk Kajur. Fase 5: kalau template aktif
+                >1 level (isGenericLevels), dropdown tunggal ini diganti N
+                dropdown mengikuti kedalaman org_unit_types aktif; untuk
+                Politeknik/POLBAN (1 level, kasus nyata satu-satunya saat
+                ini) blok di bawah TIDAK berubah sama sekali. */}
+            {!isGenericLevels ? (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Jurusan
+                </label>
+                {lockedJurusan ? (
+                  <Badge
+                    variant="secondary"
+                    className="h-9 w-[240px] justify-start text-sm font-semibold px-3"
+                  >
+                    {lockedJurusan}
+                  </Badge>
+                ) : (
+                  <Select value={pJurusan} onValueChange={handleJurusan} disabled={isDisabled}>
+                    <SelectTrigger className="h-9 w-[240px] text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL}>Semua Jurusan</SelectItem>
+                      {availableJurusan.map((j) => (
+                        <SelectItem key={j} value={j}>
+                          {j}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            ) : (
+              orgLevels.levels.map((lvl, idx) => {
+                const options = optionsForLevel(flatOrgUnits, lvl.level_index, pPath);
+                const value = pPath[idx] != null ? String(pPath[idx]) : ALL;
+                return (
+                  <div key={lvl.id} className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      {lvl.label}
+                    </label>
+                    <Select
+                      value={value}
+                      onValueChange={(v) => handlePathLevelChange(idx, v)}
+                      disabled={isDisabled || orgTree.loading}
+                    >
+                      <SelectTrigger className="h-9 w-[220px] text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL}>Semua {lvl.label}</SelectItem>
+                        {options.map((n) => (
+                          <SelectItem key={n.id} value={String(n.id)}>
+                            {n.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })
+            )}
 
             {/* Prodi */}
             <div className="flex flex-col gap-1">
@@ -378,6 +476,14 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
         aria-atomic="true"
       >
         <div className="flex items-center gap-2 flex-wrap">
+          {/* DFR-21: breadcrumb hop dinamis -- hanya muncul saat template
+              aktif >1 level (isGenericLevels); tidak pernah tampil untuk
+              Politeknik/POLBAN, jadi status bar lama tetap identik. */}
+          {isGenericLevels && orgBreadcrumb.length > 0 && (
+            <Badge variant="outline" className="h-6 px-2 gap-1">
+              {orgBreadcrumb.join(" › ")}
+            </Badge>
+          )}
           {inferredDataMode === "snapshot" ? (
             <Badge
               variant="outline"
