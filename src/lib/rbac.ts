@@ -16,6 +16,8 @@ import {
   FileText,
   Globe,
   Contact,
+  ShieldQuestion,
+  History,
 } from "lucide-react";
 
 // ── Role definitions ─────────────────────────────────────────────────────────
@@ -76,6 +78,14 @@ export type Permission =
   // menggate /api/stakeholder-contacts dengan role:head_tracer,tracer_team —
   // merekalah yang mengirim email blast penilaian.
   | "admin.stakeholder"
+  // Perlindungan data pribadi: antrean permintaan hak subjek data dan jejak
+  // audit. Peladen menggate /api/admin/data-subject-requests dan
+  // /api/admin/audit-logs dengan role:head_tracer. Sengaja TIDAK menumpang
+  // admin.master atau admin.approval yang juga dipegang peran lain —
+  // permintaan alumni kerap memuat keadaan pribadi, dan jejak audit memuat
+  // siapa berbuat apa atas data siapa. Keduanya bukan bacaan bagi setiap
+  // pengelola prodi.
+  | "admin.privacy"
   | "academic.alumni_data"
   | "academic.questionnaire_results"
   | "questionnaire.fill";
@@ -95,6 +105,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "admin.master",
     "admin.public_report",
     "admin.stakeholder",
+    "admin.privacy",
   ],
   tracer_team: [
     "dashboard.overview",
@@ -211,6 +222,8 @@ const adminItems: MenuItem[] = [
   { title: "Master Data", href: "/dashboard/master-data", icon: Building2, description: "Prodi, provinsi, kota", permission: "admin.master" },
   { title: "Kontak Penilai", href: "/dashboard/stakeholder-contacts", icon: Contact, description: "Atasan & rekan yang disebut alumni, untuk survei penilaian", permission: "admin.stakeholder" },
   { title: "Laporan Publik", href: "/dashboard/public-reports", icon: FileText, description: "Unggah laporan tahunan untuk publik", permission: "admin.public_report" },
+  { title: "Permintaan Data Alumni", href: "/dashboard/permintaan-data", icon: ShieldQuestion, description: "Perbaikan, penghapusan, dan keberatan yang diajukan alumni", permission: "admin.privacy" },
+  { title: "Jejak Audit", href: "/dashboard/jejak-audit", icon: History, description: "Riwayat perbuatan atas data pribadi alumni", permission: "admin.privacy" },
 ];
 
 const academicItems: MenuItem[] = [
@@ -258,6 +271,8 @@ export const routePermissionMap: Record<string, Permission> = {
   "/dashboard/etl-anomaly-log": "admin.etl",
   "/dashboard/public-reports": "admin.public_report",
   "/dashboard/public-settings": "admin.public_report",
+  "/dashboard/permintaan-data": "admin.privacy",
+  "/dashboard/jejak-audit": "admin.privacy",
 };
 
 export function getDefaultRoute(role: AppRole): string {

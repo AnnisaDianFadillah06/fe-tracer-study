@@ -53,6 +53,9 @@ import FormRespondentsPage from "./pages/form/FormRespondentsPage";
 
 // Student/Alumni form
 import FormPage from "./pages/form/FormPage";
+import DataSayaPage from "./pages/student/DataSayaPage";
+import DataSubjectRequestsPage from "./pages/admin/DataSubjectRequestsPage";
+import AuditLogPage from "./pages/admin/AuditLogPage";
 
 import NotFound from "./pages/common/NotFound";
 
@@ -111,6 +114,12 @@ const App = () => (
                 <Route path="/dashboard/master-data" element={<ProtectedRoute permission="admin.master"><MasterDataPage /></ProtectedRoute>} />
                 <Route path="/dashboard/public-reports" element={<ProtectedRoute permission="admin.public_report"><PublicReportsPage /></ProtectedRoute>} />
                 <Route path="/dashboard/public-settings" element={<ProtectedRoute permission="admin.public_report"><PublicSettingsPage /></ProtectedRoute>} />
+
+                {/* Perlindungan data pribadi — sisi staf. Pasangan dari halaman
+                    Data Saya milik alumni; tanpa keduanya, permintaan alumni
+                    tersimpan tanpa ada yang dapat membacanya. */}
+                <Route path="/dashboard/permintaan-data" element={<ProtectedRoute permission="admin.privacy"><DataSubjectRequestsPage /></ProtectedRoute>} />
+                <Route path="/dashboard/jejak-audit" element={<ProtectedRoute permission="admin.privacy"><AuditLogPage /></ProtectedRoute>} />
                 <Route path="/dashboard/team-management" element={<ProtectedRoute permission="admin.user"><TeamManagementPage /></ProtectedRoute>} />
                 <Route path="/dashboard/staff-management" element={<ProtectedRoute permission="admin.user"><StaffManagementPage /></ProtectedRoute>} />
                 <Route path="/dashboard/student-management" element={<ProtectedRoute permission="admin.user"><StudentManagementPage /></ProtectedRoute>} />
@@ -139,6 +148,10 @@ const App = () => (
                 <Route path="/form" element={<Navigate to="/form/fill" replace />} />
                 <Route path="/form/:formId" element={<FormPreviewPage />} />
                 <Route path="/form/fill" element={<FormPage />} />
+
+                {/* Portal hak subjek data (UU 27/2022). Di luar /dashboard
+                    karena pemakainya alumni dengan guard 'alumni', bukan staf. */}
+                <Route path="/data-saya" element={<DataSayaPage />} />
 
                 {/* Legacy redirects */}
                 <Route path="/dashboard/summary" element={<Navigate to="/dashboard/overview" replace />} />
