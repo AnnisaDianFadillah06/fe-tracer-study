@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { LogOut, Star, CheckCircle2, User, Info, AlertCircle, AlertTriangle, RotateCcw } from "lucide-react";
+import { LogOut, Star, CheckCircle2, User, Info, AlertCircle, AlertTriangle, RotateCcw, ShieldCheck } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +37,8 @@ import { useTracerForm, isQuestionVisible } from "@/hooks/form/useTracerForm";
 import type { Question } from "@/hooks/form/useQuestionManagement";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import ConsentGate from "@/components/form/ConsentGate";
+import { fetchConsentState, type ConsentState } from "@/lib/privacy";
 
 const FormPage = () => {
   const navigate = useNavigate();
@@ -113,6 +115,28 @@ const FormPage = () => {
     }
   }, [isLoggedIn, navigate]);
 
+  // ── Gerbang persetujuan (UU 27/2022) ──────────────────────────────
+  // Keadaannya diambil ulang dari server, bukan dibaca dari sesi yang
+  // tersimpan di sessionStorage. Sesi itu dibekukan saat login dan bisa
+  // sudah basi: alumni mungkin menarik persetujuannya dari perangkat lain,
+  // atau versi pemberitahuannya baru saja dinaikkan pengelola.
+  const [consent, setConsent] = useState<ConsentState | null>(null);
+  const [consentLoading, setConsentLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let aktif = true;
+    fetchConsentState()
+      .then((state) => { if (aktif) setConsent(state); })
+      // Kegagalan mengambil keadaan TIDAK diperlakukan sebagai "sudah
+      // setuju". Kalau server tak terjangkau, gerbangnya tetap tertutup dan
+      // percobaan menyimpan akan ditolak 451 — menutup saat ragu adalah
+      // arah gagal yang benar untuk syarat hukum.
+      .catch(() => { if (aktif) setConsent(null); })
+      .finally(() => { if (aktif) setConsentLoading(false); });
+    return () => { aktif = false; };
+  }, [isLoggedIn]);
+
   if (!isLoggedIn) return null;
 
   const handleLogout = async () => {
@@ -125,6 +149,38 @@ const FormPage = () => {
     logout();
     navigate("/login");
   };
+
+  // Gerbang persetujuan dipasang SEBELUM kuesioner dimuat: memuat pertanyaan
+  // lebih dulu berarti alumni sempat melihat formulir yang belum boleh ia isi,
+  // dan autosave bisa menulis jawaban pertamanya sebelum ada dasar hukumnya.
+  if (consentLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Memeriksa persetujuan...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!consent?.granted) {
+    return (
+      <ConsentGate
+        consent={
+          consent ?? {
+            granted: false,
+            granted_at: null,
+            granted_version: null,
+            current_version: "-",
+            needs_renewal: false,
+            retention_years: 10,
+          }
+        }
+        onGranted={() => setConsent((c) => (c ? { ...c, granted: true, needs_renewal: false } : c))}
+      />
+    );
+  }
 
   // Loading state saat fetch kuesioner dari backend
   if (isLoadingForms) {
@@ -156,7 +212,19 @@ const FormPage = () => {
                 — {session.username} ({session.nim})
               </p>
             )}
-            <div className="flex gap-2 justify-center pt-2">
+            {/* Jalan ke hak subjek data WAJIB ada di layar ini, bukan hanya
+                di bilah atas halaman pengisian. Alumni yang sudah selesai
+                mengisi justru kelompok yang paling mungkin bertanya datanya
+                dipakai untuk apa dan siapa saja yang sudah melihatnya —
+                sementara layar ini melakukan early return sehingga bilah
+                atasnya tidak pernah tampil. Tanpa tombol di sini, satu-satunya
+                jalan adalah mengetik alamatnya sendiri, dan hak akses yang
+                hanya bisa ditemukan begitu sama saja dengan tidak ada. */}
+            <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+              <Button onClick={() => navigate("/data-saya")}>
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                Data Saya
+              </Button>
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Keluar
@@ -178,10 +246,16 @@ const FormPage = () => {
             <p className="text-muted-foreground">
               Saat ini belum ada kuesioner aktif untuk tahun lulusan Anda. Silakan hubungi admin atau coba lagi nanti.
             </p>
-            <Button variant="outline" onClick={handleLogout}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Keluar
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Button onClick={() => navigate("/data-saya")}>
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Data Saya
+              </Button>
+              <Button variant="outline" onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Keluar
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -206,7 +280,14 @@ const FormPage = () => {
                 — {session.username} ({session.prodi})
               </p>
             )}
-            <div className="flex gap-2 justify-center pt-2">
+            {/* Tepat sesudah mengirim adalah saat alumni paling sadar bahwa
+                datanya baru saja berpindah tangan — jadi ini tempat paling
+                wajar menawarkan halaman haknya, bukan hanya tombol keluar. */}
+            <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+              <Button onClick={() => navigate("/data-saya")}>
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                Data Saya
+              </Button>
               <Button variant="outline" onClick={handleReset}>
                 Isi Ulang
               </Button>
@@ -236,6 +317,14 @@ const FormPage = () => {
             </div>
           )}
           <ThemeToggle />
+          {/* Pintu masuk ke hak subjek data. Ditaruh di bilah atas halaman
+              pengisian karena di sinilah alumni berada saat pertanyaan soal
+              datanya muncul — portal yang hanya bisa ditemukan lewat menu lain
+              sama saja dengan tidak ada. */}
+          <Button variant="ghost" size="sm" onClick={() => navigate("/data-saya")} className="gap-2">
+            <ShieldCheck className="w-4 h-4" />
+            <span className="hidden sm:inline">Data Saya</span>
+          </Button>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
             <LogOut className="w-4 h-4" />
             <span className="hidden sm:inline">Keluar</span>
