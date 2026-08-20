@@ -304,11 +304,16 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
                 >1 level (isGenericLevels), dropdown tunggal ini diganti N
                 dropdown mengikuti kedalaman org_unit_types aktif; untuk
                 Politeknik/POLBAN (1 level, kasus nyata satu-satunya saat
-                ini) blok di bawah TIDAK berubah sama sekali. */}
+                ini) blok di bawah TIDAK berubah sama sekali.
+                Fase 6 (DFR-16): label diambil dari org_unit_types level 1
+                (`orgLevels.levels[0].label`) alih-alih string "Jurusan"
+                tetap -- untuk POLBAN nilainya SELALU "Jurusan" (lihat
+                FALLBACK_LEVELS di useOrgLevels.ts), jadi tidak ada
+                perubahan tampilan untuk data existing. */}
             {!isGenericLevels ? (
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Jurusan
+                  {orgLevels.levels[0]?.label ?? "Jurusan"}
                 </label>
                 {lockedJurusan ? (
                   <Badge
@@ -323,7 +328,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={ALL}>Semua Jurusan</SelectItem>
+                      <SelectItem value={ALL}>Semua {orgLevels.levels[0]?.label ?? "Jurusan"}</SelectItem>
                       {availableJurusan.map((j) => (
                         <SelectItem key={j} value={j}>
                           {j}
