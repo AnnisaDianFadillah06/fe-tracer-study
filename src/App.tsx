@@ -43,6 +43,7 @@ import StaffManagementPage from "./pages/staff/StaffManagementPage";
 import StudentManagementPage from "./pages/student/StudentManagementPage";
 import ApprovalsPage from "./pages/admin/ApprovalsPage";
 import MasterDataPage from "./pages/admin/MasterDataPage";
+import StrukturInstitusiPage from "./pages/admin/StrukturInstitusiPage";
 import PublicReportsPage from "./pages/admin/PublicReportsPage";
 import PublicSettingsPage from "./pages/admin/PublicSettingsPage";
 import DaftarKuisionerPage from "./pages/form/FormManagementPage";
@@ -112,6 +113,7 @@ const App = () => (
                 {/* Administration */}
                 <Route path="/dashboard/approvals" element={<ProtectedRoute permission="admin.approval"><ApprovalsPage /></ProtectedRoute>} />
                 <Route path="/dashboard/master-data" element={<ProtectedRoute permission="admin.master"><MasterDataPage /></ProtectedRoute>} />
+                <Route path="/dashboard/struktur-institusi" element={<ProtectedRoute permission="admin.org_structure"><StrukturInstitusiPage /></ProtectedRoute>} />
                 <Route path="/dashboard/public-reports" element={<ProtectedRoute permission="admin.public_report"><PublicReportsPage /></ProtectedRoute>} />
                 <Route path="/dashboard/public-settings" element={<ProtectedRoute permission="admin.public_report"><PublicSettingsPage /></ProtectedRoute>} />
 

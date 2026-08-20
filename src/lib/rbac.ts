@@ -18,6 +18,7 @@ import {
   Contact,
   ShieldQuestion,
   History,
+  Network,
 } from "lucide-react";
 
 // ── Role definitions (DFR-26: data-driven, bukan union type statis) ──────────
@@ -174,6 +175,12 @@ export type Permission =
   // siapa berbuat apa atas data siapa. Keduanya bukan bacaan bagi setiap
   // pengelola prodi.
   | "admin.privacy"
+  // Struktur organisasi dinamis (Fase 4: DFR-01/04/06/07/08/09/10/11) --
+  // wizard pilih/definisikan template institusi dan tree editor org_units.
+  // BE menggate seluruh /api/org-unit-types dan /api/org-units dengan
+  // role:head_tracer, sejalan dengan kesepakatan bahwa fitur ini dipegang
+  // Ketua Tracer saja (lihat cetak-biru-struktur-dinamis.md Fase 4).
+  | "admin.org_structure"
   | "academic.alumni_data"
   | "academic.questionnaire_results"
   | "questionnaire.fill";
@@ -199,6 +206,7 @@ registerRole("head_tracer", {
     "admin.public_report",
     "admin.stakeholder",
     "admin.privacy",
+    "admin.org_structure",
   ],
 });
 
@@ -339,6 +347,7 @@ const adminItems: MenuItem[] = [
     },
   },
   { title: "Master Data", href: "/dashboard/master-data", icon: Building2, description: "Prodi, provinsi, kota", permission: "admin.master" },
+  { title: "Struktur Institusi", href: "/dashboard/struktur-institusi", icon: Network, description: "Template & pohon unit organisasi (jurusan/fakultas/departemen/prodi)", permission: "admin.org_structure" },
   { title: "Kontak Penilai", href: "/dashboard/stakeholder-contacts", icon: Contact, description: "Atasan & rekan yang disebut alumni, untuk survei penilaian", permission: "admin.stakeholder" },
   { title: "Laporan Publik", href: "/dashboard/public-reports", icon: FileText, description: "Unggah laporan tahunan untuk publik", permission: "admin.public_report" },
   { title: "Permintaan Data Alumni", href: "/dashboard/permintaan-data", icon: ShieldQuestion, description: "Perbaikan, penghapusan, dan keberatan yang diajukan alumni", permission: "admin.privacy" },
@@ -381,6 +390,7 @@ export const routePermissionMap: Record<string, Permission> = {
   "/dashboard/form-management": "admin.questionnaire",
   "/dashboard/approvals": "admin.approval",
   "/dashboard/master-data": "admin.master",
+  "/dashboard/struktur-institusi": "admin.org_structure",
   "/dashboard/alumni-data": "academic.alumni_data",
   "/dashboard/questionnaire-results": "academic.questionnaire_results",
   "/dashboard/kpi": "dashboard.kpi",
