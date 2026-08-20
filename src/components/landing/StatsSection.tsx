@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
-import { 
 import { institution } from "@/config/institution";
+import { 
   GraduationCap, 
   Briefcase, 
   TrendingUp, 
