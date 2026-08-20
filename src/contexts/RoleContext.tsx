@@ -1,5 +1,6 @@
-import { createContext, useContext, ReactNode } from "react";
+import { createContext, useContext, useEffect, ReactNode } from "react";
 import { useAuth } from "@/hooks/auth/useAuth";
+import { apiService } from "@/lib/apiClient";
 import {
   type AppRole,
   type Permission,
@@ -10,6 +11,7 @@ import {
   getMenuForRole,
   getDefaultRoute,
   mapBackendRole,
+  hydrateRoleRegistryFromApi,
 } from "@/lib/rbac";
 
 export type { AppRole };
@@ -38,8 +40,33 @@ interface RoleContextType {
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
 export function RoleProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const currentRole: AppRole = mapBackendRole(user?.role);
+
+  // DFR-26: sinkronkan label/deskripsi role dari GET /api/roles (tabel
+  // `roles` backend, sudah ada -- lihat RoleController::index). Best-effort,
+  // non-blocking: gagal fetch tidak menghalangi render, registry statis
+  // (enam role existing) tetap dipakai apa adanya sebagai fallback.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let cancelled = false;
+
+    apiService
+      .get<{ success: boolean; data: Array<{ name: string; label: string; description: string | null; scope: string | null }> }>("/roles")
+      .then((res) => {
+        if (!cancelled && res?.data) {
+          hydrateRoleRegistryFromApi(res.data);
+        }
+      })
+      .catch(() => {
+        // Diam-diam pakai registry statis -- ini bukan jalur kritis.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   const selectedProdi =
     currentRole === "kaprodi" ? (user?.program_name ?? null) : null;

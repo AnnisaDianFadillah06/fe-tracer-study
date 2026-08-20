@@ -20,32 +20,120 @@ import {
   History,
 } from "lucide-react";
 
-// ── Role definitions ─────────────────────────────────────────────────────────
-export type AppRole =
-  | "head_tracer"
-  | "tracer_team"
-  | "wadir"
-  | "kajur"
-  | "kaprodi"
-  | "alumni";
+// ── Role definitions (DFR-26: data-driven, bukan union type statis) ──────────
+//
+// AppRole dulu union type 6 string literal yang di-compile statis --
+// menambah satu role baru (mis. hasil DFR-12 di backend) berarti mengubah
+// kode ini plus setiap Record<AppRole,...> yang menjabarkannya. Sekarang
+// AppRole = string, dan seluruh data per-role (label/description/permission)
+// hidup di satu `roleRegistry` yang bisa diperluas lewat
+// `registerRole()`/`hydrateRoleRegistryFromApi()` tanpa menyentuh definisi
+// tipe. Untuk keenam role existing, isi registry-nya SAMA PERSIS dengan
+// Record literal lama -- ini refactor struktur, bukan perubahan perilaku.
+export type AppRole = string;
 
-export const roleLabels: Record<AppRole, string> = {
-  head_tracer: "Super Admin (Ketua Tracer)",
-  tracer_team: "Admin (Tim Tracer)",
-  wadir: "Pimpinan (Direktur/Wadir/P2MPP)",
-  kajur: "Ketua Jurusan",
-  kaprodi: "Ketua Program Studi",
-  alumni: "Alumni",
+export interface RoleConfig {
+  label: string;
+  description: string;
+  permissions: Permission[];
+}
+
+/**
+ * Permission catalog sungguhan belum ada di backend (lihat DFR-26 di
+ * cetak-biru-struktur-dinamis.md, bagian "di luar cakupan sampai ada
+ * permission catalog"). Role generik baru yang HANYA dikenal dari
+ * `GET /api/roles` (nama/label/scope) tapi tidak punya definisi permission
+ * statis di sini jatuh ke set paling minim ini -- bisa lihat Overview, tidak
+ * lebih -- sampai permission catalog sungguhan dibangun di fase mendatang.
+ */
+const UNKNOWN_ROLE_FALLBACK_PERMISSIONS: Permission[] = ["dashboard.overview"];
+
+const roleRegistry: Record<string, RoleConfig> = {
+  head_tracer: {
+    label: "Super Admin (Ketua Tracer)",
+    description: "Full system access — kelola user, kuesioner, approval, master data",
+    permissions: [],
+  },
+  tracer_team: {
+    label: "Admin (Tim Tracer)",
+    description: "Kelola & edit kuesioner, ajukan perubahan via approval",
+    permissions: [],
+  },
+  wadir: {
+    label: "Pimpinan (Direktur/Wadir/P2MPP)",
+    description: "Viewer seluruh data institusi & download",
+    permissions: [],
+  },
+  kajur: {
+    label: "Ketua Jurusan",
+    description: "Viewer data jurusan & download",
+    permissions: [],
+  },
+  kaprodi: {
+    label: "Ketua Program Studi",
+    description: "Viewer data program studi & download",
+    permissions: [],
+  },
+  alumni: {
+    label: "Alumni",
+    description: "Pengisi kuesioner tracer study",
+    permissions: ["questionnaire.fill"],
+  },
 };
 
-export const roleDescriptions: Record<AppRole, string> = {
-  head_tracer: "Full system access — kelola user, kuesioner, approval, master data",
-  tracer_team: "Kelola & edit kuesioner, ajukan perubahan via approval",
-  wadir: "Viewer seluruh data institusi & download",
-  kajur: "Viewer data jurusan & download",
-  kaprodi: "Viewer data program studi & download",
-  alumni: "Pengisi kuesioner tracer study",
-};
+/** Role belum dikenal (bukan salah satu dari keenam role di atas) jatuh ke sini. */
+const FALLBACK_ROLE: AppRole = "alumni";
+
+function getRoleConfig(role: AppRole): RoleConfig {
+  return roleRegistry[role] ?? roleRegistry[FALLBACK_ROLE];
+}
+
+/**
+ * Daftarkan/perbarui satu role di registry. Dipakai baik oleh definisi
+ * statis di bawah (permissions per role existing) maupun oleh
+ * hydrateRoleRegistryFromApi() untuk role baru yang datang dari backend.
+ */
+function registerRole(name: string, config: RoleConfig): void {
+  roleRegistry[name] = config;
+}
+
+/**
+ * DFR-26: sinkronkan label/deskripsi role dari `GET /api/roles` (tabel
+ * `roles` backend -- name/label/description/scope, lihat RoleController).
+ * Role yang namanya SUDAH dikenal statis (enam role di atas) hanya
+ * memperbarui label/description-nya (permission set tetap, supaya perilaku
+ * tidak berubah); role yang baru murni dari API mendapat
+ * UNKNOWN_ROLE_FALLBACK_PERMISSIONS sampai ada permission catalog.
+ */
+export function hydrateRoleRegistryFromApi(
+  roles: Array<{ name: string; label?: string | null; description?: string | null }>,
+): void {
+  for (const r of roles) {
+    if (!r.name) continue;
+    const existing = roleRegistry[r.name];
+    registerRole(r.name, {
+      label: r.label?.trim() || existing?.label || r.name,
+      description: r.description?.trim() || existing?.description || "",
+      permissions: existing?.permissions ?? UNKNOWN_ROLE_FALLBACK_PERMISSIONS,
+    });
+  }
+}
+
+/** Proxy read-only yang berperilaku seperti Record<AppRole,string> lama. */
+function labelProxy(pick: (c: RoleConfig) => string): Record<string, string> {
+  return new Proxy(
+    {},
+    {
+      get: (_target, prop) => (typeof prop === "string" ? pick(getRoleConfig(prop)) : undefined),
+      has: (_target, prop) => typeof prop === "string" && prop in roleRegistry,
+      ownKeys: () => Object.keys(roleRegistry),
+      getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+    },
+  ) as Record<string, string>;
+}
+
+export const roleLabels: Record<AppRole, string> = labelProxy((c) => c.label);
+export const roleDescriptions: Record<AppRole, string> = labelProxy((c) => c.description);
 
 // ── Permissions ──────────────────────────────────────────────────────────────
 export type Permission =
@@ -90,8 +178,13 @@ export type Permission =
   | "academic.questionnaire_results"
   | "questionnaire.fill";
 
-export const rolePermissions: Record<AppRole, Permission[]> = {
-  head_tracer: [
+// Permission set per role existing -- isinya SAMA PERSIS dengan Record
+// literal lama, hanya dipindahkan jadi registrasi ke roleRegistry supaya
+// satu sumber data melayani roleLabels/roleDescriptions/rolePermissions
+// sekaligus (lihat catatan DFR-26 di atas).
+registerRole("head_tracer", {
+  ...roleRegistry.head_tracer,
+  permissions: [
     "dashboard.overview",
     "dashboard.employment",
     "dashboard.education",
@@ -107,7 +200,11 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "admin.stakeholder",
     "admin.privacy",
   ],
-  tracer_team: [
+});
+
+registerRole("tracer_team", {
+  ...roleRegistry.tracer_team,
+  permissions: [
     "dashboard.overview",
     "dashboard.employment",
     "dashboard.education",
@@ -118,7 +215,11 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "admin.approval",
     "admin.stakeholder",
   ],
-  wadir: [
+});
+
+registerRole("wadir", {
+  ...roleRegistry.wadir,
+  permissions: [
     "dashboard.overview",
     "dashboard.employment",
     "dashboard.education",
@@ -127,7 +228,11 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "academic.alumni_data",
     "academic.questionnaire_results",
   ],
-  kajur: [
+});
+
+registerRole("kajur", {
+  ...roleRegistry.kajur,
+  permissions: [
     "dashboard.overview",
     "dashboard.employment",
     "dashboard.education",
@@ -135,7 +240,11 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "academic.alumni_data",
     "academic.questionnaire_results",
   ],
-  kaprodi: [
+});
+
+registerRole("kaprodi", {
+  ...roleRegistry.kaprodi,
+  permissions: [
     "dashboard.overview",
     "dashboard.employment",
     "dashboard.education",
@@ -149,11 +258,21 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     // karena digate isHeadTracer di halamannya.
     "admin.approval",
   ],
-  alumni: ["questionnaire.fill"],
-};
+});
+
+/** Proxy read-only yang berperilaku seperti Record<AppRole,Permission[]> lama. */
+export const rolePermissions: Record<AppRole, Permission[]> = new Proxy(
+  {},
+  {
+    get: (_target, prop) => (typeof prop === "string" ? getRoleConfig(prop).permissions : undefined),
+    has: (_target, prop) => typeof prop === "string" && prop in roleRegistry,
+    ownKeys: () => Object.keys(roleRegistry),
+    getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+  },
+) as Record<AppRole, Permission[]>;
 
 export function hasPermission(role: AppRole, permission: Permission): boolean {
-  return rolePermissions[role]?.includes(permission) ?? false;
+  return getRoleConfig(role).permissions.includes(permission);
 }
 
 export function hasAnyPermission(role: AppRole, permissions: Permission[]): boolean {
@@ -280,18 +399,30 @@ export function getDefaultRoute(role: AppRole): string {
   return "/dashboard/overview";
 }
 
+/**
+ * Alias role lama yang tidak lagi dikirim backend, tapi tetap dipetakan
+ * untuk kompatibilitas (mis. data lama / integrasi yang belum dimutakhirkan).
+ */
+const LEGACY_ROLE_ALIASES: Record<string, AppRole> = {
+  admin: "head_tracer",
+  p2mpp: "wadir",
+  prodi: "kaprodi",
+};
+
+/**
+ * DFR-26: role apa pun yang sudah terdaftar di roleRegistry (baik enam role
+ * statis, maupun role baru yang masuk lewat hydrateRoleRegistryFromApi())
+ * dikembalikan apa adanya -- tidak ada lagi union type yang harus diperluas
+ * tiap kali DFR-12 di backend melahirkan role baru. Alias legacy tetap
+ * dicek dulu supaya kompatibel dengan role lama yang sudah tidak dikirim
+ * backend. Role yang sama sekali tidak dikenal jatuh ke "alumni" (paling
+ * minim akses), sama seperti perilaku sebelumnya.
+ */
 export function mapBackendRole(backendRole?: string): AppRole {
-  const map: Record<string, AppRole> = {
-    head_tracer: "head_tracer",
-    tracer_team: "tracer_team",
-    wadir: "wadir",
-    kajur: "kajur",
-    kaprodi: "kaprodi",
-    alumni: "alumni",
-    // Legacy compat
-    admin: "head_tracer",
-    p2mpp: "wadir",
-    prodi: "kaprodi",
-  };
-  return map[backendRole ?? ""] ?? "alumni";
+  const role = backendRole ?? "";
+
+  if (role in roleRegistry) return role;
+  if (role in LEGACY_ROLE_ALIASES) return LEGACY_ROLE_ALIASES[role];
+
+  return FALLBACK_ROLE;
 }
