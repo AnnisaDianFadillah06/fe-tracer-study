@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import {
   ChevronRight, ChevronDown, Plus, Edit, Trash2, Move, Search, Network,
-  Loader2, AlertCircle, EyeOff, Eye, GraduationCap, Building2,
+  Loader2, AlertCircle, EyeOff, Eye, GraduationCap, Building2, X, ListPlus,
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -146,6 +146,60 @@ const StrukturInstitusiPage = () => {
       toast({ title: "Gagal", description: apiErrorMessage(e, "Template gagal dipilih."), variant: "destructive" });
     } finally {
       setTemplateSaving(false);
+    }
+  };
+
+  // ── Sisip/hapus level (DFR-06 wizard) ───────────────────────────────────
+  const [insertLevelDialog, setInsertLevelDialog] = useState(false);
+  const [insertLevelForm, setInsertLevelForm] = useState<{ atLevelIndex: number; label: string; isRequired: boolean }>(
+    { atLevelIndex: 1, label: "", isRequired: true },
+  );
+  const [insertLevelSaving, setInsertLevelSaving] = useState(false);
+
+  const openInsertLevel = () => {
+    setInsertLevelForm({ atLevelIndex: (levels[levels.length - 1]?.level_index ?? 0) + 1, label: "", isRequired: true });
+    setInsertLevelDialog(true);
+  };
+
+  const saveInsertLevel = async () => {
+    const label = insertLevelForm.label.trim();
+    if (!label || !activeTemplate) {
+      toast({ title: "Error", description: "Nama level wajib diisi.", variant: "destructive" });
+      return;
+    }
+    setInsertLevelSaving(true);
+    try {
+      const { data } = await api.post("/org-unit-types/insert-level", {
+        institution_type: activeTemplate,
+        at_level_index: insertLevelForm.atLevelIndex,
+        label,
+        is_required: insertLevelForm.isRequired,
+      });
+      toast({ title: "Berhasil", description: data.message ?? "Level disisipkan." });
+      setInsertLevelDialog(false);
+      await load();
+    } catch (e: unknown) {
+      toast({ title: "Gagal", description: apiErrorMessage(e, "Level gagal disisipkan."), variant: "destructive" });
+    } finally {
+      setInsertLevelSaving(false);
+    }
+  };
+
+  const [removeLevelId, setRemoveLevelId] = useState<number | null>(null);
+  const [removeLevelSaving, setRemoveLevelSaving] = useState(false);
+
+  const confirmRemoveLevel = async () => {
+    if (removeLevelId === null) return;
+    setRemoveLevelSaving(true);
+    try {
+      const { data } = await api.post(`/org-unit-types/${removeLevelId}/remove-level`);
+      toast({ title: "Berhasil", description: data.message ?? "Level dihapus." });
+      await load();
+    } catch (e: unknown) {
+      toast({ title: "Gagal", description: apiErrorMessage(e, "Level gagal dihapus."), variant: "destructive" });
+    } finally {
+      setRemoveLevelSaving(false);
+      setRemoveLevelId(null);
     }
   };
 
@@ -450,15 +504,34 @@ const StrukturInstitusiPage = () => {
           // ── DFR-03/07/08/09/11: Ringkasan level + tree editor ────────────
           <>
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Level Struktur Aktif — {activeTemplate}</CardTitle>
-                <CardDescription>Kedalaman hierarki yang berlaku saat ini, dari unit teratas ke program studi.</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle className="text-base">Level Struktur Aktif — {activeTemplate}</CardTitle>
+                  <CardDescription>
+                    Kedalaman hierarki yang berlaku saat ini, dari unit teratas ke program studi. Template tipe institusi
+                    ({activeTemplate}) terkunci karena sudah ada unit — sisip/hapus level di sini untuk mengubah
+                    kedalamannya tanpa kehilangan data (DFR-06).
+                  </CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={openInsertLevel}>
+                  <ListPlus className="h-4 w-4 mr-2" />Sisip Level
+                </Button>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
                   {levels.map((l) => (
-                    <Badge key={l.id} variant={l.is_required ? "default" : "outline"}>
+                    <Badge key={l.id} variant={l.is_required ? "default" : "outline"} className="gap-1.5 pr-1">
                       {l.level_index}. {l.label}{!l.is_required && " (opsional)"}
+                      {levels.length > 1 && (
+                        <button
+                          type="button"
+                          title={`Hapus level "${l.label}"`}
+                          className="h-4 w-4 rounded-full flex items-center justify-center hover:bg-black/10"
+                          onClick={() => setRemoveLevelId(l.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
                     </Badge>
                   ))}
                 </div>
@@ -597,6 +670,72 @@ const StrukturInstitusiPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Dialog sisip level (DFR-06) ── */}
+      <Dialog open={insertLevelDialog} onOpenChange={setInsertLevelDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sisip Level Baru</DialogTitle>
+            <DialogDescription>
+              Level yang sudah ada di posisi ini dan seterusnya digeser turun satu. Unit organisasi yang sudah ada
+              tidak hilang — hanya kedalaman levelnya yang bertambah.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Posisi Level</Label>
+              <Select
+                value={String(insertLevelForm.atLevelIndex)}
+                onValueChange={(v) => setInsertLevelForm((f) => ({ ...f, atLevelIndex: Number(v) }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: (levels[levels.length - 1]?.level_index ?? 0) + 1 }, (_, i) => i + 1).map((idx) => (
+                    <SelectItem key={idx} value={String(idx)}>
+                      Posisi {idx}{levels.find((l) => l.level_index === idx) ? ` (sebelum "${levels.find((l) => l.level_index === idx)?.label}")` : " (paling dasar)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Nama Level</Label>
+              <Input
+                value={insertLevelForm.label}
+                onChange={(e) => setInsertLevelForm((f) => ({ ...f, label: e.target.value }))}
+                placeholder="Contoh: Fakultas"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInsertLevelDialog(false)}>Batal</Button>
+            <Button onClick={saveInsertLevel} disabled={insertLevelSaving || !insertLevelForm.label.trim()}>
+              {insertLevelSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Sisipkan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Konfirmasi hapus level ── */}
+      <AlertDialog open={removeLevelId !== null} onOpenChange={(open) => !open && setRemoveLevelId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Level Ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Seluruh unit organisasi pada level ini akan ikut terhapus. Unit anaknya TIDAK hilang — otomatis
+              dipindah jadi anak dari induk level yang dihapus.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRemoveLevel} disabled={removeLevelSaving} className="bg-destructive text-destructive-foreground">
+              {removeLevelSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Konfirmasi hapus ── */}
       <AlertDialog open={deleteUnitId !== null} onOpenChange={() => setDeleteUnitId(null)}>
