@@ -27,6 +27,7 @@ export type AppRole =
   | "wadir"
   | "kajur"
   | "kaprodi"
+  | "ketua_fakultas"
   | "alumni";
 
 export const roleLabels: Record<AppRole, string> = {
@@ -35,6 +36,7 @@ export const roleLabels: Record<AppRole, string> = {
   wadir: "Pimpinan (Direktur/Wadir/P2MPP)",
   kajur: "Ketua Jurusan",
   kaprodi: "Ketua Program Studi",
+  ketua_fakultas: "Ketua Fakultas",
   alumni: "Alumni",
 };
 
@@ -44,6 +46,7 @@ export const roleDescriptions: Record<AppRole, string> = {
   wadir: "Viewer seluruh data institusi & download",
   kajur: "Viewer data jurusan & download",
   kaprodi: "Viewer data program studi & download",
+  ketua_fakultas: "Viewer data beberapa jurusan sekaligus & download",
   alumni: "Pengisi kuesioner tracer study",
 };
 
@@ -148,6 +151,17 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     // permintaan miliknya sendiri. Tombol setujui/tolak tetap tidak muncul
     // karena digate isHeadTracer di halamannya.
     "admin.approval",
+  ],
+  // Sama seperti kajur (viewer read-only): satu-satunya beda adalah
+  // cakupannya meliputi lebih dari satu jurusan sekaligus, dan pilihan
+  // jurusan mana yang aktif ditentukan lewat GlobalFilters, bukan dikunci.
+  ketua_fakultas: [
+    "dashboard.overview",
+    "dashboard.employment",
+    "dashboard.education",
+    "dashboard.kpi",
+    "academic.alumni_data",
+    "academic.questionnaire_results",
   ],
   alumni: ["questionnaire.fill"],
 };
@@ -287,6 +301,7 @@ export function mapBackendRole(backendRole?: string): AppRole {
     wadir: "wadir",
     kajur: "kajur",
     kaprodi: "kaprodi",
+    ketua_fakultas: "ketua_fakultas",
     alumni: "alumni",
     // Legacy compat
     admin: "head_tracer",

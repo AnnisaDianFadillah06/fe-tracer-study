@@ -14,12 +14,27 @@ export interface AuthUser {
   id: number;
   name: string;
   email: string;
-  role: string; // BE role: "head_tracer" | "tracer_team" | "wadir" | "kajur" | "kaprodi"
+  role: string; // BE role: "head_tracer" | "tracer_team" | "wadir" | "kajur" | "kaprodi" | "ketua_fakultas"
   program_id: number | null;
   program_name: string | null;
   program_code: string | null;
   program_degree: string | null;
   jurusan: string | null;
+  /** Nama Jurusan entity yang dipimpin (role kajur); null untuk role lain. */
+  jurusan_name: string | null;
+  /** Nama Fakultas entity yang dipimpin (role ketua_fakultas); null untuk role lain. */
+  fakultas_name: string | null;
+  /**
+   * Nama jurusan anggota fakultas yang dipimpin (role ketua_fakultas);
+   * array kosong untuk role lain. Dashboard Cube.js (Overview/Employment/
+   * Education/KPI) masih mewajibkan memilih satu jurusan dari daftar ini.
+   */
+  fakultas_jurusan_names: string[];
+  /**
+   * program_id dalam cakupan (dari User::scopedProgramIds() BE) -- array
+   * kosong untuk role tanpa batasan prodi (head_tracer/tracer_team/wadir).
+   */
+  scoped_program_ids: number[];
 }
 
 interface AuthState {

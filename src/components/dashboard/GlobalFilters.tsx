@@ -24,8 +24,12 @@ interface Props {
   /**
    * "kaprodi" hides degree/jurusan/prodi filters (single-prodi view).
    * "kajur" keeps degree & prodi but pins jurusan to the one they lead.
+   * "ketua_fakultas" keeps degree & prodi and shows a real jurusan dropdown,
+   * but its options are narrowed to the jurusan assigned to this account —
+   * unlike kajur it is NOT pinned to one value, since the account can cover
+   * several jurusan and must still pick one at a time.
    */
-  mode?: "full" | "kaprodi" | "kajur";
+  mode?: "full" | "kaprodi" | "kajur" | "ketua_fakultas";
   /** Whether this page uses realtime data (overview) vs snapshot (employment/education) */
   dataMode?: "realtime" | "snapshot";
   /** Prodi name shown for kaprodi badge */
@@ -37,9 +41,15 @@ interface Props {
    * bisa dibuka — lalu memilihnya dan mendapat halaman kosong tanpa penjelasan.
    */
   kajurJurusan?: string;
+  /**
+   * Jurusan-jurusan yang di-assign ke akun Ketua Fakultas. Dipakai untuk
+   * mempersempit opsi dropdown jurusan — beda dari kajurJurusan, ini bukan
+   * satu nilai yang dikunci, melainkan daftar opsi yang boleh dipilih.
+   */
+  ketuaFakultasJurusanScopes?: string[];
 }
 
-const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: Props) => {
+const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, ketuaFakultasJurusanScopes }: Props) => {
   const location = useLocation();
   const inferredDataMode: "realtime" | "snapshot" =
     dataMode ?? (location.pathname.includes("/overview") ? "realtime" : "snapshot");
@@ -75,6 +85,12 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
   /** Jurusan yang tidak boleh dilepas Kajur; null untuk peran lain. */
   const lockedJurusan = mode === "kajur" ? (kajurJurusan ?? null) : null;
 
+  /** Cakupan jurusan Ketua Fakultas; daftar opsi dropdown dipersempit ke ini. */
+  const fakultasScopes = useMemo(
+    () => (mode === "ketua_fakultas" ? (ketuaFakultasJurusanScopes ?? []) : null),
+    [mode, ketuaFakultasJurusanScopes]
+  );
+
   useEffect(() => { setPDegree(degree); }, [degree]);
   useEffect(() => { setPJurusan(jurusan); }, [jurusan]);
 
@@ -102,14 +118,17 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
 
   /** Jurusan available for the selected jenjang (degree) */
   const availableJurusan = useMemo(() => {
-    if (pDegree === ALL) return jurusanList;
-    // Keep only jurusan that have at least one prodi with matching jenjang
-    return jurusanList.filter((j) =>
-      (jurusanMap[j] ?? []).some((prodiName) =>
-        prodiList.some((p) => p.nama_prodi === prodiName && p.jenjang === pDegree)
-      )
-    );
-  }, [pDegree, jurusanList, jurusanMap, prodiList]);
+    const base =
+      pDegree === ALL
+        ? jurusanList
+        : // Keep only jurusan that have at least one prodi with matching jenjang
+          jurusanList.filter((j) =>
+            (jurusanMap[j] ?? []).some((prodiName) =>
+              prodiList.some((p) => p.nama_prodi === prodiName && p.jenjang === pDegree)
+            )
+          );
+    return fakultasScopes ? base.filter((j) => fakultasScopes.includes(j)) : base;
+  }, [pDegree, jurusanList, jurusanMap, prodiList, fakultasScopes]);
 
   /** Display label for the currently active snapshot id (`week`). */
   const activeWeekLabel = useMemo(() => {
@@ -121,6 +140,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
   const availableProdi = useMemo(() => {
     let list = prodiList;
     if (lockedJurusan) list = list.filter((p) => p.jurusan === lockedJurusan);
+    if (fakultasScopes) list = list.filter((p) => fakultasScopes.includes(p.jurusan));
     if (pDegree !== ALL) list = list.filter((p) => p.jenjang === pDegree);
     if (pJurusan !== ALL) list = list.filter((p) => p.jurusan === pJurusan);
     // Deduplicate by nama_prodi
@@ -130,7 +150,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
       seen.add(p.nama_prodi);
       return true;
     });
-  }, [pDegree, pJurusan, prodiList, lockedJurusan]);
+  }, [pDegree, pJurusan, prodiList, lockedJurusan, fakultasScopes]);
 
   // ── Cascade handlers ──────────────────────────────────────────────────────
 
@@ -199,6 +219,11 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
 
   const isDisabled = isApplying || optLoading;
 
+  // Ketua Fakultas wajib pilih 1 jurusan dulu -- tanpa ini "Terapkan" akan
+  // mengirim jurusan kosong dan backend menolaknya (422), jadi diblokir di
+  // sini dengan pesan yang jelas alih-alih membiarkan error API muncul.
+  const mustPickJurusan = mode === "ketua_fakultas" && pJurusan === ALL;
+
   return (
     <div
       className="w-full border-b border-border bg-background/95 backdrop-blur-md"
@@ -250,19 +275,24 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
                   {lockedJurusan}
                 </Badge>
               ) : (
-                <Select value={pJurusan} onValueChange={handleJurusan} disabled={isDisabled}>
-                  <SelectTrigger className="h-9 w-[240px] text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Semua Jurusan</SelectItem>
-                    {availableJurusan.map((j) => (
-                      <SelectItem key={j} value={j}>
-                        {j}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <>
+                  <Select value={pJurusan} onValueChange={handleJurusan} disabled={isDisabled}>
+                    <SelectTrigger className="h-9 w-[240px] text-sm">
+                      <SelectValue placeholder="Pilih jurusan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mode !== "ketua_fakultas" && <SelectItem value={ALL}>Semua Jurusan</SelectItem>}
+                      {availableJurusan.map((j) => (
+                        <SelectItem key={j} value={j}>
+                          {j}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {mode === "ketua_fakultas" && pJurusan === ALL && (
+                    <span className="text-[11px] text-destructive">Pilih jurusan untuk melihat data</span>
+                  )}
+                </>
               )}
             </div>
 
@@ -342,7 +372,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan }: P
           <Button
             size="sm"
             onClick={handleApply}
-            disabled={isDisabled}
+            disabled={isDisabled || mustPickJurusan}
             className="h-9 gap-1.5"
             variant={dirty ? "default" : "secondary"}
           >

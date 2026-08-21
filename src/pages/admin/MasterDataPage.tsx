@@ -22,10 +22,12 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Search, Building2, Loader2, AlertCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Edit, Trash2, Search, Building2, Loader2, AlertCircle, ListChecks } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useJurusan, JURUSAN_QUERY_KEY, type Jurusan } from "@/hooks/common/useJurusan";
+import { useFakultas, FAKULTAS_QUERY_KEY, type Fakultas } from "@/hooks/common/useFakultas";
 
 // ── Prodi Tab ────────────────────────────────────────────────
 interface Prodi { id: string; name: string; code: string; dikti_code?: string; degree: string; jurusan: string; isActive: boolean; }
@@ -135,6 +137,111 @@ const MasterDataPage = () => {
       });
     } finally {
       setDeleteJurusanId(null);
+    }
+  };
+
+  // ── Jurusan ↔ Program Studi (keanggotaan eksplisit, sumber cakupan Kajur) ──
+  const [scopeDialogJurusan, setScopeDialogJurusan] = useState<Jurusan | null>(null);
+  const [scopeProgramIds, setScopeProgramIds] = useState<number[]>([]);
+  const [scopeProdiSearch, setScopeProdiSearch] = useState("");
+  const [scopeSaving, setScopeSaving] = useState(false);
+
+  const openJurusanScopeDialog = (j: Jurusan) => {
+    setScopeDialogJurusan(j);
+    setScopeProgramIds(j.program_ids);
+    setScopeProdiSearch("");
+  };
+
+  const toggleScopeProgram = (id: number) => {
+    setScopeProgramIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
+  const saveJurusanScope = async () => {
+    if (!scopeDialogJurusan) return;
+    setScopeSaving(true);
+    try {
+      await api.put(`/jurusans/${scopeDialogJurusan.id}/programs`, { program_ids: scopeProgramIds });
+      toast({ title: "Berhasil", description: "Keanggotaan program studi jurusan tersimpan." });
+      setScopeDialogJurusan(null);
+      await refreshJurusan();
+    } catch (e: any) {
+      toast({ title: "Gagal", description: e?.response?.data?.message ?? "Gagal menyimpan.", variant: "destructive" });
+    } finally {
+      setScopeSaving(false);
+    }
+  };
+
+  // ── Fakultas — entity baru, sumber cakupan Ketua Fakultas ──────────────
+  const { fakultasList, isLoading: fakultasLoading, isError: fakultasError } = useFakultas();
+  const [fakultasDialog, setFakultasDialog] = useState(false);
+  const [editFakultas, setEditFakultas] = useState<Fakultas | null>(null);
+  const [fakultasForm, setFakultasForm] = useState({ name: "" });
+  const [deleteFakultasId, setDeleteFakultasId] = useState<number | null>(null);
+  const [fakultasSaving, setFakultasSaving] = useState(false);
+
+  const refreshFakultas = () => queryClient.invalidateQueries({ queryKey: FAKULTAS_QUERY_KEY });
+
+  const saveFakultas = async () => {
+    const name = fakultasForm.name.trim();
+    if (!name) return;
+    setFakultasSaving(true);
+    try {
+      const { data } = editFakultas
+        ? await api.put(`/fakultas/${editFakultas.id}`, { name })
+        : await api.post("/fakultas", { name });
+      toast({ title: "Berhasil", description: data.message ?? "Fakultas tersimpan." });
+      setFakultasDialog(false);
+      setEditFakultas(null);
+      setFakultasForm({ name: "" });
+      await refreshFakultas();
+    } catch (e: any) {
+      toast({ title: "Gagal", description: e?.response?.data?.message ?? "Fakultas gagal disimpan.", variant: "destructive" });
+    } finally {
+      setFakultasSaving(false);
+    }
+  };
+
+  const confirmDeleteFakultas = async () => {
+    if (deleteFakultasId === null) return;
+    try {
+      const { data } = await api.delete(`/fakultas/${deleteFakultasId}`);
+      toast({ title: "Berhasil", description: data.message ?? "Fakultas dihapus." });
+      await refreshFakultas();
+    } catch (e: any) {
+      toast({ title: "Gagal", description: e?.response?.data?.message ?? "Fakultas gagal dihapus.", variant: "destructive" });
+    } finally {
+      setDeleteFakultasId(null);
+    }
+  };
+
+  // ── Fakultas ↔ Jurusan (keanggotaan eksplisit, sumber cakupan Ketua Fakultas) ──
+  const [scopeDialogFakultas, setScopeDialogFakultas] = useState<Fakultas | null>(null);
+  const [scopeJurusanIds, setScopeJurusanIds] = useState<number[]>([]);
+  const [scopeJurusanSearch, setScopeJurusanSearch] = useState("");
+  const [fakultasScopeSaving, setFakultasScopeSaving] = useState(false);
+
+  const openFakultasScopeDialog = (f: Fakultas) => {
+    setScopeDialogFakultas(f);
+    setScopeJurusanIds(f.jurusan_ids);
+    setScopeJurusanSearch("");
+  };
+
+  const toggleScopeJurusan = (id: number) => {
+    setScopeJurusanIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
+  const saveFakultasScope = async () => {
+    if (!scopeDialogFakultas) return;
+    setFakultasScopeSaving(true);
+    try {
+      await api.put(`/fakultas/${scopeDialogFakultas.id}/jurusans`, { jurusan_ids: scopeJurusanIds });
+      toast({ title: "Berhasil", description: "Keanggotaan jurusan fakultas tersimpan." });
+      setScopeDialogFakultas(null);
+      await refreshFakultas();
+    } catch (e: any) {
+      toast({ title: "Gagal", description: e?.response?.data?.message ?? "Gagal menyimpan.", variant: "destructive" });
+    } finally {
+      setFakultasScopeSaving(false);
     }
   };
 
@@ -315,6 +422,7 @@ const MasterDataPage = () => {
         <Tabs defaultValue="jurusan">
           <TabsList>
             <TabsTrigger value="jurusan">Jurusan ({countLabel(jurusanList.length)})</TabsTrigger>
+            <TabsTrigger value="fakultas">Fakultas ({countLabel(fakultasList.length)})</TabsTrigger>
             <TabsTrigger value="prodi">Program Studi ({countLabel(prodiList.length)})</TabsTrigger>
             <TabsTrigger value="provinsi">Provinsi ({countLabel(provList.length)})</TabsTrigger>
             <TabsTrigger value="kota">Kota ({countLabel(kotaList.length)})</TabsTrigger>
@@ -361,6 +469,14 @@ const MasterDataPage = () => {
                             <Button
                               variant="ghost"
                               size="icon"
+                              title="Kelola keanggotaan program studi (cakupan Kajur)"
+                              onClick={() => openJurusanScopeDialog(j)}
+                            >
+                              <ListChecks className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => {
                                 setEditJurusan(j);
                                 setJurusanForm({ name: j.name });
@@ -379,6 +495,82 @@ const MasterDataPage = () => {
                                   : "Hapus jurusan"
                               }
                               onClick={() => setDeleteJurusanId(j.id)}
+                            >
+                              <Trash2 className={`h-4 w-4 ${terpakai ? "" : "text-destructive"}`} />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── FAKULTAS TAB ── */}
+          <TabsContent value="fakultas" className="space-y-4">
+            <div className="flex justify-end">
+              <Button
+                onClick={() => {
+                  setEditFakultas(null);
+                  setFakultasForm({ name: "" });
+                  setFakultasDialog(true);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />Tambah Fakultas
+              </Button>
+            </div>
+            <Card>
+              <CardContent className="pt-6">
+                <Table>
+                  <TableHeader><TableRow>
+                    <TableHead>Nama Fakultas</TableHead>
+                    <TableHead className="text-center">Jurusan</TableHead>
+                    <TableHead className="text-center">Akun Staf</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    <TableStateRow
+                      colSpan={4}
+                      isLoading={fakultasLoading}
+                      error={fakultasError ? "Gagal memuat daftar fakultas." : null}
+                      isEmpty={fakultasList.length === 0}
+                      emptyText="Belum ada fakultas."
+                    />
+                    {fakultasList.map((f) => {
+                      const terpakai = f.user_count > 0;
+                      return (
+                        <TableRow key={f.id}>
+                          <TableCell className="font-medium">{f.name}</TableCell>
+                          <TableCell className="text-center text-muted-foreground">{f.jurusan_count}</TableCell>
+                          <TableCell className="text-center text-muted-foreground">{f.user_count}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Kelola keanggotaan jurusan (cakupan Ketua Fakultas)"
+                              onClick={() => openFakultasScopeDialog(f)}
+                            >
+                              <ListChecks className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setEditFakultas(f);
+                                setFakultasForm({ name: f.name });
+                                setFakultasDialog(true);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={terpakai}
+                              title={terpakai ? "Masih dipakai akun staf" : "Hapus fakultas"}
+                              onClick={() => setDeleteFakultasId(f.id)}
                             >
                               <Trash2 className={`h-4 w-4 ${terpakai ? "" : "text-destructive"}`} />
                             </Button>
@@ -583,6 +775,134 @@ const MasterDataPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Dialog kelola keanggotaan Program Studi jurusan ── */}
+      <Dialog open={!!scopeDialogJurusan} onOpenChange={(open) => !open && setScopeDialogJurusan(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Program Studi — {scopeDialogJurusan?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Program studi yang dicentang menentukan cakupan data Kajur jurusan ini.
+            </p>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Cari program studi..."
+                value={scopeProdiSearch}
+                onChange={(e) => setScopeProdiSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="border rounded-md max-h-72 overflow-y-auto p-2 grid grid-cols-1 gap-1">
+              {prodiList
+                .filter((p) => p.name.toLowerCase().includes(scopeProdiSearch.toLowerCase()))
+                .map((p) => {
+                  const checked = scopeProgramIds.includes(Number(p.id));
+                  return (
+                    <label key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                      <Checkbox checked={checked} onCheckedChange={() => toggleScopeProgram(Number(p.id))} />
+                      <span>{p.name} <span className="text-muted-foreground">({p.degree} · {p.jurusan})</span></span>
+                    </label>
+                  );
+                })}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScopeDialogJurusan(null)}>Batal</Button>
+            <Button onClick={saveJurusanScope} disabled={scopeSaving}>
+              {scopeSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog tambah / ubah fakultas ── */}
+      <Dialog open={fakultasDialog} onOpenChange={setFakultasDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editFakultas ? "Ubah Fakultas" : "Tambah Fakultas"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Nama Fakultas</Label>
+              <Input
+                value={fakultasForm.name}
+                onChange={(e) => setFakultasForm({ name: e.target.value })}
+                placeholder="Contoh: Fakultas Teknik"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFakultasDialog(false)}>Batal</Button>
+            <Button onClick={saveFakultas} disabled={fakultasSaving || !fakultasForm.name.trim()}>
+              {fakultasSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog kelola keanggotaan Jurusan fakultas ── */}
+      <Dialog open={!!scopeDialogFakultas} onOpenChange={(open) => !open && setScopeDialogFakultas(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Jurusan — {scopeDialogFakultas?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Jurusan yang dicentang menentukan cakupan data Ketua Fakultas ini (gabungan seluruh
+              program studi di jurusan-jurusan tersebut).
+            </p>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Cari jurusan..."
+                value={scopeJurusanSearch}
+                onChange={(e) => setScopeJurusanSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="border rounded-md max-h-72 overflow-y-auto p-2 grid grid-cols-1 gap-1">
+              {jurusanList
+                .filter((j) => j.name.toLowerCase().includes(scopeJurusanSearch.toLowerCase()))
+                .map((j) => {
+                  const checked = scopeJurusanIds.includes(j.id);
+                  return (
+                    <label key={j.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                      <Checkbox checked={checked} onCheckedChange={() => toggleScopeJurusan(j.id)} />
+                      <span>{j.name}</span>
+                    </label>
+                  );
+                })}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScopeDialogFakultas(null)}>Batal</Button>
+            <Button onClick={saveFakultasScope} disabled={fakultasScopeSaving}>
+              {fakultasScopeSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteFakultasId} onOpenChange={() => setDeleteFakultasId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Fakultas?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Fakultas hanya bisa dihapus kalau sudah tidak dipakai akun staf.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteFakultas} className="bg-destructive text-destructive-foreground">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={deleteJurusanId !== null} onOpenChange={() => setDeleteJurusanId(null)}>
         <AlertDialogContent>

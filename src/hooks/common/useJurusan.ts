@@ -9,6 +9,12 @@ export interface Jurusan {
   program_count: number;
   /** Jumlah akun staf (Kajur) yang lingkupnya dipatok ke jurusan ini. */
   user_count: number;
+  /**
+   * program_id anggota jurusan ini lewat jurusan_program_scopes --
+   * keanggotaan EKSPLISIT yang jadi sumber cakupan Kajur, dikelola admin
+   * di Master Data (bukan lagi cocokkan teks programs.jurusan).
+   */
+  program_ids: number[];
 }
 
 /**

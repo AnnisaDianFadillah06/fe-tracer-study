@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 
 export interface YearSummary {
   tahun: number;
@@ -23,12 +24,20 @@ export interface YearSummary {
  *
  * staleTime sengaja panjang: jumlah alumni per angkatan hampir tidak pernah
  * berubah dalam satu sesi kerja.
+ *
+ * Untuk peran lain, cakupan sepenuhnya ditentukan server dari akun yang
+ * login sehingga tidak perlu parameter apa pun. Ketua Fakultas adalah
+ * pengecualian: karena scope-nya bisa mencakup >1 jurusan, server butuh
+ * tahu jurusan mana yang sedang dipilih lewat query param `jurusan`.
  */
 export function useRingkasanTahun() {
+  const { jurusan } = useGlobalFilters();
+  const params = jurusan && jurusan !== "__all__" ? { jurusan } : undefined;
+
   const query = useQuery<YearSummary[]>({
-    queryKey: ["ringkasan-tahun"],
+    queryKey: ["ringkasan-tahun", jurusan],
     queryFn: async () => {
-      const { data } = await api.get("/meta/ringkasan-tahun");
+      const { data } = await api.get("/meta/ringkasan-tahun", { params });
       return data.data ?? [];
     },
     staleTime: 15 * 60 * 1000,

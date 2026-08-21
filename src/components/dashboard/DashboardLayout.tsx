@@ -25,6 +25,8 @@ import { Badge } from "@/components/ui/badge";
 import InstitutionLogo from "@/components/common/InstitutionLogo";
 import GlobalFilters from "@/components/dashboard/GlobalFilters";
 import DownloadDataButton from "@/components/dashboard/DownloadDataButton";
+import { useGlobalFilters, ALL } from "@/contexts/GlobalFiltersContext";
+import { Building2 } from "lucide-react";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -34,7 +36,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { currentRole, selectedProdi, selectedJurusan, menu } = useRole();
+  const { currentRole, selectedProdi, selectedJurusan, jurusanScopeNames, selectedFakultas, menu } = useRole();
+  const { jurusan: activeJurusan } = useGlobalFilters();
 
   // Filter global hanya relevan di halaman data OLAP; halaman admin/konfigurasi
   // punya filternya sendiri.
@@ -42,7 +45,22 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     location.pathname,
   );
   const filtersMode =
-    currentRole === "kaprodi" ? "kaprodi" : currentRole === "kajur" ? "kajur" : "full";
+    currentRole === "kaprodi"
+      ? "kaprodi"
+      : currentRole === "kajur"
+        ? "kajur"
+        : currentRole === "ketua_fakultas"
+          ? "ketua_fakultas"
+          : "full";
+
+  // Ketua Fakultas wajib pilih 1 jurusan dari cakupannya sebelum melihat data
+  // apa pun -- tanpa ini setiap endpoint analitik menolak dengan 422 (lihat
+  // EnforcesProdiScope::scopedParams). Halaman data diganti prompt sampai
+  // jurusan dipilih, alih-alih membiarkan tiap halaman menampilkan errornya
+  // masing-masing.
+  const needsJurusanPick =
+    showGlobalFilters && currentRole === "ketua_fakultas" && activeJurusan === ALL;
+
   const { user, logout } = useAuth();
 
   const handleLogout = async () => {
@@ -77,6 +95,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               {roleLabels[currentRole]}
               {selectedProdi && (
                 <span className="ml-1 text-xs opacity-70">• {selectedProdi}</span>
+              )}
+              {selectedFakultas && (
+                <span className="ml-1 text-xs opacity-70">• {selectedFakultas}</span>
               )}
             </Badge>
           </div>
@@ -160,6 +181,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 Prodi: {selectedProdi}
               </Badge>
             )}
+            {selectedFakultas && (
+              <Badge variant="secondary" className="hidden md:flex">
+                Fakultas: {selectedFakultas}
+              </Badge>
+            )}
             {showGlobalFilters && <DownloadDataButton />}
             <ThemeToggle />
             <Button variant="ghost" size="icon" className="relative">
@@ -206,13 +232,25 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               mode={filtersMode}
               kaprodiName={selectedProdi ?? undefined}
               kajurJurusan={selectedJurusan ?? undefined}
+              ketuaFakultasJurusanScopes={jurusanScopeNames ?? undefined}
             />
           </div>
         )}
 
         {/* Page Content */}
         <main className="flex-1 p-6 overflow-auto">
-          {children}
+          {needsJurusanPick ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-24 text-center text-muted-foreground">
+              <Building2 className="w-10 h-10 opacity-50" />
+              <p className="font-medium text-foreground">Pilih jurusan terlebih dahulu</p>
+              <p className="text-sm max-w-sm">
+                Akun Anda mencakup beberapa jurusan. Pilih salah satu dari filter jurusan di atas
+                lalu klik "Terapkan" untuk melihat datanya.
+              </p>
+            </div>
+          ) : (
+            children
+          )}
         </main>
       </div>
     </div>

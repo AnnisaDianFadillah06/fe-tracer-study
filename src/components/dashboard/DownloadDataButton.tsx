@@ -21,7 +21,7 @@ import { useFilterOptions } from "@/hooks/useFilterOptions";
 import { apiClient } from "@/lib/apiClient";
 
 const DownloadDataButton = () => {
-  const { isApplying, prodi, filterOptions } = useGlobalFilters();
+  const { isApplying, prodi, jurusan, filterOptions } = useGlobalFilters();
   const filterOpts = useFilterOptions();
   const [open, setOpen] = useState(false);
   const [year, setYear] = useState<string>("");
@@ -48,6 +48,10 @@ const DownloadDataButton = () => {
       const params: Record<string, string> = { tahun_lulus: year };
       const prodiId = resolveProdiId();
       if (prodiId) params.prodi_id = String(prodiId);
+      // Ketua Fakultas WAJIB mengirim jurusan aktif -- backend menolak
+      // (422/403) tanpa ini, karena berbeda dari kajur ia tidak punya satu
+      // jurusan tetap untuk dipakai sebagai scope (lihat ReportService).
+      if (jurusan && jurusan !== "__all__") params.jurusan = jurusan;
 
       const response = await apiClient.get("/admin/reports/export-alumni", {
         params,

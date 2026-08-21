@@ -29,6 +29,10 @@ interface RoleContextType {
    */
   selectedProdiId: number | null;
   selectedJurusan: string | null;
+  /** Cakupan jurusan untuk ketua_fakultas; null untuk peran lain. */
+  jurusanScopeNames: string[] | null;
+  /** Nama Fakultas yang dipimpin (role ketua_fakultas); null untuk peran lain. */
+  selectedFakultas: string | null;
   can: (permission: Permission) => boolean;
   canAny: (permissions: Permission[]) => boolean;
   menu: ReturnType<typeof getMenuForRole>;
@@ -48,7 +52,13 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     currentRole === "kaprodi" ? (user?.program_id ?? null) : null;
 
   const selectedJurusan =
-    currentRole === "kajur" ? (user?.jurusan ?? null) : null;
+    currentRole === "kajur" ? (user?.jurusan_name ?? user?.jurusan ?? null) : null;
+
+  const jurusanScopeNames =
+    currentRole === "ketua_fakultas" ? (user?.fakultas_jurusan_names ?? []) : null;
+
+  const selectedFakultas =
+    currentRole === "ketua_fakultas" ? (user?.fakultas_name ?? null) : null;
 
   const can = (permission: Permission) => hasPermission(currentRole, permission);
   const canAny = (permissions: Permission[]) => hasAnyPermission(currentRole, permissions);
@@ -57,7 +67,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
   return (
     <RoleContext.Provider
-      value={{ currentRole, selectedProdi, selectedProdiId, selectedJurusan, can, canAny, menu, defaultRoute }}
+      value={{ currentRole, selectedProdi, selectedProdiId, selectedJurusan, jurusanScopeNames, selectedFakultas, can, canAny, menu, defaultRoute }}
     >
       {children}
     </RoleContext.Provider>

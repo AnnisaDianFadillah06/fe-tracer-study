@@ -11,6 +11,12 @@ export interface StaffUser {
   program_id: number | null;
   program_name: string | null;
   jurusan: string | null;
+  /** Jurusan entity yang dipimpin (role kajur) -- dropdown single-select. */
+  jurusan_id: number | null;
+  jurusan_name: string | null;
+  /** Fakultas entity yang dipimpin (role ketua_fakultas) -- dropdown single-select. */
+  fakultas_id: number | null;
+  fakultas_name: string | null;
   created_at: string;
 }
 
@@ -21,6 +27,8 @@ export interface StaffPayload {
   role: string;
   program_id?: number | null;
   jurusan?: string | null;
+  jurusan_id?: number | null;
+  fakultas_id?: number | null;
 }
 
 export function useStaff() {

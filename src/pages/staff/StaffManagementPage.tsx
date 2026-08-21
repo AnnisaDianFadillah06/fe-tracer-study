@@ -35,6 +35,7 @@ import { Plus, Edit, Trash2, User, Mail, Search, Shield } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useJurusan } from "@/hooks/common/useJurusan";
+import { useFakultas } from "@/hooks/common/useFakultas";
 import { useRoles } from "@/hooks/admin/useRoles";
 import { useStaff, StaffUser } from "@/hooks/admin/useStaff";
 import { Switch } from "@/components/ui/switch";
@@ -45,6 +46,7 @@ const roleLabelsMap: Record<string, string> = {
   wadir: "Pimpinan",
   kajur: "Ketua Jurusan",
   kaprodi: "Ketua Prodi",
+  ketua_fakultas: "Ketua Fakultas",
 };
 
 const roleBadgeVariant = (role: string) => {
@@ -77,7 +79,8 @@ const StaffManagementPage = () => {
   // untuk jurusan yang baru dibuat dan belum punya prodi tetap harus bisa
   // ditugaskan — dengan penurunan dari programs, jurusan itu tidak pernah
   // muncul di pilihan.
-  const { jurusanNames: jurusanList } = useJurusan();
+  const { jurusanList } = useJurusan();
+  const { fakultasList } = useFakultas();
 
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("all");
@@ -85,7 +88,7 @@ const StaffManagementPage = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffUser | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ name: "", email: "", password: "", role: "tracer_team", program_id: "", jurusan: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", password: "", role: "tracer_team", program_id: "", jurusan_id: "", fakultas_id: "" });
 
   const filtered = staff.filter((s) => {
     const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.email.toLowerCase().includes(search.toLowerCase());
@@ -94,7 +97,7 @@ const StaffManagementPage = () => {
   });
 
   const resetForm = () => {
-    setFormData({ name: "", email: "", password: "", role: "tracer_team", program_id: "", jurusan: "" });
+    setFormData({ name: "", email: "", password: "", role: "tracer_team", program_id: "", jurusan_id: "", fakultas_id: "" });
     setEditingStaff(null);
   };
 
@@ -108,7 +111,8 @@ const StaffManagementPage = () => {
       password: "",
       role: user.role,
       program_id: user.program_id?.toString() ?? "",
-      jurusan: user.jurusan ?? "",
+      jurusan_id: user.jurusan_id?.toString() ?? "",
+      fakultas_id: user.fakultas_id?.toString() ?? "",
     });
     setIsDialogOpen(true);
   };
@@ -125,7 +129,8 @@ const StaffManagementPage = () => {
         email: formData.email,
         role: formData.role,
         program_id: formData.program_id ? parseInt(formData.program_id) : null,
-        jurusan: formData.jurusan || null,
+        jurusan_id: formData.role === "kajur" && formData.jurusan_id ? parseInt(formData.jurusan_id) : null,
+        fakultas_id: formData.role === "ketua_fakultas" && formData.fakultas_id ? parseInt(formData.fakultas_id) : null,
         ...(formData.password ? { password: formData.password } : {}),
       };
 
@@ -164,7 +169,7 @@ const StaffManagementPage = () => {
     setDeletingId(null);
   };
 
-  const staffRoles = roles.length > 0 ? roles.map((r) => r.name) : ["head_tracer", "tracer_team", "wadir", "kajur", "kaprodi"];
+  const staffRoles = roles.length > 0 ? roles.map((r) => r.name) : ["head_tracer", "tracer_team", "wadir", "kajur", "kaprodi", "ketua_fakultas"];
 
   return (
     <DashboardLayout>
@@ -286,14 +291,17 @@ const StaffManagementPage = () => {
             {formData.role === "kajur" && (
               <div className="space-y-2">
                 <Label>Jurusan</Label>
-                <Select value={formData.jurusan} onValueChange={(v) => setFormData({ ...formData, jurusan: v })}>
+                <Select value={formData.jurusan_id} onValueChange={(v) => setFormData({ ...formData, jurusan_id: v })}>
                   <SelectTrigger><SelectValue placeholder="Pilih jurusan" /></SelectTrigger>
                   <SelectContent>
-                    {jurusanList.map((j) => (
-                      <SelectItem key={j} value={j}>{j}</SelectItem>
+                    {jurusanList.filter((j) => j.is_active).map((j) => (
+                      <SelectItem key={j.id} value={j.id.toString()}>{j.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Prodi yang termasuk jurusan ini dikelola di Master Data → Jurusan.
+                </p>
               </div>
             )}
             {formData.role === "kaprodi" && (
@@ -307,6 +315,22 @@ const StaffManagementPage = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+            {formData.role === "ketua_fakultas" && (
+              <div className="space-y-2">
+                <Label>Fakultas</Label>
+                <Select value={formData.fakultas_id} onValueChange={(v) => setFormData({ ...formData, fakultas_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih fakultas" /></SelectTrigger>
+                  <SelectContent>
+                    {fakultasList.filter((f) => f.is_active).map((f) => (
+                      <SelectItem key={f.id} value={f.id.toString()}>{f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Jurusan yang termasuk fakultas ini dikelola di Master Data → Fakultas.
+                </p>
               </div>
             )}
             <DialogFooter>

@@ -24,11 +24,13 @@ export interface ResponseRateBarResponse {
 
 function buildParams(
   degree: string,
+  jurusan: string,
   prodi: string,
   tahunLulus: string,
 ): Record<string, string> {
   const p: Record<string, string> = {};
   if (degree && degree !== "__all__") p.jenjang = degree;
+  if (jurusan && jurusan !== "__all__") p.jurusan = jurusan;
   if (prodi && prodi !== "__all__") p.nama_prodi = prodi;
   if (tahunLulus && tahunLulus !== "all") p.graduation_year = tahunLulus;
   return p;
@@ -64,12 +66,12 @@ export interface ResponseRatePieResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useResponseRatePie() {
-  const { degree, prodi, tahunLulus, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, tahunLulus, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
   const params = useMemo(
-    () => buildParams(degree, prodi, tahunLulus),
-    [degree, prodi, tahunLulus],
+    () => buildParams(degree, jurusan, prodi, tahunLulus),
+    [degree, jurusan, prodi, tahunLulus],
   );
 
   const result = useQuery<ResponseRatePieResponse>({
@@ -105,15 +107,16 @@ export interface ResponseRateTrendResponse {
 }
 
 export function useResponseRateTrend() {
-  const { degree, prodi, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
   const params = useMemo(() => {
     const p: Record<string, string> = {};
     if (degree && degree !== "__all__") p.jenjang = degree;
+    if (jurusan && jurusan !== "__all__") p.jurusan = jurusan;
     if (prodi && prodi !== "__all__") p.nama_prodi = prodi;
     return p;
-  }, [degree, prodi]);
+  }, [degree, jurusan, prodi]);
 
   const result = useQuery<ResponseRateTrendResponse>({
     queryKey: ["response-rate", "trend", params, updatedTs],
@@ -176,12 +179,12 @@ export function useResponseRateBandingkan(enabled: boolean) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useResponseRateBar() {
-  const { degree, prodi, tahunLulus, lastUpdatedAt } = useGlobalFilters();
+  const { degree, jurusan, prodi, tahunLulus, lastUpdatedAt } = useGlobalFilters();
   const updatedTs = useMemo(() => lastUpdatedAt.getTime(), [lastUpdatedAt]);
 
   const params = useMemo(
-    () => buildParams(degree, prodi, tahunLulus),
-    [degree, prodi, tahunLulus],
+    () => buildParams(degree, jurusan, prodi, tahunLulus),
+    [degree, jurusan, prodi, tahunLulus],
   );
 
   const result = useQuery<ResponseRateBarResponse>({
@@ -239,7 +242,7 @@ export function statusNameToKey(name: string): string {
 }
 
 export function useResponseRateDrillDown() {
-  const { degree, prodi, tahunLulus } = useGlobalFilters();
+  const { degree, jurusan, prodi, tahunLulus } = useGlobalFilters();
 
   const [data, setData] = useState<ResponseRateDrillDownResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -261,6 +264,7 @@ export function useResponseRateDrillDown() {
         ...(searchTrimmed ? { search: searchTrimmed } : {}),
       };
       if (degree && degree !== "__all__") params.jenjang = degree;
+      if (jurusan && jurusan !== "__all__") params.jurusan = jurusan;
       if (extra.nama_prodi) {
         params.nama_prodi = extra.nama_prodi;
       } else if (prodi && prodi !== "__all__") {
@@ -295,7 +299,7 @@ export function useResponseRateDrillDown() {
           setLoading(false);
         });
     },
-    [degree, prodi, tahunLulus],
+    [degree, jurusan, prodi, tahunLulus],
   );
 
   return { data, loading, error, fetch };
