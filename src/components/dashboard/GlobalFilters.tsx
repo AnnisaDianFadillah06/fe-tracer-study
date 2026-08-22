@@ -219,10 +219,8 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, ket
 
   const isDisabled = isApplying || optLoading;
 
-  // Ketua Fakultas wajib pilih 1 jurusan dulu -- tanpa ini "Terapkan" akan
-  // mengirim jurusan kosong dan backend menolaknya (422), jadi diblokir di
-  // sini dengan pesan yang jelas alih-alih membiarkan error API muncul.
-  const mustPickJurusan = mode === "ketua_fakultas" && pJurusan === ALL;
+  // Ketua Fakultas tidak lagi wajib memilih jurusan: tanpa pilihan, peladen
+  // membatasi lewat `id_prodi_in` dan mengembalikan agregat seluruh fakultas.
 
   return (
     <div
@@ -281,7 +279,9 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, ket
                       <SelectValue placeholder="Pilih jurusan" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mode !== "ketua_fakultas" && <SelectItem value={ALL}>Semua Jurusan</SelectItem>}
+                      <SelectItem value={ALL}>
+                        {mode === "ketua_fakultas" ? "Seluruh Fakultas" : "Semua Jurusan"}
+                      </SelectItem>
                       {availableJurusan.map((j) => (
                         <SelectItem key={j} value={j}>
                           {j}
@@ -290,7 +290,9 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, ket
                     </SelectContent>
                   </Select>
                   {mode === "ketua_fakultas" && pJurusan === ALL && (
-                    <span className="text-[11px] text-destructive">Pilih jurusan untuk melihat data</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      Gabungan seluruh jurusan di fakultas Anda
+                    </span>
                   )}
                 </>
               )}
@@ -372,7 +374,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, ket
           <Button
             size="sm"
             onClick={handleApply}
-            disabled={isDisabled || mustPickJurusan}
+            disabled={isDisabled}
             className="h-9 gap-1.5"
             variant={dirty ? "default" : "secondary"}
           >

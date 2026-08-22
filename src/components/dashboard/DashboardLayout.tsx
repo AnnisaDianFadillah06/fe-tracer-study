@@ -25,8 +25,6 @@ import { Badge } from "@/components/ui/badge";
 import InstitutionLogo from "@/components/common/InstitutionLogo";
 import GlobalFilters from "@/components/dashboard/GlobalFilters";
 import DownloadDataButton from "@/components/dashboard/DownloadDataButton";
-import { useGlobalFilters, ALL } from "@/contexts/GlobalFiltersContext";
-import { Building2 } from "lucide-react";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -37,7 +35,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentRole, selectedProdi, selectedJurusan, jurusanScopeNames, selectedFakultas, menu } = useRole();
-  const { jurusan: activeJurusan } = useGlobalFilters();
 
   // Filter global hanya relevan di halaman data OLAP; halaman admin/konfigurasi
   // punya filternya sendiri.
@@ -53,13 +50,12 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           ? "ketua_fakultas"
           : "full";
 
-  // Ketua Fakultas wajib pilih 1 jurusan dari cakupannya sebelum melihat data
-  // apa pun -- tanpa ini setiap endpoint analitik menolak dengan 422 (lihat
-  // EnforcesProdiScope::scopedParams). Halaman data diganti prompt sampai
-  // jurusan dipilih, alih-alih membiarkan tiap halaman menampilkan errornya
-  // masing-masing.
-  const needsJurusanPick =
-    showGlobalFilters && currentRole === "ketua_fakultas" && activeJurusan === ALL;
+  // Ketua Fakultas TIDAK lagi wajib memilih jurusan. Dulu wajib karena
+  // seluruh endpoint analitik menolak 422 tanpa pilihan itu -- penyaringnya
+  // hanya menampung satu nama jurusan, sedangkan cakupan fakultas berisi
+  // beberapa. Sejak peladen meneruskan `id_prodi_in`, tanpa memilih apa pun
+  // yang tampil adalah agregat seluruh fakultas, sejajar dengan kajur yang
+  // melihat agregat seluruh prodi di jurusannya.
 
   const { user, logout } = useAuth();
 
@@ -239,18 +235,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
         {/* Page Content */}
         <main className="flex-1 p-6 overflow-auto">
-          {needsJurusanPick ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-24 text-center text-muted-foreground">
-              <Building2 className="w-10 h-10 opacity-50" />
-              <p className="font-medium text-foreground">Pilih jurusan terlebih dahulu</p>
-              <p className="text-sm max-w-sm">
-                Akun Anda mencakup beberapa jurusan. Pilih salah satu dari filter jurusan di atas
-                lalu klik "Terapkan" untuk melihat datanya.
-              </p>
-            </div>
-          ) : (
-            children
-          )}
+          {children}
         </main>
       </div>
     </div>

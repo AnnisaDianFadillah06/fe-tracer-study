@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
@@ -158,6 +159,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading: false,
       });
     }
+  }, []);
+
+  /**
+   * Segarkan profil sekali saat aplikasi dimuat.
+   *
+   * Cakupan peran disimpan di localStorage sejak login, sehingga perubahan
+   * yang dilakukan admin -- menambah atau mencabut jurusan dari sebuah
+   * fakultas, memindahkan prodi antar jurusan -- tidak pernah terlihat oleh
+   * pengguna yang sedang login sampai ia keluar dan masuk lagi. Peladen
+   * sendiri selalu memakai cakupan terkini, jadi yang terjadi bukan kebocoran
+   * data melainkan dropdown yang menawarkan jurusan yang sudah tidak ada di
+   * cakupannya, lalu berujung 403 saat dipilih.
+   */
+  useEffect(() => {
+    void fetchMe();
+    // Sengaja hanya sekali saat mount; fetchMe stabil lewat useCallback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
