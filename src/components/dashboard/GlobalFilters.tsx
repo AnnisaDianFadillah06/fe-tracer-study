@@ -261,7 +261,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, ket
             </div>
 
             {/* Jurusan — terkunci untuk Kajur */}
-            <div className="flex flex-col gap-1">
+            <div className="relative flex flex-col gap-1">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Jurusan
               </label>
@@ -279,9 +279,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, ket
                       <SelectValue placeholder="Pilih jurusan" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={ALL}>
-                        {mode === "ketua_fakultas" ? "Seluruh Fakultas" : "Semua Jurusan"}
-                      </SelectItem>
+                      <SelectItem value={ALL}>Semua Jurusan</SelectItem>
                       {availableJurusan.map((j) => (
                         <SelectItem key={j} value={j}>
                           {j}
@@ -290,7 +288,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, ket
                     </SelectContent>
                   </Select>
                   {mode === "ketua_fakultas" && pJurusan === ALL && (
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="absolute top-full left-0 mt-1 text-[11px] text-muted-foreground whitespace-nowrap">
                       Gabungan seluruh jurusan di fakultas Anda
                     </span>
                   )}
