@@ -1,19 +1,29 @@
 /**
- * Kosakata akademik yang berlaku umum di pendidikan tinggi.
+ * Kosakata akademik dan pelabelan jenjang.
  *
- * Cerminan sisi frontend dari `tracer-study-backend/config/academic.php`.
- * Berbeda dengan `institution.ts` yang dibaca dari `.env` karena berubah tiap
- * pemasangan, isi berkas ini sama di semua kampus karena ditetapkan regulasi
- * — jadi ditulis sebagai konstanta, bukan variabel lingkungan.
+ * PERAN BERKAS INI SUDAH TURUN. Sejak jenjang jadi master data, daftarnya
+ * diambil dari endpoint `/degrees` lewat `useDegrees()`. Yang tersisa di sini
+ * dua hal:
  *
- * Kenapa tidak diambil dari endpoint `filter-meta`: endpoint itu hanya
- * mengembalikan jenjang yang SUDAH punya data di data warehouse. Dropdown
- * untuk MEMBUAT prodi butuh semua jenjang yang BOLEH ada, kalau tidak prodi
- * S3 pertama tak akan pernah bisa dibuat karena jenjangnya belum muncul di
- * data. Dua kebutuhan yang berbeda, dua sumber yang berbeda.
+ *   1. `DEGREES` — daftar bawaan, dipakai sebagai cadangan saat permintaan ke
+ *      peladen gagal, supaya form pembuatan prodi tidak berubah jadi dropdown
+ *      kosong hanya karena jaringan sedang putus. Jangan dipakai sebagai
+ *      sumber utama di layar mana pun.
+ *   2. `degreeLabel` dan `degreeColor` — pelabelan dan pewarnaan, murni
+ *      tampilan.
+ *
+ * Kenapa daftar jenjang tidak diambil dari endpoint `filter-meta`: endpoint
+ * itu hanya mengembalikan jenjang yang SUDAH punya data di data warehouse.
+ * Dropdown untuk MEMBUAT prodi butuh semua jenjang yang BOLEH ada, kalau
+ * tidak prodi S3 pertama tak akan pernah bisa dibuat karena jenjangnya belum
+ * muncul di data. Dua kebutuhan yang berbeda, dua sumber yang berbeda —
+ * `filter-meta` untuk menyaring, `/degrees` untuk membuat.
  */
 
-/** Jenjang program studi, urut dari terendah. Selaras dengan PDDIKTI. */
+/**
+ * Daftar bawaan jenjang, urut dari terendah. Selaras dengan PDDIKTI dan
+ * dengan `config/academic.php` di peladen, yang jadi isi awal tabel `degrees`.
+ */
 export const DEGREES = [
   "D1",
   "D2",

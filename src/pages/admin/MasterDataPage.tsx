@@ -28,7 +28,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useJurusan, JURUSAN_QUERY_KEY, type Jurusan } from "@/hooks/common/useJurusan";
 import { useFakultas, FAKULTAS_QUERY_KEY, type Fakultas } from "@/hooks/common/useFakultas";
-import { DEGREES } from "@/config/academic";
+import { useDegrees, DEGREES_QUERY_KEY, type Degree } from "@/hooks/common/useDegrees";
 
 // ── Prodi Tab ────────────────────────────────────────────────
 interface Prodi { id: string; name: string; code: string; dikti_code?: string; degree: string; jurusan: string; isActive: boolean; }
@@ -172,6 +172,68 @@ const MasterDataPage = () => {
     }
   };
 
+  // ── Jenjang — master data, menggantikan tetapan DEGREES ────────────────
+  const { degrees, activeCodes, isLoading: degreeLoading, isError: degreeError } = useDegrees();
+  const [degreeDialog, setDegreeDialog] = useState(false);
+  const [editDegree, setEditDegree] = useState<Degree | null>(null);
+  const [degreeForm, setDegreeForm] = useState({ code: "", label: "" });
+  const [deleteDegreeId, setDeleteDegreeId] = useState<number | null>(null);
+  const [degreeSaving, setDegreeSaving] = useState(false);
+
+  const refreshDegrees = () => queryClient.invalidateQueries({ queryKey: DEGREES_QUERY_KEY });
+
+  /**
+   * Kode jenjang bawaan sengaja tidak ikut dikirim saat mengubah. Peladen
+   * menolaknya dengan 422 karena kode sudah tersimpan di gudang data, dan
+   * mengirimkannya kembali tanpa perubahan pun tetap terbaca sebagai
+   * percobaan mengubah.
+   */
+  const saveDegree = async () => {
+    const code = degreeForm.code.trim();
+    const label = degreeForm.label.trim();
+    if (!code) return;
+    setDegreeSaving(true);
+    try {
+      const { data } = editDegree
+        ? await api.put(`/degrees/${editDegree.id}`, {
+            label: label || code,
+            ...(editDegree.is_seeded ? {} : { code }),
+          })
+        : await api.post("/degrees", { code, label: label || code });
+      toast({ title: "Berhasil", description: data.message ?? "Jenjang tersimpan." });
+      setDegreeDialog(false);
+      setEditDegree(null);
+      setDegreeForm({ code: "", label: "" });
+      await refreshDegrees();
+    } catch (e: any) {
+      toast({ title: "Gagal", description: e?.response?.data?.message ?? "Jenjang gagal disimpan.", variant: "destructive" });
+    } finally {
+      setDegreeSaving(false);
+    }
+  };
+
+  const toggleDegreeActive = async (d: Degree) => {
+    try {
+      await api.put(`/degrees/${d.id}`, { is_active: !d.is_active });
+      await refreshDegrees();
+    } catch (e: any) {
+      toast({ title: "Gagal", description: e?.response?.data?.message ?? "Status jenjang gagal diubah.", variant: "destructive" });
+    }
+  };
+
+  const confirmDeleteDegree = async () => {
+    if (deleteDegreeId === null) return;
+    try {
+      const { data } = await api.delete(`/degrees/${deleteDegreeId}`);
+      toast({ title: "Berhasil", description: data.message ?? "Jenjang dihapus." });
+      await refreshDegrees();
+    } catch (e: any) {
+      toast({ title: "Gagal", description: e?.response?.data?.message ?? "Jenjang gagal dihapus.", variant: "destructive" });
+    } finally {
+      setDeleteDegreeId(null);
+    }
+  };
+
   // ── Fakultas — entity baru, sumber cakupan Ketua Fakultas ──────────────
   const { fakultasList, isLoading: fakultasLoading, isError: fakultasError } = useFakultas();
   const [fakultasDialog, setFakultasDialog] = useState(false);
@@ -250,7 +312,7 @@ const MasterDataPage = () => {
   const [prodiList, setProdiList] = useState<Prodi[]>([]);
   const [prodiDialog, setProdiDialog] = useState(false);
   const [editProdi, setEditProdi] = useState<Prodi | null>(null);
-  const [prodiForm, setProdiForm] = useState({ name: "", code: "", degree: DEGREES[0] as string, jurusan: "" });
+  const [prodiForm, setProdiForm] = useState({ name: "", code: "", degree: "", jurusan: "" });
   const [deleteProdiId, setDeleteProdiId] = useState<string | null>(null);
   const [prodiSearch, setProdiSearch] = useState("");
 
@@ -330,7 +392,7 @@ const MasterDataPage = () => {
   const [deleteKotaId, setDeleteKotaId] = useState<string | null>(null);
 
   // ── Prodi handlers ─────────────────────────────────────────
-  const openProdiCreate = () => { setEditProdi(null); setProdiForm({ name: "", code: "", degree: DEGREES[0], jurusan: "" }); setProdiDialog(true); };
+  const openProdiCreate = () => { setEditProdi(null); setProdiForm({ name: "", code: "", degree: activeCodes[0] ?? "", jurusan: "" }); setProdiDialog(true); };
   const openProdiEdit = (p: Prodi) => { setEditProdi(p); setProdiForm({ name: p.name, code: p.code, degree: p.degree, jurusan: p.jurusan }); setProdiDialog(true); };
   const saveProdi = async () => {
     if (!prodiForm.name || !prodiForm.code || !prodiForm.jurusan) { toast({ title: "Error", description: "Semua field wajib diisi.", variant: "destructive" }); return; }
@@ -425,6 +487,7 @@ const MasterDataPage = () => {
             <TabsTrigger value="jurusan">Jurusan ({countLabel(jurusanList.length)})</TabsTrigger>
             <TabsTrigger value="fakultas">Fakultas ({countLabel(fakultasList.length)})</TabsTrigger>
             <TabsTrigger value="prodi">Program Studi ({countLabel(prodiList.length)})</TabsTrigger>
+            <TabsTrigger value="jenjang">Jenjang ({countLabel(degrees.length)})</TabsTrigger>
             <TabsTrigger value="provinsi">Provinsi ({countLabel(provList.length)})</TabsTrigger>
             <TabsTrigger value="kota">Kota ({countLabel(kotaList.length)})</TabsTrigger>
           </TabsList>
@@ -623,6 +686,103 @@ const MasterDataPage = () => {
           </TabsContent>
 
           {/* ── PROVINSI TAB ── */}
+          <TabsContent value="jenjang" className="space-y-4">
+            <Card>
+              <CardContent className="pt-6 pb-0">
+                <p className="text-sm text-muted-foreground">
+                  Jenjang bawaan mengikuti PDDIKTI: kodenya terkunci karena sudah
+                  tersimpan di gudang data, tetapi labelnya bebas diubah dan yang
+                  tidak dipakai kampus ini bisa dinonaktifkan. Menonaktifkan hanya
+                  menyembunyikannya dari form pembuatan prodi &mdash; prodi lama yang
+                  memakainya tetap utuh, begitu pula grafiknya.
+                </p>
+              </CardContent>
+            </Card>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => {
+                  setEditDegree(null);
+                  setDegreeForm({ code: "", label: "" });
+                  setDegreeDialog(true);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />Tambah Jenjang
+              </Button>
+            </div>
+            <Card>
+              <CardContent className="pt-6">
+                <Table>
+                  <TableHeader><TableRow>
+                    <TableHead>Kode</TableHead>
+                    <TableHead>Label</TableHead>
+                    <TableHead className="text-center">Program Studi</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    <TableStateRow
+                      colSpan={5}
+                      isLoading={degreeLoading}
+                      error={degreeError ? "Gagal memuat daftar jenjang." : null}
+                      isEmpty={degrees.length === 0}
+                      emptyText="Belum ada jenjang."
+                    />
+                    {degrees.map((d) => {
+                      const terpakai = d.program_count > 0;
+                      const terkunci = d.is_seeded || terpakai;
+                      return (
+                        <TableRow key={d.id}>
+                          <TableCell className="font-medium">{d.code}</TableCell>
+                          <TableCell className="text-muted-foreground">{d.label}</TableCell>
+                          <TableCell className="text-center text-muted-foreground">{d.program_count}</TableCell>
+                          <TableCell className="text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={d.is_active ? "" : "text-muted-foreground"}
+                              title={d.is_active ? "Nonaktifkan jenjang ini" : "Aktifkan kembali"}
+                              onClick={() => toggleDegreeActive(d)}
+                            >
+                              {d.is_active ? "Aktif" : "Nonaktif"}
+                            </Button>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setEditDegree(d);
+                                setDegreeForm({ code: d.code, label: d.label });
+                                setDegreeDialog(true);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={terkunci}
+                              title={
+                                d.is_seeded
+                                  ? "Jenjang bawaan tidak bisa dihapus - nonaktifkan saja"
+                                  : terpakai
+                                    ? "Masih dipakai program studi"
+                                    : "Hapus jenjang"
+                              }
+                              onClick={() => setDeleteDegreeId(d.id)}
+                            >
+                              <Trash2 className={`h-4 w-4 ${terkunci ? "" : "text-destructive"}`} />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="provinsi" className="space-y-4">
             <div className="flex justify-end"><Button onClick={openProvCreate}><Plus className="h-4 w-4 mr-2" />Tambah Provinsi</Button></div>
             <Card>
@@ -693,7 +853,7 @@ const MasterDataPage = () => {
               <Select value={prodiForm.degree} onValueChange={(v) => setProdiForm({ ...prodiForm, degree: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {DEGREES.map((d) => (
+                  {activeCodes.map((d) => (
                     <SelectItem key={d} value={d}>{d}</SelectItem>
                   ))}
                 </SelectContent>
@@ -825,6 +985,50 @@ const MasterDataPage = () => {
       </Dialog>
 
       {/* ── Dialog tambah / ubah fakultas ── */}
+      <Dialog open={degreeDialog} onOpenChange={setDegreeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editDegree ? "Ubah Jenjang" : "Tambah Jenjang"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Kode</Label>
+              <Input
+                value={degreeForm.code}
+                disabled={!!editDegree && (editDegree.is_seeded || editDegree.program_count > 0)}
+                onChange={(e) => setDegreeForm({ ...degreeForm, code: e.target.value })}
+                placeholder="Contoh: Sp-2"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {editDegree?.is_seeded
+                  ? "Kode jenjang bawaan terkunci karena nilainya sudah tersimpan di gudang data."
+                  : editDegree && editDegree.program_count > 0
+                    ? "Kode terkunci karena sudah dipakai program studi dan nilainya sudah masuk gudang data."
+                    : "Kode inilah yang tersimpan di data prodi dan mengalir ke gudang data. Setelah dipakai prodi, kode tidak bisa diubah lagi."}
+              </p>
+            </div>
+            <div>
+              <Label>Label</Label>
+              <Input
+                value={degreeForm.label}
+                onChange={(e) => setDegreeForm({ ...degreeForm, label: e.target.value })}
+                placeholder="Contoh: Subspesialis"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Hanya untuk tampilan, bebas diubah kapan saja.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDegreeDialog(false)}>Batal</Button>
+            <Button onClick={saveDegree} disabled={degreeSaving || !degreeForm.code.trim()}>
+              {degreeSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={fakultasDialog} onOpenChange={setFakultasDialog}>
         <DialogContent>
           <DialogHeader>
@@ -893,6 +1097,23 @@ const MasterDataPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteDegreeId} onOpenChange={() => setDeleteDegreeId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Jenjang?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hanya jenjang tambahan yang belum dipakai program studi yang bisa
+              dihapus. Untuk jenjang yang sekadar tidak dipakai kampus ini,
+              nonaktifkan saja.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteDegree} className="bg-destructive text-destructive-foreground">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteFakultasId} onOpenChange={() => setDeleteFakultasId(null)}>
         <AlertDialogContent>
