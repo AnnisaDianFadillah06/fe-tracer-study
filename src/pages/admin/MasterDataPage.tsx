@@ -687,19 +687,14 @@ const MasterDataPage = () => {
 
           {/* ── PROVINSI TAB ── */}
           <TabsContent value="jenjang" className="space-y-4">
-            <Card>
-              <CardContent className="pt-6 pb-0">
-                <p className="text-sm text-muted-foreground">
-                  Jenjang bawaan mengikuti PDDIKTI: kodenya terkunci karena sudah
-                  tersimpan di gudang data, tetapi labelnya bebas diubah dan yang
-                  tidak dipakai kampus ini bisa dinonaktifkan. Menonaktifkan hanya
-                  menyembunyikannya dari form pembuatan prodi &mdash; prodi lama yang
-                  memakainya tetap utuh, begitu pula grafiknya.
-                </p>
-              </CardContent>
-            </Card>
-            <div className="flex justify-end">
+            <div className="flex items-start justify-between gap-6">
+              <p className="text-sm text-muted-foreground max-w-xl">
+                Kode terkunci setelah dipakai prodi karena tersimpan di gudang
+                data; label bebas diubah. Jenjang yang tidak dipakai kampus ini
+                cukup dinonaktifkan.
+              </p>
               <Button
+                className="shrink-0"
                 onClick={() => {
                   setEditDegree(null);
                   setDegreeForm({ code: "", label: "" });
