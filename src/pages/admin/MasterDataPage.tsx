@@ -28,6 +28,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useJurusan, JURUSAN_QUERY_KEY, type Jurusan } from "@/hooks/common/useJurusan";
 import { useFakultas, FAKULTAS_QUERY_KEY, type Fakultas } from "@/hooks/common/useFakultas";
+import { DEGREES } from "@/config/academic";
 
 // ── Prodi Tab ────────────────────────────────────────────────
 interface Prodi { id: string; name: string; code: string; dikti_code?: string; degree: string; jurusan: string; isActive: boolean; }
@@ -249,7 +250,7 @@ const MasterDataPage = () => {
   const [prodiList, setProdiList] = useState<Prodi[]>([]);
   const [prodiDialog, setProdiDialog] = useState(false);
   const [editProdi, setEditProdi] = useState<Prodi | null>(null);
-  const [prodiForm, setProdiForm] = useState({ name: "", code: "", degree: "D3", jurusan: "" });
+  const [prodiForm, setProdiForm] = useState({ name: "", code: "", degree: DEGREES[0] as string, jurusan: "" });
   const [deleteProdiId, setDeleteProdiId] = useState<string | null>(null);
   const [prodiSearch, setProdiSearch] = useState("");
 
@@ -329,7 +330,7 @@ const MasterDataPage = () => {
   const [deleteKotaId, setDeleteKotaId] = useState<string | null>(null);
 
   // ── Prodi handlers ─────────────────────────────────────────
-  const openProdiCreate = () => { setEditProdi(null); setProdiForm({ name: "", code: "", degree: "D3", jurusan: "" }); setProdiDialog(true); };
+  const openProdiCreate = () => { setEditProdi(null); setProdiForm({ name: "", code: "", degree: DEGREES[0], jurusan: "" }); setProdiDialog(true); };
   const openProdiEdit = (p: Prodi) => { setEditProdi(p); setProdiForm({ name: p.name, code: p.code, degree: p.degree, jurusan: p.jurusan }); setProdiDialog(true); };
   const saveProdi = async () => {
     if (!prodiForm.name || !prodiForm.code || !prodiForm.jurusan) { toast({ title: "Error", description: "Semua field wajib diisi.", variant: "destructive" }); return; }
@@ -691,7 +692,11 @@ const MasterDataPage = () => {
               <Label>Jenjang</Label>
               <Select value={prodiForm.degree} onValueChange={(v) => setProdiForm({ ...prodiForm, degree: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="D3">D3</SelectItem><SelectItem value="D4">D4</SelectItem><SelectItem value="S1">S1</SelectItem><SelectItem value="S2">S2</SelectItem></SelectContent>
+                <SelectContent>
+                  {DEGREES.map((d) => (
+                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
             <div>

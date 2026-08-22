@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PRODI_LIST, MOCK_STUDENTS, Student } from "@/lib/mockData";
+import { DEGREES, degreeLabel, degreeColor } from "@/config/academic";
 import StudentDataModal from "@/components/dashboard/StudentDataModal";
 import { ChartProdiFilter } from "@/components/dashboard/DashboardFilters";
 
@@ -43,13 +44,17 @@ const INDICATOR_CONFIG: Record<IndicatorType, {
 }> = {
   jenjang: {
     label: "Jenjang Pendidikan",
+    // Garis dirakit dari daftar jenjang, bukan ditulis satu per satu:
+    // menuliskannya manual berarti jenjang baru diam-diam hilang dari grafik
+    // tanpa error, dan itu jenis kesalahan yang paling sulit disadari.
     lines: [
       { key: "overall", name: "Overall", color: "#f97316", filter: () => true },
-      { key: "diii", name: "D-III", color: "#0ea5e9", filter: (s) => s.jenjang === "D3" },
-      { key: "div", name: "D-IV", color: "#10b981", filter: (s) => s.jenjang === "D4" },
-      { key: "s1", name: "S-1", color: "#f59e0b", filter: (s) => s.jenjang === "S1" },
-      { key: "s2", name: "S-2", color: "#8b5cf6", filter: (s) => s.jenjang === "S2" },
-      { key: "s3", name: "S-3", color: "#ec4899", filter: (s) => s.jenjang === "S3" },
+      ...DEGREES.map((d) => ({
+        key: d.toLowerCase().replace(/\s+/g, "-"),
+        name: degreeLabel(d),
+        color: degreeColor(d),
+        filter: (s: Student) => s.jenjang === d,
+      })),
     ]
   },
   gender: {

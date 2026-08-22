@@ -1,6 +1,8 @@
 // Mock data for tracer study dashboard
 
 // Sumber Biaya Kuliah options
+import { DEGREES, type Degree } from "@/config/academic";
+
 export const SUMBER_BIAYA_OPTIONS = [
   "Biaya Sendiri/Keluarga",
   "Beasiswa BIDIKMISI", 
@@ -45,13 +47,14 @@ export const JENIS_INSTANSI_OPTIONS = [
  * Jenjang program studi yang dikenali antarmuka.
  *
  * Sengaja tidak dibatasi D3/D4 saja: SmartTracer dipasang di universitas dan
- * sekolah tinggi juga, bukan politeknik saja. Backend sudah menerima S1 di
- * enum `programs.degree` maupun di seluruh validasi filter analitik.
+ * sekolah tinggi juga, bukan politeknik saja. Daftarnya kini diturunkan dari
+ * `@/config/academic` supaya tidak ada lagi dua daftar yang bisa menyimpang
+ * — versi sebelumnya di sini kehilangan D1, D2, Profesi, dan Spesialis.
  */
-export type Jenjang = "D3" | "D4" | "S1" | "S2" | "S3";
+export type Jenjang = Degree;
 
 /** Urutan tampil jenjang di penyaring dan legenda grafik. */
-export const JENJANG_LIST: Jenjang[] = ["D3", "D4", "S1", "S2", "S3"];
+export const JENJANG_LIST: Jenjang[] = [...DEGREES];
 
 export interface Student {
   id: string;
