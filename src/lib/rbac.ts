@@ -18,6 +18,7 @@ import {
   Contact,
   ShieldQuestion,
   History,
+  Layers,
 } from "lucide-react";
 
 // ── Role definitions ─────────────────────────────────────────────────────────
@@ -59,6 +60,11 @@ export type Permission =
   // KPI lintas prodi. BE: /api/dashboard/kpi/13/* hanya di balik auth:sanctum
   // tanpa gate role, jadi semua role dashboard boleh.
   | "dashboard.kpi"
+  // Eksplorasi data multidimensi via dashboard Metabase eksternal (embed
+  // iframe). Bukan endpoint BE tracer study kita -- Metabase punya auth
+  // publik-nya sendiri per dashboard UUID, jadi gate di sini murni soal
+  // siapa yang boleh melihat menu/route-nya di FE.
+  | "dashboard.multidimensi"
   | "admin.user"
   // Konfigurasi threshold & UMP. BE menggate seluruh prefix ump dan semua
   // tulis threshold dengan role:head_tracer.
@@ -100,6 +106,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.education",
     "dashboard.analytics",
     "dashboard.kpi",
+    "dashboard.multidimensi",
     "admin.user",
     "admin.threshold",
     "admin.etl",
@@ -109,6 +116,12 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "admin.public_report",
     "admin.stakeholder",
     "admin.privacy",
+    // Head Tracer = "Full system access" (lihat rolePermissionLabels di
+    // bawah) -- sebelumnya daftar ini lupa menyertakan modul Akademik,
+    // sehingga role dengan akses tertinggi justru diblokir dari 2 halaman
+    // yang bisa diakses wadir/kajur/kaprodi/ketua_fakultas di bawahnya.
+    "academic.alumni_data",
+    "academic.questionnaire_results",
   ],
   tracer_team: [
     "dashboard.overview",
@@ -116,10 +129,15 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.education",
     "dashboard.analytics",
     "dashboard.kpi",
+    "dashboard.multidimensi",
     "admin.questionnaire",
     "admin.questionnaire.request",
     "admin.approval",
     "admin.stakeholder",
+    // UR-006 (Tim Tracer): "mengelola kuesioner sehari-hari, data master,
+    // kontak stakeholder, ..." -- sebelumnya daftar ini lupa menyertakan
+    // admin.master meski deskripsi role sudah menyebutnya secara eksplisit.
+    "admin.master",
   ],
   wadir: [
     "dashboard.overview",
@@ -127,6 +145,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.education",
     "dashboard.analytics",
     "dashboard.kpi",
+    "dashboard.multidimensi",
     "academic.alumni_data",
     "academic.questionnaire_results",
   ],
@@ -135,6 +154,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.employment",
     "dashboard.education",
     "dashboard.kpi",
+    "dashboard.multidimensi",
     "academic.alumni_data",
     "academic.questionnaire_results",
   ],
@@ -143,6 +163,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.employment",
     "dashboard.education",
     "dashboard.kpi",
+    "dashboard.multidimensi",
     "academic.alumni_data",
     "academic.questionnaire_results",
     // Kaprodi mengajukan pembukaan kembali pengisian alumni (RBAC-12) dan
@@ -160,6 +181,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.employment",
     "dashboard.education",
     "dashboard.kpi",
+    "dashboard.multidimensi",
     "academic.alumni_data",
     "academic.questionnaire_results",
   ],
@@ -202,6 +224,7 @@ const dashboardItems: MenuItem[] = [
   // Dimatikan sementara -- fokus pengujian cuma di Overview/Employment/Education.
   // { title: "Analitik", href: "/dashboard/analytics", icon: BarChart3, description: "Clustering & Survival", permission: "dashboard.analytics" },
   // { title: "KPI Lintas Prodi", href: "/dashboard/kpi", icon: Gauge, description: "Perbandingan KPI antar program studi", permission: "dashboard.kpi" },
+  { title: "Multidimensi Insight", href: "/dashboard/multidimensi-insight", icon: Layers, description: "Eksplorasi data multidimensi", permission: "dashboard.multidimensi" },
 ];
 
 // Konfigurasi lapisan OLAP/ETL. Semua di balik admin.threshold / admin.etl
@@ -271,7 +294,8 @@ export const routePermissionMap: Record<string, Permission> = {
   "/dashboard/overview": "dashboard.overview",
   "/dashboard/employment": "dashboard.employment",
   "/dashboard/education": "dashboard.education",
-  "/dashboard/analytics": "dashboard.analytics",
+  // "/dashboard/analytics": "dashboard.analytics",
+  "/dashboard/multidimensi-insight": "dashboard.multidimensi",
   "/dashboard/staff-management": "admin.user",
   "/dashboard/form-management": "admin.questionnaire",
   "/dashboard/approvals": "admin.approval",

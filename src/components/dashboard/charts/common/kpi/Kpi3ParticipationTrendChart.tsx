@@ -24,8 +24,11 @@ import DrillDownModal from "@/components/dashboard/DrillDownModal";
 
 interface TrendRow {
   year: string;
-  positive: number; // response rate (%) tahun tsb.
-  negative: number; // 100 - positive
+  positive: number; // response rate (%) tahun tsb. == submitted/total
+  ongoingPct: number; // Sedang Mengisi (%) == ongoing/total
+  startedPct: number; // Belum Mengisi (%) == started/total
+  ongoingCount: number;
+  startedCount: number;
   total: number;
   threshold: number | null; // beda tiap tahun (formula Slovin), null = belum ada data
 }
@@ -78,7 +81,15 @@ const Kpi3ParticipationTrendChart = () => {
     return data.data.map((d) => ({
       year: String(d.year),
       positive: d.rate,
-      negative: Math.max(0, 100 - d.rate),
+      // Dulu segmen ini dihitung sebagai (100 - rate), jadi diam-diam
+      // menggabung "Sedang Mengisi" + "Belum Mengisi" tapi diberi label dan
+      // di-drill-down sebagai "Belum Mengisi" saja (status: started) --
+      // untuk tahun dengan draft aktif, angka yang tampil di bar salah dan
+      // modalnya kosong. Sekarang dipecah pakai breakdown asli dari BE.
+      ongoingPct: d.total > 0 ? (d.breakdown.ongoing / d.total) * 100 : 0,
+      startedPct: d.total > 0 ? (d.breakdown.started / d.total) * 100 : 0,
+      ongoingCount: d.breakdown.ongoing,
+      startedCount: d.breakdown.started,
       total: d.total,
       threshold: thresholdByYear.get(String(d.year)) ?? null,
     }));
@@ -181,18 +192,30 @@ const Kpi3ParticipationTrendChart = () => {
                 <LabelList dataKey="positive" content={SegmentLabel} />
                 <LabelList content={CheckIcon} />
               </Bar>
-              {/* Segmen "Belum Mengisi" juga bisa di-drill down. Backend memetakan
-                  status 'started' (termasuk alumni yang belum punya baris responses)
-                  ke bucket ini — lihat ResponseRateRepository. */}
-              <Bar dataKey="negative" stackId="a" fill={C.grayDark} radius={[4, 4, 0, 0]} name="Belum Mengisi" maxBarSize={60}
+              {/* Segmen "Sedang Mengisi" (draft, sudah mulai belum submit) —
+                  di-drill down dengan status 'ongoing'. */}
+              <Bar dataKey="ongoingPct" stackId="a" fill={C.orange} name="Sedang Mengisi" maxBarSize={60}
                 cursor="pointer"
                 onClick={(d: any) => {
-                  const total = d.total ?? 0;
-                  const n = Math.round((d.negative / 100) * total);
-                  setModal({ open: true, title: `Belum Mengisi — ${d.year} (${n}/${total})`, status: "started", tahun_lulus: d.year });
+                  setModal({ open: true, title: `Sedang Mengisi — ${d.year} (${d.ongoingCount}/${d.total})`, status: "ongoing", tahun_lulus: d.year });
+                  drillHook.fetch({ status: "ongoing", tahun_lulus: d.year, page: 1 });
+                }}>
+                <LabelList dataKey="ongoingPct" content={SegmentLabel} />
+              </Bar>
+              {/* Segmen "Belum Mengisi" (belum punya baris responses sama sekali) —
+                  di-drill down dengan status 'started'. Backend memetakan status
+                  'started' ke bucket ini — lihat ResponseRateRepository.
+                  Sengaja dipakai abu-abu (bukan merah): merah di chart INI sudah
+                  berarti "di bawah threshold" (lihat Cell fill segmen positive di
+                  atas) -- kalau segmen ini juga merah, jadi rancu seolah "belum
+                  mengisi" sama dengan "threshold belum tercapai". */}
+              <Bar dataKey="startedPct" stackId="a" fill={C.grayDark} radius={[4, 4, 0, 0]} name="Belum Mengisi" maxBarSize={60}
+                cursor="pointer"
+                onClick={(d: any) => {
+                  setModal({ open: true, title: `Belum Mengisi — ${d.year} (${d.startedCount}/${d.total})`, status: "started", tahun_lulus: d.year });
                   drillHook.fetch({ status: "started", tahun_lulus: d.year, page: 1 });
                 }}>
-                <LabelList dataKey="negative" content={SegmentLabel} />
+                <LabelList dataKey="startedPct" content={SegmentLabel} />
               </Bar>
               <Line type="monotone" dataKey="positive" name="Tren Response Rate" stroke={C.blueDark} strokeWidth={2.5}
                 dot={{ r: 4 }} activeDot={{ r: 7 } as any} />
@@ -207,6 +230,10 @@ const Kpi3ParticipationTrendChart = () => {
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: C.green }} />
           <span className="text-xs text-muted-foreground">Sudah Mengisi (%)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: C.orange }} />
+          <span className="text-xs text-muted-foreground">Sedang Mengisi (%)</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: C.grayDark }} />

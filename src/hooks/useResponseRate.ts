@@ -98,7 +98,8 @@ export interface ResponseRateTrendItem {
   year: number;
   rate: number;
   total: number;
-  breakdown: { selesai: number; on_going: number; belum_mengisi: number };
+  /** Kosakata sama seperti ResponseRatePieItem.status — 'started' berarti BELUM mulai. */
+  breakdown: { submitted: number; ongoing: number; started: number };
 }
 
 export interface ResponseRateTrendResponse {
