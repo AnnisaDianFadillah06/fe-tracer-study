@@ -1,7 +1,21 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { AxiosError } from "axios";
 import { apiService } from "@/lib/apiClient";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
+
+/**
+ * Pesan galat axios generik ("Request failed with status code 503") tidak
+ * menjelaskan apa-apa ke pengguna. Kalau backend sudah mengirim pesan JSON
+ * yang jelas (mis. "Layanan analitik sedang tidak tersedia, coba lagi
+ * nanti." dari CubeJsClient saat Cube.js down — bug #17), pakai itu.
+ */
+function extractErrorMessage(error: unknown): string | null {
+  if (!error) return null;
+  const axiosMsg = (error as AxiosError<{ message?: string }>)?.response?.data?.message;
+  if (axiosMsg) return axiosMsg;
+  return (error as Error)?.message ?? "Data analitik tidak tersedia.";
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -130,7 +144,7 @@ export function useKeterserapanBar() {
   return {
     data: result.data ?? null,
     loading: result.isLoading,
-    error: (result.error as Error | null)?.message ?? null,
+    error: extractErrorMessage(result.error),
   };
 }
 
@@ -173,7 +187,7 @@ export function useKeterserapanPie() {
   return {
     data: result.data ?? null,
     loading: result.isLoading || filterOptions.loading,
-    error: (result.error as Error | null)?.message ?? null,
+    error: extractErrorMessage(result.error),
     tahunEfektif,
   };
 }

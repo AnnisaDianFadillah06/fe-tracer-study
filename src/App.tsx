@@ -23,6 +23,7 @@ import EducationPage from "./pages/dashboard/education/EducationPage";
 import AnalyticsPage from "./pages/dashboard/analytics/AnalyticsPage";
 import KpiOverviewPage from "./pages/dashboard/kpi/KpiOverviewPage";
 import ComparePage from "./pages/dashboard/ComparePage";
+import MultidimensiInsightPage from "./pages/MultidimensiInsightPage";
 import ProfilePage from "./pages/dashboard/ProfilePage";
 import AlumniDataPage from "./pages/dashboard/AlumniDataPage";
 import StakeholderContactsPage from "./pages/dashboard/StakeholderContactsPage";
@@ -99,9 +100,10 @@ const App = () => (
                 <Route path="/dashboard/overview" element={<ProtectedRoute permission="dashboard.overview"><OverviewPage /></ProtectedRoute>} />
                 <Route path="/dashboard/employment" element={<ProtectedRoute permission="dashboard.employment"><EmploymentPage /></ProtectedRoute>} />
                 <Route path="/dashboard/education" element={<ProtectedRoute permission="dashboard.education"><EducationPage /></ProtectedRoute>} />
-                <Route path="/dashboard/analytics" element={<ProtectedRoute permission="dashboard.analytics"><AnalyticsPage /></ProtectedRoute>} />
+                {/* <Route path="/dashboard/analytics" element={<ProtectedRoute permission="dashboard.analytics"><AnalyticsPage /></ProtectedRoute>} /> */}
                 <Route path="/dashboard/kpi" element={<ProtectedRoute permission="dashboard.kpi"><KpiOverviewPage /></ProtectedRoute>} />
                 <Route path="/dashboard/compare" element={<ProtectedRoute permission="dashboard.overview"><ComparePage /></ProtectedRoute>} />
+                <Route path="/dashboard/multidimensi-insight" element={<ProtectedRoute permission="dashboard.multidimensi"><MultidimensiInsightPage /></ProtectedRoute>} />
 
                 {/* Konfigurasi OLAP/ETL — sejajar gate role:head_tracer di BE */}
                 <Route path="/dashboard/threshold-management" element={<ProtectedRoute permission="admin.threshold"><ThresholdManagementPage /></ProtectedRoute>} />

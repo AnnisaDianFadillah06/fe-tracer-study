@@ -129,7 +129,6 @@ export const useStudentManagement = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ ...defaultForm });
 
   const userRole = useMemo(() => {
@@ -324,7 +323,6 @@ export const useStudentManagement = () => {
   const resetForm = () => {
     setFormData({ ...defaultForm });
     setEditingStudent(null);
-    setShowPassword(false);
   };
 
   const handleOpenAdd = () => {
@@ -393,20 +391,6 @@ export const useStudentManagement = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  /**
-   * Legacy authenticate function — masih mock untuk student login form.
-   * Backend belum punya endpoint login mahasiswa.
-   */
-  const authenticate = (nimOrEmail: string, password: string): Student | null => {
-    return (
-      students.find(
-        (s) =>
-          s.status === "aktif" &&
-          (s.nim === nimOrEmail || s.email === nimOrEmail)
-      ) ?? null
-    );
-  };
-
   return {
     students,
     filtered,
@@ -430,8 +414,6 @@ export const useStudentManagement = () => {
     setIsDeleteDialogOpen,
     editingStudent,
     deletingId,
-    showPassword,
-    setShowPassword,
     formData,
     setFormData,
     handleOpenAdd,
@@ -439,7 +421,6 @@ export const useStudentManagement = () => {
     handleSubmit,
     handleDelete,
     confirmDelete,
-    authenticate,
     // New: loading/error states
     isLoading,
     isError,

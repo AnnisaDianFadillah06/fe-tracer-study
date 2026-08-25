@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/common/use-toast";
 import {
   Dialog,
@@ -24,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2, User, Mail, Phone, Users } from "lucide-react";
+import { Plus, Edit, Trash2, User, Mail, Phone, Users, AlertTriangle } from "lucide-react";
 import { staffEmailPlaceholder } from "@/config/institution";
 
 interface TeamMember {
@@ -177,6 +178,16 @@ const TeamManagementPage = () => {
             Tambah Koordinator
           </Button>
         </div>
+
+        {/* TODO: this page has no backend persistence yet — state is local React state only.
+            Wire up a real API (create table/model/controller/routes) before removing this banner. */}
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Perubahan belum tersimpan permanen</AlertTitle>
+          <AlertDescription>
+            Halaman ini belum tersambung ke backend. Data yang ditambahkan/diubah di sini akan hilang setelah halaman di-refresh.
+          </AlertDescription>
+        </Alert>
 
         {/* Lead Coordinator */}
         {leadMember && (
