@@ -44,6 +44,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle, FileSpreadsheet, Loader2, ArrowLeft, KeyRound } from "lucide-react";
 import PilihTahun from "@/components/common/PilihTahun";
 import { useAuth } from "@/hooks/auth/useAuth";
@@ -63,6 +64,18 @@ const StudentManagementPage = () => {
    * memperbaiki berkasnya baris per baris.
    */
   const [importErrors, setImportErrors] = useState<string[]>([]);
+  /**
+   * Kemajuan impor. Dua fase, karena hanya satu di antaranya yang bisa
+   * diukur: "unggah" punya persen sungguhan dari onUploadProgress axios,
+   * sedangkan "proses" tidak — server memvalidasi lalu menyisipkan seluruh
+   * baris dalam satu permintaan tanpa melaporkan kemajuannya, jadi bilahnya
+   * dibuat bergerak tanpa nilai. Tanpa penanda ini berkas belasan ribu baris
+   * membuat halaman tampak diam beberapa puluh detik dan petugas menekan
+   * tombol Import berkali-kali.
+   */
+  const [importProgress, setImportProgress] = useState<
+    { phase: "unggah" | "proses"; percent: number; fileName: string } | null
+  >(null);
 
   const {
     students,
@@ -319,9 +332,9 @@ const StudentManagementPage = () => {
   /**
    * Terbitkan kata sandi alumni, lalu unduh berkasnya.
    *
-   * BERJALAN BERPOTONG. Pencincangan kata sandi sengaja lambat — sekitar
-   * sepertiga detik per orang — sehingga satu angkatan yang berisi ribuan
-   * alumni tidak mungkin selesai dalam satu permintaan HTTP. Server
+   * BERJALAN BERPOTONG. Pencincangan kata sandi sengaja lambat — puluhan
+   * milidetik per orang — sehingga satu angkatan yang berisi ribuan alumni
+   * tidak mungkin selesai dalam satu permintaan HTTP. Server
    * menerbitkan satu potong lalu memberi tahu berapa yang tersisa; perulangan
    * di sini melanjutkan dengan kursor `after_nim` sampai habis.
    *
@@ -451,12 +464,26 @@ const StudentManagementPage = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setImportProgress({ phase: "unggah", percent: 0, fileName: file.name });
+
     try {
       const formData = new FormData();
       formData.append("file", file);
 
       const { data } = await api.post("/alumni/import", formData, {
         headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (e) => {
+          // e.total kosong bila panjang isi tidak diketahui; dalam hal itu
+          // langsung dianggap masuk fase proses daripada menampilkan NaN%.
+          const percent = e.total ? Math.round((e.loaded / e.total) * 100) : 100;
+          setImportProgress((prev) =>
+            prev === null
+              ? prev
+              : percent >= 100
+                ? { ...prev, phase: "proses", percent: 100 }
+                : { ...prev, phase: "unggah", percent },
+          );
+        },
       });
 
       const imported: number = data.data?.imported ?? 0;
@@ -492,6 +519,8 @@ const StudentManagementPage = () => {
     } catch (error: any) {
       const msg = error.response?.data?.message || "Gagal mengimpor file";
       toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setImportProgress(null);
     }
 
     // Reset input
@@ -645,10 +674,19 @@ const StudentManagementPage = () => {
         variant="outline"
         size="sm"
         onClick={() => fileInputRef.current?.click()}
+        disabled={importProgress !== null}
         title="Import data dari file CSV/Excel"
       >
-        <Download className="mr-2 h-4 w-4" />
-        Import
+        {importProgress ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <Download className="mr-2 h-4 w-4" />
+        )}
+        {importProgress
+          ? importProgress.phase === "unggah"
+            ? `Mengunggah ${importProgress.percent}%`
+            : "Memproses…"
+          : "Import"}
       </Button>
       {isHeadTracer && (
         <Button
@@ -853,6 +891,50 @@ const StudentManagementPage = () => {
     </Dialog>
   );
 
+  // Kemajuan impor, dipisah sebagai variabel karena dipakai di dua layar yang
+  // sama seperti dialog rincian galat. Dialognya tidak bisa ditutup selama
+  // permintaan berjalan: menutupnya hanya menyembunyikan penanda, tidak
+  // membatalkan penyisipan di server, dan petugas akan mengira impornya batal.
+  const importProgressDialog = (
+    <Dialog open={importProgress !== null}>
+      <DialogContent
+        className="sm:max-w-md [&>button]:hidden"
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle>Mengimpor data alumni</DialogTitle>
+          <DialogDescription className="truncate">
+            {importProgress?.fileName}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          {/* Fase proses tidak punya persen yang jujur, jadi bilahnya diisi penuh
+              dan diberi denyut alih-alih angka karangan yang merambat sendiri. */}
+          <Progress
+            value={importProgress?.phase === "proses" ? 100 : importProgress?.percent ?? 0}
+            className={importProgress?.phase === "proses" ? "animate-pulse" : undefined}
+          />
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              {importProgress?.phase === "unggah"
+                ? "Mengunggah berkas…"
+                : "Memvalidasi & menyimpan di server…"}
+            </span>
+            {importProgress?.phase === "unggah" && <span>{importProgress.percent}%</span>}
+          </div>
+          {importProgress?.phase === "proses" && (
+            <p className="text-xs text-muted-foreground">
+              Berkas dengan ribuan baris bisa memakan waktu hingga beberapa menit.
+              Jangan menutup atau memuat ulang halaman ini.
+            </p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
   // Rincian penolakan impor. Toast lewat dalam hitungan detik dan hanya
   // memuat tiga baris; daftar penuh inilah yang dipakai petugas untuk
   // membetulkan berkasnya.
@@ -905,7 +987,8 @@ const StudentManagementPage = () => {
             tanpa ini tombolnya tertekan tapi tidak memunculkan apa pun. */}
         {studentDialog}
         {credentialDialog}
-        {importErrorDialog}
+        {importProgressDialog}
+      {importErrorDialog}
       </DashboardLayout>
     );
   }
@@ -961,10 +1044,19 @@ const StudentManagementPage = () => {
               variant="outline"
               size="sm"
               onClick={() => fileInputRef.current?.click()}
-              title="Import data dari file CSV/Excel (coming soon)"
+              disabled={importProgress !== null}
+              title="Import data dari file CSV/Excel"
             >
-              <Download className="mr-2 h-4 w-4" />
-              Import
+              {importProgress ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              {importProgress
+                ? importProgress.phase === "unggah"
+                  ? `Mengunggah ${importProgress.percent}%`
+                  : "Memproses…"
+                : "Import"}
             </Button>
             <Button
               variant="outline"
@@ -1179,6 +1271,7 @@ const StudentManagementPage = () => {
       </div>
 
       {studentDialog}
+      {importProgressDialog}
       {importErrorDialog}
 
       {/* Delete Dialog */}
