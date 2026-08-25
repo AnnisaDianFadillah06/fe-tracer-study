@@ -332,9 +332,9 @@ const StudentManagementPage = () => {
   /**
    * Terbitkan kata sandi alumni, lalu unduh berkasnya.
    *
-   * BERJALAN BERPOTONG. Pencincangan kata sandi sengaja lambat — sekitar
-   * sepertiga detik per orang — sehingga satu angkatan yang berisi ribuan
-   * alumni tidak mungkin selesai dalam satu permintaan HTTP. Server
+   * BERJALAN BERPOTONG. Pencincangan kata sandi sengaja lambat — puluhan
+   * milidetik per orang — sehingga satu angkatan yang berisi ribuan alumni
+   * tidak mungkin selesai dalam satu permintaan HTTP. Server
    * menerbitkan satu potong lalu memberi tahu berapa yang tersisa; perulangan
    * di sini melanjutkan dengan kursor `after_nim` sampai habis.
    *
