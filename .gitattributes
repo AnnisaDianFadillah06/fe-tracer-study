@@ -1,0 +1,5 @@
+# Repo ini tidak punya aturan eol, sedangkan core.autocrlf=true di Windows
+# mengubah berkas jadi CRLF saat checkout. Berkas Docker harus tetap LF supaya
+# image terbangun sama di mesin mana pun.
+Dockerfile text eol=lf
+docker/** text eol=lf
