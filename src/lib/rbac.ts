@@ -331,6 +331,7 @@ export function mapBackendRole(backendRole?: string): AppRole {
     admin: "head_tracer",
     p2mpp: "wadir",
     prodi: "kaprodi",
+    ketua_fakultas: "dekan",
   };
   return map[backendRole ?? ""] ?? "alumni";
 }
