@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Berkas lingkungan. Nilainya berbeda per pemasangan (alamat API, identitas
+# institusi, tautan dashboard eksternal) dan tidak boleh ikut repositori.
+# Daftar variabel yang dikenali ada di .env.example.
+.env
+.env.*
+!.env.example
