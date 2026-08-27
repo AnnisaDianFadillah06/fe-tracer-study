@@ -45,7 +45,7 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle, FileSpreadsheet, Loader2, ArrowLeft, KeyRound } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle, FileSpreadsheet, Loader2, ArrowLeft, KeyRound, ChevronUp } from "lucide-react";
 import PilihTahun from "@/components/common/PilihTahun";
 import { useAuth } from "@/hooks/auth/useAuth";
 import { useRingkasanTahun } from "@/hooks/useRingkasanTahun";
@@ -130,6 +130,13 @@ const StudentManagementPage = () => {
   const [credProdi, setCredProdi] = useState("");
   /** Kemajuan penerbitan berpotong; null saat tidak sedang berjalan. */
   const [credProgress, setCredProgress] = useState<{ done: number; remaining: number } | null>(null);
+  /**
+   * Ringkasan lingkup yang SEDANG diterbitkan, dibekukan saat penerbitan
+   * dimulai. Dipakai penanda mengambang di pojok kanan bawah: begitu
+   * dialognya ditutup, penyaring di dalamnya tak terlihat lagi, sementara
+   * petugas tetap perlu tahu antrean mana yang masih berjalan.
+   */
+  const [credScopeLabel, setCredScopeLabel] = useState("");
 
   // Daftar tahun lulus dipakai pemilih di dalam dialog. Sumber yang sama
   // dengan kartu tahun di layar awal, jadi pilihannya selalu sinkron.
@@ -350,8 +357,34 @@ const StudentManagementPage = () => {
    * Tidak akan pernah ada tombol "unduh ulang". Kata sandi tersimpan tersandi
    * satu arah, jadi bila berkasnya hilang satu-satunya jalan adalah
    * menerbitkan ulang — dan kata sandi lama mati.
+   *
+   * Dialognya boleh ditutup selagi ini berjalan (kemajuannya pindah ke
+   * penanda mengambang), jadi penyaring lingkup DIBEKUKAN di sini alih-alih
+   * dibaca ulang tiap potong: tanpa itu, mengubah pilihan di dialog yang
+   * dibuka kembali di tengah jalan membuat potongan berikutnya berangkat
+   * dengan lingkup yang berbeda dari potongan sebelumnya.
    */
   const handleIssueCredentials = async () => {
+    const lingkup = {
+      tahun: credYear,
+      jurusan: credJurusan,
+      prodi: credProdi,
+      hanyaBelumPunya: onlyWithoutCreds,
+    };
+
+    const namaProdi = lingkup.prodi
+      ? programs.find((x) => String(x.id) === lingkup.prodi)?.name
+      : undefined;
+    setCredScopeLabel(
+      [
+        lingkup.tahun ? `Lulusan ${lingkup.tahun}` : "Semua lulusan",
+        lingkup.jurusan || undefined,
+        namaProdi,
+      ]
+        .filter(Boolean)
+        .join(" • "),
+    );
+
     setIsIssuingCreds(true);
     setCredProgress(null);
 
@@ -365,11 +398,11 @@ const StudentManagementPage = () => {
       // berubah menjadi perulangan tanpa akhir di peramban).
       for (;;) {
         const payload: Record<string, unknown> = {
-          only_without_credentials: onlyWithoutCreds,
+          only_without_credentials: lingkup.hanyaBelumPunya,
         };
-        if (credYear) payload.graduation_year = Number(credYear);
-        if (credJurusan) payload.jurusan = credJurusan;
-        if (credProdi) payload.program_id = Number(credProdi);
+        if (lingkup.tahun) payload.graduation_year = Number(lingkup.tahun);
+        if (lingkup.jurusan) payload.jurusan = lingkup.jurusan;
+        if (lingkup.prodi) payload.program_id = Number(lingkup.prodi);
         if (cursor) payload.after_nim = cursor;
 
         const { data } = await api.post("/alumni/credentials/issue", payload);
@@ -714,6 +747,12 @@ const StudentManagementPage = () => {
    * Tombolnya tampil di keduanya, jadi dialognya harus terpasang di keduanya
    * juga — pola yang sama sudah dipakai `studentDialog` di atas.
    */
+  const credProgressPercent = credProgress
+    ? Math.round(
+        (credProgress.done / Math.max(1, credProgress.done + credProgress.remaining)) * 100,
+      )
+    : 0;
+
   const credentialDialog = (
     <Dialog open={isCredDialogOpen} onOpenChange={setIsCredDialogOpen}>
       <DialogContent>
@@ -730,6 +769,7 @@ const StudentManagementPage = () => {
             <Select
               value={credYear === "" ? "all" : credYear}
               onValueChange={(v) => setCredYear(v === "all" ? "" : v)}
+              disabled={isIssuingCreds}
             >
               <SelectTrigger id="cred-year">
                 <SelectValue placeholder="Pilih tahun lulus" />
@@ -750,6 +790,7 @@ const StudentManagementPage = () => {
               <Label htmlFor="cred-jurusan">Jurusan</Label>
               <Select
                 value={credJurusan === "" ? "all" : credJurusan}
+                disabled={isIssuingCreds}
                 onValueChange={(v) => {
                   const next = v === "all" ? "" : v;
                   setCredJurusan(next);
@@ -782,6 +823,7 @@ const StudentManagementPage = () => {
               <Select
                 value={credProdi === "" ? "all" : credProdi}
                 onValueChange={(v) => setCredProdi(v === "all" ? "" : v)}
+                disabled={isIssuingCreds}
               >
                 <SelectTrigger id="cred-prodi">
                   <SelectValue placeholder="Semua program studi" />
@@ -815,13 +857,15 @@ const StudentManagementPage = () => {
             <br />
             Lingkup sebesar apa pun ditangani sekaligus: prosesnya dipecah otomatis menjadi beberapa
             tahap karena pencincangan kata sandi sengaja lambat. Untuk lingkup besar penerbitan bisa
-            berjalan beberapa menit — biarkan jendela ini terbuka sampai selesai.
+            berjalan beberapa menit — jendela ini boleh ditutup, kemajuannya pindah ke pojok kanan
+            bawah dan halaman tetap bisa dipakai. Yang tidak boleh hanya meninggalkan halaman ini.
           </p>
 
           <div className="flex items-start gap-2">
             <Checkbox
               id="only-without-creds"
               checked={onlyWithoutCreds}
+              disabled={isIssuingCreds}
               onCheckedChange={(v) => setOnlyWithoutCreds(v === true)}
             />
             <Label htmlFor="only-without-creds" className="font-normal leading-snug">
@@ -836,7 +880,7 @@ const StudentManagementPage = () => {
           {credProgress && (
             <div className="rounded-md border bg-muted/40 p-3 space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-medium">Menerbitkan…</span>
+                <span className="font-medium">Menerbitkan… {credProgressPercent}%</span>
                 <span className="text-muted-foreground">
                   {credProgress.done} selesai
                   {credProgress.remaining > 0 && ` • ${credProgress.remaining} tersisa`}
@@ -845,15 +889,12 @@ const StudentManagementPage = () => {
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                 <div
                   className="h-full bg-primary transition-all"
-                  style={{
-                    width: `${Math.round(
-                      (credProgress.done / Math.max(1, credProgress.done + credProgress.remaining)) * 100,
-                    )}%`,
-                  }}
+                  style={{ width: `${credProgressPercent}%` }}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Jangan tutup jendela ini — berkasnya baru dirakit setelah seluruh tahap selesai.
+                Jendela ini boleh ditutup — kemajuannya berpindah ke pojok kanan bawah dan
+                berkasnya tetap terunduh sendiri begitu seluruh tahap selesai.
               </p>
             </div>
           )}
@@ -870,8 +911,11 @@ const StudentManagementPage = () => {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setIsCredDialogOpen(false)} disabled={isIssuingCreds}>
-            Batal
+          {/* Selagi berjalan tombol ini tidak lagi membatalkan apa pun --
+              potongan yang terbit tak bisa ditarik kembali -- jadi namanya
+              ikut berubah supaya tidak menjanjikan pembatalan. */}
+          <Button variant="outline" onClick={() => setIsCredDialogOpen(false)}>
+            {isIssuingCreds ? "Sembunyikan" : "Batal"}
           </Button>
           <Button onClick={handleIssueCredentials} disabled={isIssuingCreds}>
             {isIssuingCreds ? (
@@ -890,6 +934,60 @@ const StudentManagementPage = () => {
       </DialogContent>
     </Dialog>
   );
+
+  /**
+   * Penanda kemajuan mengambang di pojok kanan bawah, muncul begitu dialog
+   * penerbitan ditutup selagi prosesnya berjalan — pola yang sama dengan
+   * kotak unggahan Google Drive. Sebelumnya dialognya terkunci sampai
+   * penerbitan selesai, dan untuk lingkup seluruh alumni itu berarti
+   * halaman tidak bisa dipakai selama beberapa menit tanpa alasan teknis
+   * apa pun: perulangannya berjalan sendiri, tidak butuh dialognya terbuka.
+   *
+   * Yang tetap tidak boleh adalah MENINGGALKAN halaman ini: perulangan dan
+   * kumpulan barisnya hidup di komponen ini, dan berkasnya baru dirakit
+   * setelah potongan terakhir. Berpindah halaman membuang kata sandi yang
+   * sudah terlanjur berganti di basis data — karena itu penanda ini
+   * menuliskannya, dan tidak menyediakan tombol tutup.
+   */
+  const credentialProgressCard =
+    isIssuingCreds && !isCredDialogOpen ? (
+      <div className="fixed bottom-4 right-4 z-50 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border bg-background shadow-lg">
+        <div className="flex items-center gap-2 border-b px-3 py-2">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">Menerbitkan kredensial</p>
+            <p className="truncate text-xs text-muted-foreground">{credScopeLabel}</p>
+          </div>
+          <span className="text-sm font-semibold tabular-nums">{credProgressPercent}%</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            onClick={() => setIsCredDialogOpen(true)}
+            title="Buka kembali jendela penerbitan"
+          >
+            <ChevronUp className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="space-y-2 px-3 py-2">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${credProgressPercent}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {credProgress
+              ? `${credProgress.done} selesai${
+                  credProgress.remaining > 0 ? ` • ${credProgress.remaining} tersisa` : ""
+                }. `
+              : "Menyiapkan potongan pertama… "}
+            Berkasnya terunduh sendiri setelah selesai — silakan lanjut bekerja di halaman ini,
+            tapi jangan berpindah halaman.
+          </p>
+        </div>
+      </div>
+    ) : null;
 
   // Kemajuan impor, dipisah sebagai variabel karena dipakai di dua layar yang
   // sama seperti dialog rincian galat. Dialognya tidak bisa ditutup selama
@@ -987,6 +1085,7 @@ const StudentManagementPage = () => {
             tanpa ini tombolnya tertekan tapi tidak memunculkan apa pun. */}
         {studentDialog}
         {credentialDialog}
+        {credentialProgressCard}
         {importProgressDialog}
       {importErrorDialog}
       </DashboardLayout>
@@ -1296,6 +1395,7 @@ const StudentManagementPage = () => {
       </AlertDialog>
 
       {credentialDialog}
+      {credentialProgressCard}
     </DashboardLayout>
   );
 };
