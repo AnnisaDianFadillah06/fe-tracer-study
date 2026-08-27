@@ -312,7 +312,7 @@ const MasterDataPage = () => {
   const [prodiList, setProdiList] = useState<Prodi[]>([]);
   const [prodiDialog, setProdiDialog] = useState(false);
   const [editProdi, setEditProdi] = useState<Prodi | null>(null);
-  const [prodiForm, setProdiForm] = useState({ name: "", code: "", degree: "", jurusan: "" });
+  const [prodiForm, setProdiForm] = useState({ name: "", code: "", dikti_code: "", degree: "", jurusan: "" });
   const [deleteProdiId, setDeleteProdiId] = useState<string | null>(null);
   const [prodiSearch, setProdiSearch] = useState("");
 
@@ -392,8 +392,8 @@ const MasterDataPage = () => {
   const [deleteKotaId, setDeleteKotaId] = useState<string | null>(null);
 
   // ── Prodi handlers ─────────────────────────────────────────
-  const openProdiCreate = () => { setEditProdi(null); setProdiForm({ name: "", code: "", degree: activeCodes[0] ?? "", jurusan: "" }); setProdiDialog(true); };
-  const openProdiEdit = (p: Prodi) => { setEditProdi(p); setProdiForm({ name: p.name, code: p.code, degree: p.degree, jurusan: p.jurusan }); setProdiDialog(true); };
+  const openProdiCreate = () => { setEditProdi(null); setProdiForm({ name: "", code: "", dikti_code: "", degree: activeCodes[0] ?? "", jurusan: "" }); setProdiDialog(true); };
+  const openProdiEdit = (p: Prodi) => { setEditProdi(p); setProdiForm({ name: p.name, code: p.code, dikti_code: p.dikti_code ?? "", degree: p.degree, jurusan: p.jurusan }); setProdiDialog(true); };
   const saveProdi = async () => {
     if (!prodiForm.name || !prodiForm.code || !prodiForm.jurusan) { toast({ title: "Error", description: "Semua field wajib diisi.", variant: "destructive" }); return; }
     try {
@@ -660,16 +660,24 @@ const MasterDataPage = () => {
             <Card>
               <CardContent className="pt-6">
                 <Table>
-                  <TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Nama</TableHead><TableHead>Jenjang</TableHead><TableHead>Jurusan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Kode PDDIKTI/Prodi</TableHead><TableHead>Nama</TableHead><TableHead>Jenjang</TableHead><TableHead>Jurusan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
                   <TableBody>
                     <TableStateRow
-                      colSpan={5} isLoading={isLoading} error={loadError}
+                      colSpan={6} isLoading={isLoading} error={loadError}
                       isEmpty={filteredProdi.length === 0}
                       emptyText={prodiSearch ? "Tidak ada prodi yang cocok dengan pencarian." : "Belum ada data program studi."}
                     />
                     {filteredProdi.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell><Badge variant="outline">{p.code}</Badge></TableCell>
+                        {/* Kosong berarti ekspor unggahan Kementerian memakai
+                            kode internal di kolom ini -- ditandai supaya
+                            ketahuan sebelum berkasnya ditolak portal. */}
+                        <TableCell>
+                          {p.dikti_code
+                            ? <span className="tabular-nums">{p.dikti_code}</span>
+                            : <span className="text-xs text-muted-foreground">Belum diisi</span>}
+                        </TableCell>
                         <TableCell className="font-medium">{p.name}</TableCell>
                         <TableCell>{p.degree}</TableCell>
                         <TableCell className="text-muted-foreground">{p.jurusan}</TableCell>
@@ -842,7 +850,21 @@ const MasterDataPage = () => {
           <DialogHeader><DialogTitle>{editProdi ? "Edit Prodi" : "Tambah Prodi"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div><Label>Nama Program Studi</Label><Input value={prodiForm.name} onChange={(e) => setProdiForm({ ...prodiForm, name: e.target.value })} /></div>
-            <div><Label>Kode</Label><Input value={prodiForm.code} onChange={(e) => setProdiForm({ ...prodiForm, code: e.target.value })} /></div>
+            <div>
+              <Label>Kode</Label>
+              <Input value={prodiForm.code} onChange={(e) => setProdiForm({ ...prodiForm, code: e.target.value })} />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Singkatan internal kampus, mis. TKPB.
+              </p>
+            </div>
+            <div>
+              <Label>Kode PDDIKTI/Prodi</Label>
+              <Input
+                value={prodiForm.dikti_code}
+                onChange={(e) => setProdiForm({ ...prodiForm, dikti_code: e.target.value })}
+                placeholder="mis. 24301"
+              />
+            </div>
             <div>
               <Label>Jenjang</Label>
               <Select value={prodiForm.degree} onValueChange={(v) => setProdiForm({ ...prodiForm, degree: v })}>
