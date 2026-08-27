@@ -77,17 +77,45 @@ function buildJurusanMap(prodiList: RawProdi[]): JurusanMap {
   }, {});
 }
 
-// v5: `snapshot[].value` sekarang berisi id_waktu (unik per ETL run), BUKAN
-// lagi minggu_snapshot mentah (mis. "29") -- lihat FilterMetaRepository::
+// v5: `snapshot[].value` berisi id_waktu (unik per ETL run), BUKAN lagi
+// minggu_snapshot mentah (mis. "29") -- lihat FilterMetaRepository::
 // getSnapshot(). Cache v4 lama menyimpan value versi minggu_snapshot yang
 // sudah tidak valid dipakai sebagai filter, harus dipaksa fetch ulang.
-const CACHE_KEY = "filterOptions_v5";
+
+/**
+ * Umur cache. sessionStorage bertahan melewati muat ulang biasa MAUPUN hard
+ * refresh -- satu-satunya cara membuangnya dulu adalah menutup tab. Akibatnya
+ * setiap kali ETL menambah tahun lulus baru ke gudang data, tab yang sedang
+ * terbuka tetap menampilkan daftar tahun yang lama tanpa batas waktu, dan
+ * tidak ada gejala apa pun selain "tahunnya kok tidak ada".
+ *
+ * Sepuluh menit: cukup panjang untuk tetap menghemat permintaan selama satu
+ * sesi kerja, cukup pendek supaya perubahan gudang data tidak perlu ditunggu
+ * sampai tabnya ditutup.
+ */
+const CACHE_TTL_MS = 10 * 60 * 1000;
+
+/** v6: isi cache dibungkus { savedAt, data } demi TTL di atas. */
+const CACHE_KEY = "filterOptions_v6";
+
+interface CacheEnvelope {
+  savedAt: number;
+  data: RawFilterOptionsData;
+}
 
 function readCache(): RawFilterOptionsData | null {
   try {
     const raw = sessionStorage.getItem(CACHE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as RawFilterOptionsData;
+    const envelope = JSON.parse(raw) as CacheEnvelope;
+    if (
+      typeof envelope?.savedAt !== "number" ||
+      Date.now() - envelope.savedAt > CACHE_TTL_MS
+    ) {
+      sessionStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+    const parsed = envelope.data;
     // Snapshot kosong ATAU ada entri tanpa value/label berarti response ini
     // kemungkinan diambil saat backend/cache-nya masih bermasalah -- jangan
     // dipercaya selamanya untuk sisa sesi tab ini, paksa refetch supaya
@@ -110,7 +138,9 @@ function readCache(): RawFilterOptionsData | null {
 
 function writeCache(data: RawFilterOptionsData) {
   try {
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    // Dibungkus bersama waktu simpannya -- lihat CACHE_TTL_MS.
+    const envelope: CacheEnvelope = { savedAt: Date.now(), data };
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify(envelope));
   } catch {
     // sessionStorage full — silently skip
   }
@@ -123,18 +153,27 @@ function deriveOptions(raw: RawFilterOptionsData): Omit<FilterOptions, "loading"
   // run dalam minggu kalender yang sama) tidak terlihat identik di dropdown.
   const weekKeys = raw.snapshot.map((s) => s.value);
   const weekOptions = raw.snapshot.map((s) => s.label);
-  const jurusanMap = buildJurusanMap(raw.prodi);
+  // Nilai kosong DIBUANG di sini, sebelum sampai ke dropdown mana pun.
+  //
+  // Radix melempar galat untuk <SelectItem value="">, dan galat itu tidak
+  // berhenti di dropdown-nya: seluruh dasbor ikut mati dengan layar kosong.
+  // Pemicunya data yang sah-sah saja ada di master -- satu program studi yang
+  // jurusannya belum diisi sudah cukup, dan barisnya terbawa ke gudang data
+  // lewat dim_prodi. Menyaring di sini membuat prodi seperti itu hilang dari
+  // pilihan penyaring, bukan menjatuhkan halamannya.
+  const prodiList = raw.prodi.filter((p) => p.nama_prodi && p.kode_prodi);
+  const jurusanMap = buildJurusanMap(prodiList);
   // Preserve BE ordering from the jurusan array
-  const jurusanList = raw.jurusan.map((j) => j.jurusan);
+  const jurusanList = raw.jurusan.map((j) => j.jurusan).filter(Boolean);
 
   return {
-    tahunLulus: raw.tahun_lulus,
+    tahunLulus: raw.tahun_lulus.filter(Boolean),
     weekOptions,
     weekKeys,
-    jenjang: raw.jenjang,
+    jenjang: raw.jenjang.filter(Boolean),
     jurusanList,
     jurusanMap,
-    prodiList: raw.prodi,
+    prodiList,
   };
 }
 
