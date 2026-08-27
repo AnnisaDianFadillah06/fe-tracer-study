@@ -15,6 +15,9 @@ import Unauthorized from "./pages/common/Unauthorized";
 // Halaman publik (tanpa login)
 import LaporanPublikPage from "./pages/publik/LaporanPublikPage";
 import StatistikPublikPage from "./pages/publik/StatistikPublikPage";
+import PanduanPage from "./pages/publik/PanduanPage";
+import FaqPage from "./pages/publik/FaqPage";
+import KebijakanPrivasiPage from "./pages/publik/KebijakanPrivasiPage";
 
 // Dashboard pages
 import OverviewPage from "./pages/dashboard/overview/OverviewPage";
@@ -92,6 +95,9 @@ const App = () => (
                     tahun di sisi server. */}
                 <Route path="/laporan" element={<LaporanPublikPage />} />
                 <Route path="/statistik" element={<StatistikPublikPage />} />
+                <Route path="/panduan" element={<PanduanPage />} />
+                <Route path="/faq" element={<FaqPage />} />
+                <Route path="/kebijakan-privasi" element={<KebijakanPrivasiPage />} />
 
                 {/* Default redirect */}
                 <Route path="/dashboard" element={<Navigate to="/dashboard/overview" replace />} />
