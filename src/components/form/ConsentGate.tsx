@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ShieldCheck, Loader2, AlertTriangle } from "lucide-react";
-import { institution } from "@/config/institution";
 import { grantConsent, type ConsentState } from "@/lib/privacy";
+import PrivacyNotice from "@/components/privacy/PrivacyNotice";
 
 interface ConsentGateProps {
   consent: ConsentState;
@@ -85,75 +85,7 @@ const ConsentGate = ({ consent, onGranted }: ConsentGateProps) => {
             </div>
           )}
 
-          <div className="space-y-4 text-sm leading-relaxed">
-            <section className="space-y-1">
-              <h2 className="font-semibold">Data apa yang dikumpulkan</h2>
-              <p className="text-muted-foreground">
-                Identitas Anda (nama, NIM, NIK, NPWP, surel, nomor telepon), riwayat
-                akademik, serta jawaban Anda atas kuesioner tracer study — termasuk
-                status pekerjaan, masa tunggu kerja, kesesuaian bidang kerja, dan
-                pendapatan.
-              </p>
-            </section>
-
-            <section className="space-y-1">
-              <h2 className="font-semibold">Untuk apa data digunakan</h2>
-              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                <li>Statistik penyerapan lulusan untuk evaluasi kurikulum program studi.</li>
-                <li>Pemenuhan indikator akreditasi LAM dan BAN-PT.</li>
-                <li>Pelaporan penyerapan lulusan ke PDDIKTI, yang merupakan kewajiban hukum {institution.name}.</li>
-              </ul>
-              <p className="text-muted-foreground">
-                Jawaban Anda diolah menjadi angka gabungan. Yang tampil di dasbor dan
-                laporan publik adalah ringkasan per program studi dan per tahun
-                kelulusan, bukan jawaban perorangan.
-              </p>
-            </section>
-
-            <section className="space-y-1">
-              <h2 className="font-semibold">Bagaimana data dilindungi</h2>
-              <p className="text-muted-foreground">
-                NIK dan NPWP disimpan dalam bentuk terenkripsi. Akses staf dibatasi
-                menurut perannya, dan setiap perbuatan atas data Anda — termasuk
-                ekspor untuk pelaporan — tercatat dalam jejak audit yang dapat Anda
-                lihat sendiri di halaman Data Saya.
-              </p>
-            </section>
-
-            <section className="space-y-1">
-              <h2 className="font-semibold">Berapa lama disimpan</h2>
-              <p className="text-muted-foreground">
-                {consent.retention_years} tahun sejak tahun kelulusan Anda.
-              </p>
-            </section>
-
-            <section className="space-y-1">
-              <h2 className="font-semibold">Hak Anda</h2>
-              <p className="text-muted-foreground">
-                Anda berhak melihat seluruh data Anda, meminta perbaikan bila keliru,
-                meminta penghapusan, mengajukan keberatan, dan menarik persetujuan ini
-                kapan saja melalui halaman <strong>Data Saya</strong>.
-              </p>
-              {/* Batas penarikan dinyatakan di muka, bukan disimpan sebagai
-                  kejutan. Menjanjikan penarikan yang "menghapus segalanya" lalu
-                  tidak melakukannya jauh lebih merusak kepercayaan daripada
-                  menyatakan batasnya sejak awal. */}
-              <p className="text-muted-foreground">
-                Menarik persetujuan menghentikan pengisian berikutnya, tetapi tidak
-                serta-merta menghapus jawaban yang sudah terkirim — sebagiannya wajib
-                disimpan untuk pelaporan PDDIKTI. Ajukan permintaan penghapusan bila
-                Anda menghendakinya, dan permintaan itu akan dijawab tertulis.
-              </p>
-            </section>
-
-            <section className="space-y-1">
-              <h2 className="font-semibold">Menghubungi pengelola</h2>
-              <p className="text-muted-foreground">
-                {institution.unit} {institution.name}
-                {institution.email ? ` — ${institution.email}` : ""}
-              </p>
-            </section>
-          </div>
+          <PrivacyNotice retentionYears={consent.retention_years} />
 
           <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 p-4">
             <Checkbox
