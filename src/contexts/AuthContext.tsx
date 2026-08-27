@@ -15,7 +15,7 @@ export interface AuthUser {
   id: number;
   name: string;
   email: string;
-  role: string; // BE role: "head_tracer" | "tracer_team" | "wadir" | "kajur" | "kaprodi" | "ketua_fakultas"
+  role: string; // BE role: "head_tracer" | "tracer_team" | "wadir" | "kajur" | "kaprodi" | "dekan"
   program_id: number | null;
   program_name: string | null;
   program_code: string | null;
@@ -23,10 +23,10 @@ export interface AuthUser {
   jurusan: string | null;
   /** Nama Jurusan entity yang dipimpin (role kajur); null untuk role lain. */
   jurusan_name: string | null;
-  /** Nama Fakultas entity yang dipimpin (role ketua_fakultas); null untuk role lain. */
+  /** Nama Fakultas entity yang dipimpin (role dekan); null untuk role lain. */
   fakultas_name: string | null;
   /**
-   * Nama jurusan anggota fakultas yang dipimpin (role ketua_fakultas);
+   * Nama jurusan anggota fakultas yang dipimpin (role dekan);
    * array kosong untuk role lain. Dashboard Cube.js (Overview/Employment/
    * Education/KPI) masih mewajibkan memilih satu jurusan dari daftar ini.
    */

@@ -48,7 +48,7 @@ const DownloadDataButton = () => {
       const params: Record<string, string> = { tahun_lulus: year };
       const prodiId = resolveProdiId();
       if (prodiId) params.prodi_id = String(prodiId);
-      // Ketua Fakultas WAJIB mengirim jurusan aktif -- backend menolak
+      // Dekan WAJIB mengirim jurusan aktif -- backend menolak
       // (422/403) tanpa ini, karena berbeda dari kajur ia tidak punya satu
       // jurusan tetap untuk dipakai sebagai scope (lihat ReportService).
       if (jurusan && jurusan !== "__all__") params.jurusan = jurusan;

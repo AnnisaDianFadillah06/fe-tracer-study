@@ -28,7 +28,7 @@ export type AppRole =
   | "wadir"
   | "kajur"
   | "kaprodi"
-  | "ketua_fakultas"
+  | "dekan"
   | "alumni";
 
 export const roleLabels: Record<AppRole, string> = {
@@ -37,7 +37,7 @@ export const roleLabels: Record<AppRole, string> = {
   wadir: "Pimpinan (Direktur/Wadir/P2MPP)",
   kajur: "Ketua Jurusan",
   kaprodi: "Ketua Program Studi",
-  ketua_fakultas: "Ketua Fakultas",
+  dekan: "Dekan",
   alumni: "Alumni",
 };
 
@@ -47,7 +47,7 @@ export const roleDescriptions: Record<AppRole, string> = {
   wadir: "Viewer seluruh data institusi & download",
   kajur: "Viewer data jurusan & download",
   kaprodi: "Viewer data program studi & download",
-  ketua_fakultas: "Viewer data beberapa jurusan sekaligus & download",
+  dekan: "Viewer data beberapa jurusan sekaligus & download",
   alumni: "Pengisi kuesioner tracer study",
 };
 
@@ -119,7 +119,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     // Head Tracer = "Full system access" (lihat rolePermissionLabels di
     // bawah) -- sebelumnya daftar ini lupa menyertakan modul Akademik,
     // sehingga role dengan akses tertinggi justru diblokir dari 2 halaman
-    // yang bisa diakses wadir/kajur/kaprodi/ketua_fakultas di bawahnya.
+    // yang bisa diakses wadir/kajur/kaprodi/dekan di bawahnya.
     "academic.alumni_data",
     "academic.questionnaire_results",
   ],
@@ -176,7 +176,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
   // Sama seperti kajur (viewer read-only): satu-satunya beda adalah
   // cakupannya meliputi lebih dari satu jurusan sekaligus, dan pilihan
   // jurusan mana yang aktif ditentukan lewat GlobalFilters, bukan dikunci.
-  ketua_fakultas: [
+  dekan: [
     "dashboard.overview",
     "dashboard.employment",
     "dashboard.education",
@@ -325,7 +325,7 @@ export function mapBackendRole(backendRole?: string): AppRole {
     wadir: "wadir",
     kajur: "kajur",
     kaprodi: "kaprodi",
-    ketua_fakultas: "ketua_fakultas",
+    dekan: "dekan",
     alumni: "alumni",
     // Legacy compat
     admin: "head_tracer",

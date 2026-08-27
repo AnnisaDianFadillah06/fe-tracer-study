@@ -46,7 +46,7 @@ const roleLabelsMap: Record<string, string> = {
   wadir: "Pimpinan",
   kajur: "Ketua Jurusan",
   kaprodi: "Ketua Prodi",
-  ketua_fakultas: "Ketua Fakultas",
+  dekan: "Dekan",
 };
 
 const roleBadgeVariant = (role: string) => {
@@ -130,7 +130,7 @@ const StaffManagementPage = () => {
         role: formData.role,
         program_id: formData.program_id ? parseInt(formData.program_id) : null,
         jurusan_id: formData.role === "kajur" && formData.jurusan_id ? parseInt(formData.jurusan_id) : null,
-        fakultas_id: formData.role === "ketua_fakultas" && formData.fakultas_id ? parseInt(formData.fakultas_id) : null,
+        fakultas_id: formData.role === "dekan" && formData.fakultas_id ? parseInt(formData.fakultas_id) : null,
         ...(formData.password ? { password: formData.password } : {}),
       };
 
@@ -169,7 +169,7 @@ const StaffManagementPage = () => {
     setDeletingId(null);
   };
 
-  const staffRoles = roles.length > 0 ? roles.map((r) => r.name) : ["head_tracer", "tracer_team", "wadir", "kajur", "kaprodi", "ketua_fakultas"];
+  const staffRoles = roles.length > 0 ? roles.map((r) => r.name) : ["head_tracer", "tracer_team", "wadir", "kajur", "kaprodi", "dekan"];
 
   return (
     <DashboardLayout>
@@ -317,7 +317,7 @@ const StaffManagementPage = () => {
                 </Select>
               </div>
             )}
-            {formData.role === "ketua_fakultas" && (
+            {formData.role === "dekan" && (
               <div className="space-y-2">
                 <Label>Fakultas</Label>
                 <Select value={formData.fakultas_id} onValueChange={(v) => setFormData({ ...formData, fakultas_id: v })}>

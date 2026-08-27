@@ -29,9 +29,9 @@ interface RoleContextType {
    */
   selectedProdiId: number | null;
   selectedJurusan: string | null;
-  /** Cakupan jurusan untuk ketua_fakultas; null untuk peran lain. */
+  /** Cakupan jurusan untuk dekan; null untuk peran lain. */
   jurusanScopeNames: string[] | null;
-  /** Nama Fakultas yang dipimpin (role ketua_fakultas); null untuk peran lain. */
+  /** Nama Fakultas yang dipimpin (role dekan); null untuk peran lain. */
   selectedFakultas: string | null;
   can: (permission: Permission) => boolean;
   canAny: (permissions: Permission[]) => boolean;
@@ -55,10 +55,10 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     currentRole === "kajur" ? (user?.jurusan_name ?? user?.jurusan ?? null) : null;
 
   const jurusanScopeNames =
-    currentRole === "ketua_fakultas" ? (user?.fakultas_jurusan_names ?? []) : null;
+    currentRole === "dekan" ? (user?.fakultas_jurusan_names ?? []) : null;
 
   const selectedFakultas =
-    currentRole === "ketua_fakultas" ? (user?.fakultas_name ?? null) : null;
+    currentRole === "dekan" ? (user?.fakultas_name ?? null) : null;
 
   const can = (permission: Permission) => hasPermission(currentRole, permission);
   const canAny = (permissions: Permission[]) => hasAnyPermission(currentRole, permissions);

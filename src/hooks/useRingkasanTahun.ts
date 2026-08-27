@@ -26,7 +26,7 @@ export interface YearSummary {
  * berubah dalam satu sesi kerja.
  *
  * Untuk peran lain, cakupan sepenuhnya ditentukan server dari akun yang
- * login sehingga tidak perlu parameter apa pun. Ketua Fakultas adalah
+ * login sehingga tidak perlu parameter apa pun. Dekan adalah
  * pengecualian: karena scope-nya bisa mencakup >1 jurusan, server butuh
  * tahu jurusan mana yang sedang dipilih lewat query param `jurusan`.
  */

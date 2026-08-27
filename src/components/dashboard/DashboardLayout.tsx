@@ -46,11 +46,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       ? "kaprodi"
       : currentRole === "kajur"
         ? "kajur"
-        : currentRole === "ketua_fakultas"
-          ? "ketua_fakultas"
+        : currentRole === "dekan"
+          ? "dekan"
           : "full";
 
-  // Ketua Fakultas TIDAK lagi wajib memilih jurusan. Dulu wajib karena
+  // Dekan TIDAK lagi wajib memilih jurusan. Dulu wajib karena
   // seluruh endpoint analitik menolak 422 tanpa pilihan itu -- penyaringnya
   // hanya menampung satu nama jurusan, sedangkan cakupan fakultas berisi
   // beberapa. Sejak peladen meneruskan `id_prodi_in`, tanpa memilih apa pun
@@ -228,7 +228,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               mode={filtersMode}
               kaprodiName={selectedProdi ?? undefined}
               kajurJurusan={selectedJurusan ?? undefined}
-              ketuaFakultasJurusanScopes={jurusanScopeNames ?? undefined}
+              dekanJurusanScopes={jurusanScopeNames ?? undefined}
             />
           </div>
         )}

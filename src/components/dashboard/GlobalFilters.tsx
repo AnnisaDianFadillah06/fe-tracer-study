@@ -24,12 +24,12 @@ interface Props {
   /**
    * "kaprodi" hides degree/jurusan/prodi filters (single-prodi view).
    * "kajur" keeps degree & prodi but pins jurusan to the one they lead.
-   * "ketua_fakultas" keeps degree & prodi and shows a real jurusan dropdown,
+   * "dekan" keeps degree & prodi and shows a real jurusan dropdown,
    * but its options are narrowed to the jurusan assigned to this account —
    * unlike kajur it is NOT pinned to one value, since the account can cover
    * several jurusan and must still pick one at a time.
    */
-  mode?: "full" | "kaprodi" | "kajur" | "ketua_fakultas";
+  mode?: "full" | "kaprodi" | "kajur" | "dekan";
   /** Whether this page uses realtime data (overview) vs snapshot (employment/education) */
   dataMode?: "realtime" | "snapshot";
   /** Prodi name shown for kaprodi badge */
@@ -42,14 +42,14 @@ interface Props {
    */
   kajurJurusan?: string;
   /**
-   * Jurusan-jurusan yang di-assign ke akun Ketua Fakultas. Dipakai untuk
+   * Jurusan-jurusan yang di-assign ke akun Dekan. Dipakai untuk
    * mempersempit opsi dropdown jurusan — beda dari kajurJurusan, ini bukan
    * satu nilai yang dikunci, melainkan daftar opsi yang boleh dipilih.
    */
-  ketuaFakultasJurusanScopes?: string[];
+  dekanJurusanScopes?: string[];
 }
 
-const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, ketuaFakultasJurusanScopes }: Props) => {
+const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, dekanJurusanScopes }: Props) => {
   const location = useLocation();
   const inferredDataMode: "realtime" | "snapshot" =
     dataMode ?? (location.pathname.includes("/overview") ? "realtime" : "snapshot");
@@ -85,10 +85,10 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, ket
   /** Jurusan yang tidak boleh dilepas Kajur; null untuk peran lain. */
   const lockedJurusan = mode === "kajur" ? (kajurJurusan ?? null) : null;
 
-  /** Cakupan jurusan Ketua Fakultas; daftar opsi dropdown dipersempit ke ini. */
+  /** Cakupan jurusan Dekan; daftar opsi dropdown dipersempit ke ini. */
   const fakultasScopes = useMemo(
-    () => (mode === "ketua_fakultas" ? (ketuaFakultasJurusanScopes ?? []) : null),
-    [mode, ketuaFakultasJurusanScopes]
+    () => (mode === "dekan" ? (dekanJurusanScopes ?? []) : null),
+    [mode, dekanJurusanScopes]
   );
 
   useEffect(() => { setPDegree(degree); }, [degree]);
@@ -219,7 +219,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, ket
 
   const isDisabled = isApplying || optLoading;
 
-  // Ketua Fakultas tidak lagi wajib memilih jurusan: tanpa pilihan, peladen
+  // Dekan tidak lagi wajib memilih jurusan: tanpa pilihan, peladen
   // membatasi lewat `id_prodi_in` dan mengembalikan agregat seluruh fakultas.
 
   return (
@@ -287,7 +287,7 @@ const GlobalFilters = ({ mode = "full", dataMode, kaprodiName, kajurJurusan, ket
                       ))}
                     </SelectContent>
                   </Select>
-                  {mode === "ketua_fakultas" && pJurusan === ALL && (
+                  {mode === "dekan" && pJurusan === ALL && (
                     <span className="absolute top-full left-0 mt-1 text-[11px] text-muted-foreground whitespace-nowrap">
                       Gabungan seluruh jurusan di fakultas Anda
                     </span>

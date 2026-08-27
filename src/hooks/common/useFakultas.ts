@@ -7,7 +7,7 @@ export interface Fakultas {
   is_active: boolean;
   /** Jumlah jurusan anggota fakultas ini lewat fakultas_jurusan_scopes. */
   jurusan_count: number;
-  /** Jumlah akun staf (Ketua Fakultas) yang lingkupnya dipatok ke fakultas ini. */
+  /** Jumlah akun staf (Dekan) yang lingkupnya dipatok ke fakultas ini. */
   user_count: number;
   /** jurusan_id anggota fakultas ini. */
   jurusan_ids: number[];

@@ -14,7 +14,7 @@ export interface StaffUser {
   /** Jurusan entity yang dipimpin (role kajur) -- dropdown single-select. */
   jurusan_id: number | null;
   jurusan_name: string | null;
-  /** Fakultas entity yang dipimpin (role ketua_fakultas) -- dropdown single-select. */
+  /** Fakultas entity yang dipimpin (role dekan) -- dropdown single-select. */
   fakultas_id: number | null;
   fakultas_name: string | null;
   created_at: string;

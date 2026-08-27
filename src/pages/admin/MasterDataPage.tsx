@@ -234,7 +234,7 @@ const MasterDataPage = () => {
     }
   };
 
-  // ── Fakultas — entity baru, sumber cakupan Ketua Fakultas ──────────────
+  // ── Fakultas — entity baru, sumber cakupan Dekan ──────────────
   const { fakultasList, isLoading: fakultasLoading, isError: fakultasError } = useFakultas();
   const [fakultasDialog, setFakultasDialog] = useState(false);
   const [editFakultas, setEditFakultas] = useState<Fakultas | null>(null);
@@ -277,7 +277,7 @@ const MasterDataPage = () => {
     }
   };
 
-  // ── Fakultas ↔ Jurusan (keanggotaan eksplisit, sumber cakupan Ketua Fakultas) ──
+  // ── Fakultas ↔ Jurusan (keanggotaan eksplisit, sumber cakupan Dekan) ──
   const [scopeDialogFakultas, setScopeDialogFakultas] = useState<Fakultas | null>(null);
   const [scopeJurusanIds, setScopeJurusanIds] = useState<number[]>([]);
   const [scopeJurusanSearch, setScopeJurusanSearch] = useState("");
@@ -613,7 +613,7 @@ const MasterDataPage = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              title="Kelola keanggotaan jurusan (cakupan Ketua Fakultas)"
+                              title="Kelola keanggotaan jurusan (cakupan Dekan)"
                               onClick={() => openFakultasScopeDialog(f)}
                             >
                               <ListChecks className="h-4 w-4" />
@@ -1057,7 +1057,7 @@ const MasterDataPage = () => {
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Jurusan yang dicentang menentukan cakupan data Ketua Fakultas ini (gabungan seluruh
+              Jurusan yang dicentang menentukan cakupan data Dekan ini (gabungan seluruh
               program studi di jurusan-jurusan tersebut).
             </p>
             <div className="relative">
