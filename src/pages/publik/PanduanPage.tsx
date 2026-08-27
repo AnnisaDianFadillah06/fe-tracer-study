@@ -95,8 +95,9 @@ const PanduanPage = () => {
     <PublicPageShell
       title="Panduan Pengisian"
       description={`Empat langkah mengisi kuesioner tracer study ${institution.name}, dari masuk sampai jawaban terkirim.`}
+      width="narrow"
     >
-      <div className="max-w-3xl space-y-4">
+      <div className="space-y-4">
         {langkah.map(({ icon: Icon, title, body }) => (
           <Card key={title}>
             <CardHeader className="flex flex-row items-start gap-4 space-y-0">

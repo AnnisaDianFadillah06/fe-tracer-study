@@ -47,6 +47,7 @@ const KebijakanPrivasiPage = () => {
     <PublicPageShell
       title="Kebijakan Privasi"
       description="Pemberitahuan perlindungan data pribadi bagi alumni yang mengisi kuesioner tracer study, sesuai UU No. 27 Tahun 2022."
+      width="narrow"
     >
       {isLoading ? (
         <Card>
@@ -62,7 +63,7 @@ const KebijakanPrivasiPage = () => {
           </CardContent>
         </Card>
       ) : (
-        <Card className="max-w-3xl">
+        <Card>
           <CardContent className="space-y-6 pt-6 pb-8">
             <div className="flex items-start gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10">

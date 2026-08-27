@@ -134,8 +134,9 @@ const FaqPage = () => {
     <PublicPageShell
       title="Pertanyaan yang Sering Diajukan"
       description="Jawaban atas hal-hal yang paling sering ditanyakan alumni sebelum dan sesudah mengisi kuesioner."
+      width="narrow"
     >
-      <Card className="max-w-3xl">
+      <Card>
         <CardContent className="py-2">
           <Accordion type="single" collapsible>
             {faqs.map((faq, i) => (
@@ -152,7 +153,7 @@ const FaqPage = () => {
         </CardContent>
       </Card>
 
-      <p className="mt-6 max-w-3xl text-sm text-muted-foreground">
+      <p className="mt-6 text-sm text-muted-foreground">
         Pertanyaan Anda tidak ada di sini? Kirimkan ke {institution.email} —
         pertanyaan yang berulang akan ditambahkan ke halaman ini. Langkah
         pengisian selengkapnya ada di{" "}
