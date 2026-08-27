@@ -3,6 +3,27 @@ import { Mail, Phone, MapPin } from "lucide-react";
 import InstitutionLogo from "@/components/common/InstitutionLogo";
 import { institution } from "@/config/institution";
 
+/**
+ * Sumber daya di footer.
+ *
+ * Sebelumnya kelimanya `href="#"` — tautan mati yang menjanjikan halaman yang
+ * tidak pernah ada. "Laporan Tahunan" khususnya menjanjikan dokumen tahunan
+ * resmi; yang benar-benar ada adalah laporan yang diterbitkan pengelola di
+ * /laporan, jadi namanya ikut diluruskan.
+ *
+ * Kontak admin memakai institution.email (VITE_INSTITUTION_EMAIL), bukan
+ * alamat yang ditulis di sini, supaya sama dengan alamat yang sudah tampil di
+ * kolom kiri footer dan di seluruh halaman publik.
+ */
+const resources: { label: string; to?: string; href?: string }[] = [
+  { label: "Panduan Pengisian", to: "/panduan" },
+  { label: "FAQ", to: "/faq" },
+  { label: "Laporan Publik", to: "/laporan" },
+  { label: "Statistik", to: "/statistik" },
+  { label: "Kebijakan Privasi", to: "/kebijakan-privasi" },
+  { label: "Kontak Admin", href: `mailto:${institution.email}` },
+];
+
 const FooterSection = () => {
   return (
     <footer id="about" className="py-16 border-t border-border/30">
@@ -61,17 +82,17 @@ const FooterSection = () => {
           <div>
             <h4 className="font-heading font-semibold mb-4">Sumber Daya</h4>
             <ul className="space-y-2 text-sm">
-              {[
-                "Panduan Pengisian",
-                "FAQ",
-                "Laporan Tahunan",
-                "Kebijakan Privasi",
-                "Kontak Admin",
-              ].map((link) => (
-                <li key={link}>
-                  <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                    {link}
-                  </a>
+              {resources.map(({ label, to, href }) => (
+                <li key={label}>
+                  {to ? (
+                    <Link to={to} className="text-muted-foreground hover:text-foreground transition-colors">
+                      {label}
+                    </Link>
+                  ) : (
+                    <a href={href} className="text-muted-foreground hover:text-foreground transition-colors">
+                      {label}
+                    </a>
+                  )}
                 </li>
               ))}
             </ul>
