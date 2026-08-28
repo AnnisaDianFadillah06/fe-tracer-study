@@ -4,12 +4,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 // Dashboard-nya di-host di Metabase eksternal (bukan bagian dari FE/BE
-// tracer study kita). Sengaja tidak di-iframe: server Metabase umumnya
-// belum HTTPS, jadi browser akan blokir iframe itu sebagai mixed content
-// begitu situs ini sendiri diakses lewat HTTPS -- makanya link-out biasa.
+// tracer study kita), di analyst.smart-tracer.id lewat nginx edge (HTTPS).
+// Sengaja tidak di-iframe: browser memblokir iframe cross-origin semacam ini
+// sebagai mixed content / X-Frame-Options -- makanya link-out biasa.
 const METABASE_DASHBOARD_URL =
-  import.meta.env.VITE_METABASE_DASHBOARD_URL ||
-  "http://localhost:3000/public/dashboard/c3db24a3-7878-4d57-9a2d-e3f53b299b06";
+  import.meta.env.VITE_METABASE_DASHBOARD_URL || "https://analyst.smart-tracer.id";
 
 const MultidimensiInsightPage = () => {
   return (

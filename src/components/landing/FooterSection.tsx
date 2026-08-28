@@ -31,7 +31,7 @@ const FooterSection = () => {
         <div className="grid md:grid-cols-4 gap-12">
           {/* Brand */}
           <div className="md:col-span-2">
-            <InstitutionLogo className="mb-4" compact title="Tracer Study" />
+            <InstitutionLogo className="mb-4" compact title="Smart Tracer" />
             <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mb-6">
               Platform analitik komprehensif untuk penelusuran alumni{" "}
               {institution.name}. Mendukung penjaminan mutu pendidikan dengan

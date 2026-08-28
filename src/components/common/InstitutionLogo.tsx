@@ -28,7 +28,7 @@ const InstitutionLogo = ({
   markClassName,
   textClassName,
   showText = true,
-  title = "Tracer Study",
+  title = "Smart Tracer",
   subtitle = institution.shortName,
   compact = false,
 }: InstitutionLogoProps) => {

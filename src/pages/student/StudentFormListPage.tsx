@@ -73,7 +73,7 @@ const StudentFormListPage = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-lg border-b border-border flex items-center justify-between px-6 h-14">
-        <InstitutionLogo compact title="Tracer Study" textClassName="hidden sm:block" />
+        <InstitutionLogo compact title="Smart Tracer" textClassName="hidden sm:block" />
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">

@@ -28,7 +28,7 @@ const Login = () => {
         const result = await login(identifier, password);
         toast({
           title: "Login Berhasil",
-          description: "Selamat datang di Dashboard Tracer Study",
+          description: "Selamat datang di Dashboard Smart Tracer",
         });
         if (result.user?.role) {
           navigate("/dashboard/overview");
@@ -100,11 +100,11 @@ const Login = () => {
           </Link>
 
           {/* Logo */}
-          <InstitutionLogo className="mb-8" markClassName="h-12 w-12" title="Tracer Study" />
+          <InstitutionLogo className="mb-8" markClassName="h-12 w-12" title="Smart Tracer" />
 
           {/* Header */}
           <div className="mb-8">
-            <h1 className="font-heading text-3xl font-bold mb-2">Masuk ke Tracer Study</h1>
+            <h1 className="font-heading text-3xl font-bold mb-2">Masuk ke Smart Tracer</h1>
             <p className="text-muted-foreground">
               Gunakan akun yang sesuai; sistem akan mengarahkan Anda ke dashboard admin atau kuisioner alumni.
             </p>

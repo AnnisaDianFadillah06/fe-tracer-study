@@ -51,7 +51,7 @@ const LandingNav = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3">
-            <InstitutionLogo compact title="Tracer Study" />
+            <InstitutionLogo compact title="Smart Tracer" />
           </Link>
 
           {/* Desktop Nav */}

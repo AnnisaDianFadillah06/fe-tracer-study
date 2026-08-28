@@ -48,7 +48,7 @@ const HeroSection = () => {
             </motion.div>
 
             <h1 className="font-heading text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
-              <span className="text-foreground">Tracer Study</span>
+              <span className="text-foreground">Smart Tracer</span>
               <br />
               <span className="gradient-text">{institution.name}</span>
             </h1>

@@ -102,7 +102,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Logo */}
         <div className="p-4 border-b border-sidebar-border">
           <Link to="/dashboard/overview" className="flex items-center gap-3">
-            <InstitutionLogo compact title="Tracer Study" subtitle="Dashboard" showText={!collapsed} />
+            <InstitutionLogo compact title="Smart Tracer" subtitle="Dashboard" showText={!collapsed} />
           </Link>
         </div>
 

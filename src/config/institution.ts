@@ -51,4 +51,4 @@ export const studentEmailPlaceholder = `nim@student.${institution.domain}`;
  * Ikut tertanam di properti dokumen, jadi jangan biarkan menyebut PT tertentu
  * kalau konfigurasinya belum diisi.
  */
-export const workbookCreator = `Tracer Study ${institution.shortName}`;
+export const workbookCreator = `Smart Tracer ${institution.shortName}`;

@@ -61,7 +61,7 @@ const LoginWithAPI = () => {
           </div>
         </div>
 
-        <h1 className="mb-2 text-center text-3xl font-bold">Tracer Study</h1>
+        <h1 className="mb-2 text-center text-3xl font-bold">Smart Tracer</h1>
         <p className="mb-8 text-center text-muted-foreground">
           Login ke dashboard Anda
         </p>

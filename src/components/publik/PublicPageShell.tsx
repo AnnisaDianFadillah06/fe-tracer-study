@@ -58,7 +58,7 @@ const PublicPageShell = ({ title, description, actions, width = "wide", children
 
       <footer className="border-t border-border/60 py-6">
         <div className={`mx-auto ${maxWidth} px-4 text-sm text-muted-foreground sm:px-6`}>
-          Tracer Study {institution.name}
+          Smart Tracer {institution.name}
         </div>
       </footer>
     </div>
