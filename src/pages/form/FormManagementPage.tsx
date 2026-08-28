@@ -50,7 +50,8 @@ import { useToast } from "@/hooks/common/use-toast";
 import { useRole } from "@/contexts/RoleContext";
 import type { BackendQuestionnaire } from "@/lib/formManagement";
 import { backendToFormListItem, saveForms, getInitialForms } from "@/lib/formManagement";
-import { exportQuestionnaire, type ExportFormat } from "@/lib/exportQuestionnaire";
+import { exportQuestionnaire, type ExportFormat, type ExportProgress } from "@/lib/exportQuestionnaire";
+import ExportProgressDialog from "@/components/common/ExportProgressDialog";
 import api from "@/lib/api";
 import {
   ArrowLeft,
@@ -94,6 +95,14 @@ const DaftarKuisionerPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">((searchParams.get("status") as any) || "all");
   const [exportingId, setExportingId] = useState<number | null>(null);
+  /**
+   * Kemajuan ekspor yang sedang berjalan; null bila tidak ada. Judul dan
+   * format disimpan terpisah supaya dialognya bisa menyebut berkas mana yang
+   * sedang disusun — label tombol saja tidak cukup, dialognya menutupi tabel.
+   */
+  const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
+  const [exportLabel, setExportLabel] = useState("");
+  const [exportRawCode, setExportRawCode] = useState(false);
   const [page, setPageRaw] = useState(Number(searchParams.get("page")) || 1);
   // "" = tahun lulus belum dipilih (layar kartu tahun), "all" = lintas lulusan,
   // selain itu berisi satu tahun lulusan.
@@ -213,8 +222,11 @@ const DaftarKuisionerPage = () => {
 
   const handleExport = async (form: BackendQuestionnaire, format: ExportFormat = "label") => {
     setExportingId(form.id);
-    const result = await exportQuestionnaire(form, format);
+    setExportLabel(form.title);
+    setExportRawCode(format === "code");
+    const result = await exportQuestionnaire(form, format, setExportProgress);
     setExportingId(null);
+    setExportProgress(null);
 
     toast({
       title: result.ok ? "Export berhasil" : "Gagal",
@@ -643,6 +655,11 @@ const DaftarKuisionerPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ExportProgressDialog
+        progress={exportProgress}
+        label={exportLabel}
+        rawCode={exportRawCode}
+      />
     </DashboardLayout>
   );
 };

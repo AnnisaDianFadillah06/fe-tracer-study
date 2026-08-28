@@ -21,6 +21,28 @@ export interface ExportableQuestionnaire {
 /** "label" = jawaban jadi teks (untuk dibaca), "code" = angka mentah (unggah DIKTI). */
 export type ExportFormat = "label" | "code";
 
+/**
+ * Kemajuan satu ekspor. Dua fase, karena hanya satu di antaranya yang bisa
+ * diukur:
+ *
+ *   - "menyiapkan" — permintaan sudah dikirim dan server sedang menyusun
+ *     workbook-nya. Tidak ada satu bita pun yang mengalir selama ini dan
+ *     server tidak melaporkan kemajuannya, jadi persennya null dan bilahnya
+ *     dibuat berdenyut. Inilah bagian yang paling lama: lembar Kementerian
+ *     menembak satu kueri jawaban per baris, sehingga seangkatan berisi
+ *     ribuan responden berjalan puluhan detik tanpa tanda apa pun.
+ *   - "mengunduh" — bita mulai berdatangan. `Excel::download` mengirim
+ *     Content-Length, jadi di sini persennya sungguhan; tetap ditandai
+ *     nullable karena kompresi di proksi bisa membuatnya tidak terbaca.
+ */
+export interface ExportProgress {
+  phase: "menyiapkan" | "mengunduh";
+  /** 0-100, atau null bila panjang totalnya tidak diketahui. */
+  percent: number | null;
+  /** Bita yang sudah diterima; 0 selama fase menyiapkan. */
+  loaded: number;
+}
+
 export interface ExportResult {
   ok: boolean;
   /** Pesan siap tampil di toast, baik untuk sukses maupun gagal. */
@@ -43,6 +65,7 @@ export function resolveTahunLulus(form: ExportableQuestionnaire): number | null 
 export async function exportQuestionnaire(
   form: ExportableQuestionnaire,
   format: ExportFormat = "label",
+  onProgress?: (progress: ExportProgress) => void,
 ): Promise<ExportResult> {
   const tahunLulus = resolveTahunLulus(form);
 
@@ -53,10 +76,24 @@ export async function exportQuestionnaire(
     };
   }
 
+  onProgress?.({ phase: "menyiapkan", percent: null, loaded: 0 });
+
   try {
     const response = await api.get("/reports/export-alumni", {
       params: { questionnaire_id: form.id, tahun_lulus: tahunLulus, format },
       responseType: "blob",
+      onDownloadProgress: (event) => {
+        // Panggilan balik ini baru berbunyi setelah bita pertama tiba, jadi
+        // kemunculannya sendiri sudah menandakan server selesai menyusun
+        // berkasnya. `total` dibaca dari event; axios mengisinya dari
+        // Content-Length dan mengosongkannya bila header itu tidak terbaca.
+        const total = event.total ?? 0;
+        onProgress?.({
+          phase: "mengunduh",
+          percent: total > 0 ? Math.round((event.loaded / total) * 100) : null,
+          loaded: event.loaded,
+        });
+      },
     });
 
     const blob = new Blob([response.data], {

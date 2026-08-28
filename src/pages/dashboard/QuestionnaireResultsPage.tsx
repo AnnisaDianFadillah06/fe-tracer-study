@@ -15,7 +15,8 @@ import {
 import { useRole } from "@/contexts/RoleContext";
 import { useToast } from "@/hooks/common/use-toast";
 import api from "@/lib/api";
-import { exportQuestionnaire, type ExportFormat } from "@/lib/exportQuestionnaire";
+import { exportQuestionnaire, type ExportFormat, type ExportProgress } from "@/lib/exportQuestionnaire";
+import ExportProgressDialog from "@/components/common/ExportProgressDialog";
 import {
   ArrowLeft, CheckCircle2, FileSpreadsheet, Loader2, Search, Users,
 } from "lucide-react";
@@ -45,6 +46,14 @@ const QuestionnaireResultsPage = () => {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [exportingId, setExportingId] = useState<number | null>(null);
+  /**
+   * Kemajuan ekspor yang sedang berjalan; null bila tidak ada. Judul dan
+   * format disimpan terpisah supaya dialognya bisa menyebut berkas mana yang
+   * sedang disusun — label tombol saja tidak cukup, dialognya menutupi tabel.
+   */
+  const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
+  const [exportLabel, setExportLabel] = useState("");
+  const [exportRawCode, setExportRawCode] = useState(false);
   const [page, setPage] = useState(1);
 
   const [forms, setForms] = useState<QForm[]>([]);
@@ -195,8 +204,11 @@ const QuestionnaireResultsPage = () => {
 
   const handleExport = async (form: QForm, format: ExportFormat = "label") => {
     setExportingId(form.id);
-    const result = await exportQuestionnaire(form, format);
+    setExportLabel(form.title);
+    setExportRawCode(format === "code");
+    const result = await exportQuestionnaire(form, format, setExportProgress);
     setExportingId(null);
+    setExportProgress(null);
 
     toast({
       title: result.ok ? "Export berhasil" : "Gagal",
@@ -389,6 +401,11 @@ const QuestionnaireResultsPage = () => {
           </CardContent>
         </Card>
       </div>
+      <ExportProgressDialog
+        progress={exportProgress}
+        label={exportLabel}
+        rawCode={exportRawCode}
+      />
     </DashboardLayout>
   );
 };
