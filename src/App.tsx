@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { RoleProvider } from "@/contexts/RoleContext";
 import { GlobalFiltersProvider } from "@/contexts/GlobalFiltersContext";
+import { CredentialIssueProvider } from "@/contexts/CredentialIssueContext";
 import { ProtectedRoute } from "@/components/common/ProtectedRoute";
 
 import Landing from "./pages/landing/Landing";
@@ -84,6 +85,13 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+              {/* Penerbitan kredensial berjalan berpotong selama beberapa
+                  menit. Providernya dipasang DI ATAS <Routes> supaya
+                  perulangannya tidak ikut dibongkar saat petugas berpindah
+                  halaman — dan penanda kemajuannya ikut terlihat di mana pun.
+                  Di dalam BrowserRouter karena penanda itu memakai
+                  useNavigate untuk kembali ke dialognya. */}
+              <CredentialIssueProvider>
               <Routes>
                 {/* Public */}
                 <Route path="/" element={<Landing />} />
@@ -170,6 +178,7 @@ const App = () => (
 
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </CredentialIssueProvider>
             </BrowserRouter>
           </GlobalFiltersProvider>
         </RoleProvider>

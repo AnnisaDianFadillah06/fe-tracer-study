@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ExcelJS from "exceljs";
 import { useStudentManagement } from "@/hooks/admin/useStudentManagement";
 import { useToast } from "@/hooks/common/use-toast";
@@ -45,11 +45,12 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle, FileSpreadsheet, Loader2, ArrowLeft, KeyRound, ChevronUp } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Eye, EyeOff, GraduationCap, Download, Upload, CheckCircle2, XCircle, FileSpreadsheet, Loader2, ArrowLeft, KeyRound } from "lucide-react";
 import PilihTahun from "@/components/common/PilihTahun";
 import { useAuth } from "@/hooks/auth/useAuth";
 import { useRingkasanTahun } from "@/hooks/useRingkasanTahun";
 import { studentEmailPlaceholder, workbookCreator } from "@/config/institution";
+import { useCredentialIssue } from "@/contexts/CredentialIssueContext";
 
 const StudentManagementPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -118,8 +119,18 @@ const StudentManagementPage = () => {
   const { user } = useAuth();
   const isHeadTracer = user?.role === "head_tracer";
   const [isCredDialogOpen, setIsCredDialogOpen] = useState(false);
-  const [isIssuingCreds, setIsIssuingCreds] = useState(false);
   const [onlyWithoutCreds, setOnlyWithoutCreds] = useState(true);
+  /**
+   * Keadaan penerbitan tinggal di provider, BUKAN di halaman ini.
+   *
+   * Prosesnya berjalan beberapa menit dan tidak boleh mati hanya karena
+   * petugas berpindah halaman — lihat alasan lengkapnya di
+   * CredentialIssueContext. Yang tersisa di sini murni dialognya: penyaring
+   * lingkup dan tombol mulai.
+   */
+  const credIssue = useCredentialIssue();
+  const isIssuingCreds = credIssue.isRunning;
+  const credProgress = credIssue.progress;
   // Tiga penyaring lingkup penerbitan. Semuanya opsional dan saling bebas:
   // "" berarti tidak menyaring pada sumbu itu. Jurusan tanpa prodi berarti
   // seluruh prodi di bawahnya; keduanya berarti irisannya; tidak satu pun
@@ -128,15 +139,41 @@ const StudentManagementPage = () => {
   const [credYear, setCredYear] = useState("");
   const [credJurusan, setCredJurusan] = useState("");
   const [credProdi, setCredProdi] = useState("");
-  /** Kemajuan penerbitan berpotong; null saat tidak sedang berjalan. */
-  const [credProgress, setCredProgress] = useState<{ done: number; remaining: number } | null>(null);
+
   /**
-   * Ringkasan lingkup yang SEDANG diterbitkan, dibekukan saat penerbitan
-   * dimulai. Dipakai penanda mengambang di pojok kanan bawah: begitu
-   * dialognya ditutup, penyaring di dalamnya tak terlihat lagi, sementara
-   * petugas tetap perlu tahu antrean mana yang masih berjalan.
+   * Lapor ke provider apakah dialognya sedang terlihat, supaya penanda
+   * mengambang tidak menampilkan kemajuan yang sama dua kali. Pembersihannya
+   * penting: saat halaman ini dibongkar karena petugas berpindah, dialognya
+   * ikut hilang dan penanda itu HARUS muncul menggantikannya.
    */
-  const [credScopeLabel, setCredScopeLabel] = useState("");
+  useEffect(() => {
+    credIssue.setDialogVisible(isCredDialogOpen);
+    return () => credIssue.setDialogVisible(false);
+  }, [isCredDialogOpen, credIssue.setDialogVisible]);
+
+  /**
+   * Buka kembali dialognya saat penanda mengambang diklik. Penanda itu sudah
+   * menavigasi ke halaman ini lebih dulu; yang tersisa tinggal membuka
+   * dialognya begitu halaman ini terpasang.
+   */
+  useEffect(() => {
+    if (credIssue.openDialogRequest > 0) setIsCredDialogOpen(true);
+  }, [credIssue.openDialogRequest]);
+
+  /**
+   * Tutup dialognya sendiri begitu penerbitan selesai.
+   *
+   * Dulu penutupan itu bagian dari handler-nya, karena handler-lah yang
+   * menunggu sampai potongan terakhir. Sekarang yang menunggu ada di
+   * provider, jadi halaman ini mengamati peralihan sedang-berjalan →
+   * selesai. Tanpa ini dialognya tertinggal terbuka memperlihatkan formulir
+   * kosong setelah berkasnya terunduh.
+   */
+  const wasIssuingRef = useRef(false);
+  useEffect(() => {
+    if (wasIssuingRef.current && !isIssuingCreds) setIsCredDialogOpen(false);
+    wasIssuingRef.current = isIssuingCreds;
+  }, [isIssuingCreds]);
 
   // Daftar tahun lulus dipakai pemilih di dalam dialog. Sumber yang sama
   // dengan kartu tahun di layar awal, jadi pilihannya selalu sinkron.
@@ -333,165 +370,38 @@ const StudentManagementPage = () => {
     }
   };
 
-  /** Satu baris kredensial hasil penerbitan. */
-  type IssuedCredential = { nim: string; name: string; email: string; password: string };
-
   /**
-   * Terbitkan kata sandi alumni, lalu unduh berkasnya.
+   * Mulai penerbitan kata sandi alumni.
    *
-   * BERJALAN BERPOTONG. Pencincangan kata sandi sengaja lambat — puluhan
-   * milidetik per orang — sehingga satu angkatan yang berisi ribuan alumni
-   * tidak mungkin selesai dalam satu permintaan HTTP. Server
-   * menerbitkan satu potong lalu memberi tahu berapa yang tersisa; perulangan
-   * di sini melanjutkan dengan kursor `after_nim` sampai habis.
+   * Halaman ini hanya MEMULAI. Perulangan berpotong, pengumpulan barisnya,
+   * dan perakitan berkasnya dikerjakan CredentialIssueProvider yang hidup di
+   * atas router — supaya prosesnya selamat saat petugas berpindah halaman.
    *
-   * Hasil tiap potong dikumpulkan di memori peramban, dan berkasnya baru
-   * dirakit setelah semuanya selesai. Server tidak boleh menyimpan hasil
-   * antara: isinya kata sandi polos, dan menaruhnya di disk walau sementara
-   * persis yang harus dihindari.
-   *
-   * Formatnya .xlsx, bukan CSV. Berkas CSV berpemisah koma dibuka Excel
-   * berlokal Indonesia dengan seluruh kolom menempel jadi satu — masalah yang
-   * sama sudah pernah ditemui pada ekspor data mahasiswa di atas.
-   *
-   * Tidak akan pernah ada tombol "unduh ulang". Kata sandi tersimpan tersandi
-   * satu arah, jadi bila berkasnya hilang satu-satunya jalan adalah
-   * menerbitkan ulang — dan kata sandi lama mati.
-   *
-   * Dialognya boleh ditutup selagi ini berjalan (kemajuannya pindah ke
-   * penanda mengambang), jadi penyaring lingkup DIBEKUKAN di sini alih-alih
-   * dibaca ulang tiap potong: tanpa itu, mengubah pilihan di dialog yang
-   * dibuka kembali di tengah jalan membuat potongan berikutnya berangkat
-   * dengan lingkup yang berbeda dari potongan sebelumnya.
+   * Penyaring lingkup DIBEKUKAN di sini, bukan dibaca ulang tiap potong:
+   * dialognya boleh ditutup dan dibuka lagi selagi penerbitan berjalan, dan
+   * tanpa pembekuan ini mengubah pilihan di tengah jalan akan membuat
+   * potongan berikutnya berangkat dengan lingkup yang berbeda.
    */
-  const handleIssueCredentials = async () => {
-    const lingkup = {
-      tahun: credYear,
-      jurusan: credJurusan,
-      prodi: credProdi,
-      hanyaBelumPunya: onlyWithoutCreds,
-    };
-
-    const namaProdi = lingkup.prodi
-      ? programs.find((x) => String(x.id) === lingkup.prodi)?.name
+  const handleIssueCredentials = () => {
+    const namaProdi = credProdi
+      ? programs.find((x) => String(x.id) === credProdi)?.name
       : undefined;
-    setCredScopeLabel(
-      [
-        lingkup.tahun ? `Lulusan ${lingkup.tahun}` : "Semua lulusan",
-        lingkup.jurusan || undefined,
+
+    credIssue.start({
+      graduationYear: credYear,
+      jurusan: credJurusan,
+      programId: credProdi,
+      onlyWithoutCredentials: onlyWithoutCreds,
+      label: [
+        credYear ? `Lulusan ${credYear}` : "Semua lulusan",
+        credJurusan || undefined,
         namaProdi,
       ]
         .filter(Boolean)
         .join(" • "),
-    );
-
-    setIsIssuingCreds(true);
-    setCredProgress(null);
-
-    const rows: IssuedCredential[] = [];
-    let cursor: string | null = null;
-
-    try {
-      // Perulangan tak bersyarat dengan penjaga di dalam: berhenti saat server
-      // melaporkan tidak ada sisa, atau saat satu potong tidak menghasilkan
-      // apa-apa (penjaga kedua, supaya kekeliruan di sisi server tidak pernah
-      // berubah menjadi perulangan tanpa akhir di peramban).
-      for (;;) {
-        const payload: Record<string, unknown> = {
-          only_without_credentials: lingkup.hanyaBelumPunya,
-        };
-        if (lingkup.tahun) payload.graduation_year = Number(lingkup.tahun);
-        if (lingkup.jurusan) payload.jurusan = lingkup.jurusan;
-        if (lingkup.prodi) payload.program_id = Number(lingkup.prodi);
-        if (cursor) payload.after_nim = cursor;
-
-        const { data } = await api.post("/alumni/credentials/issue", payload);
-        const batch: IssuedCredential[] = data?.data?.issued ?? [];
-        const remaining: number = Number(data?.data?.remaining ?? 0);
-
-        rows.push(...batch);
-        cursor = data?.data?.last_nim ?? null;
-        setCredProgress({ done: rows.length, remaining });
-
-        if (batch.length === 0 || remaining <= 0 || !cursor) break;
-      }
-
-      if (rows.length === 0) {
-        throw new Error("Tidak ada kredensial yang diterbitkan.");
-      }
-
-      await downloadCredentialWorkbook(rows);
-
-      setIsCredDialogOpen(false);
-      toast({
-        title: "Kredensial diterbitkan",
-        description:
-          `${rows.length} kata sandi dibuat dan berkasnya terunduh. Berkas ini satu-satunya ` +
-          `salinan — simpan di tempat aman, dan hapus setelah kiriman surel selesai.`,
-        duration: 12000,
-      });
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ?? error?.message ?? "Gagal menerbitkan kredensial.";
-
-      // Potongan yang sudah terbit TIDAK dapat dibatalkan — kata sandinya
-      // sudah berganti di basis data. Berkasnya tetap diunduh supaya
-      // kredensial itu tidak hilang bersama kegagalannya; tanpa ini, alumni
-      // pada potongan tersebut terkunci tanpa siapa pun tahu kata sandinya.
-      if (rows.length > 0) {
-        await downloadCredentialWorkbook(rows);
-        toast({
-          title: "Penerbitan terhenti di tengah",
-          description:
-            `${message} ${rows.length} kredensial yang terlanjur terbit sudah diunduh dan tetap ` +
-            `berlaku. Jalankan lagi dengan pilihan "hanya yang belum pernah menerima kredensial" ` +
-            `untuk melanjutkan sisanya.`,
-          variant: "destructive",
-          duration: 20000,
-        });
-      } else {
-        toast({ title: "Gagal", description: message, variant: "destructive", duration: 12000 });
-      }
-    } finally {
-      setIsIssuingCreds(false);
-      setCredProgress(null);
-    }
-  };
-
-  /** Rakit dan unduh berkas kredensial. Dipakai jalur sukses maupun jalur gagal-sebagian. */
-  const downloadCredentialWorkbook = async (rows: IssuedCredential[]) => {
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = workbookCreator;
-    workbook.created = new Date();
-
-    const sheet = workbook.addWorksheet("Kredensial Alumni");
-    sheet.columns = [
-      { header: "NIM", key: "nim", width: 20 },
-      { header: "Nama", key: "name", width: 32 },
-      { header: "Surel", key: "email", width: 32 },
-      { header: "Kata Sandi", key: "password", width: 20 },
-    ];
-
-    const headerRow = sheet.getRow(1);
-    headerRow.font = { bold: true, color: { argb: "FF1F2937" } };
-    headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDBEAFE" } };
-    headerRow.alignment = { horizontal: "center", vertical: "middle" };
-    headerRow.height = 24;
-    sheet.views = [{ state: "frozen", ySplit: 1 }];
-
-    rows.forEach((r) => sheet.addRow(r));
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Kredensial_Alumni_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    link.click();
-    URL.revokeObjectURL(url);
   };
+
 
   const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -857,8 +767,9 @@ const StudentManagementPage = () => {
             <br />
             Lingkup sebesar apa pun ditangani sekaligus: prosesnya dipecah otomatis menjadi beberapa
             tahap karena pencincangan kata sandi sengaja lambat. Untuk lingkup besar penerbitan bisa
-            berjalan beberapa menit — jendela ini boleh ditutup, kemajuannya pindah ke pojok kanan
-            bawah dan halaman tetap bisa dipakai. Yang tidak boleh hanya meninggalkan halaman ini.
+            berjalan beberapa menit — jendela ini boleh ditutup dan halaman boleh ditinggalkan,
+            kemajuannya pindah ke pojok kanan bawah dan ikut ke halaman mana pun. Yang tidak boleh
+            hanya menutup atau memuat ulang tab ini.
           </p>
 
           <div className="flex items-start gap-2">
@@ -893,8 +804,9 @@ const StudentManagementPage = () => {
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Jendela ini boleh ditutup — kemajuannya berpindah ke pojok kanan bawah dan
-                berkasnya tetap terunduh sendiri begitu seluruh tahap selesai.
+                Jendela ini boleh ditutup dan halaman boleh ditinggalkan — kemajuannya berpindah
+                ke pojok kanan bawah dan berkasnya tetap terunduh sendiri begitu seluruh tahap
+                selesai.
               </p>
             </div>
           )}
@@ -934,60 +846,6 @@ const StudentManagementPage = () => {
       </DialogContent>
     </Dialog>
   );
-
-  /**
-   * Penanda kemajuan mengambang di pojok kanan bawah, muncul begitu dialog
-   * penerbitan ditutup selagi prosesnya berjalan — pola yang sama dengan
-   * kotak unggahan Google Drive. Sebelumnya dialognya terkunci sampai
-   * penerbitan selesai, dan untuk lingkup seluruh alumni itu berarti
-   * halaman tidak bisa dipakai selama beberapa menit tanpa alasan teknis
-   * apa pun: perulangannya berjalan sendiri, tidak butuh dialognya terbuka.
-   *
-   * Yang tetap tidak boleh adalah MENINGGALKAN halaman ini: perulangan dan
-   * kumpulan barisnya hidup di komponen ini, dan berkasnya baru dirakit
-   * setelah potongan terakhir. Berpindah halaman membuang kata sandi yang
-   * sudah terlanjur berganti di basis data — karena itu penanda ini
-   * menuliskannya, dan tidak menyediakan tombol tutup.
-   */
-  const credentialProgressCard =
-    isIssuingCreds && !isCredDialogOpen ? (
-      <div className="fixed bottom-4 right-4 z-50 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border bg-background shadow-lg">
-        <div className="flex items-center gap-2 border-b px-3 py-2">
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">Menerbitkan kredensial</p>
-            <p className="truncate text-xs text-muted-foreground">{credScopeLabel}</p>
-          </div>
-          <span className="text-sm font-semibold tabular-nums">{credProgressPercent}%</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0"
-            onClick={() => setIsCredDialogOpen(true)}
-            title="Buka kembali jendela penerbitan"
-          >
-            <ChevronUp className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="space-y-2 px-3 py-2">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full bg-primary transition-all"
-              style={{ width: `${credProgressPercent}%` }}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {credProgress
-              ? `${credProgress.done} selesai${
-                  credProgress.remaining > 0 ? ` • ${credProgress.remaining} tersisa` : ""
-                }. `
-              : "Menyiapkan potongan pertama… "}
-            Berkasnya terunduh sendiri setelah selesai — silakan lanjut bekerja di halaman ini,
-            tapi jangan berpindah halaman.
-          </p>
-        </div>
-      </div>
-    ) : null;
 
   // Kemajuan impor, dipisah sebagai variabel karena dipakai di dua layar yang
   // sama seperti dialog rincian galat. Dialognya tidak bisa ditutup selama
@@ -1085,7 +943,6 @@ const StudentManagementPage = () => {
             tanpa ini tombolnya tertekan tapi tidak memunculkan apa pun. */}
         {studentDialog}
         {credentialDialog}
-        {credentialProgressCard}
         {importProgressDialog}
       {importErrorDialog}
       </DashboardLayout>
@@ -1395,7 +1252,6 @@ const StudentManagementPage = () => {
       </AlertDialog>
 
       {credentialDialog}
-      {credentialProgressCard}
     </DashboardLayout>
   );
 };
