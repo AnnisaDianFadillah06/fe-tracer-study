@@ -306,7 +306,14 @@ const FormBuilderPage = () => {
     left: 0,
   });
   const [targetPickerValue, setTargetPickerValue] = useState<string | undefined>(undefined);
-  const [prodiPickerValue, setProdiPickerValue] = useState<string | undefined>(undefined);
+  /**
+   * Nilai penanda "berlaku untuk semua prodi" di dropdown Target Prodi.
+   *
+   * Radix Select tidak menerima string kosong sebagai nilai item, jadi
+   * keadaan "tanpa patokan prodi" -- yang di basis data berarti
+   * `program_id NULL` -- diwakili penanda ini.
+   */
+  const SEMUA_PRODI = "__semua__";
   const [prodiOptions, setProdiOptions] = useState<Array<{ id: number; name: string; code: string }>>([]);
   const [isProdiLoading, setIsProdiLoading] = useState(false);
 
@@ -874,62 +881,40 @@ const FormBuilderPage = () => {
               <div className="space-y-2">
                 <Label htmlFor="form-prodi">Target Prodi</Label>
                 <Select
-                  value={prodiPickerValue}
-                  onValueChange={(value) => {
-                    if (!value) return;
-                    setForm((prev) => {
-                      if (prev.targetProdi.includes(value)) return prev;
-                      return { ...prev, targetProdi: [...prev.targetProdi, value] };
-                    });
-                    setProdiPickerValue(undefined);
-                  }}
+                  value={form.targetProdi[0] ?? SEMUA_PRODI}
+                  onValueChange={(value) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      targetProdi: value === SEMUA_PRODI ? [] : [value],
+                    }))
+                  }
                 >
                   <SelectTrigger id="form-prodi">
                     <SelectValue
-                      placeholder={isProdiLoading ? "Memuat data prodi..." : "Pilih program studi"}
+                      placeholder={isProdiLoading ? "Memuat data prodi..." : "Semua prodi"}
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {prodiOptions.length === 0 ? (
-                      <SelectItem value="no-data" disabled>
-                        Belum ada data prodi tersedia
+                    <SelectItem value={SEMUA_PRODI}>
+                      Semua Prodi — kuesioner nasional
+                    </SelectItem>
+                    {prodiOptions.map((p) => (
+                      <SelectItem key={p.id} value={p.name}>
+                        {p.name}
                       </SelectItem>
-                    ) : (
-                      prodiOptions.map((p) => (
-                        <SelectItem key={p.id} value={p.name}>
-                          {p.name}
-                        </SelectItem>
-                      ))
-                    )}
+                    ))}
                   </SelectContent>
                 </Select>
                 {form.targetProdi.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {form.targetProdi.map((prodi) => (
-                      <div
-                        key={prodi}
-                        className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1 text-xs"
-                      >
-                        <span>{prodi}</span>
-                        <button
-                          type="button"
-                          className="text-muted-foreground hover:text-foreground"
-                          onClick={() =>
-                            setForm((prev) => ({
-                              ...prev,
-                              targetProdi: prev.targetProdi.filter((item) => item !== prodi),
-                            }))
-                          }
-                          aria-label={`Hapus prodi ${prodi}`}
-                        >
-                          x
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-xs text-amber-600 dark:text-amber-500">
+                    Hanya alumni <strong>{form.targetProdi[0]}</strong> yang akan melihat kuesioner
+                    ini. Alumni prodi lain tidak menerimanya dan tidak ada pemberitahuan apa pun
+                    soal itu — pilih “Semua Prodi” untuk kuesioner wajib Kementerian.
+                  </p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Opsional. Jika tidak dipilih, kuesioner dikirim ke semua prodi.
+                  Bawaannya semua prodi. Pilih satu prodi hanya untuk kuesioner tambahan yang
+                  memang khusus prodi itu.
                 </p>
               </div>
             </CardContent>
@@ -1296,11 +1281,12 @@ const FormBuilderPage = () => {
                                       {triggerOptions.map((option) => {
                                         const checked = question.logic.values.includes(option);
                                         return (
-                                          <label
+                                          <div
                                             key={`${question.id}-logic-${option}`}
                                             className="flex items-center gap-2 rounded-md border border-border/70 bg-background px-3 py-2 text-sm"
                                           >
                                             <Checkbox
+                                              id={`${question.id}-logic-${option}`}
                                               checked={checked}
                                               onCheckedChange={(value) => {
                                                 const isChecked = value === true;
@@ -1315,8 +1301,13 @@ const FormBuilderPage = () => {
                                                 });
                                               }}
                                             />
-                                            <span>{option}</span>
-                                          </label>
+                                            <label
+                                              htmlFor={`${question.id}-logic-${option}`}
+                                              className="flex-1 cursor-pointer"
+                                            >
+                                              {option}
+                                            </label>
+                                          </div>
                                         );
                                       })}
                                     </div>

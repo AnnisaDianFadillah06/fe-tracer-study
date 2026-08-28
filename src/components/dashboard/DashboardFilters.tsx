@@ -189,20 +189,23 @@ export const ChartProdiFilter = ({
         </div>
         <div className="max-h-48 overflow-y-auto space-y-1">
           {uniqueProdiNames.map((prodiName) => (
-            <label
+            <div
               key={prodiName}
-              className="flex items-center gap-2 p-1.5 rounded hover:bg-secondary/50 cursor-pointer"
+              className="flex items-center gap-2 p-1.5 rounded hover:bg-secondary/50"
             >
               <Checkbox
+                id={`filter-prodi-${prodiName}`}
                 checked={selectedProdi.includes(prodiName)}
                 onCheckedChange={() => toggleProdi(prodiName)}
               />
-              <span className="text-xs flex-1">{prodiName}</span>
+              <label htmlFor={`filter-prodi-${prodiName}`} className="text-xs flex-1 cursor-pointer">
+                {prodiName}
+              </label>
               {/* threshold per-prodi masih dari mock — TODO: ganti ke BE */}
               {showLamInfo && (
                 <span className="text-[10px] text-muted-foreground">LAM</span>
               )}
-            </label>
+            </div>
           ))}
         </div>
         {showLamInfo && (

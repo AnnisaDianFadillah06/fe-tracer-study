@@ -408,10 +408,19 @@ const MasterDataPage = () => {
         toast({ title: "Berhasil", description: "Prodi ditambahkan." });
       }
       setProdiDialog(false);
+      // Jumlah prodi per jurusan dan daftar keanggotaannya ikut berubah di
+      // peladen. Tanpa membatalkan cache-nya, tab Jurusan tetap menampilkan
+      // hitungan lama -- prodi yang baru saja ditambahkan terbaca "0".
+      await refreshJurusan();
     } catch (e: any) { toast({ title: "Gagal", description: e.response?.data?.message ?? "Terjadi kesalahan", variant: "destructive" }); }
   };
   const deleteProdi = async () => {
-    try { await api.delete(`/programs/${deleteProdiId}`); setProdiList(prodiList.filter((p) => p.id !== deleteProdiId)); toast({ title: "Dihapus" }); }
+    try {
+      await api.delete(`/programs/${deleteProdiId}`);
+      setProdiList(prodiList.filter((p) => p.id !== deleteProdiId));
+      toast({ title: "Dihapus" });
+      await refreshJurusan();
+    }
     catch (e: any) { toast({ title: "Gagal", description: e.response?.data?.message ?? "Gagal menghapus", variant: "destructive" }); }
     setDeleteProdiId(null);
   };
@@ -983,10 +992,16 @@ const MasterDataPage = () => {
                 .map((p) => {
                   const checked = scopeProgramIds.includes(Number(p.id));
                   return (
-                    <label key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
-                      <Checkbox checked={checked} onCheckedChange={() => toggleScopeProgram(Number(p.id))} />
-                      <span>{p.name} <span className="text-muted-foreground">({p.degree} · {p.jurusan})</span></span>
-                    </label>
+                    <div key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted text-sm">
+                      <Checkbox
+                        id={`scope-prodi-${p.id}`}
+                        checked={checked}
+                        onCheckedChange={() => toggleScopeProgram(Number(p.id))}
+                      />
+                      <label htmlFor={`scope-prodi-${p.id}`} className="flex-1 cursor-pointer">
+                        {p.name} <span className="text-muted-foreground">({p.degree} · {p.jurusan})</span>
+                      </label>
+                    </div>
                   );
                 })}
             </div>
@@ -1097,10 +1112,14 @@ const MasterDataPage = () => {
                 .map((j) => {
                   const checked = scopeJurusanIds.includes(j.id);
                   return (
-                    <label key={j.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
-                      <Checkbox checked={checked} onCheckedChange={() => toggleScopeJurusan(j.id)} />
-                      <span>{j.name}</span>
-                    </label>
+                    <div key={j.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted text-sm">
+                      <Checkbox
+                        id={`scope-jurusan-${j.id}`}
+                        checked={checked}
+                        onCheckedChange={() => toggleScopeJurusan(j.id)}
+                      />
+                      <label htmlFor={`scope-jurusan-${j.id}`} className="flex-1 cursor-pointer">{j.name}</label>
+                    </div>
                   );
                 })}
             </div>

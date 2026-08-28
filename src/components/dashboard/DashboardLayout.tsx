@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -26,12 +26,34 @@ import InstitutionLogo from "@/components/common/InstitutionLogo";
 import GlobalFilters from "@/components/dashboard/GlobalFilters";
 import DownloadDataButton from "@/components/dashboard/DownloadDataButton";
 
+/**
+ * Posisi scroll daftar menu dan status collapse, disimpan di module scope.
+ *
+ * Setiap halaman merender <DashboardLayout>-nya sendiri, jadi berpindah rute
+ * membongkar-pasang ulang sidebar dan seluruh state lokalnya hilang: daftar
+ * menu melompat kembali ke atas tepat setelah item yang tadi perlu di-scroll
+ * diklik. Menyimpannya di luar komponen membuat keduanya bertahan antar-mount
+ * tanpa harus merombak 29 halaman menjadi layout route.
+ */
+let navScrollTop = 0;
+let sidebarCollapsed = false;
+
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsedState] = useState(sidebarCollapsed);
+  const setCollapsed = (value: boolean) => {
+    sidebarCollapsed = value;
+    setCollapsedState(value);
+  };
+  const navRef = useRef<HTMLElement | null>(null);
+
+  // Dikembalikan sebelum paint supaya perpindahannya tidak terlihat berkedip.
+  useLayoutEffect(() => {
+    if (navRef.current) navRef.current.scrollTop = navScrollTop;
+  }, []);
   const location = useLocation();
   const navigate = useNavigate();
   const { currentRole, selectedProdi, selectedJurusan, jurusanScopeNames, selectedFakultas, menu } = useRole();
@@ -100,7 +122,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         )}
 
         {/* Navigation — config-driven */}
-        <nav className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin">
+        <nav
+          ref={navRef}
+          onScroll={(e) => { navScrollTop = e.currentTarget.scrollTop; }}
+          className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin"
+        >
           {menu.map((group, gi) => (
             <div key={group.label}>
               {!collapsed && (

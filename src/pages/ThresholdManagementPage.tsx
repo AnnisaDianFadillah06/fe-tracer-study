@@ -489,10 +489,14 @@ const ThresholdManagementPage = () => {
                   filteredProdiOptions.map((p) => {
                     const checked = lamForm.programs.includes(p.label);
                     return (
-                      <label key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
-                        <Checkbox checked={checked} onCheckedChange={() => toggleProdi(p.label)} />
-                        <span>{p.label}</span>
-                      </label>
+                      <div key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted text-sm">
+                        <Checkbox
+                          id={`lam-prodi-${p.id}`}
+                          checked={checked}
+                          onCheckedChange={() => toggleProdi(p.label)}
+                        />
+                        <label htmlFor={`lam-prodi-${p.id}`} className="flex-1 cursor-pointer">{p.label}</label>
+                      </div>
                     );
                   })
                 )}
