@@ -55,3 +55,15 @@ export function toLoginError(err: any, fallback: string): LoginError {
 export function isRateLimited(err: any): boolean {
   return err?.status === 429 || err?.response?.status === 429;
 }
+
+/**
+ * Benar bila akunnya ditemukan dan kredensialnya benar, tetapi statusnya
+ * dinonaktifkan (403 dari AuthService/AlumniAuthService).
+ *
+ * Dibedakan karena ini BUKAN kegagalan kredensial: meneruskannya ke percobaan
+ * rute berikutnya di halaman masuk hanya akan menutupi sebab sebenarnya
+ * dengan "NIM atau email tidak ditemukan dalam database alumni".
+ */
+export function isAccountDisabled(err: any): boolean {
+  return err?.status === 403 || err?.response?.status === 403;
+}

@@ -16,6 +16,7 @@ export interface AlumniRecord {
   program_code: string | null; // from JOIN — Kode Prodi, dipakai ekspor & impor
   jurusan_name: string | null; // from JOIN
   graduation_year: number | null;
+  is_active: boolean | null;
   kode_pt: string | null;
   nik: string | null;
   npwp: string | null;
@@ -78,7 +79,11 @@ function alumniToStudent(a: AlumniRecord): Student {
     jurusan: a.jurusan_name ?? "",
     programId: a.program_id ? String(a.program_id) : "",
     angkatan: a.graduation_year ? String(a.graduation_year) : "",
-    status: "aktif",
+    // Dibaca dari kolomnya, bukan dipatok "aktif". Sebelumnya borang Edit
+    // selalu terbuka dengan Status Akun = Aktif, jadi menyimpan perubahan
+    // apa pun diam-diam mengaktifkan kembali alumni yang sengaja
+    // dinonaktifkan.
+    status: a.is_active === false ? "nonaktif" : "aktif",
     kodePt: a.kode_pt ?? "",
     kodeProdi: a.program_code ?? "",
     phone: a.phone ?? "",
@@ -130,6 +135,14 @@ export const useStudentManagement = () => {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ ...defaultForm });
+  /**
+   * Buka-tutup kata sandi di borang Tambah/Edit Akun Mahasiswa.
+   *
+   * Halaman sudah memakai state ini sejak awal, tetapi hook tidak pernah
+   * mengembalikannya — `setShowPassword` di sana bernilai undefined dan
+   * menekan tombol matanya melempar. Direset setiap kali borang dibuka.
+   */
+  const [showPassword, setShowPassword] = useState(false);
 
   const userRole = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -323,6 +336,7 @@ export const useStudentManagement = () => {
   const resetForm = () => {
     setFormData({ ...defaultForm });
     setEditingStudent(null);
+    setShowPassword(false);
   };
 
   const handleOpenAdd = () => {
@@ -332,6 +346,7 @@ export const useStudentManagement = () => {
 
   const handleOpenEdit = (student: Student) => {
     setEditingStudent(student);
+    setShowPassword(false);
     setFormData({
       nim: student.nim,
       username: student.username,
@@ -355,13 +370,43 @@ export const useStudentManagement = () => {
       return;
     }
 
+    // Kata sandi wajib pada akun baru: tanpa itu barisnya tersimpan tanpa
+    // kredensial dan alumninya ditolak masuk dengan "Akun Anda belum memiliki
+    // kata sandi" — padahal staf merasa sudah mengisinya. Pada penyuntingan,
+    // kosong berarti tidak diganti.
+    if (!editingStudent && !formData.password) {
+      toast({
+        title: "Error",
+        description: "Password wajib diisi untuk akun baru",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (formData.password && formData.password.length < 8) {
+      toast({
+        title: "Error",
+        description: "Password minimal 8 karakter",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Build payload matching backend StoreAlumniRequest/UpdateAlumniRequest
     const payload: Record<string, unknown> = {
       nim: formData.nim,
       name: formData.username,
       email: formData.email,
       graduation_year: formData.angkatan ? parseInt(formData.angkatan) : null,
+      is_active: formData.status === "aktif",
     };
+
+    // Kunci `password` hanya disertakan bila benar-benar diisi. Mengirimkannya
+    // sebagai string kosong akan membuat backend mengira staf ingin mengganti
+    // kata sandi menjadi kosong.
+    if (formData.password) {
+      payload.password = formData.password;
+    }
 
     if (formData.programId) {
       payload.program_id = Number(formData.programId);
@@ -414,6 +459,8 @@ export const useStudentManagement = () => {
     setIsDeleteDialogOpen,
     editingStudent,
     deletingId,
+    showPassword,
+    setShowPassword,
     formData,
     setFormData,
     handleOpenAdd,

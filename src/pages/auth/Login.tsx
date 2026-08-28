@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/common/use-toast";
 import { useAuth } from "@/hooks/auth/useAuth";
 import { useStudentAuth } from "@/hooks/auth/useStudentAuth";
-import { isRateLimited } from "@/lib/authErrors";
+import { isAccountDisabled, isRateLimited } from "@/lib/authErrors";
 import InstitutionLogo from "@/components/common/InstitutionLogo";
 import { staffEmailPlaceholder } from "@/config/institution";
 
@@ -46,6 +46,15 @@ const Login = () => {
         if (isRateLimited(staffErr)) {
           throw staffErr;
         }
+        // Begitu pula akun staf yang dinonaktifkan (403). Surelnya ADA di
+        // sistem dan kata sandinya benar — yang menghalangi hanyalah
+        // statusnya. Diteruskan ke rute alumni, surel staf tentu saja tidak
+        // ada di alumni_profiles, dan pesan yang sampai ke layar menjadi
+        // "NIM atau email tidak ditemukan dalam database alumni": pemiliknya
+        // mengira akunnya terhapus dan tidak tahu harus meminta apa.
+        if (isAccountDisabled(staffErr)) {
+          throw staffErr;
+        }
         await alumniLogin(identifier, password);
         toast({
           title: "Login Berhasil",
@@ -55,13 +64,18 @@ const Login = () => {
       }
     } catch (err: any) {
       const limited = isRateLimited(err);
+      const disabled = isAccountDisabled(err);
       toast({
-        title: limited ? "Terlalu Banyak Percobaan" : "Login Gagal",
+        title: limited
+          ? "Terlalu Banyak Percobaan"
+          : disabled
+            ? "Akun Dinonaktifkan"
+            : "Login Gagal",
         description: err?.message || "Login gagal",
         variant: "destructive",
         // Pesan pembatas laju menyebut sisa waktu tunggu; beri kesempatan
         // membacanya sebelum hilang.
-        duration: limited ? 10000 : undefined,
+        duration: limited || disabled ? 10000 : undefined,
       });
     }
   };

@@ -31,7 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2, User, Mail, Search, Shield } from "lucide-react";
+import { Plus, Edit, Trash2, User, Mail, Search, Shield, Eye, EyeOff } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useJurusan } from "@/hooks/common/useJurusan";
@@ -88,6 +88,14 @@ const StaffManagementPage = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffUser | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  /**
+   * Buka-tutup kata sandi di borang. Ketua Tracer yang menetapkan kata sandi
+   * staf baru harus menyampaikannya kepada orangnya, jadi ia perlu bisa
+   * membaca ulang apa yang baru saja diketik — tanpa ini satu-satunya cara
+   * memastikannya adalah mengetik ulang dari awal dan berharap sama.
+   * Direset setiap kali borang dibuka supaya tidak pernah terbuka sendiri.
+   */
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", password: "", role: "tracer_team", program_id: "", jurusan_id: "", fakultas_id: "" });
 
   const filtered = staff.filter((s) => {
@@ -99,12 +107,14 @@ const StaffManagementPage = () => {
   const resetForm = () => {
     setFormData({ name: "", email: "", password: "", role: "tracer_team", program_id: "", jurusan_id: "", fakultas_id: "" });
     setEditingStaff(null);
+    setShowPassword(false);
   };
 
   const handleOpenAdd = () => { resetForm(); setIsDialogOpen(true); };
 
   const handleOpenEdit = (user: StaffUser) => {
     setEditingStaff(user);
+    setShowPassword(false);
     setFormData({
       name: user.name,
       email: user.email,
@@ -275,7 +285,25 @@ const StaffManagementPage = () => {
             </div>
             <div className="space-y-2">
               <Label>Password {editingStaff && "(kosongkan jika tidak diubah)"}</Label>
-              <Input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder="••••••" />
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="••••••"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Role</Label>
