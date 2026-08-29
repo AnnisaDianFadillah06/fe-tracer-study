@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -18,12 +16,12 @@ import api from "@/lib/api";
 import { exportQuestionnaire, type ExportFormat, type ExportProgress } from "@/lib/exportQuestionnaire";
 import ExportProgressDialog from "@/components/common/ExportProgressDialog";
 import {
-  ArrowLeft, CheckCircle2, FileSpreadsheet, Loader2, Search, Users,
+  ArrowLeft, CheckCircle2, FileSpreadsheet, Search, Users,
 } from "lucide-react";
 import PilihTahun from "@/components/common/PilihTahun";
 import TablePagination from "@/components/common/TablePagination";
 
-/** Baris per halaman pada tabel daftar kuesioner. */
+/** Kartu per halaman pada tiap kelompok kuesioner. */
 const PER_PAGE = 100;
 
 interface QForm {
@@ -40,6 +38,211 @@ interface QForm {
   sections?: any[];
 }
 
+interface SectionProps {
+  title: string;
+  description: string;
+  forms: QForm[];
+  emptyText: string;
+  isLoading: boolean;
+  isError: boolean;
+  programMap: Record<number, string>;
+  programDegreeMap: Record<number, string>;
+  exportingId: number | null;
+  onExport: (form: QForm, format?: ExportFormat) => void;
+  onOpenRespondents: (id: number) => void;
+}
+
+/**
+ * Satu kelompok kuesioner beserta pencarian dan paginasinya sendiri.
+ *
+ * Keduanya dipisah per bagian, bukan dibagi satu untuk seluruh halaman:
+ * jumlah kuesioner tambahan prodi bisa mencapai ratusan sementara yang
+ * berlaku untuk semua prodi hanya segelintir. Satu kotak pencarian bersama
+ * akan ikut menyaring kelompok yang tidak sedang dicari, dan satu penomoran
+ * bersama mendorong kelompok kecil ke halaman belakang.
+ */
+const KuesionerSection = ({
+  title, description, forms, emptyText, isLoading, isError,
+  programMap, programDegreeMap, exportingId, onExport, onOpenRespondents,
+}: SectionProps) => {
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+
+  const filtered = useMemo(() => {
+    if (!search) return forms;
+    const q = search.toLowerCase();
+    return forms.filter((f) => f.title.toLowerCase().includes(q) || f.code.toLowerCase().includes(q));
+  }, [forms, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+
+  // Daftarnya menyusut saat pencarian atau cakupan berubah; tanpa ini
+  // halaman bisa tertinggal di luar rentang dan petaknya tampil kosong.
+  useEffect(() => { setPage(1); }, [search, forms]);
+
+  const pageForms = useMemo(
+    () => filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE),
+    [filtered, page],
+  );
+
+  const prodiLabel = (form: QForm) => {
+    const name = programMap[form.program_id!] ?? `Prodi #${form.program_id}`;
+    const degree = programDegreeMap[form.program_id!];
+    return degree ? `${name} (${degree})` : name;
+  };
+
+  const sasaranLabel = (form: QForm) =>
+    form.target_graduation_years?.length
+      ? `Lulusan ${form.target_graduation_years.join(", ")}`
+      : form.target || `Lulusan ${form.period_year}`;
+
+  return (
+    <section className="space-y-3">
+      <div className="space-y-3">
+        <div>
+          <h3 className="font-heading text-lg font-semibold">{title} ({forms.length})</h3>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+        {forms.length > 0 && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Cari kuesioner berdasarkan judul atau kode..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label={`Cari di ${title}`}
+            />
+          </div>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}><CardContent className="pt-5 pb-5 space-y-3">
+              <Skeleton className="h-5 w-4/5" />
+              <Skeleton className="h-3 w-2/5" />
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-8 w-full" />
+            </CardContent></Card>
+          ))}
+        </div>
+      ) : isError ? (
+        <Card><CardContent className="py-10 text-center text-destructive">
+          Gagal memuat kuesioner.
+        </CardContent></Card>
+      ) : filtered.length === 0 ? (
+        <Card className="border-dashed"><CardContent className="py-10 text-center text-muted-foreground">
+          {search ? "Tidak ada kuesioner yang cocok." : emptyText}
+        </CardContent></Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {pageForms.map((form) => {
+            const responden = form.response_count ?? 0;
+            const tanpaResponden = responden === 0;
+
+            return (
+              <Card key={form.id} className="flex flex-col transition-all hover:border-primary/40 hover:shadow-md">
+                <CardContent className="flex flex-1 flex-col gap-4 pt-5 pb-5">
+                  <div className="space-y-1.5">
+                    <h4 className="font-semibold leading-snug">{form.title}</h4>
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-mono">{form.code}</span> • {(form.sections ?? []).length} bagian
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {form.is_global
+                      ? <Badge variant="secondary" className="text-xs">Semua Prodi</Badge>
+                      : <Badge variant="outline" className="text-xs">{prodiLabel(form)}</Badge>}
+                    <span className="text-xs text-muted-foreground">{sasaranLabel(form)}</span>
+                  </div>
+
+                  {/* Jumlah responden ditaruh di kaki kartu sebagai angka yang
+                      menonjol: inilah satu-satunya alasan halaman ini dibuka,
+                      dan sekaligus tautan ke daftar respondennya. */}
+                  <div className="mt-auto flex items-end justify-between gap-3 border-t border-border/60 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => onOpenRespondents(form.id)}
+                      className="group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
+                    >
+                      <span className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-bold tabular-nums group-hover:text-primary transition-colors">
+                          {responden}
+                        </span>
+                        <span className="text-xs text-muted-foreground">responden</span>
+                      </span>
+                      <span className="flex items-center gap-1 text-xs text-primary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                        <Users className="h-3 w-3" aria-hidden />
+                        Lihat daftar
+                      </span>
+                    </button>
+
+                    {/* Backend membatasi isinya sendiri sesuai role: wadir dapat
+                        seluruh prodi, kajur hanya jurusannya, kaprodi hanya
+                        prodinya. Kuesioner yang berlaku untuk semua prodi
+                        menawarkan dua format karena filenya juga dipakai untuk
+                        unggah ke portal. */}
+                    {form.is_global ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={exportingId === form.id || tanpaResponden}
+                            title={tanpaResponden ? "Tidak ada responden untuk diekspor" : "Export ke Excel"}
+                          >
+                            <FileSpreadsheet className="mr-2 h-4 w-4" />
+                            {exportingId === form.id ? "Mengekspor…" : "Export"}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-64">
+                          <DropdownMenuItem onClick={() => onExport(form, "label")}>
+                            Teks jawaban (untuk dibaca)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onExport(form, "code")}>
+                            Kode mentah (untuk unggah DIKTI)
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={exportingId === form.id || tanpaResponden}
+                        title={tanpaResponden ? "Tidak ada responden untuk diekspor" : "Export ke Excel"}
+                        onClick={() => onExport(form)}
+                      >
+                        <FileSpreadsheet className="mr-2 h-4 w-4" />
+                        {exportingId === form.id ? "Mengekspor…" : "Export"}
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {filtered.length > PER_PAGE && (
+        <Card><CardContent className="p-0">
+          <TablePagination
+            page={page}
+            totalPages={totalPages}
+            total={filtered.length}
+            perPage={PER_PAGE}
+            itemLabel="kuesioner"
+            onPageChange={setPage}
+          />
+        </CardContent></Card>
+      )}
+    </section>
+  );
+};
+
 const QuestionnaireResultsPage = () => {
   const { selectedProdi, selectedProdiId, selectedJurusan, currentRole } = useRole();
   const navigate = useNavigate();
@@ -54,7 +257,6 @@ const QuestionnaireResultsPage = () => {
   const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
   const [exportLabel, setExportLabel] = useState("");
   const [exportRawCode, setExportRawCode] = useState(false);
-  const [page, setPage] = useState(1);
 
   const [forms, setForms] = useState<QForm[]>([]);
   const [programMap, setProgramMap] = useState<Record<number, string>>({});
@@ -62,7 +264,6 @@ const QuestionnaireResultsPage = () => {
   const [programJurusanMap, setProgramJurusanMap] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
-  const [search, setSearch] = useState("");
   const [alumniTotal, setAlumniTotal] = useState(0);
   /**
    * Jumlah ALUMNI yang sudah mengisi — bukan jumlah kiriman.
@@ -89,8 +290,11 @@ const QuestionnaireResultsPage = () => {
   };
 
   // Kembali ke layar kartu tahun: buang parameternya dari URL.
+  //
+  // Kotak pencarian tidak perlu dikosongkan di sini lagi: keduanya kini
+  // milik masing-masing bagian, dan bagian itu ikut dilepas dari pohon
+  // begitu layar kartu tahun kembali tampil.
   const backToYearCards = () => {
-    setSearch("");
     setSearchParams(new URLSearchParams(), { replace: false });
   };
 
@@ -176,31 +380,20 @@ const QuestionnaireResultsPage = () => {
     return result;
   }, [forms, currentRole, selectedProdiId, selectedJurusan, programJurusanMap, graduationYear]);
 
-  const filtered = useMemo(() => {
-    if (!search) return scopedForms;
-    const q = search.toLowerCase();
-    return scopedForms.filter((f) => f.title.toLowerCase().includes(q) || f.code.toLowerCase().includes(q));
-  }, [scopedForms, search]);
-
-  const stats = useMemo(() => ({
-    total: scopedForms.length,
-  }), [scopedForms]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-
-  // Daftarnya menyusut saat pencarian/angkatan berubah; tanpa ini halaman
-  // bisa tertinggal di luar rentang dan tabel tampil kosong.
-  useEffect(() => {
-    setPage(1);
-  }, [search, graduationYear, currentRole]);
-
-  const pageForms = useMemo(
-    () => filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE),
-    [filtered, page],
-  );
-
-  /** Nomor urut mengikuti posisi di seluruh daftar, bukan di halaman ini. */
-  const firstIndexOnPage = (page - 1) * PER_PAGE;
+  /**
+   * Dua kelompok kuesioner, dipisah menurut `program_id` — persis pemisahan
+   * yang dikehendaki KSN-01: kuesioner tanpa patokan prodi berlaku untuk
+   * seluruh lulusan, kuesioner ber-`program_id` adalah tambahan milik satu
+   * prodi.
+   *
+   * Namanya sengaja "Semua Prodi", bukan "Kementerian". Yang benar-benar
+   * dicatat basis data hanyalah ada atau tidaknya patokan prodi; kuesioner
+   * buatan sendiri yang disasarkan ke semua prodi juga masuk kelompok ini,
+   * jadi menyebutnya kementerian akan mengklaim asal-usul yang tidak
+   * dipegang datanya.
+   */
+  const formsSemuaProdi = useMemo(() => scopedForms.filter((f) => f.is_global), [scopedForms]);
+  const formsTambahan = useMemo(() => scopedForms.filter((f) => !f.is_global), [scopedForms]);
 
   const handleExport = async (form: QForm, format: ExportFormat = "label") => {
     setExportingId(form.id);
@@ -249,15 +442,19 @@ const QuestionnaireResultsPage = () => {
           </div>
           <Button variant="outline" size="sm" onClick={backToYearCards} className="shrink-0">
             <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
-            Pilih Angkatan
+            Pilih Tahun Lulusan
           </Button>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
           <Card><CardContent className="pt-4 pb-4"><div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-emerald-600" /></div>
-            <div><p className="text-xs text-muted-foreground">Kuesioner Aktif</p><p className="text-2xl font-bold">{stats.total}</p></div>
+            <div><p className="text-xs text-muted-foreground">Kuesioner Semua Prodi</p><p className="text-2xl font-bold">{formsSemuaProdi.length}</p></div>
+          </div></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-4"><div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center"><FileSpreadsheet className="w-5 h-5 text-amber-600" /></div>
+            <div><p className="text-xs text-muted-foreground">Kuesioner Tambahan Prodi</p><p className="text-2xl font-bold">{formsTambahan.length}</p></div>
           </div></CardContent></Card>
           <Card><CardContent className="pt-4 pb-4"><div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Users className="w-5 h-5 text-primary" /></div>
@@ -273,14 +470,15 @@ const QuestionnaireResultsPage = () => {
           </div></CardContent></Card>
         </div>
 
-        {/* Search + Filter */}
+        {/* Penyaring tahun lulus — berlaku untuk kedua kelompok di bawah,
+            jadi tetap satu di atas. Pencarian TIDAK ikut di sini: masing-
+            masing kelompok punya kotaknya sendiri. */}
         <Card>
           <CardContent className="pt-4 pb-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input className="pl-9" placeholder="Cari kuesioner berdasarkan judul atau kode..." value={search} onChange={(e) => setSearch(e.target.value)} />
-              </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                Kuesioner dipisah menurut cakupannya: yang berlaku bagi seluruh lulusan, dan tambahan milik satu program studi.
+              </p>
               <Select value={graduationYear === undefined ? "" : graduationYear === null ? "all" : String(graduationYear)} onValueChange={(v) => setGraduationYear(v === "all" ? null : Number(v))}>
                 <SelectTrigger className="w-[170px]"><SelectValue placeholder="Tahun Lulus" /></SelectTrigger>
                 <SelectContent>
@@ -292,114 +490,33 @@ const QuestionnaireResultsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Table */}
-        <Card className="overflow-hidden">
-          <CardHeader className="border-b border-border/60 pb-3">
-            <CardTitle className="text-base">Daftar Kuesioner ({filtered.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">No</TableHead>
-                    <TableHead>Judul</TableHead>
-                    <TableHead>Program Studi</TableHead>
-                    <TableHead>Sasaran</TableHead>
-                    <TableHead>Responden</TableHead>
-                    <TableHead className="text-right">Aksi</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow><TableCell colSpan={6} className="py-10 text-center text-muted-foreground"><div className="flex items-center justify-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />Memuat kuesioner…</div></TableCell></TableRow>
-                  ) : isError ? (
-                    <TableRow><TableCell colSpan={6} className="py-10 text-center text-destructive">Gagal memuat kuesioner.</TableCell></TableRow>
-                  ) : filtered.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="py-10 text-center text-muted-foreground">{search ? "Tidak ada kuesioner yang cocok." : "Belum ada kuesioner."}</TableCell></TableRow>
-                  ) : pageForms.map((form, index) => (
-                    <TableRow key={form.id}>
-                      <TableCell className="font-medium">{firstIndexOnPage + index + 1}</TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <p className="font-medium leading-snug">{form.title}</p>
-                          <p className="text-xs text-muted-foreground">{form.code} • {(form.sections ?? []).length} bagian</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {form.is_global
-                          ? <Badge variant="secondary" className="text-xs">Semua Prodi</Badge>
-                          : <Badge variant="outline" className="text-xs">{programMap[form.program_id!] ?? `Prodi #${form.program_id}`}{programDegreeMap[form.program_id!] ? ` (${programDegreeMap[form.program_id!]})` : ""}</Badge>
-                        }
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm">
-                          {form.target_graduation_years?.length
-                            ? `Lulusan ${form.target_graduation_years.join(", ")}`
-                            : form.target || `Lulusan ${form.period_year}`}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="link" className="p-0 h-auto font-medium" onClick={() => navigate(`/dashboard/questionnaire-results/${form.id}`)}>
-                          <Users className="mr-1 h-4 w-4" />{form.response_count ?? 0} responden
-                        </Button>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {/* Backend membatasi isinya sendiri sesuai role: wadir dapat
-                            seluruh prodi, kajur hanya jurusannya, kaprodi hanya
-                            prodinya. Kuesioner Kementerian menawarkan dua format
-                            karena filenya juga dipakai untuk unggah ke portal. */}
-                        {form.is_global ? (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={exportingId === form.id || (form.response_count ?? 0) === 0}
-                                title={(form.response_count ?? 0) === 0 ? "Tidak ada responden untuk diekspor" : "Export ke Excel"}
-                              >
-                                <FileSpreadsheet className="mr-2 h-4 w-4" />
-                                {exportingId === form.id ? "Mengekspor…" : "Export"}
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-64">
-                              <DropdownMenuItem onClick={() => handleExport(form, "label")}>
-                                Teks jawaban (untuk dibaca)
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleExport(form, "code")}>
-                                Kode mentah (untuk unggah DIKTI)
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={exportingId === form.id || (form.response_count ?? 0) === 0}
-                            title={(form.response_count ?? 0) === 0 ? "Tidak ada responden untuk diekspor" : "Export ke Excel"}
-                            onClick={() => handleExport(form)}
-                          >
-                            <FileSpreadsheet className="mr-2 h-4 w-4" />
-                            {exportingId === form.id ? "Mengekspor…" : "Export"}
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+        <KuesionerSection
+          title="Kuesioner Semua Prodi"
+          description="Berlaku bagi seluruh lulusan, tanpa patokan program studi — termasuk kuesioner standar tracer study nasional."
+          forms={formsSemuaProdi}
+          emptyText="Belum ada kuesioner yang berlaku untuk semua prodi."
+          isLoading={isLoading}
+          isError={isError}
+          programMap={programMap}
+          programDegreeMap={programDegreeMap}
+          exportingId={exportingId}
+          onExport={handleExport}
+          onOpenRespondents={(id) => navigate(`/dashboard/questionnaire-results/${id}`)}
+        />
 
-            <TablePagination
-              page={page}
-              totalPages={totalPages}
-              total={filtered.length}
-              perPage={PER_PAGE}
-              itemLabel="kuesioner"
-              onPageChange={setPage}
-            />
-          </CardContent>
-        </Card>
+        <KuesionerSection
+          title="Kuesioner Tambahan Prodi"
+          description="Disasarkan ke satu program studi tertentu, di luar pertanyaan yang berlaku untuk semua lulusan."
+          forms={formsTambahan}
+          emptyText="Belum ada kuesioner tambahan program studi."
+          isLoading={isLoading}
+          isError={isError}
+          programMap={programMap}
+          programDegreeMap={programDegreeMap}
+          exportingId={exportingId}
+          onExport={handleExport}
+          onOpenRespondents={(id) => navigate(`/dashboard/questionnaire-results/${id}`)}
+        />
       </div>
       <ExportProgressDialog
         progress={exportProgress}
