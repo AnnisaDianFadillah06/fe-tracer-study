@@ -19,6 +19,7 @@ import {
   ShieldQuestion,
   History,
   Layers,
+  Mail,
 } from "lucide-react";
 
 // ── Role definitions ─────────────────────────────────────────────────────────
@@ -95,6 +96,14 @@ export type Permission =
   // siapa berbuat apa atas data siapa. Keduanya bukan bacaan bagi setiap
   // pengelola prodi.
   | "admin.privacy"
+  // Terbitkan akun alumni via email bulk (kirim kredensial langsung lewat
+  // surel, bukan diunduh sebagai berkas). BE menggate
+  // /api/alumni/credentials/issue-email dan /email-batches/* dengan
+  // role:head_tracer, sejalan dengan admin.user (Kelola Mahasiswa) yang juga
+  // memegang penerbitan kredensial biasa -- tapi dipisah permission-nya
+  // sendiri karena ini menu tersendiri di sidebar, bukan tombol di dalam
+  // Kelola Mahasiswa.
+  | "admin.credential_email"
   | "academic.alumni_data"
   | "academic.questionnaire_results"
   | "questionnaire.fill";
@@ -116,6 +125,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "admin.public_report",
     "admin.stakeholder",
     "admin.privacy",
+    "admin.credential_email",
     // Head Tracer = "Full system access" (lihat rolePermissionLabels di
     // bawah) -- sebelumnya daftar ini lupa menyertakan modul Akademik,
     // sehingga role dengan akses tertinggi justru diblokir dari 2 halaman
@@ -241,6 +251,7 @@ const konfigurasiItems: MenuItem[] = [
 const adminItems: MenuItem[] = [
   { title: "Kelola Staff", href: "/dashboard/staff-management", icon: Users, description: "CRUD semua akun user", permission: "admin.user" },
   { title: "Kelola Mahasiswa", href: "/dashboard/student-management", icon: Users, description: "CRUD akun mahasiswa/alumni", permission: "admin.user" },
+  { title: "Manajemen Email", href: "/dashboard/email-management", icon: Mail, description: "Kirim kredensial alumni langsung lewat email bulk", permission: "admin.credential_email" },
   { title: "Manajemen Kuesioner", href: "/dashboard/form-management", icon: ClipboardList, description: "Kelola kuesioner", permission: "admin.questionnaire" },
   {
     title: "Approval Request",
@@ -297,6 +308,7 @@ export const routePermissionMap: Record<string, Permission> = {
   // "/dashboard/analytics": "dashboard.analytics",
   "/dashboard/multidimensi-insight": "dashboard.multidimensi",
   "/dashboard/staff-management": "admin.user",
+  "/dashboard/email-management": "admin.credential_email",
   "/dashboard/form-management": "admin.questionnaire",
   "/dashboard/approvals": "admin.approval",
   "/dashboard/master-data": "admin.master",

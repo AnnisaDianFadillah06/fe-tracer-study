@@ -50,6 +50,7 @@ import ApprovalsPage from "./pages/admin/ApprovalsPage";
 import MasterDataPage from "./pages/admin/MasterDataPage";
 import PublicReportsPage from "./pages/admin/PublicReportsPage";
 import PublicSettingsPage from "./pages/admin/PublicSettingsPage";
+import EmailManagementPage from "./pages/admin/EmailManagementPage";
 import DaftarKuisionerPage from "./pages/form/FormManagementPage";
 import FormCreationChoicePage from "./pages/form/FormCreationChoicePage";
 import FormBuilderPage from "./pages/form/FormBuilderPage";
@@ -139,6 +140,7 @@ const App = () => (
                 <Route path="/dashboard/team-management" element={<ProtectedRoute permission="admin.user"><TeamManagementPage /></ProtectedRoute>} />
                 <Route path="/dashboard/staff-management" element={<ProtectedRoute permission="admin.user"><StaffManagementPage /></ProtectedRoute>} />
                 <Route path="/dashboard/student-management" element={<ProtectedRoute permission="admin.user"><StudentManagementPage /></ProtectedRoute>} />
+                <Route path="/dashboard/email-management" element={<ProtectedRoute permission="admin.credential_email"><EmailManagementPage /></ProtectedRoute>} />
                 <Route path="/dashboard/form-management" element={<ProtectedRoute permission="admin.questionnaire"><DaftarKuisionerPage /></ProtectedRoute>} />
                 <Route path="/dashboard/form-management/new" element={<ProtectedRoute permission="admin.questionnaire"><FormCreationChoicePage /></ProtectedRoute>} />
                 <Route path="/dashboard/form-management/new/builder" element={<ProtectedRoute permission="admin.questionnaire"><FormBuilderPage /></ProtectedRoute>} />
