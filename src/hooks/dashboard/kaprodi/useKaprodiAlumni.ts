@@ -38,10 +38,12 @@ interface Params {
   search: string;
   page: number;
   graduationYear: number | null | undefined; // undefined = not yet initialized
+  /** Prodi terpilih; null = lintas prodi, undefined = belum dipilih. */
+  programId?: number | null;
   perPage?: number;
 }
 
-export const useKaprodiAlumni = ({ search, page, graduationYear, perPage = 100 }: Params) => {
+export const useKaprodiAlumni = ({ search, page, graduationYear, programId = null, perPage = 100 }: Params) => {
   // undefined = pengguna belum memilih angkatan; halaman masih menampilkan
   // kartu tahun, jadi SELURUH permintaan di hook ini ditahan.
   const isReady = graduationYear !== undefined;
@@ -60,10 +62,13 @@ export const useKaprodiAlumni = ({ search, page, graduationYear, perPage = 100 }
   });
 
   const statsQuery = useQuery<KaprodiAlumniStats>({
-    queryKey: ["kaprodi-alumni-stats", graduationYear ?? "all"],
+    queryKey: ["kaprodi-alumni-stats", graduationYear ?? "all", programId ?? "all"],
     queryFn: async () => {
       const params: Record<string, unknown> = {};
       if (graduationYear) params.graduation_year = graduationYear;
+      // Peladen menyaring program_id terhadap cakupan peran, jadi mengirimkan
+      // prodi di luar jangkauan menghasilkan angka nol, bukan data bocor.
+      if (programId) params.program_id = programId;
       const { data } = await api.get("/alumni/stats", { params });
       return data.data;
     },
@@ -71,10 +76,11 @@ export const useKaprodiAlumni = ({ search, page, graduationYear, perPage = 100 }
   });
 
   const alumniQuery = useQuery<AlumniPaginator>({
-    queryKey: ["kaprodi-alumni-list", search, perPage, page, graduationYear ?? "all"],
+    queryKey: ["kaprodi-alumni-list", search, perPage, page, graduationYear ?? "all", programId ?? "all"],
     queryFn: async () => {
       const params: Record<string, unknown> = { search, per_page: perPage, page };
       if (graduationYear) params.graduation_year = graduationYear;
+      if (programId) params.program_id = programId;
       const { data } = await api.get("/alumni", { params });
       return data.data;
     },

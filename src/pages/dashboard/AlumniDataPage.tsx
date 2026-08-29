@@ -13,9 +13,11 @@ import { ArrowLeft, CheckCircle2, GraduationCap, Loader2, Search, XCircle } from
 import { useRole } from "@/contexts/RoleContext";
 import { useKaprodiAlumni } from "@/hooks/dashboard/kaprodi/useKaprodiAlumni";
 import PilihTahun from "@/components/common/PilihTahun";
+import PilihProdi from "@/components/common/PilihProdi";
+import { useStatsPerProdi } from "@/hooks/dashboard/useStatsPerProdi";
 
 const AlumniDataPage = () => {
-  const { selectedProdi } = useRole();
+  const { selectedProdi, currentRole } = useRole();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const yearParam = searchParams.get("year");
@@ -29,6 +31,26 @@ const AlumniDataPage = () => {
   //   number    = satu angkatan
   const graduationYear: number | null | undefined =
     yearParam === "all" ? null : yearParam ? Number(yearParam) : undefined;
+
+  /**
+   * Prodi terpilih, DITURUNKAN dari URL dengan alasan yang sama seperti
+   * graduationYear di atas.
+   *   undefined = belum dipilih (tampilkan kartu prodi)
+   *   null      = semua prodi
+   *   number    = satu prodi
+   */
+  const prodiParam = searchParams.get("prodi");
+  const programId: number | null | undefined =
+    prodiParam === "all" ? null : prodiParam ? Number(prodiParam) : undefined;
+
+  /**
+   * Kaprodi hanya memegang satu prodi, jadi layar kartu prodi tidak
+   * menawarkan pilihan apa pun kepadanya — satu kartu yang wajib diklik
+   * hanyalah satu ketukan tambahan menuju tempat yang sama. Peladen pula
+   * yang mematok cakupannya, jadi melewati layar ini tidak melebarkan
+   * apa-apa.
+   */
+  const skipProdiPicker = currentRole === "kaprodi";
 
   const [page, setPageState] = useState(pageParam ? Number(pageParam) : 1);
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
@@ -45,7 +67,31 @@ const AlumniDataPage = () => {
     const params = new URLSearchParams(searchParams);
     params.set("year", y === null ? "all" : String(y));
     params.set("page", "1");
+    // Prodi ikut dilepas: memilih tahun lain berarti kembali ke pemilihan
+    // prodi, karena prodi yang tadi terisi bisa saja kosong di tahun ini.
+    params.delete("prodi");
     setSearchParams(params, { replace: true });
+  };
+
+  const setProgramId = (id: number | null) => {
+    setSearch("");
+    setPageState(1);
+    const params = new URLSearchParams(searchParams);
+    params.set("prodi", id === null ? "all" : String(id));
+    params.set("page", "1");
+    params.delete("q");
+    setSearchParams(params, { replace: false });
+  };
+
+  // Kembali ke layar kartu prodi: cukup buang parameternya.
+  const backToProdiCards = () => {
+    setSearch("");
+    setPageState(1);
+    const params = new URLSearchParams(searchParams);
+    params.delete("prodi");
+    params.delete("q");
+    params.set("page", "1");
+    setSearchParams(params, { replace: false });
   };
 
   const setPage = (p: number) => {
@@ -60,8 +106,29 @@ const AlumniDataPage = () => {
   const noYearSelected = graduationYear === undefined;
 
   const { stats, alumni, pagination, isLoading, isError, graduationYears } = useKaprodiAlumni({
-    search, page, graduationYear,
+    search, page, graduationYear, programId,
   });
+
+  /**
+   * Dipakai hanya untuk menamai prodi terpilih di judul. Kuerinya sama
+   * dengan yang dipanggil layar kartu, jadi react-query menyajikannya dari
+   * cache dan tidak ada permintaan tambahan.
+   */
+  const { prodi: prodiList } = useStatsPerProdi(programId === undefined ? undefined : graduationYear);
+  const selectedProgram = programId ? prodiList.find((p) => p.program_id === programId) : undefined;
+  const selectedProgramLabel = selectedProgram
+    ? `${selectedProgram.program_name}${selectedProgram.program_degree ? ` (${selectedProgram.program_degree})` : ""}`
+    : null;
+
+  /**
+   * Judul dan penjelasnya menyesuaikan cakupan yang benar-benar sedang
+   * tampil. Sebelumnya keduanya dipatok "Data Alumni Prodi" / "program studi
+   * Anda" untuk semua peran, sehingga Wakil Direktur yang melihat seluruh
+   * institusi tetap dibacakan kalimat milik Kaprodi.
+   */
+  const scopeLabel = skipProdiPicker
+    ? (selectedProdi ?? "program studi Anda")
+    : selectedProgramLabel ?? "semua program studi";
 
   // Reset page on search change
   useEffect(() => { setPageState(1); }, [search]);
@@ -75,9 +142,12 @@ const AlumniDataPage = () => {
       <DashboardLayout>
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl font-heading font-bold">Data Alumni Prodi</h2>
+            <h2 className="text-2xl font-heading font-bold">
+              {skipProdiPicker ? "Data Alumni Prodi" : "Data Alumni"}
+            </h2>
             <p className="text-muted-foreground text-sm">
-              Pilih angkatan untuk melihat data alumni {selectedProdi ?? "program studi Anda"}
+              Pilih tahun lulusan untuk melihat data alumni{" "}
+              {skipProdiPicker ? (selectedProdi ?? "program studi Anda") : "per program studi"}
             </p>
           </div>
           <PilihTahun
@@ -88,11 +158,46 @@ const AlumniDataPage = () => {
               setPageState(1);
               const params = new URLSearchParams();
               params.set("year", "all");
+              // Pencarian dari layar kartu memang dimaksudkan lintas prodi,
+              // jadi prodinya langsung dipatok "all". Tanpa ini pencariannya
+              // berhenti di layar kartu prodi dan hasilnya tidak pernah
+              // tampil.
+              params.set("prodi", "all");
               params.set("page", "1");
               params.set("q", q);
               setSearchParams(params, { replace: false });
             }}
           />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // ── Layar kartu prodi ────────────────────────────────────────────────
+  // Tahun sudah dipilih, prodi belum. Dilewati Kaprodi (lihat
+  // skipProdiPicker) karena baginya tidak ada yang bisa dipilih.
+  if (programId === undefined && !skipProdiPicker) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-heading font-bold">
+                Data Alumni
+                <span className="text-muted-foreground font-normal">
+                  {" — "}{graduationYear === null ? "Semua Lulusan" : `Lulusan ${graduationYear}`}
+                </span>
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                Pilih program studi untuk melihat daftar alumninya
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={backToYearCards} className="shrink-0">
+              <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
+              Pilih Tahun Lulusan
+            </Button>
+          </div>
+          <PilihProdi graduationYear={graduationYear} onSelect={setProgramId} />
         </div>
       </DashboardLayout>
     );
@@ -104,17 +209,25 @@ const AlumniDataPage = () => {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-2xl font-heading font-bold">
-              Data Alumni Prodi
+              {skipProdiPicker ? "Data Alumni Prodi" : "Data Alumni"}
               <span className="text-muted-foreground font-normal">
                 {" — "}{graduationYear === null ? "Semua Lulusan" : `Lulusan ${graduationYear}`}
               </span>
             </h2>
-            <p className="text-muted-foreground text-sm">Data alumni {selectedProdi ?? "program studi Anda"}</p>
+            <p className="text-muted-foreground text-sm">Data alumni {scopeLabel}</p>
           </div>
-          <Button variant="outline" size="sm" onClick={backToYearCards} className="shrink-0">
-            <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
-            Pilih Angkatan
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            {!skipProdiPicker && (
+              <Button variant="outline" size="sm" onClick={backToProdiCards}>
+                <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
+                Pilih Prodi
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={backToYearCards}>
+              <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
+              Pilih Tahun Lulusan
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
