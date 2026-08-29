@@ -86,7 +86,7 @@ const FormCreationChoicePage = () => {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="group border-2 border-border/60 bg-white shadow-sm transition-all duration-200 hover:border-primary/40 hover:shadow-lg">
+          <Card className="group border-2 border-border/60 bg-card shadow-sm transition-all duration-200 hover:border-primary/40 hover:shadow-lg">
             <CardContent className="flex h-full flex-col gap-4 p-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-3">
@@ -118,7 +118,7 @@ const FormCreationChoicePage = () => {
             </CardContent>
           </Card>
 
-          <Card className="group border-2 border-border/60 bg-white shadow-sm transition-all duration-200 hover:border-primary/40 hover:shadow-lg">
+          <Card className="group border-2 border-border/60 bg-card shadow-sm transition-all duration-200 hover:border-primary/40 hover:shadow-lg">
             <CardContent className="flex h-full flex-col gap-4 p-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-3">
