@@ -6,7 +6,6 @@ import {
   ChevronRight,
   LogOut,
   User,
-  Bell,
   KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import InstitutionLogo from "@/components/common/InstitutionLogo";
 import GlobalFilters from "@/components/dashboard/GlobalFilters";
 import DownloadDataButton from "@/components/dashboard/DownloadDataButton";
+import NotificationBell from "@/components/dashboard/NotificationBell";
 
 /**
  * Posisi scroll daftar menu dan status collapse, disimpan di module scope.
@@ -210,10 +210,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             )}
             {showGlobalFilters && <DownloadDataButton />}
             <ThemeToggle />
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
-            </Button>
+            <NotificationBell />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
