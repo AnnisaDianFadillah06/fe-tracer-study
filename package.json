@@ -8,7 +8,14 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:compat": "playwright test --grep @compat --project=chromium --project=firefox --project=webkit --project=msedge --project=\"Mobile Chrome\"",
+    "test:smoke": "playwright test --grep @smoke --project=chromium --project=firefox --project=webkit --project=msedge --project=\"Mobile Chrome\"",
+    "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -66,21 +73,28 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.48.0",
     "@tailwindcss/typography": "^0.5.16",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^22.16.5",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react-swc": "^4.3.0",
+    "@vitest/coverage-v8": "^4.1.11",
     "autoprefixer": "^10.4.21",
+    "dotenv": "^16.4.5",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
+    "jsdom": "^30.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
     "vite": "^8.0.3",
+    "vitest": "^4.1.11",
     "wrangler": "^4.126.0"
   }
 }

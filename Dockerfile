@@ -44,13 +44,19 @@ ENV VITE_API_URL=$VITE_API_URL \
 ENV NODE_OPTIONS=--max-old-space-size=1536
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# --ignore-scripts: dependency di sini tidak punya postinstall/prepare yang
+# dibutuhkan build (dicek di package.json), jadi lifecycle script pihak
+# ketiga saat instalasi bisa dimatikan tanpa merusak build.
+RUN npm ci --ignore-scripts
 
 COPY . .
 RUN npm run build
 
 # --- Tahap 2: sajikan statis ---------------------------------------------
-FROM nginx:1.27-alpine AS runtime
+# nginx-unprivileged: image resmi yang sudah dikonfigurasi jalan sebagai user
+# non-root (bukan root seperti nginx:1.27-alpine biasa), makanya port default
+# 8080 -- port <1024 tidak bisa dibuka oleh proses non-root.
+FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
 
 # Konfigurasi ini hanya mengurus SPA fallback di dalam container FE. Reverse
 # proxy ke API diurus nginx edge di deploy/nginx/default.conf.
@@ -59,4 +65,4 @@ COPY docker/spa.conf /etc/nginx/conf.d/spa.conf
 
 COPY --from=build /app/dist /usr/share/nginx/html
 
-EXPOSE 80
+EXPOSE 8080

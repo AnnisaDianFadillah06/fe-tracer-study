@@ -222,6 +222,20 @@ function buildBeChartData(items: BandingkanProdiItem[]) {
   });
 }
 
+/** Urutkan label kategori secara alfabetis (localeCompare, bukan sort default). */
+export function sortLabels(labels: Iterable<string>): string[] {
+  return [...labels].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Terapkan filter kategori tren (bisa undefined saat kategori belum termuat)
+ * ke daftar item, tanpa memanggil fungsi filter langsung sebagai referensi.
+ */
+export function filterByTrendCategory<T>(items: T[], filterFn?: (item: T) => boolean): T[] {
+  const predicate = filterFn ?? (() => false);
+  return items.filter((item) => predicate(item));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -503,7 +517,7 @@ const ComparePage = () => {
     instansiBandingkanHook.data?.data?.forEach((d) =>
       d.tingkat.forEach((t) => { if (t.label) seen.add(t.label); }),
     );
-    return [...seen].sort();
+    return sortLabels(seen);
   }, [instansiBandingkanHook.data]);
 
   // Warna tetap per kategori (bukan auto-palette) -- Lokal = mint,
@@ -827,7 +841,7 @@ const ComparePage = () => {
       YEARS.forEach((year) => {
         const yearStudents = MOCK_STUDENTS.filter((s) => s.prodi === prodiName && s.tahunLulus === parseInt(year));
         const total = yearStudents.length || 1;
-        const count = yearStudents.filter(currentTrendCat?.filter ?? (() => false)).length;
+        const count = filterByTrendCategory(yearStudents, currentTrendCat?.filter).length;
         row[year] = ((count / total) * 100).toFixed(1);
         row[`${year}Count`] = count;
         row[`${year}Total`] = yearStudents.length;

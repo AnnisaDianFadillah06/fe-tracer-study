@@ -29,7 +29,7 @@ interface KpiMultiLineChartProps {
   selectedYear: string | null;
 }
 
-const CustomDot = (props: any & { selectedYear: string | null }) => {
+export const CustomDot = (props: Record<string, any> & { selectedYear: string | null }) => {
   const { cx, cy, payload, fill, selectedYear: sy } = props;
   const isSelected = sy && payload?.year === sy;
   const isDimmed = sy && payload?.year !== sy;

@@ -244,7 +244,7 @@ const KpiStackedBarChart = ({
               </Bar>
 
               {/* BAN-PT threshold line in FRONT (rendered last) */}
-              {mode === "ban-pt" && threshold && (
+              {mode === "ban-pt" && Boolean(threshold) && (
                 <ReferenceLine
                   x={threshold}
                   stroke="#f59e0b"

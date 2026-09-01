@@ -25,16 +25,12 @@ const Login = () => {
     e.preventDefault();
     try {
       try {
-        const result = await login(identifier, password);
+        await login(identifier, password);
         toast({
           title: "Login Berhasil",
           description: "Selamat datang di Dashboard Smart Tracer",
         });
-        if (result.user?.role) {
-          navigate("/dashboard/overview");
-        } else {
-          navigate("/dashboard/overview");
-        }
+        navigate("/dashboard/overview");
         return;
       } catch (staffErr: any) {
         // Kegagalan rute staf memang lumrah — alumni SELALU gagal di sini

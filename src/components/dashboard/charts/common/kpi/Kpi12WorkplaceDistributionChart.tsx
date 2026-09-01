@@ -57,6 +57,11 @@ const normalizeJenis = (l: string): string => {
 const VISIBLE_YEARS = 3;
 const BAR_GROUP_WIDTH = 180;
 
+/** Urutkan label kategori secara alfabetis (localeCompare, bukan sort default). */
+export function sortLabels(labels: Iterable<string>): string[] {
+  return [...labels].sort((a, b) => a.localeCompare(b));
+}
+
 const Kpi12WorkplaceDistributionChart = () => {
   const { tahunLulus } = useGlobalFilters();
   const jenisHook = useInstansiJenis();
@@ -130,7 +135,7 @@ const Kpi12WorkplaceDistributionChart = () => {
     tingkatHook.data?.data?.forEach((p) =>
       p.tingkat.forEach((t) => { if (t.label) seen.add(t.label); }),
     );
-    return [...seen].sort();
+    return sortLabels(seen);
   }, [tingkatHook.data]);
 
   // Warna tetap per kategori (bukan auto-palette dari buildColorMap) --

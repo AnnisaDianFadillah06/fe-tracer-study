@@ -48,7 +48,7 @@ function storageKey(nim: string): string {
  * lama diabaikan begitu susunannya berbeda.
  */
 export function questionnaireFingerprint(questionIds: string[]): string {
-  return `${questionIds.length}:${[...questionIds].sort().join(",")}`;
+  return `${questionIds.length}:${[...questionIds].sort((a, b) => a.localeCompare(b)).join(",")}`;
 }
 
 /** Simpan draf. Gagal menyimpan tidak boleh mengganggu pengisian. */

@@ -93,6 +93,11 @@ const toneClass = (tone: "good" | "bad" | "neutral") => {
   return map[tone];
 };
 
+/** Daftar nilai unik terurut alfabetis (localeCompare, bukan sort default). */
+export function uniqSorted(arr: string[]): string[] {
+  return Array.from(new Set(arr)).sort((a, b) => a.localeCompare(b));
+}
+
 const QuestionMappingPage = () => {
   const { toast } = useToast();
 
@@ -396,7 +401,7 @@ const QuestionMappingPage = () => {
 
   const [q, setQ] = useState("");
 
-  const uniq = (arr: string[]) => Array.from(new Set(arr)).sort();
+  const uniq = uniqSorted;
   const opts1 = useMemo(
     () => ({
       kuesioner: uniq(savedCodes.map((s) => questionnaireNameById[s.questionnaire_id] ?? String(s.questionnaire_id))),

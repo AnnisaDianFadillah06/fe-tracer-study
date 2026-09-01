@@ -253,13 +253,21 @@ const ClusteringHeatmapChart = ({
                   return (
                     <UITooltip key={cluster.key}>
                       <TooltipTrigger asChild>
-                        <div 
+                        <div
                           className={`flex-1 min-w-[100px] h-12 flex items-center justify-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg ${isLast ? 'rounded-r-md' : ''}`}
-                          style={{ 
+                          style={{
                             backgroundColor: cluster.color,
                             opacity: getCellOpacity(value, maxValue)
                           }}
+                          role="button"
+                          tabIndex={0}
                           onClick={() => handleCellClick(row.prodi, cluster.key)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              handleCellClick(row.prodi, cluster.key);
+                            }
+                          }}
                         >
                           <span className="text-xs font-bold text-white drop-shadow-md">{value}</span>
                         </div>

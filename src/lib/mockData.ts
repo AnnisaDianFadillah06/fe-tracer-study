@@ -250,7 +250,10 @@ export const generateClusteringData = (domain: string, prodiFilter?: string[]) =
   ];
   
   return uniqueProdis.map((prodi, idx) => {
-    const prodiStudents = MOCK_STUDENTS.filter(s => s.prodi === prodi);
+    // MOCK_STUDENTS sengaja dikosongkan (lihat generateMockStudents) --
+    // prodiStudents selalu kosong, dipertahankan agar bentuk objek di bawah
+    // (jumlahAlumni, dll) tetap konsisten dengan sebelumnya.
+    const prodiStudents: Student[] = [];
     const prodiInfo = PRODI_LIST.find(p => p.name === prodi);
     
     switch (domain) {

@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
@@ -12,6 +13,19 @@ export default defineConfig(() => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+    },
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test/setup.ts"],
+    // e2e/ dipakai Playwright (test runner beda, punya `test.describe` sendiri)
+    // -- harus dikeluarkan supaya Vitest tidak ikut mengimpornya.
+    exclude: ["node_modules/**", "dist/**", "e2e/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      reportsDirectory: "coverage",
     },
   },
   // Pre-bundle SEMUA dependency runtime saat dev server start.

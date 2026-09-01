@@ -31,7 +31,36 @@ interface ClusteringCareerChartProps {
   filters?: { prodi?: string; jenjang?: string; tahun?: string };
 }
 
-const ClusteringCareerChart = ({ 
+/**
+ * Label legend RadarChart yang bisa diklik/di-Enter untuk membuka modal
+ * profil karier prodi terkait. Diekstrak dari `formatter` Legend supaya
+ * bisa diuji langsung tanpa perlu merender RadarChart (Recharts tidak
+ * merender turunannya di jsdom tanpa layout/dimensi asli browser).
+ */
+export const LegendLabel = ({
+  value,
+  onSelect,
+}: {
+  value: string;
+  onSelect: (value: string) => void;
+}) => (
+  <span
+    className="text-xs text-foreground cursor-pointer hover:text-primary"
+    role="button"
+    tabIndex={0}
+    onClick={() => onSelect(value)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onSelect(value);
+      }
+    }}
+  >
+    {value}
+  </span>
+);
+
+const ClusteringCareerChart = ({
   showProdiFilter = true,
   filters = {} 
 }: ClusteringCareerChartProps) => {
@@ -182,14 +211,7 @@ const ClusteringCareerChart = ({
           ))}
           <Legend
             wrapperStyle={{ paddingTop: "20px" }}
-            formatter={(value) => (
-              <span 
-                className="text-xs text-foreground cursor-pointer hover:text-primary"
-                onClick={() => handleRadarClick(value)}
-              >
-                {value}
-              </span>
-            )}
+            formatter={(value) => <LegendLabel value={value} onSelect={handleRadarClick} />}
           />
         </RadarChart>
       </ResponsiveContainer>
