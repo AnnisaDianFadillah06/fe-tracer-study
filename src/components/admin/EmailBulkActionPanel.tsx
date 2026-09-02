@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { EmailBatchStatus, EmailBulkProgress, EmailBulkResult } from "@/types/emailSelection";
+import { getFriendlyEmailError } from "@/lib/friendlyEmailError";
 import type { LucideIcon } from "lucide-react";
 import { X } from "lucide-react";
 
@@ -127,16 +128,24 @@ const EmailBulkActionPanel = ({
 
             {result.failedItems.length > 0 && (
               <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
-                {result.failedItems.map((item) => (
-                  <div key={item.nim} className="p-2.5 text-xs space-y-0.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{item.name || "(tanpa nama)"}</span>
-                      <span className="text-muted-foreground">{item.nim}</span>
+                {result.failedItems.map((item) => {
+                  const { friendly, raw } = getFriendlyEmailError(item.error_message);
+                  return (
+                    <div key={item.nim} className="p-2.5 text-xs space-y-0.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">{item.name || "(tanpa nama)"}</span>
+                        <span className="text-muted-foreground">{item.nim}</span>
+                      </div>
+                      <p className="text-muted-foreground">{item.email || "(tidak ada surel)"}</p>
+                      <p className="text-destructive font-medium">{friendly}</p>
+                      {raw && raw !== friendly && (
+                        <p className="text-muted-foreground/70 font-mono text-[10px] truncate" title={raw}>
+                          Detail teknis: {raw}
+                        </p>
+                      )}
                     </div>
-                    <p className="text-muted-foreground">{item.email || "(tidak ada surel)"}</p>
-                    <p className="text-destructive">{item.error_message}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

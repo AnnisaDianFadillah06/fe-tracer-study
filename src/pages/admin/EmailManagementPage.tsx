@@ -1,4 +1,14 @@
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,11 +31,16 @@ import {
 } from "@/components/ui/table";
 import TablePagination from "@/components/common/TablePagination";
 import EmailBulkActionPanel from "@/components/admin/EmailBulkActionPanel";
+import PilihTahun from "@/components/common/PilihTahun";
+import PilihProdi from "@/components/common/PilihProdi";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useEmailManagement } from "@/hooks/admin/useEmailManagement";
 import { useEmailBulkAction } from "@/hooks/admin/useEmailBulkAction";
+import { useStatsPerProdi } from "@/hooks/dashboard/useStatsPerProdi";
+import { getFriendlyEmailError } from "@/lib/friendlyEmailError";
 import { useState } from "react";
-import { AlertCircle, CheckCircle2, Circle, Clock, KeyRound, Loader2, Mail, X } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { AlertCircle, ArrowLeft, CheckCircle2, Circle, Clock, KeyRound, Loader2, Mail, X } from "lucide-react";
 
 /**
  * "Manajemen Email" — tabel alumni ter-paginasi dengan checkbox seleksi
@@ -52,8 +67,68 @@ const EmailManagementPage = () => {
   const email = useEmailManagement();
   const accountAction = useEmailBulkAction("account");
   const reminderAction = useEmailBulkAction("reminder");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  /**
+   * Layar bertahap Tahun -> Prodi -> tabel, DISAMAKAN persis dengan pola
+   * AlumniDataPage (Data Alumni) -- tahun/prodi diturunkan dari URL
+   * (`?year=`, `?prodi=`) supaya tombol kembali, muat ulang, dan berbagi
+   * tautan tetap bekerja, dan tersinkron ke state internal useEmailManagement
+   * (yang menjalankan query + reset seleksi/halaman) lewat email.setYear /
+   * email.setProdi saat kartu dipilih.
+   *   undefined = belum dipilih (tampilkan layar kartu)
+   *   null      = "semua" (semua lulusan / semua prodi)
+   *   number    = satu tahun / satu prodi
+   */
+  const yearParam = searchParams.get("year");
+  const prodiParam = searchParams.get("prodi");
+  const graduationYear: number | null | undefined =
+    yearParam === "all" ? null : yearParam ? Number(yearParam) : undefined;
+  const programId: number | null | undefined =
+    prodiParam === "all" ? null : prodiParam ? Number(prodiParam) : undefined;
+
+  const setGraduationYear = (y: number | null) => {
+    const params = new URLSearchParams();
+    params.set("year", y === null ? "all" : String(y));
+    // Prodi ikut dilepas -- prodi yang tadi terisi bisa saja kosong di tahun
+    // ini, jadi kembali ke layar kartu prodi.
+    setSearchParams(params, { replace: true });
+    email.setYear(y === null ? "" : String(y));
+    email.setProdi("");
+  };
+
+  const setProgramId = (id: number | null) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("prodi", id === null ? "all" : String(id));
+    setSearchParams(params, { replace: false });
+    email.setProdi(id === null ? "" : String(id));
+  };
+
+  const backToYearCards = () => {
+    setSearchParams(new URLSearchParams(), { replace: false });
+    email.setYear("");
+    email.setProdi("");
+  };
+
+  const backToProdiCards = () => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("prodi");
+    setSearchParams(params, { replace: false });
+    email.setProdi("");
+  };
+
+  /** Dipakai hanya untuk menamai prodi terpilih di judul (cache react-query, tidak ada permintaan tambahan). */
+  const { prodi: prodiList } = useStatsPerProdi(programId === undefined ? undefined : graduationYear);
+  const selectedProgram = programId ? prodiList.find((p) => p.program_id === programId) : undefined;
+  const selectedProgramLabel = selectedProgram
+    ? `${selectedProgram.program_name}${selectedProgram.program_degree ? ` (${selectedProgram.program_degree})` : ""}`
+    : null;
 
   const [onlyWithoutCreds, setOnlyWithoutCreds] = useState(true);
+  // Konfirmasi wajib sebelum kirim massal -- sebelumnya klik langsung
+  // mengeksekusi ke seluruh seleksi (bisa ribuan alumni sekaligus lewat
+  // "Pilih semua sesuai filter") tanpa jeda apa pun (ditemukan saat QA Safety).
+  const [pendingAction, setPendingAction] = useState<"account" | "reminder" | null>(null);
 
   const isAnyActionBusy = accountAction.isBusy || reminderAction.isBusy;
 
@@ -75,69 +150,88 @@ const EmailManagementPage = () => {
     reminderAction.run(email.selectionPayload);
   };
 
+  const confirmPendingAction = () => {
+    if (pendingAction === "account") runIssueAccounts();
+    if (pendingAction === "reminder") runSendReminders();
+    setPendingAction(null);
+  };
+
+  // ── Layar kartu tahun ────────────────────────────────────────────────
+  if (graduationYear === undefined) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">Manajemen Email</h2>
+            <p className="text-muted-foreground text-sm">
+              Pilih tahun lulusan untuk menerbitkan akun alumni atau mengirim pengingat kuesioner
+            </p>
+          </div>
+          <PilihTahun mode="alumni" onSelect={setGraduationYear} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // ── Layar kartu prodi ────────────────────────────────────────────────
+  if (programId === undefined) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-heading font-bold">
+                Manajemen Email
+                <span className="text-muted-foreground font-normal">
+                  {" — "}{graduationYear === null ? "Semua Lulusan" : `Lulusan ${graduationYear}`}
+                </span>
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                Pilih program studi yang ingin dikirimi akun atau pengingat
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={backToYearCards} className="shrink-0">
+              <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
+              Pilih Tahun Lulusan
+            </Button>
+          </div>
+          <PilihProdi graduationYear={graduationYear} onSelect={setProgramId} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-heading font-bold">Manajemen Email</h2>
-          <p className="text-muted-foreground text-sm">
-            Terbitkan akun alumni atau kirim pengingat kuesioner, langsung lewat email bulk
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">
+              Manajemen Email
+              <span className="text-muted-foreground font-normal">
+                {" — "}{graduationYear === null ? "Semua Lulusan" : `Lulusan ${graduationYear}`}
+              </span>
+            </h2>
+            <p className="text-muted-foreground text-sm">
+              {selectedProgramLabel ?? "Semua program studi"} — terbitkan akun alumni atau kirim pengingat kuesioner
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm" onClick={backToProdiCards}>
+              <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
+              Pilih Prodi
+            </Button>
+            <Button variant="outline" size="sm" onClick={backToYearCards}>
+              <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
+              Pilih Tahun Lulusan
+            </Button>
+          </div>
         </div>
 
-        {/* Toolbar: filter + seleksi + dua tombol aksi */}
+        {/* Toolbar: seleksi + dua tombol aksi */}
         <Card className="glass-card">
           <CardContent className="pt-4 pb-4 space-y-4">
-            <div className="flex gap-3 flex-wrap">
-              <Select value={email.year === "" ? "all" : email.year} onValueChange={(v) => email.setYear(v === "all" ? "" : v)}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Tahun Lulus" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua lulusan</SelectItem>
-                  {email.yearSummaries.map((y) => (
-                    <SelectItem key={y.tahun} value={String(y.tahun)}>
-                      Lulusan {y.tahun}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={email.jurusan === "" ? "all" : email.jurusan}
-                onValueChange={(v) => email.setJurusan(v === "all" ? "" : v)}
-              >
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder="Semua jurusan" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua jurusan</SelectItem>
-                  {email.jurusanOptions.map((j) => (
-                    <SelectItem key={j} value={j}>
-                      {j}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={email.prodi === "" ? "all" : email.prodi}
-                onValueChange={(v) => email.setProdi(v === "all" ? "" : v)}
-              >
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder="Semua program studi" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua program studi</SelectItem>
-                  {email.prodiOptions.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name}
-                      {p.degree ? ` (${p.degree})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
                 <span>
                   <span className="font-semibold tabular-nums">{email.selectedCount}</span> alumni dipilih
@@ -156,7 +250,7 @@ const EmailManagementPage = () => {
               </div>
 
               <div className="flex gap-2">
-                <Button variant="outline" onClick={runSendReminders} disabled={isAnyActionBusy || email.selectedCount === 0}>
+                <Button variant="outline" onClick={() => setPendingAction("reminder")} disabled={isAnyActionBusy || email.selectedCount === 0}>
                   {reminderAction.isBusy ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                   ) : (
@@ -164,7 +258,7 @@ const EmailManagementPage = () => {
                   )}
                   Kirim Reminder
                 </Button>
-                <Button onClick={runIssueAccounts} disabled={isAnyActionBusy || email.selectedCount === 0}>
+                <Button onClick={() => setPendingAction("account")} disabled={isAnyActionBusy || email.selectedCount === 0}>
                   {accountAction.isBusy ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                   ) : (
@@ -367,7 +461,9 @@ const EmailManagementPage = () => {
                                 </div>
                               </TooltipTrigger>
                               {row.lastEmail.status === "failed" && row.lastEmail.error && (
-                                <TooltipContent className="max-w-xs">{row.lastEmail.error}</TooltipContent>
+                                <TooltipContent className="max-w-xs">
+                                  {getFriendlyEmailError(row.lastEmail.error).friendly}
+                                </TooltipContent>
                               )}
                             </Tooltip>
                           ) : (
@@ -391,6 +487,27 @@ const EmailManagementPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={pendingAction !== null} onOpenChange={(open) => !open && setPendingAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAction === "account" ? "Terbitkan akun baru?" : "Kirim pengingat kuesioner?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction === "account"
+                ? `Kata sandi baru akan dibangkitkan dan email berisi kredensial akan dikirim ke ${email.selectedCount} alumni terpilih. Kredensial lama (jika ada) akan berhenti berlaku.`
+                : `Email pengingat pengisian kuesioner akan dikirim ke ${email.selectedCount} alumni terpilih.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmPendingAction}>
+              {pendingAction === "account" ? "Ya, terbitkan" : "Ya, kirim"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };
