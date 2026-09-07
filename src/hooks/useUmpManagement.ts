@@ -201,12 +201,13 @@ export const useUmpManagement = () => {
       const res = await apiService.fetchUmpFromBps(activeYear);
       setRows(res.data.rows);
       setIsDirty(true);
-      const { ok_count, fail_count } = res.data;
+      const { ok_count, fail_count, rows } = res.data;
       const allFailed = ok_count === 0 && fail_count > 0;
+      const reason = rows.find((r) => r.error_msg)?.error_msg;
         setBanner({
         kind: allFailed ? "error" : fail_count > 0 ? "warning" : "success",
         text: allFailed
-            ? `Data UMP ${activeYear} tidak tersedia di BPS. Gunakan Import Excel atau isi manual.`
+            ? `Gagal fetch BPS untuk tahun ${activeYear}${reason ? `: ${reason}` : ""}. Gunakan Import Excel atau isi manual.`
             : `${ok_count} provinsi berhasil difetch dari BPS.` +
             (fail_count > 0 ? ` ${fail_count} provinsi gagal, isi manual.` : ""),
         });

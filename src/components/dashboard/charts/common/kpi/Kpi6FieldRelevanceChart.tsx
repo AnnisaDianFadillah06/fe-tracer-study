@@ -34,6 +34,7 @@ import { buildColorMap } from "@/lib/chartColors";
 import { useKpiFormula, findFormulaGroup } from "@/hooks/useKpiFormula";
 
 const CONTEXT_COLUMN = { key: "kesesuaian_bidang", label: "Kesesuaian Bidang" };
+const ALASAN_CONTEXT_COLUMN = { key: "alasan", label: "Alasan" };
 
 const Kpi6FieldRelevanceChart = () => {
   const barHook    = useKesesuaianBar();
@@ -299,7 +300,7 @@ const Kpi6FieldRelevanceChart = () => {
         data={drillHook.data}
         loading={drillHook.loading}
         error={drillHook.error}
-        contextColumn={modal.alasan ? undefined : CONTEXT_COLUMN}
+        contextColumn={modal.alasan ? ALASAN_CONTEXT_COLUMN : CONTEXT_COLUMN}
         onPageChange={handlePageChange}
       />
     </>

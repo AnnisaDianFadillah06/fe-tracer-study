@@ -27,6 +27,8 @@ export interface WirausahaTingkatItem {
   count: number;
   pct: number;
   sub_labels?: string[];
+  /** true untuk slice agregat "Lainnya" -- drill-down-nya lewat jabatanLainnya, bukan jabatan=label. */
+  is_lainnya?: boolean;
 }
 
 export interface WirausahaSebaranKotaItem {
@@ -65,6 +67,8 @@ export interface WirausahaDrillDownResponse {
 
 export interface WirausahaDrillDownParams {
   jabatan?: string;
+  /** true = drill-down slice agregat "Lainnya" (lihat WirausahaTingkatItem.is_lainnya) */
+  jabatanLainnya?: boolean;
   tahun_lulus?: string;
   nama_prodi?: string;
   page?: number;
@@ -200,6 +204,7 @@ export function useWirausahaDrillDown() {
       const params: Record<string, string> = {
         ...buildParams(degree, jurusan, prodi, extra.tahun_lulus ?? tahunLulus, weekKey),
         ...(extra.jabatan ? { jabatan: extra.jabatan } : {}),
+        ...(extra.jabatanLainnya ? { jabatan_lainnya: "1" } : {}),
         ...(extra.nama_prodi ? { nama_prodi: extra.nama_prodi } : {}),
         page:     String(extra.page ?? 1),
         per_page: String(extra.per_page ?? 15),

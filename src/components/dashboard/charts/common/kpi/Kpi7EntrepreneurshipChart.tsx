@@ -38,16 +38,26 @@ const Kpi7EntrepreneurshipChart = () => {
     open: boolean;
     title: string;
     jabatan?: string;
+    jabatanLainnya?: boolean;
     tahunLulus?: string;
   }>({ open: false, title: "" });
 
-  const openPieModal = (title: string, jabatan: string) => {
+  const openPieModal = (title: string, jabatan: string, isLainnya?: boolean) => {
     // Pie sudah discope ke pieTahun (default: tahun terbaru) -- drill-down
     // harus pakai tahun yang sama, kalau tidak count di modal (semua tahun)
     // tidak akan pernah cocok dengan count di pie (satu tahun).
-    setModal({ open: true, title, jabatan, tahunLulus: pieTahun });
+    // Slice "Lainnya" adalah agregat (lihat isLainnya) -- filter jabatan
+    // literal 'Lainnya' tidak akan pernah cocok data asli, jadi drill-down
+    // -nya lewat flag jabatanLainnya, bukan nama slice.
+    setModal({
+      open: true,
+      title,
+      jabatan: isLainnya ? undefined : jabatan,
+      jabatanLainnya: isLainnya,
+      tahunLulus: pieTahun,
+    });
     drillHook.fetch({
-      jabatan,
+      ...(isLainnya ? { jabatanLainnya: true } : { jabatan }),
       tahun_lulus: pieTahun,
       page: 1,
     });
@@ -59,7 +69,9 @@ const Kpi7EntrepreneurshipChart = () => {
   };
 
   const handlePageChange = (page: number, search?: string) => {
-    if (modal.jabatan) {
+    if (modal.jabatanLainnya) {
+      drillHook.fetch({ jabatanLainnya: true, tahun_lulus: modal.tahunLulus, page, search });
+    } else if (modal.jabatan) {
       drillHook.fetch({
         jabatan: modal.jabatan,
         tahun_lulus: modal.tahunLulus,
@@ -93,13 +105,16 @@ const Kpi7EntrepreneurshipChart = () => {
 
   // Pie: dari field `posisi` (bukan `data` atau `tingkat`) di response.
   // d.label sudah label mentah DimWirausaha.jabatan (tanpa prettify), jadi
-  // aman dikirim langsung sebagai filter `jabatan` equals ke drill-down.
+  // aman dikirim langsung sebagai filter `jabatan` equals ke drill-down --
+  // KECUALI slice "Lainnya" (is_lainnya), itu label agregat buatan BE,
+  // bukan nilai jabatan asli (lihat openPieModal).
   const pieData = useMemo(() => {
     if (!pieHook.data?.posisi) return [];
     return pieHook.data.posisi.map((d, i) => ({
       name:  d.label,
       value: d.pct,
       count: d.count,
+      isLainnya: d.is_lainnya === true,
       color: PIE_COLORS[i % PIE_COLORS.length],
     }));
   }, [pieHook.data]);
@@ -221,7 +236,7 @@ const Kpi7EntrepreneurshipChart = () => {
                   activeIndex={pieActive.activeIndex} activeShape={renderActivePieShape}
                   onMouseEnter={pieActive.onMouseEnter} onMouseLeave={pieActive.onMouseLeave}
                   onClick={(d: any) => openPieModal(
-                    `${d.name} (${d.value}% · ${d.count} alumni)`, d.name
+                    `${d.name} (${d.value}% · ${d.count} alumni)`, d.name, d.isLainnya
                   )}
                 >
                   {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
@@ -242,7 +257,11 @@ const Kpi7EntrepreneurshipChart = () => {
         data={drillHook.data}
         loading={drillHook.loading}
         error={drillHook.error}
-        contextColumn={null}
+        contextColumn={
+          modal.jabatan || modal.jabatanLainnya
+            ? { key: "jabatan", label: "Posisi/Jabatan" }
+            : null
+        }
         onPageChange={handlePageChange}
       />
     </>
