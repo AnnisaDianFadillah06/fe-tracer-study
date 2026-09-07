@@ -896,9 +896,18 @@ export const useTracerForm = (
     return issueList.length === 0;
   };
 
-  /** Validasi satu pertanyaan saja — dipakai saat pengguna meninggalkan field. */
-  const validateQuestion = (q: Question) => {
-    const result = validateAnswer(q, answers[q.id]);
+  /**
+   * Validasi satu pertanyaan saja — dipakai saat pengguna meninggalkan field.
+   *
+   * `nilaiBaru` dipakai oleh pemanggil yang memvalidasi PADA saat menjawab,
+   * bukan sesudahnya. Pilihan tunggal memanggil setAnswer lalu memvalidasi
+   * dalam satu penangan yang sama, dan pada saat itu `answers` masih memuat
+   * nilai lama karena pembaruan state React belum terpasang. Tanpa nilai yang
+   * diteruskan langsung, pertanyaan wajib akan ditandai "wajib diisi" tepat
+   * pada saat alumni memilih jawabannya.
+   */
+  const validateQuestion = (q: Question, nilaiBaru?: unknown) => {
+    const result = validateAnswer(q, nilaiBaru !== undefined ? nilaiBaru : answers[q.id]);
     setErrors((prev) => {
       const next = { ...prev };
       if (result.error) next[q.id] = result.error; else delete next[q.id];

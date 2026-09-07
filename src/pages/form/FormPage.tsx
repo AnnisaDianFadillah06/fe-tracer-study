@@ -480,7 +480,7 @@ const FormPage = () => {
                     parentAnswer={q.dependsOn ? (answers[q.dependsOn] as string) : undefined}
                     setAnswer={setAnswer}
                     setCheckboxAnswer={setCheckboxAnswer}
-                    onBlur={() => validateQuestion(q)}
+                    onBlur={(nilaiBaru) => validateQuestion(q, nilaiBaru)}
                     invalid={!!errors[q.id]}
                     lockedNim={q.code === "nimhsmsmh" ? session?.nim : undefined}
                   />
@@ -570,14 +570,22 @@ interface AnswerFieldProps {
   parentAnswer?: string;
   setAnswer: (qId: string, val: unknown) => void;
   setCheckboxAnswer: (qId: string, oId: string, checked: boolean) => void;
-  /** Divalidasi saat pengguna meninggalkan isian, bukan tiap ketikan. */
-  onBlur?: () => void;
+  /**
+   * Divalidasi saat pengguna meninggalkan isian, bukan tiap ketikan.
+   *
+   * Pilihan tunggal memvalidasi PADA saat menjawab, bukan sesudahnya, jadi
+   * nilainya diteruskan langsung — `answers` di hook belum diperbarui saat
+   * penangan ini berjalan.
+   */
+  onBlur?: (nilaiBaru?: unknown) => void;
   invalid?: boolean;
   /**
-   * NIM pemegang token. Hanya diisi untuk pertanyaan NIM, dan membuatnya
-   * terkunci: server menolak submit bila NIM tidak sama persis dengan pemilik
-   * token, jadi membiarkannya bisa disunting hanya menunda kegagalan sampai
-   * seluruh borang selesai diisi.
+   * Nilai yang tidak boleh disunting alumni, dipakai NIM dan Kode PT dengan
+   * alasan yang berbeda. NIM diseragamkan dengan pemegang token karena server
+   * menolak submit bila keduanya tidak sama persis, jadi membiarkannya bisa
+   * disunting hanya menunda kegagalan sampai seluruh borang selesai diisi.
+   * Kode PT diseragamkan dengan konfigurasi pemasangan karena kodenya milik
+   * institusi dan sama bagi seluruh alumni.
    */
   lockedNim?: string;
 }
@@ -602,7 +610,9 @@ const AnswerField = ({
           value={(answer as string) ?? ""}
           onChange={(val) => {
             setAnswer(q.id, val);
-            onBlur?.();
+            // Nilainya diteruskan karena validasi berjalan pada saat memilih,
+            // sebelum `answers` sempat diperbarui — sama seperti RadioGroup.
+            onBlur?.(val);
           }}
           parentValue={parentAnswer}
           hasError={!!invalid}
@@ -651,7 +661,9 @@ const AnswerField = ({
           inputMode="numeric"
           value={text}
           onChange={(e) => setAnswer(q.id, e.target.value)}
-          onBlur={onBlur}
+          // Tanpa pembungkus, React meneruskan FocusEvent sebagai argumen dan
+          // event itulah yang divalidasi, bukan jawabannya.
+          onBlur={() => onBlur?.()}
           placeholder={isCurrencyQuestion(q) ? "5000000" : "0"}
         />
         {numeric !== null && (showPreview || isCurrencyQuestion(q)) && (
@@ -696,7 +708,9 @@ const AnswerField = ({
           type={q.backendType === "date" ? "date" : "text"}
           value={(answer as string) ?? ""}
           onChange={(e) => setAnswer(q.id, e.target.value)}
-          onBlur={onBlur}
+          // Tanpa pembungkus, React meneruskan FocusEvent sebagai argumen dan
+          // event itulah yang divalidasi, bukan jawabannya.
+          onBlur={() => onBlur?.()}
           placeholder="Jawaban Anda"
         />
       );
@@ -707,7 +721,9 @@ const AnswerField = ({
           {...aria}
           value={(answer as string) ?? ""}
           onChange={(e) => setAnswer(q.id, e.target.value)}
-          onBlur={onBlur}
+          // Tanpa pembungkus, React meneruskan FocusEvent sebagai argumen dan
+          // event itulah yang divalidasi, bukan jawabannya.
+          onBlur={() => onBlur?.()}
           placeholder="Jawaban Anda"
           rows={4}
         />
@@ -717,7 +733,7 @@ const AnswerField = ({
       return (
         <RadioGroup
           value={(answer as string) ?? ""}
-          onValueChange={(v) => { setAnswer(q.id, v); onBlur?.(); }}
+          onValueChange={(v) => { setAnswer(q.id, v); onBlur?.(v); }}
           className="space-y-2"
         >
           {q.options.map((opt) => (
