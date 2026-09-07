@@ -49,10 +49,24 @@ const POLA_KODE_LADANG = /^f\d+[a-z]?\d*$/i;
  * mengira ada padanan di lembar kementerian padahal tidak ada. Karena itu yang
  * tidak cocok dikembalikan sebagai null, bukan apa adanya.
  */
+/**
+ * Awalan id kuesioner pada formulir alumni.
+ *
+ * Satu halaman pengisian dapat memuat beberapa kuesioner sekaligus, dan kode
+ * pertanyaan boleh sama di antaranya, sehingga perender menyematkan id
+ * kuesioner di depan tiap id pertanyaan: `9___f401`. Pada pilihan kelompok
+ * checkbox, id itulah yang menjadi id opsi — jadi tanpa pemangkasan ini
+ * seluruh kode f401..f415 tidak pernah dikenali dan tidak pernah tampil.
+ *
+ * Penyunting kuesioner tidak memakai awalan, sehingga pola ini sengaja
+ * dibuat opsional agar satu fungsi melayani kedua pemakaian.
+ */
+const AWALAN_KUESIONER = /^\d+___/;
+
 export const kodeDikti = (id: string | undefined | null): string | null => {
   if (!id) return null;
 
-  const kode = id.trim().toLowerCase();
+  const kode = id.trim().toLowerCase().replace(AWALAN_KUESIONER, "");
   if (KODE_IDENTITAS.has(kode)) return kode;
 
   return POLA_KODE_LADANG.test(kode) ? kode : null;
