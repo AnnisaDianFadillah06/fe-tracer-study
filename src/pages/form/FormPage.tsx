@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { kodeDikti } from "@/lib/kodeDikti";
+import { institution } from "@/config/institution";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -80,7 +81,8 @@ const FormPage = () => {
     // alumni tidak mengetik ulang apa yang sudah diketahui sistem. Semuanya
     // tetap bisa disunting — email dan telepon justru yang paling sering
     // berubah setelah lulus, dan itulah yang ingin diperbarui tracer study.
-    // Kode PT tidak ikut: kolomnya tidak pernah diisi impor alumni.
+    // Kode PT tidak ikut di sini karena sumbernya konfigurasi pemasangan,
+    // bukan sesi alumni — diisi dan dikunci lewat KODE_PT_INSTITUSI.
     nim: session?.nim,
     name: session?.username,
     email: session?.email,
@@ -482,7 +484,17 @@ const FormPage = () => {
                     setCheckboxAnswer={setCheckboxAnswer}
                     onBlur={(nilaiBaru) => validateQuestion(q, nilaiBaru)}
                     invalid={!!errors[q.id]}
-                    lockedNim={q.code === "nimhsmsmh" ? session?.nim : undefined}
+                    lockedNim={
+                      q.code === "nimhsmsmh"
+                        ? session?.nim
+                        // Kode PT dikunci dengan alasan berbeda dari NIM: bukan
+                        // karena server mencocokkannya dengan token, melainkan
+                        // karena kodenya milik institusi dan sama bagi seluruh
+                        // alumni pada satu pemasangan.
+                        : q.code === "kdptimsmh" && institution.code
+                          ? institution.code
+                          : undefined
+                    }
                   />
 
                   {errors[q.id] ? (
@@ -632,8 +644,9 @@ const AnswerField = ({
           className="bg-muted/60 text-muted-foreground"
         />
         <p className="text-xs text-muted-foreground">
-          Diambil dari akun Anda dan tidak dapat diubah. Bila keliru, hubungi
-          pengelola tracer study.
+          {q.code === "kdptimsmh"
+            ? "Kode perguruan tinggi Anda, terisi otomatis oleh sistem."
+            : "Diambil dari akun Anda dan tidak dapat diubah. Bila keliru, hubungi pengelola tracer study."}
         </p>
       </div>
     );
