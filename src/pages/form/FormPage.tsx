@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { kodeDikti } from "@/lib/kodeDikti";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -445,6 +446,20 @@ const FormPage = () => {
                       {q.required && (
                         <span className="text-destructive ml-1" aria-label="wajib diisi">*</span>
                       )}
+                      {/* Kode ladang kementerian. Diredupkan dan dibuat kecil
+                          karena alumni tidak perlu memahaminya -- gunanya saat
+                          alumni menyebut satu pertanyaan tertentu ke petugas,
+                          dan saat petugas menelusuri balik jawaban ke lembar
+                          acuan. Disembunyikan dari pembaca layar dengan alasan
+                          yang sama: dibacakan, ia hanya derau. */}
+                      {kodeDikti(q.code) && (
+                        <span
+                          className="ml-2 font-mono text-xs font-normal text-muted-foreground/70"
+                          aria-hidden
+                        >
+                          ({kodeDikti(q.code)})
+                        </span>
+                      )}
                     </Label>
                     {q.description && (
                       <p className="text-sm text-muted-foreground mt-1">{q.description}</p>
@@ -737,6 +752,20 @@ const AnswerField = ({
                 />
                 <Label htmlFor={`${q.id}_${opt.id}`} className="font-normal cursor-pointer">
                   {opt.label}
+                  {/* Pada pilihan-ganda gabungan, kode kementerian melekat
+                      pada OPSI, bukan pertanyaannya: f401..f415 masing-masing
+                      satu baris. mergeGroupedQuestions memakai kode itu apa
+                      adanya sebagai opt.id, jadi tidak ada yang perlu dicari
+                      ulang. Opsi biasa (mis. 1..5 pada f8) ber-id angka dan
+                      tidak menghasilkan kode, sehingga tetap polos. */}
+                  {kodeDikti(opt.id) && (
+                    <span
+                      className="ml-2 font-mono text-xs text-muted-foreground/70"
+                      aria-hidden
+                    >
+                      ({kodeDikti(opt.id)})
+                    </span>
+                  )}
                 </Label>
               </div>
             );

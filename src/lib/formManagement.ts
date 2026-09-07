@@ -180,6 +180,27 @@ export const visibleOptions = (question: BuilderQuestion): string[] =>
     (_, index) => !question._original_options?.[index]?.is_hidden,
   );
 
+/**
+ * Kode ladang tiap opsi yang terlihat, SEJAJAR INDEKS dengan visibleOptions().
+ *
+ * Pada pertanyaan pilihan-ganda gabungan (f401-f415 "cara mencari kerja",
+ * f1601-f1613 "alasan pekerjaan tidak sesuai"), kementerian memberi kode pada
+ * setiap OPSI, bukan pada pertanyaannya -- di lembar acuan kode itu tertulis
+ * di belakang tiap baris. Kodenya sudah terbawa di `_original_options[i].code`
+ * sejak mergeGroupedForBuilder, jadi yang kurang hanya menampilkannya.
+ *
+ * Penyaringnya sengaja menyalin predikat visibleOptions() persis, atas domain
+ * indeks yang sama. Menyaring `_original_options` secara terpisah akan meleset
+ * ketika lariknya lebih pendek daripada `options` -- opsi tanpa sidecar
+ * dianggap terlihat oleh visibleOptions, sehingga kedua larik bergeser dan
+ * setiap opsi memperoleh kode milik tetangganya.
+ */
+export const visibleOptionCodes = (question: BuilderQuestion): string[] =>
+  question.options
+    .map((_, index) => question._original_options?.[index])
+    .filter((meta) => !meta?.is_hidden)
+    .map((meta) => meta?.code ?? "");
+
 export const isOptionQuestionType = (type: BuilderQuestionType) =>
   type === "multiple_choice" || type === "checkbox" || type === "dropdown";
 

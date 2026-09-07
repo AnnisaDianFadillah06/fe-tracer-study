@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,6 +43,7 @@ import {
   saveForms,
 } from "@/lib/formManagement";
 import api from "@/lib/api";
+import { kodeDikti } from "@/lib/kodeDikti";
 import {
   BUILDER_DRAFT_STORAGE_KEY, createBlankFormDraft, readDraft, stampDraft,
 } from "@/lib/questionnaireDrafts";
@@ -1018,6 +1020,20 @@ const FormBuilderPage = () => {
                               }`}
                             />
                             <div className="flex-1 space-y-3">
+                              {/* Kode ladang kementerian, bila pertanyaan ini
+                                  memang berasal dari daftar resmi. Penyusun
+                                  memakainya untuk mencocokkan dengan lembar
+                                  acuan; pertanyaan rakitan sendiri tidak punya
+                                  padanan di sana, jadi tidak diberi apa-apa. */}
+                              {kodeDikti(question.id) && (
+                                <Badge
+                                  variant="outline"
+                                  className="font-mono text-[11px] font-normal tracking-tight"
+                                  title="Kode ladang resmi Kemdikbud untuk pertanyaan ini"
+                                >
+                                  {kodeDikti(question.id)}
+                                </Badge>
+                              )}
                               <Input
                                 value={question.question}
                                 onChange={(event) =>
@@ -1580,6 +1596,20 @@ const QuestionEditor = ({ question, onChange }: QuestionEditorProps) => {
                 placeholder={`Opsi ${optionIndex + 1}`}
                 className={hidden ? "text-muted-foreground line-through" : undefined}
               />
+
+              {/* Kode ladang milik opsi ini. Pada kelompok f401..f415 tiap
+                  baris punya kodenya sendiri, dan penyusun perlu melihatnya
+                  untuk memastikan urutan opsi tidak tertukar terhadap lembar
+                  kementerian -- label boleh disunting, kodenya tidak. */}
+              {kodeDikti(optionMeta[optionIndex]?.code) && (
+                <Badge
+                  variant="outline"
+                  className="shrink-0 font-mono text-[11px] font-normal tracking-tight"
+                  title="Kode ladang resmi Kemdikbud untuk opsi ini"
+                >
+                  {kodeDikti(optionMeta[optionIndex]?.code)}
+                </Badge>
+              )}
 
               {hidden && (
                 <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
