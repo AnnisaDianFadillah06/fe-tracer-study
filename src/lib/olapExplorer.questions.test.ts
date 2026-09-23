@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   availableStarters,
   describeQuestion,
+  sameQuestion,
   STARTER_QUESTIONS,
   toCsv,
   type ExplorerCatalog,
@@ -101,5 +102,27 @@ describe("availableStarters", () => {
       expect(s.input.measures.length).toBeGreaterThan(0);
       expect(s.input.rowDims.length + (s.input.colDim ? 1 : 0)).toBeLessThanOrEqual(3);
     }
+  });
+});
+
+describe("sameQuestion", () => {
+  const base = {
+    cube: "F",
+    measures: ["F.count"],
+    rowDims: ["D.jurusan"],
+    colDim: null,
+    filters: [{ member: "D.jenjang", values: ["D3"] }],
+  };
+
+  it("mengabaikan urutan kunci objek (jsonb menyusunnya ulang)", () => {
+    const fromDb = JSON.parse(
+      '{"cube":"F","colDim":null,"filters":[{"values":["D3"],"member":"D.jenjang"}],"rowDims":["D.jurusan"],"measures":["F.count"]}',
+    );
+    expect(sameQuestion(base, fromDb)).toBe(true);
+  });
+
+  it("membedakan isi yang benar-benar berubah", () => {
+    expect(sameQuestion(base, { ...base, colDim: "D.tahun" })).toBe(false);
+    expect(sameQuestion(base, { ...base, filters: [] })).toBe(false);
   });
 });

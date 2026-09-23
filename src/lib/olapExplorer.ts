@@ -648,3 +648,21 @@ export function availableStarters(
     );
   });
 }
+
+/**
+ * Dua susunan pertanyaan sama isinya? Tidak memakai JSON.stringify objek
+ * langsung: PostgreSQL jsonb menyusun ulang urutan kunci saat menyimpan,
+ * sehingga pertanyaan yang baru dibuka akan selalu tampak "diubah".
+ */
+export function sameQuestion(a: ExplorerQueryInput, b: ExplorerQueryInput): boolean {
+  const canon = (q: ExplorerQueryInput) =>
+    JSON.stringify([
+      q.cube,
+      q.measures,
+      q.rowDims,
+      q.colDim ?? null,
+      q.filters.map((f) => [f.member, f.values]),
+    ]);
+
+  return canon(a) === canon(b);
+}
