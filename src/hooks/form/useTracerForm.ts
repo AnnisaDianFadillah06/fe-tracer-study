@@ -7,6 +7,7 @@ import {
   saveDraft, readDraft, clearDraft, questionnaireFingerprint, countAnswered, relativeTime,
 } from "@/lib/formDraft";
 import { getStudentToken } from "@/hooks/auth/useStudentAuth";
+import { institution } from "@/config/institution";
 
 /** Satu masalah pengisian, dipakai untuk isi toast dan penggulir otomatis. */
 export interface FormIssue {
@@ -116,10 +117,22 @@ export interface IdentityPrefill {
 }
 
 /**
+ * Kode pertanyaan yang diisi dari konfigurasi institusi, bukan dari sesi.
+ *
+ * Kode PT adalah milik perguruan tinggi, bukan sesuatu yang dihafal lulusan.
+ * Sebelumnya isian ini dibiarkan kosong padahal ditandai wajib, sehingga
+ * alumni terpaksa mengarang — dan apa pun yang diketik terbuang di server,
+ * yang membaca kunci `kode_pt` sementara borang mengirim `kdptimsmh`.
+ */
+const KODE_PT_INSTITUSI = "kdptimsmh";
+
+/**
  * Kode pertanyaan identitas => medan sesi yang mengisinya.
  *
- * Kode PT sengaja TIDAK ikut: kolom kode_pt tidak pernah diisi impor alumni,
- * jadi mengisinya dari sesi hanya akan menaruh nilai kosong.
+ * Kode PT tidak ikut di sini karena sumbernya konfigurasi pemasangan, bukan
+ * sesi alumni — lihat KODE_PT_INSTITUSI di atas. Kolom kode_pt pada
+ * alumni_profiles memang tidak pernah diisi impor, jadi mengisinya dari sesi
+ * hanya akan menaruh nilai kosong.
  *
  * NIK dan NPWP ikut, dan itu perbaikan atas catatan lama di sini yang menyebut
  * keduanya "tidak ada di basis data". Kolomnya ada di alumni_profiles dan diisi
@@ -153,16 +166,23 @@ function applyIdentityPrefill(
   answers: Record<string, unknown>,
   identity?: IdentityPrefill,
 ): Record<string, unknown> {
-  if (!identity) return answers;
+  if (!identity && !institution.code) return answers;
 
   const filled = { ...answers };
 
   for (const section of sections) {
     for (const q of section.questions) {
+      // Kode PT selalu diseragamkan dengan konfigurasi, sama seperti NIM
+      // diseragamkan dengan sesi: keduanya bukan milik alumni untuk disunting.
+      if (q.code === KODE_PT_INSTITUSI && institution.code) {
+        filled[q.id] = institution.code;
+        continue;
+      }
+
       const field = q.code ? IDENTITY_MAP[q.code] : undefined;
       if (!field) continue;
 
-      const raw = identity[field];
+      const raw = identity?.[field];
       if (raw === undefined || raw === null || raw === "") continue;
 
       const existing = filled[q.id];
@@ -896,9 +916,18 @@ export const useTracerForm = (
     return issueList.length === 0;
   };
 
-  /** Validasi satu pertanyaan saja — dipakai saat pengguna meninggalkan field. */
-  const validateQuestion = (q: Question) => {
-    const result = validateAnswer(q, answers[q.id]);
+  /**
+   * Validasi satu pertanyaan saja — dipakai saat pengguna meninggalkan field.
+   *
+   * `nilaiBaru` dipakai oleh pemanggil yang memvalidasi PADA saat menjawab,
+   * bukan sesudahnya. Pilihan tunggal memanggil setAnswer lalu memvalidasi
+   * dalam satu penangan yang sama, dan pada saat itu `answers` masih memuat
+   * nilai lama karena pembaruan state React belum terpasang. Tanpa nilai yang
+   * diteruskan langsung, pertanyaan wajib akan ditandai "wajib diisi" tepat
+   * pada saat alumni memilih jawabannya.
+   */
+  const validateQuestion = (q: Question, nilaiBaru?: unknown) => {
+    const result = validateAnswer(q, nilaiBaru !== undefined ? nilaiBaru : answers[q.id]);
     setErrors((prev) => {
       const next = { ...prev };
       if (result.error) next[q.id] = result.error; else delete next[q.id];

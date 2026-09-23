@@ -55,6 +55,10 @@ export interface KesesuaianDrillDownStudent {
   tahun_lulus: string;
   kesesuaian_bidang: string;
   status: string;
+  /** Hanya terisi saat drill-down by alasan -- teks asli companion kalau
+   * alumni pilih "Lainnya" (lihat AnswerResolverService::getCompanionText()),
+   * kalau tidak label kategori alasan apa adanya. */
+  alasan?: string;
 }
 
 export interface KesesuaianDrillDownResponse {

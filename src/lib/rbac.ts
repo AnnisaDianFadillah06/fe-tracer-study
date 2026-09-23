@@ -19,6 +19,7 @@ import {
   ShieldQuestion,
   History,
   Layers,
+  Compass,
   Mail,
 } from "lucide-react";
 
@@ -66,6 +67,13 @@ export type Permission =
   // publik-nya sendiri per dashboard UUID, jadi gate di sini murni soal
   // siapa yang boleh melihat menu/route-nya di FE.
   | "dashboard.multidimensi"
+  // OLAP Explorer bawaan SmartTracer (halaman Insight). Berbeda dari
+  // dashboard.multidimensi yang menautkan ke Metabase eksternal, ini
+  // memanggil /api/dashboard/explorer/* milik kita sendiri -- lengkap dengan
+  // pembatasan prodi yang sama dengan dashboard lain. Dipisah dari
+  // dashboard.multidimensi supaya keduanya bisa diberikan atau dicabut
+  // sendiri-sendiri.
+  | "dashboard.insight"
   | "admin.user"
   // Konfigurasi threshold & UMP. BE menggate seluruh prefix ump dan semua
   // tulis threshold dengan role:head_tracer.
@@ -116,6 +124,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.analytics",
     "dashboard.kpi",
     "dashboard.multidimensi",
+    "dashboard.insight",
     "admin.user",
     "admin.threshold",
     "admin.etl",
@@ -140,6 +149,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.analytics",
     "dashboard.kpi",
     "dashboard.multidimensi",
+    "dashboard.insight",
     "admin.questionnaire",
     "admin.questionnaire.request",
     "admin.approval",
@@ -156,6 +166,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.analytics",
     "dashboard.kpi",
     "dashboard.multidimensi",
+    "dashboard.insight",
     "academic.alumni_data",
     "academic.questionnaire_results",
   ],
@@ -165,6 +176,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.education",
     "dashboard.kpi",
     "dashboard.multidimensi",
+    "dashboard.insight",
     "academic.alumni_data",
     "academic.questionnaire_results",
   ],
@@ -174,6 +186,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.education",
     "dashboard.kpi",
     "dashboard.multidimensi",
+    "dashboard.insight",
     "academic.alumni_data",
     "academic.questionnaire_results",
     // Kaprodi mengajukan pembukaan kembali pengisian alumni (RBAC-12) dan
@@ -192,6 +205,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.education",
     "dashboard.kpi",
     "dashboard.multidimensi",
+    "dashboard.insight",
     "academic.alumni_data",
     "academic.questionnaire_results",
   ],
@@ -235,6 +249,7 @@ const dashboardItems: MenuItem[] = [
   // { title: "Analitik", href: "/dashboard/analytics", icon: BarChart3, description: "Clustering & Survival", permission: "dashboard.analytics" },
   // { title: "KPI Lintas Prodi", href: "/dashboard/kpi", icon: Gauge, description: "Perbandingan KPI antar program studi", permission: "dashboard.kpi" },
   { title: "Multidimensi Insight", href: "/dashboard/multidimensi-insight", icon: Layers, description: "Eksplorasi data multidimensi", permission: "dashboard.multidimensi" },
+  { title: "Insight", href: "/dashboard/insight", icon: Compass, description: "Susun sendiri analisis multidimensi", permission: "dashboard.insight" },
 ];
 
 // Konfigurasi lapisan OLAP/ETL. Semua di balik admin.threshold / admin.etl
@@ -307,6 +322,7 @@ export const routePermissionMap: Record<string, Permission> = {
   "/dashboard/education": "dashboard.education",
   // "/dashboard/analytics": "dashboard.analytics",
   "/dashboard/multidimensi-insight": "dashboard.multidimensi",
+  "/dashboard/insight": "dashboard.insight",
   "/dashboard/staff-management": "admin.user",
   "/dashboard/email-management": "admin.credential_email",
   "/dashboard/form-management": "admin.questionnaire",

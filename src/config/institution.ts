@@ -38,6 +38,15 @@ export const institution = {
   address: env("VITE_INSTITUTION_ADDRESS", ""),
   /** Unit yang bertanggung jawab. Nama jabatannya beda-beda antar bentuk PT. */
   unit: env("VITE_INSTITUTION_UNIT", "Unit Penjaminan Mutu"),
+  /**
+   * Kode PT versi PDDIKTI, mis. "044015".
+   *
+   * Mengisi otomatis kolom Kode PT pada borang alumni. Kode ini milik
+   * institusi, bukan sesuatu yang dihafal lulusan, jadi menanyakannya hanya
+   * mengundang isian karangan. Nilainya harus sama dengan INSTITUTION_CODE
+   * pada `.env` backend, yang menjadi acuan saat pengisian disimpan.
+   */
+  code: env("VITE_INSTITUTION_CODE", ""),
 } as const;
 
 /** Contoh alamat surel staf, mis. "nama@kampus.ac.id". */

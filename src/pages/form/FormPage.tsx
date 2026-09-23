@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { kodeDikti } from "@/lib/kodeDikti";
+import { institution } from "@/config/institution";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -79,7 +81,8 @@ const FormPage = () => {
     // alumni tidak mengetik ulang apa yang sudah diketahui sistem. Semuanya
     // tetap bisa disunting — email dan telepon justru yang paling sering
     // berubah setelah lulus, dan itulah yang ingin diperbarui tracer study.
-    // Kode PT tidak ikut: kolomnya tidak pernah diisi impor alumni.
+    // Kode PT tidak ikut di sini karena sumbernya konfigurasi pemasangan,
+    // bukan sesi alumni — diisi dan dikunci lewat KODE_PT_INSTITUSI.
     nim: session?.nim,
     name: session?.username,
     email: session?.email,
@@ -445,6 +448,20 @@ const FormPage = () => {
                       {q.required && (
                         <span className="text-destructive ml-1" aria-label="wajib diisi">*</span>
                       )}
+                      {/* Kode ladang kementerian. Diredupkan dan dibuat kecil
+                          karena alumni tidak perlu memahaminya -- gunanya saat
+                          alumni menyebut satu pertanyaan tertentu ke petugas,
+                          dan saat petugas menelusuri balik jawaban ke lembar
+                          acuan. Disembunyikan dari pembaca layar dengan alasan
+                          yang sama: dibacakan, ia hanya derau. */}
+                      {kodeDikti(q.code) && (
+                        <span
+                          className="ml-2 font-mono text-xs font-normal text-muted-foreground/70"
+                          aria-hidden
+                        >
+                          ({kodeDikti(q.code)})
+                        </span>
+                      )}
                     </Label>
                     {q.description && (
                       <p className="text-sm text-muted-foreground mt-1">{q.description}</p>
@@ -465,9 +482,19 @@ const FormPage = () => {
                     parentAnswer={q.dependsOn ? (answers[q.dependsOn] as string) : undefined}
                     setAnswer={setAnswer}
                     setCheckboxAnswer={setCheckboxAnswer}
-                    onBlur={() => validateQuestion(q)}
+                    onBlur={(nilaiBaru) => validateQuestion(q, nilaiBaru)}
                     invalid={!!errors[q.id]}
-                    lockedNim={q.code === "nimhsmsmh" ? session?.nim : undefined}
+                    lockedNim={
+                      q.code === "nimhsmsmh"
+                        ? session?.nim
+                        // Kode PT dikunci dengan alasan berbeda dari NIM: bukan
+                        // karena server mencocokkannya dengan token, melainkan
+                        // karena kodenya milik institusi dan sama bagi seluruh
+                        // alumni pada satu pemasangan.
+                        : q.code === "kdptimsmh" && institution.code
+                          ? institution.code
+                          : undefined
+                    }
                   />
 
                   {errors[q.id] ? (
@@ -555,14 +582,22 @@ interface AnswerFieldProps {
   parentAnswer?: string;
   setAnswer: (qId: string, val: unknown) => void;
   setCheckboxAnswer: (qId: string, oId: string, checked: boolean) => void;
-  /** Divalidasi saat pengguna meninggalkan isian, bukan tiap ketikan. */
-  onBlur?: () => void;
+  /**
+   * Divalidasi saat pengguna meninggalkan isian, bukan tiap ketikan.
+   *
+   * Pilihan tunggal memvalidasi PADA saat menjawab, bukan sesudahnya, jadi
+   * nilainya diteruskan langsung — `answers` di hook belum diperbarui saat
+   * penangan ini berjalan.
+   */
+  onBlur?: (nilaiBaru?: unknown) => void;
   invalid?: boolean;
   /**
-   * NIM pemegang token. Hanya diisi untuk pertanyaan NIM, dan membuatnya
-   * terkunci: server menolak submit bila NIM tidak sama persis dengan pemilik
-   * token, jadi membiarkannya bisa disunting hanya menunda kegagalan sampai
-   * seluruh borang selesai diisi.
+   * Nilai yang tidak boleh disunting alumni, dipakai NIM dan Kode PT dengan
+   * alasan yang berbeda. NIM diseragamkan dengan pemegang token karena server
+   * menolak submit bila keduanya tidak sama persis, jadi membiarkannya bisa
+   * disunting hanya menunda kegagalan sampai seluruh borang selesai diisi.
+   * Kode PT diseragamkan dengan konfigurasi pemasangan karena kodenya milik
+   * institusi dan sama bagi seluruh alumni.
    */
   lockedNim?: string;
 }
@@ -587,7 +622,9 @@ const AnswerField = ({
           value={(answer as string) ?? ""}
           onChange={(val) => {
             setAnswer(q.id, val);
-            onBlur?.();
+            // Nilainya diteruskan karena validasi berjalan pada saat memilih,
+            // sebelum `answers` sempat diperbarui — sama seperti RadioGroup.
+            onBlur?.(val);
           }}
           parentValue={parentAnswer}
           hasError={!!invalid}
@@ -607,8 +644,9 @@ const AnswerField = ({
           className="bg-muted/60 text-muted-foreground"
         />
         <p className="text-xs text-muted-foreground">
-          Diambil dari akun Anda dan tidak dapat diubah. Bila keliru, hubungi
-          pengelola tracer study.
+          {q.code === "kdptimsmh"
+            ? "Kode perguruan tinggi Anda, terisi otomatis oleh sistem."
+            : "Diambil dari akun Anda dan tidak dapat diubah. Bila keliru, hubungi pengelola tracer study."}
         </p>
       </div>
     );
@@ -636,7 +674,9 @@ const AnswerField = ({
           inputMode="numeric"
           value={text}
           onChange={(e) => setAnswer(q.id, e.target.value)}
-          onBlur={onBlur}
+          // Tanpa pembungkus, React meneruskan FocusEvent sebagai argumen dan
+          // event itulah yang divalidasi, bukan jawabannya.
+          onBlur={() => onBlur?.()}
           placeholder={isCurrencyQuestion(q) ? "5000000" : "0"}
         />
         {numeric !== null && (showPreview || isCurrencyQuestion(q)) && (
@@ -681,7 +721,9 @@ const AnswerField = ({
           type={q.backendType === "date" ? "date" : "text"}
           value={(answer as string) ?? ""}
           onChange={(e) => setAnswer(q.id, e.target.value)}
-          onBlur={onBlur}
+          // Tanpa pembungkus, React meneruskan FocusEvent sebagai argumen dan
+          // event itulah yang divalidasi, bukan jawabannya.
+          onBlur={() => onBlur?.()}
           placeholder="Jawaban Anda"
         />
       );
@@ -692,7 +734,9 @@ const AnswerField = ({
           {...aria}
           value={(answer as string) ?? ""}
           onChange={(e) => setAnswer(q.id, e.target.value)}
-          onBlur={onBlur}
+          // Tanpa pembungkus, React meneruskan FocusEvent sebagai argumen dan
+          // event itulah yang divalidasi, bukan jawabannya.
+          onBlur={() => onBlur?.()}
           placeholder="Jawaban Anda"
           rows={4}
         />
@@ -702,7 +746,7 @@ const AnswerField = ({
       return (
         <RadioGroup
           value={(answer as string) ?? ""}
-          onValueChange={(v) => { setAnswer(q.id, v); onBlur?.(); }}
+          onValueChange={(v) => { setAnswer(q.id, v); onBlur?.(v); }}
           className="space-y-2"
         >
           {q.options.map((opt) => (
@@ -737,6 +781,20 @@ const AnswerField = ({
                 />
                 <Label htmlFor={`${q.id}_${opt.id}`} className="font-normal cursor-pointer">
                   {opt.label}
+                  {/* Pada pilihan-ganda gabungan, kode kementerian melekat
+                      pada OPSI, bukan pertanyaannya: f401..f415 masing-masing
+                      satu baris. mergeGroupedQuestions memakai kode itu apa
+                      adanya sebagai opt.id, jadi tidak ada yang perlu dicari
+                      ulang. Opsi biasa (mis. 1..5 pada f8) ber-id angka dan
+                      tidak menghasilkan kode, sehingga tetap polos. */}
+                  {kodeDikti(opt.id) && (
+                    <span
+                      className="ml-2 font-mono text-xs text-muted-foreground/70"
+                      aria-hidden
+                    >
+                      ({kodeDikti(opt.id)})
+                    </span>
+                  )}
                 </Label>
               </div>
             );

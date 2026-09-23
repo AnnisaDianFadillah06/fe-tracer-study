@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { kodeDikti } from "@/lib/kodeDikti";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -14,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { type BuilderQuestion, type FormListItem, getInitialForms, backendToFormListItem, visibleOptions } from "@/lib/formManagement";
+import { type BuilderQuestion, type FormListItem, getInitialForms, backendToFormListItem, visibleOptions, visibleOptionCodes } from "@/lib/formManagement";
 import { AlertCircle, AlertTriangle, ArrowLeft, Info, Loader2 } from "lucide-react";
 import {
   formatNumber, formatRupiah, hintFor, parseNumericInput, validateAnswer, validateCrossField,
@@ -404,6 +405,17 @@ const FormPreviewPage = () => {
                       <Label className="text-sm font-medium leading-snug">
                         {question.question || "Pertanyaan belum diisi"}
                         {question.required && <span className="ml-1 text-destructive">*</span>}
+                        {/* Sama persis dengan formulir alumni -- pratinjau
+                            memang untuk memastikan apa yang akan dilihat
+                            alumni, jadi kodenya harus ikut tampil di sini. */}
+                        {kodeDikti(question.id) && (
+                          <span
+                            className="ml-2 font-mono text-xs font-normal text-muted-foreground/70"
+                            aria-hidden
+                          >
+                            ({kodeDikti(question.id)})
+                          </span>
+                        )}
                       </Label>
                       {question.description && (
                         <p className="text-sm text-muted-foreground">{question.description}</p>
@@ -648,6 +660,10 @@ const InteractiveQuestionPreview = ({ question, value, onChange, onBlur, parentV
         onChange(next);
       };
 
+      // Sejajar indeks dengan visibleOptions() -- lihat catatan pada
+      // visibleOptionCodes tentang mengapa keduanya harus disaring bersama.
+      const kodeOpsi = visibleOptionCodes(question);
+
       return (
         <div className="space-y-2">
           {visibleOptions(question).map((option, index) => (
@@ -656,7 +672,14 @@ const InteractiveQuestionPreview = ({ question, value, onChange, onBlur, parentV
                 checked={selected.includes(option)}
                 onCheckedChange={(checked) => toggleValue(option, Boolean(checked))}
               />
-              <Label>{option}</Label>
+              <Label>
+                {option}
+                {kodeDikti(kodeOpsi[index]) && (
+                  <span className="ml-2 font-mono text-xs text-muted-foreground/70" aria-hidden>
+                    ({kodeDikti(kodeOpsi[index])})
+                  </span>
+                )}
+              </Label>
             </div>
           ))}
           {question.allowOther && (

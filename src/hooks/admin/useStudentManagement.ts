@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/common/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -126,9 +127,36 @@ export const useStudentManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterProdi, setFilterProdi] = useState("all");
   const [filterJurusan, setFilterJurusan] = useState("all");
-  // "" = angkatan belum dipilih (halaman masih menampilkan kartu tahun),
-  // "all" = lintas angkatan, selain itu satu tahun lulusan.
-  const [filterGraduationYear, setFilterGraduationYear] = useState("");
+  /**
+   * Tahun lulus terpilih, DITURUNKAN dari query string `?year=`, bukan
+   * disimpan sebagai state komponen.
+   *
+   *   ""      = belum dipilih (halaman masih menampilkan kartu tahun)
+   *   "all"   = lintas tahun lulus
+   *   "2025"  = satu tahun lulus
+   *
+   * Menyimpannya di useState membuat pemilihan tahun tidak meninggalkan jejak
+   * di riwayat peramban: menekan kartu Lulusan 2025 mengubah tampilan tanpa
+   * mengubah URL, sehingga tombol Back melompat keluar dari halaman ini ke
+   * halaman yang dibuka SEBELUMNYA (mis. Kelola Staff), bukan kembali ke
+   * layar kartu tahun. Menaruhnya di URL sekaligus membuat muat ulang dan
+   * berbagi tautan bekerja -- kontrak yang sama dengan alumni-data,
+   * questionnaire-results, dan form-management (lihat PilihTahun).
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterGraduationYear = searchParams.get("year") ?? "";
+
+  const setFilterGraduationYear = useCallback((tahun: string) => {
+    setSearchParams((sebelumnya) => {
+      const params = new URLSearchParams(sebelumnya);
+      if (tahun === "") {
+        params.delete("year");
+      } else {
+        params.set("year", tahun);
+      }
+      return params;
+    });
+  }, [setSearchParams]);
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
