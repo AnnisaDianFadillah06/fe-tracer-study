@@ -111,6 +111,7 @@ const PublicReportsPage = () => {
       formData.append("file", file);
 
       const { data } = await api.post("/admin/public-reports", formData, {
+        timeout: 120000,
         headers: { "Content-Type": "multipart/form-data" },
       });
 

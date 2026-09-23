@@ -1109,11 +1109,20 @@ export const useTracerForm = (
         return;
       }
 
+      // 401 di halaman publik ini TIDAK memicu redirect otomatis (lihat
+      // interceptor di src/lib/api.ts) -- pesan mentah backend
+      // ("Unauthenticated.") jadi wajib diterjemahkan di sini supaya alumni
+      // tahu harus login ulang, bukan mengira sistemnya rusak. Jawaban yang
+      // sudah diisi tetap aman: draft baru dihapus setelah submit SUKSES.
+      const description =
+        err.response?.status === 401
+          ? "Sesi Anda telah berakhir. Jawaban yang sudah diisi tetap tersimpan sebagai draf — silakan masuk kembali lalu kirim ulang."
+          : err.response?.data?.message ||
+            "Terjadi kesalahan saat menghubungi server. Periksa koneksi Anda lalu coba lagi.";
+
       toast({
         title: "Gagal mengirim kuesioner",
-        description:
-          err.response?.data?.message ||
-          "Terjadi kesalahan saat menghubungi server. Periksa koneksi Anda lalu coba lagi.",
+        description,
         variant: "destructive",
         duration: 9000,
       });

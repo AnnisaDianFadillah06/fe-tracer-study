@@ -414,6 +414,7 @@ const StudentManagementPage = () => {
       formData.append("file", file);
 
       const { data } = await api.post("/alumni/import", formData, {
+        timeout: 120000,
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (e) => {
           // e.total kosong bila panjang isi tidak diketahui; dalam hal itu

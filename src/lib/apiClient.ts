@@ -396,6 +396,12 @@ export interface LaravelPaginated<T> {
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
+  // Tanpa ini axios menunggu tanpa batas kalau backend/Cube.js macet --
+  // pengguna cuma melihat spinner selamanya, tidak ada sinyal apa pun untuk
+  // retry atau lapor. Upload file (Excel/PDF, bisa sampai 50MB) memakai
+  // timeout lebih panjang lewat override per-request, lihat pemanggilan
+  // dengan header multipart/form-data di bawah.
+  timeout: 30000,
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -481,6 +487,7 @@ export const apiService = {
     const form = new FormData();
     form.append("file", file);
     const response = await apiClient.post("/ump/import", form, {
+      timeout: 120000,
       headers: { "Content-Type": "multipart/form-data" },
     });
     return response.data;

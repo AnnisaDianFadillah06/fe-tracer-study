@@ -26,6 +26,13 @@ export default defineConfig(() => ({
       provider: "v8",
       reporter: ["text", "lcov"],
       reportsDirectory: "coverage",
+      // Tanpa `all: true`, v8 cuma menginstrumentasi file yang benar-benar
+      // di-import test yang ada -- ratusan file src/ lain tidak masuk
+      // laporan sama sekali (bukan tercatat 0%, tapi tidak tercatat),
+      // sehingga coverage yang dilihat SonarCloud jauh understate.
+      all: true,
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/test/**", "src/**/*.d.ts", "src/vite-env.d.ts"],
     },
   },
   // Pre-bundle SEMUA dependency runtime saat dev server start.

@@ -5,6 +5,9 @@ const API_BASE_URL =
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  // Tanpa ini request bisa menggantung tanpa batas kalau backend macet.
+  // Upload file diberi override lebih panjang di titik pemanggilannya.
+  timeout: 30000,
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",

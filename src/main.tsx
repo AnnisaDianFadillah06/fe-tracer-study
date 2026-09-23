@@ -14,7 +14,7 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="dark" storageKey="tracer-study-theme">
+    <ThemeProvider defaultTheme="system" storageKey="tracer-study-theme">
       <App />
     </ThemeProvider>
   </QueryClientProvider>

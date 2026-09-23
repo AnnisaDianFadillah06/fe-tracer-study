@@ -33,18 +33,25 @@ export function ThemeProvider({
   useEffect(() => {
     const root = window.document.documentElement;
 
-    root.classList.remove("light", "dark");
+    const applySystemTheme = () => {
+      root.classList.remove("light", "dark");
+      root.classList.add(
+        window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+      );
+    };
 
     if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light";
+      applySystemTheme();
 
-      root.classList.add(systemTheme);
-      return;
+      // Ikuti perubahan preferensi OS secara langsung (mis. jadwal dark
+      // mode otomatis Windows/macOS) selama tema masih "system" -- tanpa
+      // ini pengguna harus reload halaman untuk melihat perubahannya.
+      const media = window.matchMedia("(prefers-color-scheme: dark)");
+      media.addEventListener("change", applySystemTheme);
+      return () => media.removeEventListener("change", applySystemTheme);
     }
 
+    root.classList.remove("light", "dark");
     root.classList.add(theme);
   }, [theme]);
 
