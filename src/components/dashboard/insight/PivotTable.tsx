@@ -64,6 +64,8 @@ const PivotTable = ({
     colKey: string | null,
   ): ReactNode => {
     if (!onCellClick || value === null || (m.format === "integer" && value <= 0)) return content;
+    // Kolom hasil hitungan (selisih) bukan kelompok data — tidak ada alumninya.
+    if (colKey !== null && pivot.derivedColumns?.includes(colKey)) return content;
 
     const point = drillPointOf(
       rowKeys ? rowDims : [],

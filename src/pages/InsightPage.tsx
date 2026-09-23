@@ -42,6 +42,8 @@ import {
 import {
   availableStarters,
   describeQuestion,
+  isRunnable,
+  measureLabelOf,
   sameQuestion,
   toCsv,
   type ExplorerQueryInput,
@@ -103,7 +105,7 @@ const InsightPage = () => {
     current && cube
       ? describeQuestion(
           current,
-          (k) => cube.measures.find((m) => m.key === k)?.label ?? k,
+          (k) => measureLabelOf(cube, k, current.formulas),
           (k) =>
             cube.dimension_groups.flatMap((g) => g.members).find((d) => d.key === k)?.label ?? k,
         )
@@ -272,7 +274,7 @@ const InsightPage = () => {
           </div>
 
           <div className="space-y-6 lg:col-span-3">
-            {current.measures.length === 0 && (
+            {!isRunnable(current) && (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
                   <div className="rounded-full bg-primary/10 p-4">
@@ -317,7 +319,7 @@ const InsightPage = () => {
 
             {error && <QueryError error={error} />}
 
-            {isFetching && current.measures.length > 0 && (
+            {isFetching && isRunnable(current) && (
               <Card>
                 <CardContent className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -406,6 +408,7 @@ const InsightPage = () => {
                   rowDims={current.rowDims}
                   colDim={current.colDim}
                   filters={current.filters}
+                  display={current}
                   chartMeasure={chartMeasure}
                   onChartMeasureChange={setChartMeasure}
                 />

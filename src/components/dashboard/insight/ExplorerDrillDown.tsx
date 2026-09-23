@@ -83,9 +83,12 @@ const ExplorerDrillDown = ({ request, onClose }: Props) => {
       }
     : null;
 
-  const title = isCount
-    ? `${request.value ?? ""} alumni · ${measure.label} — ${request.pointLabel}`
-    : `Alumni · ${measure.label} — ${request.pointLabel}`;
+  // Jumlahnya hanya diketahui bila yang diklik adalah cacah itu sendiri —
+  // bukan persennya, bukan hasil rumus.
+  const title =
+    isCount && request.value !== null
+      ? `${request.value} alumni · ${measure.label} — ${request.pointLabel}`
+      : `Alumni · ${measure.label} — ${request.pointLabel}`;
 
   return (
     <DrillDownModal

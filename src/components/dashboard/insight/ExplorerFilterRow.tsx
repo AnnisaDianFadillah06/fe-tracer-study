@@ -8,14 +8,22 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useDimensionValues } from "@/hooks/useExplorer";
-import type { ExplorerFilter } from "@/lib/olapExplorer";
+import { FILTER_OPERATORS, type ExplorerFilter, type FilterOperator } from "@/lib/olapExplorer";
 import { cn } from "@/lib/utils";
 
 interface Props {
+  cube: string;
   filter: ExplorerFilter;
   label: string;
-  onChange: (values: string[]) => void;
+  onChange: (next: ExplorerFilter) => void;
   onRemove: () => void;
 }
 
@@ -26,16 +34,21 @@ interface Props {
  * hasil query — pengguna perlu melihat pilihan yang ada sebelum menyaring,
  * termasuk nilai yang justru belum muncul di hasil saat ini.
  */
-const ExplorerFilterRow = ({ filter, label, onChange, onRemove }: Props) => {
+const ExplorerFilterRow = ({ cube, filter, label, onChange, onRemove }: Props) => {
   const [open, setOpen] = useState(false);
-  const { data: values, isLoading } = useDimensionValues(filter.member);
+  const operator: FilterOperator = filter.operator ?? "equals";
+
+  // "ada nilainya"/"kosong" tidak memilih nilai, jadi daftarnya tidak perlu diambil.
+  const needsValues = operator === "equals" || operator === "notEquals";
+  const { data: values, isLoading } = useDimensionValues(needsValues ? filter.member : null, cube);
 
   const toggle = (value: string) => {
-    onChange(
-      filter.values.includes(value)
+    onChange({
+      ...filter,
+      values: filter.values.includes(value)
         ? filter.values.filter((v) => v !== value)
         : [...filter.values, value],
-    );
+    });
   };
 
   return (
@@ -53,6 +66,23 @@ const ExplorerFilterRow = ({ filter, label, onChange, onRemove }: Props) => {
         </Button>
       </div>
 
+      <Select
+        value={operator}
+        onValueChange={(v) => onChange({ ...filter, operator: v as FilterOperator })}
+      >
+        <SelectTrigger className="h-8 text-xs" aria-label={`Jenis saringan ${label}`}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {FILTER_OPERATORS.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {label} {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {needsValues && (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -108,8 +138,9 @@ const ExplorerFilterRow = ({ filter, label, onChange, onRemove }: Props) => {
           </ScrollArea>
         </PopoverContent>
       </Popover>
+      )}
 
-      {filter.values.length > 0 && (
+      {needsValues && filter.values.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {filter.values.map((value) => (
             <Badge key={value} variant="secondary" className="max-w-full">

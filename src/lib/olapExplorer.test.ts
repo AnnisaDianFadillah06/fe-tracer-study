@@ -370,7 +370,41 @@ describe("toRequestBody", () => {
       ],
     });
 
-    expect(body.filters).toEqual([{ member: "DimAlumni.tahun_lulus", values: ["2024"] }]);
+    expect(body.filters).toEqual([
+      { member: "DimAlumni.tahun_lulus", operator: "equals", values: ["2024"] },
+    ]);
+  });
+
+  it("saringan ada nilainya/kosong dikirim tanpa nilai; rumus, n minimum, urutan ikut", () => {
+    const body = toRequestBody({
+      cube: "F",
+      measures: [],
+      rowDims: ["D.prov"],
+      colDim: "D.tahun",
+      filters: [
+        { member: "D.ump", operator: "set", values: ["sisa"] },
+        { member: "D.jenjang", operator: "notEquals", values: ["D3"] },
+      ],
+      formulas: [{ key: "rumus_1", label: "x", left: "F.a", op: "div", right: "F.b", format: "ratio" }],
+      minN: 30,
+      sort: { by: "rumus_1", direction: "desc", limit: 10 },
+      percent: "row",
+      diff: { a: "2020", b: "2021" },
+    });
+
+    expect(body).toEqual({
+      cube: "F",
+      measures: [],
+      dimensions: ["D.prov", "D.tahun"],
+      filters: [
+        { member: "D.ump", operator: "set", values: [] },
+        { member: "D.jenjang", operator: "notEquals", values: ["D3"] },
+      ],
+      formulas: [{ key: "rumus_1", label: "x", left: "F.a", op: "div", right: "F.b", format: "ratio" }],
+      min_n: 30,
+      sort: { by: "rumus_1", direction: "desc", limit: 10 },
+      column_dimension: "D.tahun",
+    });
   });
 });
 

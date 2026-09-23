@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   availableStarters,
+  addColumnDifference,
+  applyPercent,
+  chartPivotOf,
+  buildPivot,
   describeDrillPoint,
+  formatMeasure,
+  isRunnable,
+  measureLabelOf,
+  type CatalogCube,
   describeQuestion,
   drillFilters,
   drillPointOf,
@@ -103,7 +111,7 @@ describe("availableStarters", () => {
 
   it("setiap contoh bawaan memakai slot yang sah", () => {
     for (const s of STARTER_QUESTIONS) {
-      expect(s.input.measures.length).toBeGreaterThan(0);
+      expect(s.input.measures.length + (s.input.formulas?.length ?? 0)).toBeGreaterThan(0);
       expect(s.input.rowDims.length + (s.input.colDim ? 1 : 0)).toBeLessThanOrEqual(3);
     }
   });
@@ -170,9 +178,9 @@ describe("drill-down", () => {
         { "D.tahun": "2022", "D.jurusan": "Akuntansi" },
       ),
     ).toEqual([
-      { member: "D.jenjang", values: ["D3"] },
-      { member: "D.tahun", values: ["2022"] },
-      { member: "D.jurusan", values: ["Akuntansi"] },
+      { member: "D.jenjang", operator: "equals", values: ["D3"] },
+      { member: "D.tahun", operator: "equals", values: ["2022"] },
+      { member: "D.jurusan", operator: "equals", values: ["Akuntansi"] },
     ]);
   });
 
@@ -181,5 +189,159 @@ describe("drill-down", () => {
       "Jurusan Akuntansi · Tahun lulus 2022",
     );
     expect(describeDrillPoint({}, label)).toBe("Seluruh data");
+  });
+});
+
+describe("olah hasil", () => {
+  const measures = [
+    { key: "F.count", label: "Jumlah alumni", format: "integer" as const },
+    { key: "F.gaji", label: "Rata-rata gaji", format: "currency" as const },
+  ];
+  const result = {
+    cube: "F",
+    measures,
+    dimensions: [
+      { key: "D.jurusan", label: "Jurusan" },
+      { key: "D.status", label: "Status" },
+    ],
+    rows: [
+      { "D.jurusan": "A", "D.status": "Kerja", "F.count": 30, "F.gaji": 9 },
+      { "D.jurusan": "A", "D.status": "Cari", "F.count": 10, "F.gaji": 5 },
+      { "D.jurusan": "B", "D.status": "Kerja", "F.count": 20, "F.gaji": 8 },
+      { "D.jurusan": "B", "D.status": "Cari", "F.count": 40, "F.gaji": 4 },
+    ],
+    row_count: 4,
+    truncated: false,
+  };
+  const pivot = buildPivot(result, ["D.jurusan"], "D.status");
+  const cell = (p: typeof pivot, row: number, col: string, key: string) => p.rows[row].cells[col][key].value;
+
+  it("persen dari total baris = porsi status di tiap jurusan", () => {
+    const { pivot: p, measures: m } = applyPercent(pivot, "row", measures);
+    expect(cell(p, 0, "Kerja", "F.count")).toBe(75);
+    expect(cell(p, 1, "Cari", "F.count")).toBeCloseTo(66.67, 2);
+    expect(m.map((x) => x.format)).toEqual(["percent", "currency"]);
+    // rata-rata tidak diubah
+    expect(cell(p, 0, "Kerja", "F.gaji")).toBe(9);
+    // totalnya dikosongkan
+    expect(p.rows[0].totals["F.count"]).toBeNull();
+  });
+
+  it("persen dari total kolom dan keseluruhan", () => {
+    expect(cell(applyPercent(pivot, "column", measures).pivot, 0, "Kerja", "F.count")).toBe(60);
+    expect(cell(applyPercent(pivot, "all", measures).pivot, 1, "Cari", "F.count")).toBe(40);
+  });
+
+  it("tanpa mode persen pivot tidak disentuh", () => {
+    expect(applyPercent(pivot, "none", measures).pivot).toBe(pivot);
+  });
+
+  it("selisih kolom B − A ditambahkan sebagai kolom hasil hitungan", () => {
+    const p = addColumnDifference(pivot, { a: "Cari", b: "Kerja" }, measures);
+    const key = "Selisih: Kerja − Cari";
+    expect(p.columnKeys).toEqual(["Kerja", "Cari", key]);
+    expect(p.derivedColumns).toEqual([key]);
+    expect(cell(p, 0, key, "F.gaji")).toBe(4);
+    expect(cell(p, 1, key, "F.count")).toBe(-20);
+  });
+
+  it("chart hanya menggambar kolom selisih bila ada", () => {
+    const p = addColumnDifference(pivot, { a: "Cari", b: "Kerja" }, measures);
+    expect(chartPivotOf(p).columnKeys).toEqual(["Selisih: Kerja − Cari"]);
+    expect(chartPivotOf(pivot)).toBe(pivot);
+  });
+
+  it("selisih diabaikan kalau kolomnya tidak ada", () => {
+    expect(addColumnDifference(pivot, { a: "X", b: "Kerja" }, measures)).toBe(pivot);
+  });
+});
+
+describe("ukuran dari kolom angka & rumus", () => {
+  const cube: CatalogCube = {
+    key: "F",
+    label: "",
+    description: "",
+    measures: [{ key: "F.count", label: "Jumlah alumni", format: "integer" }],
+    numeric_columns: [
+      {
+        column: "gaji",
+        label: "Gaji",
+        format: "currency",
+        functions: [{ fn: "avg", label: "Rata-rata", key: "F.agg_avg_gaji" }],
+      },
+      {
+        column: "ump",
+        label: "UMP provinsi",
+        format: "currency",
+        functions: [{ fn: "avg", label: "Rata-rata", key: "F.agg_avg_ump" }],
+      },
+    ],
+    dimension_groups: [],
+  };
+
+  it("label ukuran dari kolom angka mengikuti peladen", () => {
+    expect(measureLabelOf(cube, "F.agg_avg_gaji")).toBe("Rata-rata gaji");
+    expect(measureLabelOf(cube, "F.agg_avg_ump")).toBe("Rata-rata UMP provinsi");
+    expect(measureLabelOf(cube, "F.count")).toBe("Jumlah alumni");
+    expect(
+      measureLabelOf(cube, "rumus_1", [
+        { key: "rumus_1", label: "Kelipatan", left: "a", op: "div", right: "b", format: "ratio" },
+      ]),
+    ).toBe("Kelipatan");
+  });
+
+  it("format persen dan berapa kali", () => {
+    expect(formatMeasure(12.345, "percent")).toBe("12,3%");
+    expect(formatMeasure(4.876, "ratio")).toBe("4,88×");
+  });
+
+  it("selisih nyaris nol tidak tampil sebagai -0", () => {
+    expect(formatMeasure(-0.004, "decimal")).toBe("0,0");
+    expect(formatMeasure(-0.02, "decimal")).toBe("-0,02");
+  });
+
+  it("pertanyaan berisi rumus saja tetap bisa dijalankan", () => {
+    expect(
+      isRunnable({
+        cube: "F",
+        measures: [],
+        rowDims: [],
+        colDim: null,
+        filters: [],
+        formulas: [{ key: "rumus_1", label: "x", left: "a", op: "div", right: "b", format: "ratio" }],
+      }),
+    ).toBe(true);
+  });
+
+  it("kalimat pertanyaan menyebut rumus, saringan, n minimum, dan urutan", () => {
+    expect(
+      describeQuestion(
+        {
+          cube: "F",
+          measures: ["F.agg_avg_gaji"],
+          rowDims: ["D.jurusan"],
+          colDim: null,
+          filters: [
+            { member: "D.jenjang", operator: "notEquals", values: ["D3"] },
+            { member: "D.tahun", operator: "set", values: [] },
+          ],
+          formulas: [{ key: "rumus_1", label: "Kelipatan gaji", left: "a", op: "div", right: "b", format: "ratio" }],
+          minN: 30,
+          sort: { by: "rumus_1", direction: "desc", limit: 10 },
+        },
+        (k) => measureLabelOf(cube, k),
+        label,
+      ),
+    ).toBe(
+      "Rata-rata gaji dan kelipatan gaji menurut Jurusan, Jenjang bukan D3, hanya yang punya data tahun lulus, " +
+        "kelompok dengan responden < 30 disembunyikan, 10 tertinggi menurut kelipatan gaji",
+    );
+  });
+
+  it("perubahan rumus atau olah hasil membuat pertanyaan dianggap berubah", () => {
+    const base = { cube: "F", measures: ["F.count"], rowDims: [], colDim: null, filters: [] };
+    expect(sameQuestion(base, { ...base, minN: null, percent: "none" })).toBe(true);
+    expect(sameQuestion(base, { ...base, minN: 30 })).toBe(false);
+    expect(sameQuestion(base, { ...base, percent: "row" })).toBe(false);
   });
 });

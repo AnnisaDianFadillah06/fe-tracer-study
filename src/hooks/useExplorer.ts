@@ -35,13 +35,17 @@ export function useExplorerCatalog() {
   });
 }
 
-export function useDimensionValues(dimension: string | null) {
+/**
+ * `cube` ikut dikirim: dimensi yang sama (mis. Jurusan) ada di beberapa
+ * sumber data, dan nilainya diambil dari sumber yang sedang dipakai.
+ */
+export function useDimensionValues(dimension: string | null, cube?: string) {
   return useQuery({
-    queryKey: ["explorer", "dimension-values", dimension],
+    queryKey: ["explorer", "dimension-values", cube ?? null, dimension],
     queryFn: async (): Promise<string[]> => {
       const { data } = await api.get<ApiEnvelope<{ dimension: string; values: string[] }>>(
         "/dashboard/explorer/dimension-values",
-        { params: { dimension } },
+        { params: { dimension, cube } },
       );
       return data.data.values;
     },

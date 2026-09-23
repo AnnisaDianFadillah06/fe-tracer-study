@@ -13,7 +13,16 @@
 //  Tipe — cerminan response backend
 // ═══════════════════════════════════════════════════════════
 
-export type MeasureFormat = "integer" | "decimal" | "currency";
+export type MeasureFormat = "integer" | "decimal" | "currency" | "percent" | "ratio";
+
+/** Asal-usul ukuran hasil rumus (dikirim peladen di result.measures). */
+export interface FormulaRef {
+  left: string;
+  op: FormulaOp;
+  right: string;
+  left_label: string;
+  left_format: MeasureFormat;
+}
 
 export interface CatalogMeasure {
   key: string;
@@ -21,6 +30,20 @@ export interface CatalogMeasure {
   format: MeasureFormat;
   /** Penjelasan singkat untuk pengguna non-IT; boleh kosong. */
   description?: string;
+  /** Hanya pada ukuran hasil rumus. */
+  formula?: FormulaRef;
+}
+
+/**
+ * Kolom angka yang bisa diolah dengan beberapa fungsi — "[Rata-rata] dari
+ * [Gaji]". Dibangkitkan di model Cube dan dibaca peladen dari /meta, jadi
+ * kolom baru muncul di sini tanpa mengubah kode.
+ */
+export interface NumericColumn {
+  column: string;
+  label: string;
+  format: MeasureFormat;
+  functions: { fn: string; label: string; key: string }[];
 }
 
 export interface CatalogDimension {
@@ -38,6 +61,9 @@ export interface CatalogCube {
   label: string;
   description: string;
   measures: CatalogMeasure[];
+  numeric_columns?: NumericColumn[];
+  /** Cacah dasar sumber data ini; dasar "sembunyikan kelompok < n". */
+  count_measure?: string | null;
   dimension_groups: CatalogDimensionGroup[];
 }
 
@@ -46,13 +72,66 @@ export interface ExplorerCatalog {
   limits: {
     max_dimensions: number;
     max_measures: number;
+    max_formulas?: number;
     max_rows: number;
   };
 }
 
+export type FilterOperator = "equals" | "notEquals" | "set" | "notSet";
+
+export const FILTER_OPERATORS: { value: FilterOperator; label: string }[] = [
+  { value: "equals", label: "adalah" },
+  { value: "notEquals", label: "bukan" },
+  { value: "set", label: "ada nilainya" },
+  { value: "notSet", label: "kosong" },
+];
+
 export interface ExplorerFilter {
   member: string;
+  /** Tanpa operator = "adalah" (bentuk lama pertanyaan tersimpan). */
+  operator?: FilterOperator;
   values: string[];
+}
+
+/** "adalah"/"bukan" baru berlaku setelah ada nilai; "ada nilainya"/"kosong" langsung berlaku. */
+export function filterIsActive(f: ExplorerFilter): boolean {
+  return f.operator === "set" || f.operator === "notSet" || f.values.length > 0;
+}
+
+export type FormulaOp = "div" | "sub" | "add" | "mul";
+
+export const FORMULA_OPS: { value: FormulaOp; symbol: string; label: string }[] = [
+  { value: "div", symbol: "÷", label: "dibagi" },
+  { value: "sub", symbol: "−", label: "dikurangi" },
+  { value: "add", symbol: "+", label: "ditambah" },
+  { value: "mul", symbol: "×", label: "dikali" },
+];
+
+/** Dua ukuran digabung — dihitung peladen dari hasil agregasi. */
+export interface Formula {
+  /** rumus_1, rumus_2, … */
+  key: string;
+  label: string;
+  left: string;
+  op: FormulaOp;
+  right: string;
+  format: MeasureFormat;
+}
+
+/** Persen dihitung di sisi ini dari pivot: hanya untuk cacah (boleh dijumlah). */
+export type PercentMode = "none" | "row" | "column" | "all";
+
+export interface SortOption {
+  by: string;
+  direction: "asc" | "desc";
+  /** null = semua. */
+  limit: number | null;
+}
+
+/** Kolom tambahan "B − A" di pivot, mis. gap kompetensi. */
+export interface ColumnDiff {
+  a: string;
+  b: string;
 }
 
 export type ExplorerRow = Record<string, string | number | null>;
@@ -234,6 +313,8 @@ export interface PivotRow {
 
 export interface Pivot {
   columnKeys: string[];
+  /** Kolom hasil hitungan (selisih kolom) — bukan kelompok data, jadi tidak bisa di-drill. */
+  derivedColumns?: string[];
   rows: PivotRow[];
   /** Total kolom per measure, null kalau measure-nya tidak boleh dijumlahkan. */
   columnTotals: Record<string, Record<string, number | null>>;
@@ -459,9 +540,16 @@ export function chartSeriesNames(pivot: Pivot): string[] {
 export function formatMeasure(value: number | null, format: MeasureFormat): string {
   if (value === null || Number.isNaN(value)) return "—";
 
+  // Selisih yang sangat kecil (mis. -0,004) jangan tampil sebagai "-0,0".
+  if (Math.abs(value) < 0.005) value = 0;
+
   switch (format) {
     case "integer":
       return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(value);
+    case "percent":
+      return `${new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)}%`;
+    case "ratio":
+      return `${new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}×`;
     case "currency":
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
@@ -487,25 +575,76 @@ export interface ExplorerQueryInput {
   rowDims: string[];
   colDim: string | null;
   filters: ExplorerFilter[];
+  formulas?: Formula[];
+  /** Sembunyikan kelompok dengan responden kurang dari n. */
+  minN?: number | null;
+  sort?: SortOption | null;
+  /** Tampilan saja — diolah di sisi ini, tidak dikirim. */
+  percent?: PercentMode;
+  /** Tampilan saja — diolah di sisi ini, tidak dikirim. */
+  diff?: ColumnDiff | null;
 }
 
 /**
  * Dimensi baris dan kolom digabung jadi satu daftar untuk backend — Cube.js
  * tidak mengenal konsep baris/kolom, itu murni urusan penyajian. Urutannya
- * dipertahankan supaya pivot di sisi ini bisa membacanya kembali.
+ * dipertahankan supaya pivot di sisi ini bisa membacanya kembali; dimensi
+ * kolom tetap disebut terpisah karena urutan "N teratas" dihitung per
+ * kelompok baris.
  */
 export function toRequestBody(input: ExplorerQueryInput) {
   return {
     cube: input.cube,
     measures: input.measures,
     dimensions: [...input.rowDims, ...(input.colDim ? [input.colDim] : [])],
-    filters: input.filters.filter((f) => f.values.length > 0),
+    filters: input.filters.filter(filterIsActive).map((f) => ({
+      member: f.member,
+      operator: f.operator ?? "equals",
+      values: f.operator === "set" || f.operator === "notSet" ? [] : f.values,
+    })),
+    formulas: input.formulas ?? [],
+    min_n: input.minN ?? null,
+    sort: input.sort ?? null,
+    column_dimension: input.colDim,
   };
 }
 
-/** Permintaan siap dijalankan? Minimal satu measure; dimensi boleh kosong. */
+/** Permintaan siap dijalankan? Minimal satu ukuran atau rumus; dimensi boleh kosong. */
 export function isRunnable(input: ExplorerQueryInput): boolean {
-  return input.cube !== "" && input.measures.length > 0;
+  return input.cube !== "" && (input.measures.length > 0 || (input.formulas?.length ?? 0) > 0);
+}
+
+/** "Gaji" → "gaji", tapi "UMP provinsi" tetap "UMP provinsi" (sama dengan peladen). */
+export function lowerFirst(s: string): string {
+  return /^\p{Lu}\p{Ll}/u.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+}
+
+/**
+ * Label satu ukuran dari katalog: siap pakai, dari kolom angka
+ * ("Rata-rata gaji"), atau rumus milik pertanyaan ini.
+ */
+export function measureLabelOf(
+  cube: CatalogCube | null | undefined,
+  key: string,
+  formulas: Formula[] = [],
+): string {
+  const curated = cube?.measures.find((m) => m.key === key);
+  if (curated) return curated.label;
+
+  for (const col of cube?.numeric_columns ?? []) {
+    const fn = col.functions.find((f) => f.key === key);
+    if (fn) return `${fn.label} ${lowerFirst(col.label)}`;
+  }
+
+  return formulas.find((f) => f.key === key)?.label ?? key;
+}
+
+/** Format ukuran dari katalog (dipakai memilih tampilan rumus yang wajar). */
+export function measureFormatOf(cube: CatalogCube | null | undefined, key: string): MeasureFormat {
+  const curated = cube?.measures.find((m) => m.key === key);
+  if (curated) return curated.format;
+
+  return cube?.numeric_columns?.find((c) => c.functions.some((f) => f.key === key))?.format ?? "decimal";
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -527,21 +666,49 @@ export function describeQuestion(
   measureLabel: (key: string) => string,
   dimensionLabel: (key: string) => string,
 ): string {
-  if (input.measures.length === 0) return "";
+  const formulas = input.formulas ?? [];
+  if (input.measures.length === 0 && formulas.length === 0) return "";
 
-  const measures = input.measures.map(measureLabel);
-  let text = joinIndo([measures[0], ...measures.slice(1).map((m) => m.toLowerCase())]);
+  const measures = [...input.measures.map(measureLabel), ...formulas.map((f) => f.label)];
+  let text = joinIndo([measures[0], ...measures.slice(1).map(lowerFirst)]);
+
+  if (input.percent && input.percent !== "none") text += " (dalam persen)";
 
   const dims = [...input.rowDims, ...(input.colDim ? [input.colDim] : [])];
   if (dims.length > 0) {
     text += ` menurut ${joinIndo(dims.map(dimensionLabel))}`;
   }
 
-  const filters = input.filters.filter((f) => f.values.length > 0);
-  if (filters.length > 0) {
+  const active = input.filters.filter(filterIsActive);
+  const only = active.filter((f) => (f.operator ?? "equals") === "equals");
+  const other = active.filter((f) => (f.operator ?? "equals") !== "equals");
+
+  if (only.length > 0) {
     text +=
       ", hanya " +
-      joinIndo(filters.map((f) => `${dimensionLabel(f.member)}: ${f.values.join(" / ")}`));
+      joinIndo(only.map((f) => `${dimensionLabel(f.member)}: ${f.values.join(" / ")}`));
+  }
+
+  for (const f of other) {
+    // "UMP provinsi tempat kerja per Rp 1 jt" → cukup nama kolomnya.
+    const label = dimensionLabel(f.member).replace(/ per .+$/, "");
+    text +=
+      f.operator === "notEquals"
+        ? `, ${label} bukan ${f.values.join(" / ")}`
+        : f.operator === "set"
+          ? `, hanya yang punya data ${lowerFirst(label)}`
+          : `, hanya yang tanpa data ${lowerFirst(label)}`;
+  }
+
+  if (input.minN) text += `, kelompok dengan responden < ${input.minN} disembunyikan`;
+
+  if (input.sort) {
+    const by = lowerFirst(measureLabel(input.sort.by) === input.sort.by
+      ? formulas.find((f) => f.key === input.sort!.by)?.label ?? input.sort.by
+      : measureLabel(input.sort.by));
+    text += input.sort.limit
+      ? `, ${input.sort.limit} ${input.sort.direction === "desc" ? "tertinggi" : "terendah"} menurut ${by}`
+      : `, diurutkan dari ${input.sort.direction === "desc" ? "terbesar" : "terkecil"} menurut ${by}`;
   }
 
   return text;
@@ -645,6 +812,78 @@ export const STARTER_QUESTIONS: StarterQuestion[] = [
       filters: [],
     },
   },
+  {
+    title: "Gaji vs UMP di tiap provinsi tempat kerja",
+    input: {
+      cube: "FactTracerStudy",
+      measures: ["FactTracerStudy.agg_avg_take_home_pay", "FactTracerStudy.agg_avg_nilai_ump"],
+      rowDims: ["DimPerusahaan.nama_provinsi"],
+      colDim: null,
+      filters: [{ member: "FactTracerStudy.rentang_nilai_ump_1", operator: "set", values: [] }],
+      minN: 30,
+      sort: { by: "FactTracerStudy.agg_avg_take_home_pay", direction: "desc", limit: null },
+    },
+  },
+  {
+    title: "Berapa kali lipat gaji alumni dibanding UMP?",
+    input: {
+      cube: "FactTracerStudy",
+      measures: [],
+      rowDims: ["DimPerusahaan.nama_provinsi"],
+      colDim: null,
+      filters: [{ member: "FactTracerStudy.rentang_nilai_ump_1", operator: "set", values: [] }],
+      formulas: [
+        {
+          key: "rumus_1",
+          label: "Kelipatan gaji terhadap UMP",
+          left: "FactTracerStudy.agg_avg_take_home_pay",
+          op: "div",
+          right: "FactTracerStudy.agg_avg_nilai_ump",
+          format: "ratio",
+        },
+      ],
+      minN: 30,
+      sort: { by: "rumus_1", direction: "desc", limit: null },
+    },
+  },
+  {
+    title: "Persentase status alumni di tiap jurusan",
+    input: {
+      cube: "FactTracerStudy",
+      measures: ["FactTracerStudy.count_alumni"],
+      rowDims: ["DimProdi.jurusan"],
+      colDim: "DimStatusAlumni.label",
+      filters: [],
+      percent: "row",
+    },
+  },
+  {
+    title: "Gap kompetensi: dikuasai saat lulus vs dibutuhkan di kerja",
+    input: {
+      cube: "FactRangeEvaluasi",
+      measures: ["FactRangeEvaluasi.agg_avg_skor"],
+      rowDims: ["DimIndikatorEvaluasi.grup_gap"],
+      colDim: "DimIndikatorEvaluasi.kategori_label",
+      filters: [
+        {
+          member: "DimIndikatorEvaluasi.kategori_label",
+          operator: "equals",
+          values: ["Kompetensi dikuasai saat lulus", "Kompetensi dibutuhkan di pekerjaan"],
+        },
+      ],
+      diff: { a: "Kompetensi dikuasai saat lulus", b: "Kompetensi dibutuhkan di pekerjaan" },
+    },
+  },
+  {
+    title: "Apakah menunggu kerja lebih lama berarti gaji lebih kecil?",
+    input: {
+      cube: "FactTracerStudy",
+      measures: ["FactTracerStudy.agg_avg_take_home_pay", "FactTracerStudy.count_alumni"],
+      rowDims: ["FactTracerStudy.rentang_masa_tunggu_bekerja_3"],
+      colDim: null,
+      filters: [],
+    },
+  },
 ];
 
 export function availableStarters(
@@ -655,11 +894,17 @@ export function availableStarters(
     const cube = catalog.cubes.find((c) => c.key === input.cube);
     if (!cube) return false;
 
-    const measures = new Set(cube.measures.map((m) => m.key));
+    const measures = new Set([
+      ...cube.measures.map((m) => m.key),
+      ...(cube.numeric_columns ?? []).flatMap((c) => c.functions.map((f) => f.key)),
+    ]);
     const dims = new Set(cube.dimension_groups.flatMap((g) => g.members.map((m) => m.key)));
+    const formulas = input.formulas ?? [];
 
     return (
       input.measures.every((m) => measures.has(m)) &&
+      formulas.every((f) => measures.has(f.left) && measures.has(f.right)) &&
+      (!input.minN || !!cube.count_measure) &&
       [...input.rowDims, ...(input.colDim ? [input.colDim] : []), ...input.filters.map((f) => f.member)]
         .every((d) => dims.has(d))
     );
@@ -678,7 +923,12 @@ export function sameQuestion(a: ExplorerQueryInput, b: ExplorerQueryInput): bool
       q.measures,
       q.rowDims,
       q.colDim ?? null,
-      q.filters.map((f) => [f.member, f.values]),
+      q.filters.map((f) => [f.member, f.operator ?? "equals", f.values]),
+      (q.formulas ?? []).map((f) => [f.key, f.label, f.left, f.op, f.right, f.format]),
+      q.minN ?? null,
+      q.sort ? [q.sort.by, q.sort.direction, q.sort.limit ?? null] : null,
+      q.percent ?? "none",
+      q.diff ? [q.diff.a, q.diff.b] : null,
     ]);
 
   return canon(a) === canon(b);
@@ -724,8 +974,14 @@ export function drillPointOf(
  */
 export function drillFilters(filters: ExplorerFilter[], point: DrillPoint): ExplorerFilter[] {
   return [
-    ...filters.filter((f) => f.values.length > 0 && !(f.member in point)),
-    ...Object.entries(point).map(([member, value]) => ({ member, values: [value] })),
+    ...filters
+      .filter((f) => filterIsActive(f) && !(f.member in point))
+      .map((f) => ({ member: f.member, operator: f.operator ?? "equals", values: f.values })),
+    ...Object.entries(point).map(([member, value]) => ({
+      member,
+      operator: "equals" as const,
+      values: [value],
+    })),
   ];
 }
 
@@ -733,4 +989,128 @@ export function drillFilters(filters: ExplorerFilter[], point: DrillPoint): Expl
 export function describeDrillPoint(point: DrillPoint, dimensionLabel: (key: string) => string): string {
   const parts = Object.entries(point).map(([dim, value]) => `${dimensionLabel(dim)} ${value}`);
   return parts.length > 0 ? parts.join(" · ") : "Seluruh data";
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Olah hasil (tampilan): persen & selisih kolom
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Ubah cacah jadi persen dari total baris, kolom, atau keseluruhan.
+ *
+ * Hanya ukuran cacah (integer) yang diubah: persen dari rata-rata tidak
+ * berarti apa-apa. Pembaginya total yang sudah dihitung buildPivot, jadi
+ * hasilnya sama dengan `COUNT / SUM(COUNT) OVER (…)` di SQL. Totalnya
+ * dikosongkan — jumlah persen per baris selalu 100 dan tidak memberi
+ * informasi baru.
+ */
+export function applyPercent(
+  pivot: Pivot,
+  mode: PercentMode | undefined,
+  measures: CatalogMeasure[],
+): { pivot: Pivot; measures: CatalogMeasure[] } {
+  const target = new Set(measures.filter((m) => m.format === "integer").map((m) => m.key));
+  if (!mode || mode === "none" || target.size === 0) return { pivot, measures };
+
+  const pct = (v: number | null, total: number | null | undefined) =>
+    v === null || !total ? null : (v / total) * 100;
+
+  const rows = pivot.rows.map((row) => {
+    const cells: PivotRow["cells"] = {};
+
+    for (const col of pivot.columnKeys) {
+      cells[col] = { ...(row.cells[col] ?? {}) };
+      for (const key of target) {
+        const v = row.cells[col]?.[key]?.value ?? null;
+        const total =
+          mode === "row" ? row.totals[key] : mode === "column" ? pivot.columnTotals[col]?.[key] : pivot.grandTotals[key];
+        cells[col][key] = { value: pct(v, total) };
+      }
+    }
+
+    const totals = { ...row.totals };
+    for (const key of target) totals[key] = null;
+
+    return { ...row, cells, totals };
+  });
+
+  const columnTotals: Pivot["columnTotals"] = {};
+  for (const col of pivot.columnKeys) {
+    columnTotals[col] = { ...(pivot.columnTotals[col] ?? {}) };
+    for (const key of target) columnTotals[col][key] = null;
+  }
+
+  const grandTotals = { ...pivot.grandTotals };
+  for (const key of target) grandTotals[key] = null;
+
+  return {
+    pivot: { ...pivot, rows, columnTotals, grandTotals },
+    measures: measures.map((m) => (target.has(m.key) ? { ...m, format: "percent" as const } : m)),
+  };
+}
+
+/**
+ * Tambah kolom "B − A" di ujung pivot — misalnya kompetensi yang dibutuhkan
+ * di pekerjaan dikurangi yang dikuasai saat lulus (gap kompetensi). Kolom
+ * ini hasil hitungan, bukan kelompok data: ditandai derivedColumns supaya
+ * tidak ditawarkan untuk drill-down. Tanpa kedua kolom, pivot dikembalikan
+ * apa adanya.
+ */
+export function addColumnDifference(
+  pivot: Pivot,
+  diff: ColumnDiff | null | undefined,
+  measures: CatalogMeasure[],
+): Pivot {
+  if (!diff || !pivot.columnKeys.includes(diff.a) || !pivot.columnKeys.includes(diff.b)) return pivot;
+
+  const key = columnDifferenceKey(diff);
+  const rows = pivot.rows.map((row) => {
+    const cell: Record<string, PivotCell> = {};
+    for (const m of measures) {
+      const a = row.cells[diff.a]?.[m.key]?.value ?? null;
+      const b = row.cells[diff.b]?.[m.key]?.value ?? null;
+      cell[m.key] = { value: a === null || b === null ? null : b - a };
+    }
+    return { ...row, cells: { ...row.cells, [key]: cell } };
+  });
+
+  const blank = Object.fromEntries(measures.map((m) => [m.key, null]));
+
+  return {
+    ...pivot,
+    columnKeys: [...pivot.columnKeys, key],
+    derivedColumns: [...(pivot.derivedColumns ?? []), key],
+    rows,
+    columnTotals: { ...pivot.columnTotals, [key]: blank },
+  };
+}
+
+export function columnDifferenceKey(diff: ColumnDiff): string {
+  return `Selisih: ${diff.b} − ${diff.a}`;
+}
+
+/** buildPivot + persen + selisih kolom — urutan yang sama untuk tabel, chart, dan panel. */
+export function presentPivot(
+  pivot: Pivot,
+  input: Pick<ExplorerQueryInput, "percent" | "diff">,
+  measures: CatalogMeasure[],
+): { pivot: Pivot; measures: CatalogMeasure[] } {
+  const pct = applyPercent(pivot, input.percent, measures);
+  return { pivot: addColumnDifference(pct.pivot, input.diff, pct.measures), measures: pct.measures };
+}
+
+/**
+ * Pivot untuk chart: bila ada kolom hasil hitungan (selisih), chart hanya
+ * menggambar kolom itu. Selisih ±0,03 yang ditumpuk di samping skor 3,0 pada
+ * satu sumbu tidak terlihat sama sekali, padahal selisih itulah yang ingin
+ * dibaca pengguna saat menyalakannya. Kolom asalnya tetap lengkap di tabel.
+ */
+export function chartPivotOf(pivot: Pivot): Pivot {
+  const derived = pivot.derivedColumns ?? [];
+  if (derived.length === 0) return pivot;
+
+  return {
+    ...pivot,
+    columnKeys: pivot.columnKeys.filter((c) => derived.includes(c)),
+  };
 }

@@ -95,8 +95,11 @@ const ExplorerChart = ({
 
   // Makin banyak kategori, makin miring labelnya. Di bawah delapan kategori
   // label mendatar masih muat dan jauh lebih enak dibaca.
+  // Label panjang ("Organisasi non-profit/Lembaga Swadaya Masyarakat") ikut
+  // dihitung: delapan kategori berlabel panjang sudah saling menimpa.
   const kecil = height < 260;
-  const banyak = data.length > (kecil ? 4 : 8);
+  const labelTerpanjang = Math.max(...data.map((d) => d.name.length), 0);
+  const banyak = data.length > (kecil ? 4 : 8) || (data.length > 3 && labelTerpanjang > (kecil ? 8 : 12));
   const xAxisProps = banyak
     ? { angle: -35, textAnchor: "end" as const, height: kecil ? 56 : 96 }
     : { height: kecil ? 28 : 40 };

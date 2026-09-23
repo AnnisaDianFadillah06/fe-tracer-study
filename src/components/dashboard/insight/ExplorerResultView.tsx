@@ -18,14 +18,17 @@ import {
   SINGLE_COLUMN,
   buildFacets,
   buildPivot,
+  chartPivotOf,
   decideChart,
   describeDrillPoint,
   drillFilters,
   drillPointOf,
   formatMeasure,
+  presentPivot,
   type CatalogMeasure,
   type DrillPoint,
   type ExplorerFilter,
+  type ExplorerQueryInput,
   type ExplorerResult,
   type Pivot,
 } from "@/lib/olapExplorer";
@@ -34,6 +37,8 @@ interface Props {
   result: ExplorerResult;
   /** Saringan pertanyaan — ikut dikirim saat drill-down ke daftar alumni. */
   filters: ExplorerFilter[];
+  /** Olah hasil yang murni tampilan: persen & selisih kolom. */
+  display?: Pick<ExplorerQueryInput, "percent" | "diff">;
   rowDims: string[];
   colDim: string | null;
   /** Measure yang digambar; null = measure pertama. */
@@ -59,18 +64,32 @@ const ExplorerResultView = ({
   chartMeasure,
   onChartMeasureChange,
   filters,
+  display,
   compact = false,
 }: Props) => {
   const [drill, setDrill] = useState<DrillRequest | null>(null);
 
-  const openDrill = (point: DrillPoint, measure: CatalogMeasure, value: number | null) => {
+  /**
+   * Klik angka → daftar alumni. Yang dikirim selalu ukuran ASLI: angka
+   * persen berasal dari cacah (daftarnya = alumni yang tercacah, jumlahnya
+   * tidak diketahui dari persennya), dan angka rumus berasal dari
+   * pembilangnya.
+   */
+  const openDrill = (point: DrillPoint, shown: CatalogMeasure, value: number | null) => {
     const labelOf = (k: string) => result.dimensions.find((d) => d.key === k)?.label ?? k;
+    const original = result.measures.find((m) => m.key === shown.key) ?? shown;
+
+    const measure: CatalogMeasure = original.formula
+      ? { key: original.formula.left, label: original.formula.left_label, format: original.formula.left_format }
+      : original;
+    const sameNumber = !original.formula && shown.format === original.format;
+
     setDrill({
       cube: result.cube,
       measure,
       filters: drillFilters(filters, point),
       pointLabel: describeDrillPoint(point, labelOf),
-      value,
+      value: sameNumber ? value : null,
     });
   };
 
@@ -84,6 +103,7 @@ const ExplorerResultView = ({
   ) => {
     const row = source.rows[rowIndex];
     if (!row || !activeMeasure) return;
+    if (columnKey !== null && source.derivedColumns?.includes(columnKey)) return;
 
     const point = drillPointOf(dims, row.keys, columnKey === null ? null : colDim, columnKey ?? SINGLE_COLUMN);
     if (point === null || Object.values(extra).includes(EMPTY_VALUE)) return;
@@ -95,12 +115,30 @@ const ExplorerResultView = ({
     openDrill({ ...extra, ...point }, activeMeasure, value);
   };
 
-  const pivot = useMemo(() => buildPivot(result, rowDims, colDim), [result, rowDims, colDim]);
+  const percent = display?.percent;
+  const diff = display?.diff;
+
+  // Persen & selisih kolom diterapkan SETELAH pivot dibangun dan sebelum apa
+  // pun digambar, supaya tabel, chart, dan panel selalu menampilkan angka
+  // yang sama.
+  const { pivot, measures } = useMemo(
+    () => presentPivot(buildPivot(result, rowDims, colDim), { percent, diff }, result.measures),
+    [result, rowDims, colDim, percent, diff],
+  );
 
   // Chart dipecah per nilai dimensi Baris kedua (small multiples). Tabel di
   // bawah tetap memakai pivot utuh — dua dimensi baris terbaca baik di sana
   // sebagai kolom bersarang.
-  const plan = useMemo(() => buildFacets(result, rowDims, colDim), [result, rowDims, colDim]);
+  const plan = useMemo(() => {
+    const raw = buildFacets(result, rowDims, colDim);
+    return {
+      ...raw,
+      facets: raw.facets.map((f) => ({
+        ...f,
+        pivot: chartPivotOf(presentPivot(f.pivot, { percent, diff }, result.measures).pivot),
+      })),
+    };
+  }, [result, rowDims, colDim, percent, diff]);
 
   // Keputusan chart memakai hasil yang sesungguhnya, bukan cuma jumlah dimensi
   // — dua dimensi baris bisa menghasilkan ratusan kelompok.
@@ -111,18 +149,17 @@ const ExplorerResultView = ({
   // dipilih pengguna.
   const facetLabel = result.dimensions.find((d) => d.key === plan.facetDim)?.label ?? "kelompok";
 
-  const activeMeasure =
-    result.measures.find((m) => m.key === chartMeasure) ?? result.measures[0] ?? null;
+  const activeMeasure = measures.find((m) => m.key === chartMeasure) ?? measures[0] ?? null;
 
   const drawable = chart.kind !== "number" && chart.kind !== "none" && activeMeasure !== null;
 
-  const measurePicker = result.measures.length > 1 && activeMeasure && (
+  const measurePicker = measures.length > 1 && activeMeasure && (
     <Select value={activeMeasure.key} onValueChange={onChartMeasureChange}>
       <SelectTrigger className={compact ? "h-8 w-52 text-xs" : "w-64"}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {result.measures.map((m) => (
+        {measures.map((m) => (
           <SelectItem key={m.key} value={m.key}>
             {m.label}
           </SelectItem>
@@ -149,17 +186,17 @@ const ExplorerResultView = ({
     ) : (
       <ExplorerChart
         kind={chart.kind}
-        pivot={pivot}
+        pivot={chartPivotOf(pivot)}
         measure={activeMeasure}
         height={compact ? 240 : undefined}
-        onPointClick={(i, col) => drillFromChart(pivot, rowDims, i, col)}
+        onPointClick={(i, col) => drillFromChart(chartPivotOf(pivot), rowDims, i, col)}
       />
     ));
 
   const table = (
     <PivotTable
       pivot={pivot}
-      measures={result.measures}
+      measures={measures}
       rowDimensions={result.dimensions.filter((d) => rowDims.includes(d.key))}
       hasColumnDimension={colDim !== null}
       colDim={colDim}
@@ -180,7 +217,7 @@ const ExplorerResultView = ({
           punya sumbu, jadi ditampilkan sebagai kartu. */}
       {chart.kind === "number" && (
         <div className={`grid gap-4 ${compact ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3"}`}>
-          {result.measures.map((m) => (
+          {measures.map((m) => (
             <Card key={m.key}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
