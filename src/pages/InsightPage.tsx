@@ -405,6 +405,7 @@ const InsightPage = () => {
                   result={result}
                   rowDims={current.rowDims}
                   colDim={current.colDim}
+                  filters={current.filters}
                   chartMeasure={chartMeasure}
                   onChartMeasureChange={setChartMeasure}
                 />

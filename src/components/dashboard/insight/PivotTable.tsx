@@ -7,12 +7,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { ReactNode } from "react";
 import {
   SINGLE_COLUMN,
   canTotal,
+  drillPointOf,
   formatMeasure,
   type CatalogDimension,
   type CatalogMeasure,
+  type DrillPoint,
   type Pivot,
 } from "@/lib/olapExplorer";
 
@@ -21,6 +24,10 @@ interface Props {
   measures: CatalogMeasure[];
   rowDimensions: CatalogDimension[];
   hasColumnDimension: boolean;
+  /** Kunci dimensi kolom — dibutuhkan untuk drill-down dari sel. */
+  colDim?: string | null;
+  /** Klik angka → daftar alumni di baliknya. Tanpa prop ini tabel tidak bisa diklik. */
+  onCellClick?: (point: DrillPoint, measure: CatalogMeasure, value: number | null) => void;
 }
 
 /**
@@ -32,9 +39,51 @@ interface Props {
  * dikosongkan — menjumlahkan rata-rata menghasilkan angka yang tidak berarti,
  * dan angka yang tidak berarti di kolom bernama "Total" akan dipercaya.
  */
-const PivotTable = ({ pivot, measures, rowDimensions, hasColumnDimension }: Props) => {
+const PivotTable = ({
+  pivot,
+  measures,
+  rowDimensions,
+  hasColumnDimension,
+  colDim = null,
+  onCellClick,
+}: Props) => {
   const showTotals = hasColumnDimension;
   const totalableMeasures = measures.filter((m) => canTotal(m.format));
+  const rowDims = rowDimensions.map((d) => d.key);
+
+  /**
+   * Angka yang bisa diklik: ada nilainya, bukan cacah nol (daftarnya pasti
+   * kosong), dan titiknya tidak memuat kelompok "(kosong)". Baris/kolom yang
+   * tidak disebut (sel total) berarti "semua nilai" dimensi itu.
+   */
+  const cell = (
+    content: ReactNode,
+    value: number | null,
+    m: CatalogMeasure,
+    rowKeys: string[] | null,
+    colKey: string | null,
+  ): ReactNode => {
+    if (!onCellClick || value === null || (m.format === "integer" && value <= 0)) return content;
+
+    const point = drillPointOf(
+      rowKeys ? rowDims : [],
+      rowKeys ?? [],
+      colKey === null ? null : colDim,
+      colKey ?? SINGLE_COLUMN,
+    );
+    if (point === null) return content;
+
+    return (
+      <button
+        type="button"
+        className="rounded-sm underline decoration-dotted underline-offset-4 hover:text-primary hover:decoration-solid"
+        title="Lihat daftar alumninya"
+        onClick={() => onCellClick(point, m, value)}
+      >
+        {content}
+      </button>
+    );
+  };
 
   return (
     <div className="overflow-x-auto">
@@ -116,7 +165,13 @@ const PivotTable = ({ pivot, measures, rowDimensions, hasColumnDimension }: Prop
                     key={`${col}-${m.key}`}
                     className={`text-right tabular-nums ${i === 0 ? "border-l" : ""}`}
                   >
-                    {formatMeasure(row.cells[col]?.[m.key]?.value ?? null, m.format)}
+                    {cell(
+                      formatMeasure(row.cells[col]?.[m.key]?.value ?? null, m.format),
+                      row.cells[col]?.[m.key]?.value ?? null,
+                      m,
+                      row.keys,
+                      col,
+                    )}
                   </TableCell>
                 )),
               )}
@@ -129,7 +184,7 @@ const PivotTable = ({ pivot, measures, rowDimensions, hasColumnDimension }: Prop
                       i === 0 ? "border-l" : ""
                     }`}
                   >
-                    {formatMeasure(row.totals[m.key], m.format)}
+                    {cell(formatMeasure(row.totals[m.key], m.format), row.totals[m.key], m, row.keys, null)}
                   </TableCell>
                 ))}
             </TableRow>
@@ -152,7 +207,13 @@ const PivotTable = ({ pivot, measures, rowDimensions, hasColumnDimension }: Prop
                     }`}
                   >
                     {canTotal(m.format)
-                      ? formatMeasure(pivot.columnTotals[col]?.[m.key] ?? null, m.format)
+                      ? cell(
+                          formatMeasure(pivot.columnTotals[col]?.[m.key] ?? null, m.format),
+                          pivot.columnTotals[col]?.[m.key] ?? null,
+                          m,
+                          null,
+                          col,
+                        )
                       : "—"}
                   </TableCell>
                 )),
@@ -165,7 +226,7 @@ const PivotTable = ({ pivot, measures, rowDimensions, hasColumnDimension }: Prop
                     i === 0 ? "border-l" : ""
                   }`}
                 >
-                  {formatMeasure(pivot.grandTotals[m.key], m.format)}
+                  {cell(formatMeasure(pivot.grandTotals[m.key], m.format), pivot.grandTotals[m.key], m, null, null)}
                 </TableCell>
               ))}
             </TableRow>

@@ -14,6 +14,8 @@ interface Props {
   measure: CatalogMeasure;
   /** Label dimensi yang jadi panel, ditampilkan sebagai keterangan grid. */
   facetLabel: string;
+  /** Klik di salah satu panel → (nilai panel, indeks baris di pivot panel, kunci kolom). */
+  onPointClick?: (facetKey: string, rowIndex: number, columnKey: string | null) => void;
 }
 
 /**
@@ -39,7 +41,7 @@ function kolomGrid(kategoriTerbanyak: number): string {
  * perbandingan antar panel itu bisa menyesatkan, jadi nilai persisnya tetap
  * perlu dibaca di tabel di bawah.
  */
-const ExplorerFacets = ({ kind, facets, measure, facetLabel }: Props) => {
+const ExplorerFacets = ({ kind, facets, measure, facetLabel, onPointClick }: Props) => {
   // Warna diambil dari gabungan seri seluruh panel, bukan per panel. Kalau
   // tiap panel memetakan warnanya sendiri, seri yang sama bisa berbeda warna
   // antar panel dan perbandingannya jadi menyesatkan.
@@ -80,6 +82,9 @@ const ExplorerFacets = ({ kind, facets, measure, facetLabel }: Props) => {
               height={padat ? 300 : 220}
               hideLegend
               colors={colors}
+              onPointClick={
+                onPointClick ? (i, col) => onPointClick(facet.key, i, col) : undefined
+              }
             />
           </div>
         ))}

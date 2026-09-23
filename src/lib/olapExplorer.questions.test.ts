@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   availableStarters,
+  describeDrillPoint,
   describeQuestion,
+  drillFilters,
+  drillPointOf,
   minChartWidth,
   sameQuestion,
   STARTER_QUESTIONS,
@@ -139,5 +142,44 @@ describe("minChartWidth", () => {
 
   it("tidak pernah lebih sempit dari 320px", () => {
     expect(minChartWidth(1, 1)).toBe(320);
+  });
+});
+
+describe("drill-down", () => {
+  it("titik dari baris dan kolom pivot", () => {
+    expect(drillPointOf(["D.jurusan"], ["Akuntansi"], "D.tahun", "2022")).toEqual({
+      "D.jurusan": "Akuntansi",
+      "D.tahun": "2022",
+    });
+    expect(drillPointOf([], [], null, "")).toEqual({});
+  });
+
+  it("kelompok kosong tidak bisa di-drill", () => {
+    expect(drillPointOf(["D.jurusan"], ["(kosong)"], null, "")).toBeNull();
+    expect(drillPointOf(["D.jurusan"], ["Akuntansi"], "D.tahun", "(kosong)")).toBeNull();
+  });
+
+  it("nilai titik menggantikan saringan pada dimensi yang sama", () => {
+    expect(
+      drillFilters(
+        [
+          { member: "D.tahun", values: ["2021", "2022"] },
+          { member: "D.jenjang", values: ["D3"] },
+          { member: "D.status", values: [] },
+        ],
+        { "D.tahun": "2022", "D.jurusan": "Akuntansi" },
+      ),
+    ).toEqual([
+      { member: "D.jenjang", values: ["D3"] },
+      { member: "D.tahun", values: ["2022"] },
+      { member: "D.jurusan", values: ["Akuntansi"] },
+    ]);
+  });
+
+  it("menjelaskan titik dengan label", () => {
+    expect(describeDrillPoint({ "D.jurusan": "Akuntansi", "D.tahun": "2022" }, label)).toBe(
+      "Jurusan Akuntansi · Tahun lulus 2022",
+    );
+    expect(describeDrillPoint({}, label)).toBe("Seluruh data");
   });
 });

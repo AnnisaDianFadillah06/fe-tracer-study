@@ -218,6 +218,7 @@ const BoardCard = ({ item, isFirst, isLast, busy, onMove, onResize, onUnpin }: B
             result={result}
             rowDims={question.query.rowDims}
             colDim={question.query.colDim}
+            filters={question.query.filters}
             chartMeasure={chartMeasure}
             onChartMeasureChange={setChartMeasure}
             compact

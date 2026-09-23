@@ -1,6 +1,7 @@
-import { useMemo } from "react";
-import { Info } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Info, MousePointerClick } from "lucide-react";
 import ExplorerChart from "./ExplorerChart";
+import ExplorerDrillDown, { type DrillRequest } from "./ExplorerDrillDown";
 import ExplorerFacets from "./ExplorerFacets";
 import PivotTable from "./PivotTable";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,15 +14,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  EMPTY_VALUE,
+  SINGLE_COLUMN,
   buildFacets,
   buildPivot,
   decideChart,
+  describeDrillPoint,
+  drillFilters,
+  drillPointOf,
   formatMeasure,
+  type CatalogMeasure,
+  type DrillPoint,
+  type ExplorerFilter,
   type ExplorerResult,
+  type Pivot,
 } from "@/lib/olapExplorer";
 
 interface Props {
   result: ExplorerResult;
+  /** Saringan pertanyaan — ikut dikirim saat drill-down ke daftar alumni. */
+  filters: ExplorerFilter[];
   rowDims: string[];
   colDim: string | null;
   /** Measure yang digambar; null = measure pertama. */
@@ -46,8 +58,43 @@ const ExplorerResultView = ({
   colDim,
   chartMeasure,
   onChartMeasureChange,
+  filters,
   compact = false,
 }: Props) => {
+  const [drill, setDrill] = useState<DrillRequest | null>(null);
+
+  const openDrill = (point: DrillPoint, measure: CatalogMeasure, value: number | null) => {
+    const labelOf = (k: string) => result.dimensions.find((d) => d.key === k)?.label ?? k;
+    setDrill({
+      cube: result.cube,
+      measure,
+      filters: drillFilters(filters, point),
+      pointLabel: describeDrillPoint(point, labelOf),
+      value,
+    });
+  };
+
+  /** Klik di chart: baris pivot (dan kolomnya, kalau diketahui) → titik drill-down. */
+  const drillFromChart = (
+    source: Pivot,
+    dims: string[],
+    rowIndex: number,
+    columnKey: string | null,
+    extra: DrillPoint = {},
+  ) => {
+    const row = source.rows[rowIndex];
+    if (!row || !activeMeasure) return;
+
+    const point = drillPointOf(dims, row.keys, columnKey === null ? null : colDim, columnKey ?? SINGLE_COLUMN);
+    if (point === null || Object.values(extra).includes(EMPTY_VALUE)) return;
+
+    const value =
+      columnKey === null ? row.totals[activeMeasure.key] ?? null : row.cells[columnKey]?.[activeMeasure.key]?.value ?? null;
+    if (activeMeasure.format === "integer" && (value === null || value <= 0)) return;
+
+    openDrill({ ...extra, ...point }, activeMeasure, value);
+  };
+
   const pivot = useMemo(() => buildPivot(result, rowDims, colDim), [result, rowDims, colDim]);
 
   // Chart dipecah per nilai dimensi Baris kedua (small multiples). Tabel di
@@ -92,6 +139,12 @@ const ExplorerResultView = ({
         facets={plan.facets}
         measure={activeMeasure}
         facetLabel={facetLabel}
+        onPointClick={(facetKey, i, col) => {
+          const facet = plan.facets.find((f) => f.key === facetKey);
+          if (facet && plan.facetDim && plan.xDim) {
+            drillFromChart(facet.pivot, [plan.xDim], i, col, { [plan.facetDim]: facetKey });
+          }
+        }}
       />
     ) : (
       <ExplorerChart
@@ -99,6 +152,7 @@ const ExplorerResultView = ({
         pivot={pivot}
         measure={activeMeasure}
         height={compact ? 240 : undefined}
+        onPointClick={(i, col) => drillFromChart(pivot, rowDims, i, col)}
       />
     ));
 
@@ -108,7 +162,16 @@ const ExplorerResultView = ({
       measures={result.measures}
       rowDimensions={result.dimensions.filter((d) => rowDims.includes(d.key))}
       hasColumnDimension={colDim !== null}
+      colDim={colDim}
+      onCellClick={openDrill}
     />
+  );
+
+  const hint = (
+    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <MousePointerClick className="h-3.5 w-3.5" />
+      Klik batang atau angka bergaris bawah untuk melihat daftar alumninya.
+    </p>
   );
 
   return (
@@ -125,9 +188,11 @@ const ExplorerResultView = ({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold tabular-nums">
-                  {formatMeasure(pivot.rows[0]?.cells[""]?.[m.key]?.value ?? null, m.format)}
-                </p>
+                <NumberValue
+                  value={pivot.rows[0]?.cells[SINGLE_COLUMN]?.[m.key]?.value ?? null}
+                  measure={m}
+                  onDrill={openDrill}
+                />
               </CardContent>
             </Card>
           ))}
@@ -150,6 +215,7 @@ const ExplorerResultView = ({
               {measurePicker}
             </div>
             {chartBody}
+            {hint}
           </div>
         ) : (
           <Card>
@@ -157,7 +223,10 @@ const ExplorerResultView = ({
               <CardTitle className="text-base">{activeMeasure.label}</CardTitle>
               {measurePicker}
             </CardHeader>
-            <CardContent>{chartBody}</CardContent>
+            <CardContent className="space-y-3">
+              {chartBody}
+              {hint}
+            </CardContent>
           </Card>
         ))}
 
@@ -171,7 +240,40 @@ const ExplorerResultView = ({
           <CardContent>{table}</CardContent>
         </Card>
       )}
+
+      <ExplorerDrillDown
+        key={drill ? JSON.stringify(drill) : "none"}
+        request={drill}
+        onClose={() => setDrill(null)}
+      />
     </div>
+  );
+};
+
+/** Angka kartu tanpa dimensi — diklik untuk melihat seluruh alumni yang terhitung. */
+const NumberValue = ({
+  value,
+  measure,
+  onDrill,
+}: {
+  value: number | null;
+  measure: CatalogMeasure;
+  onDrill: (point: DrillPoint, measure: CatalogMeasure, value: number | null) => void;
+}) => {
+  const text = formatMeasure(value, measure.format);
+  const clickable = value !== null && !(measure.format === "integer" && value <= 0);
+
+  return clickable ? (
+    <button
+      type="button"
+      className="text-2xl font-bold tabular-nums underline decoration-dotted underline-offset-4 hover:text-primary"
+      title="Lihat daftar alumninya"
+      onClick={() => onDrill({}, measure, value)}
+    >
+      {text}
+    </button>
+  ) : (
+    <p className="text-2xl font-bold tabular-nums">{text}</p>
   );
 };
 

@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { buildColorMap } from "@/lib/chartColors";
 import {
+  SINGLE_COLUMN,
   chartSeriesNames,
   minChartWidth,
   formatMeasure,
@@ -38,6 +39,12 @@ interface Props {
    * berbeda warna antar panel dan perbandingannya jadi menyesatkan.
    */
   colors?: Record<string, string>;
+  /**
+   * Klik titik/batang → (indeks baris pivot, kunci kolom). Kunci kolom null
+   * berarti "seluruh baris": dipakai chart garis berseri banyak, yang
+   * klik-nya tidak bisa membedakan garis mana yang dimaksud.
+   */
+  onPointClick?: (rowIndex: number, columnKey: string | null) => void;
 }
 
 /**
@@ -54,6 +61,7 @@ const ExplorerChart = ({
   height = 340,
   hideLegend = false,
   colors: colorsProp,
+  onPointClick,
 }: Props) => {
   if (kind === "none") return null;
 
@@ -74,6 +82,10 @@ const ExplorerChart = ({
         : value.toLocaleString("id-ID");
 
   const showLegend = series.length > 1 && !hideLegend;
+
+  // Nama seri "nilai" adalah kolom tunggal (tanpa dimensi kolom).
+  const columnKeyOf = (s: string) => (s === "nilai" ? SINGLE_COLUMN : s);
+  const clickable = onPointClick ? { cursor: "pointer" } : undefined;
 
   // Nama kategori bisa panjang ("Administrasi Bisnis · Prov. Jawa Tengah").
   // Dipendekkan di sumbu saja — tooltip tetap menampilkan nama utuh.
@@ -100,7 +112,17 @@ const ExplorerChart = ({
       <div style={{ minWidth: `${lebarMinimum}px` }}>
     <ResponsiveContainer width="100%" height={height}>
       {kind === "line" ? (
-        <LineChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
+        <LineChart
+          data={data}
+          margin={{ top: 8, right: 16, bottom: 8, left: 8 }}
+          style={clickable}
+          onClick={(state) => {
+            const i = state?.activeTooltipIndex;
+            if (onPointClick && typeof i === "number") {
+              onPointClick(i, series.length === 1 ? columnKeyOf(series[0]) : null);
+            }
+          }}
+        >
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="name" tick={{ fontSize: 12 }} tickFormatter={labelFormatter} {...xAxisProps} />
           <YAxis tick={{ fontSize: 12 }} tickFormatter={axisFormatter} />
@@ -134,7 +156,14 @@ const ExplorerChart = ({
           <Tooltip formatter={tooltipFormatter} labelFormatter={(l) => String(l)} />
           {showLegend && <Legend />}
           {series.map((s) => (
-            <Bar key={s} dataKey={s} fill={colors[s]} radius={[3, 3, 0, 0]} />
+            <Bar
+              key={s}
+              dataKey={s}
+              fill={colors[s]}
+              radius={[3, 3, 0, 0]}
+              style={clickable}
+              onClick={onPointClick ? (_d, index) => onPointClick(index, columnKeyOf(s)) : undefined}
+            />
           ))}
         </BarChart>
       )}

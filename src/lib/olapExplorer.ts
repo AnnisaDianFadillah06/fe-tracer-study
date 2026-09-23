@@ -683,3 +683,54 @@ export function sameQuestion(a: ExplorerQueryInput, b: ExplorerQueryInput): bool
 
   return canon(a) === canon(b);
 }
+
+// ═══════════════════════════════════════════════════════════
+//  Drill-down: dari satu angka ke daftar alumninya
+// ═══════════════════════════════════════════════════════════
+
+/** Nilai tiap dimensi pada titik yang diklik: { "DimProdi.jurusan": "Akuntansi", ... }. */
+export type DrillPoint = Record<string, string>;
+
+/** Label pengganti nilai kosong di pivot (lihat buildPivot). */
+export const EMPTY_VALUE = "(kosong)";
+
+/**
+ * Titik drill-down dari posisi di pivot. Mengembalikan null kalau salah satu
+ * nilainya kosong: kelompok "(kosong)" berasal dari NULL di gudang data, dan
+ * penyaring `equals` tidak bisa mencocokkan NULL — daftarnya akan selalu
+ * kosong, jadi lebih jujur tidak menawarkan klik sama sekali.
+ */
+export function drillPointOf(
+  rowDims: string[],
+  rowKeys: string[],
+  colDim: string | null,
+  colKey: string,
+): DrillPoint | null {
+  const point: DrillPoint = {};
+
+  rowDims.forEach((dim, i) => {
+    point[dim] = rowKeys[i];
+  });
+
+  if (colDim && colKey !== SINGLE_COLUMN) point[colDim] = colKey;
+
+  return Object.values(point).some((v) => v === undefined || v === EMPTY_VALUE) ? null : point;
+}
+
+/**
+ * Saringan untuk drill-down: saringan pengguna + nilai titik yang diklik.
+ * Nilai titik menggantikan saringan pengguna pada dimensi yang sama — titik
+ * selalu lebih sempit (satu nilai) daripada pilihan saringannya.
+ */
+export function drillFilters(filters: ExplorerFilter[], point: DrillPoint): ExplorerFilter[] {
+  return [
+    ...filters.filter((f) => f.values.length > 0 && !(f.member in point)),
+    ...Object.entries(point).map(([member, value]) => ({ member, values: [value] })),
+  ];
+}
+
+/** "Jurusan Akuntansi · Tahun lulus 2022" — atau "Seluruh data" tanpa dimensi. */
+export function describeDrillPoint(point: DrillPoint, dimensionLabel: (key: string) => string): string {
+  const parts = Object.entries(point).map(([dim, value]) => `${dimensionLabel(dim)} ${value}`);
+  return parts.length > 0 ? parts.join(" · ") : "Seluruh data";
+}
