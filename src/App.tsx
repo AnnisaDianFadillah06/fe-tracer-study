@@ -28,6 +28,7 @@ import AnalyticsPage from "./pages/dashboard/analytics/AnalyticsPage";
 import KpiOverviewPage from "./pages/dashboard/kpi/KpiOverviewPage";
 import ComparePage from "./pages/dashboard/ComparePage";
 import MultidimensiInsightPage from "./pages/MultidimensiInsightPage";
+import InsightPage from "./pages/InsightPage";
 import ProfilePage from "./pages/dashboard/ProfilePage";
 import AlumniDataPage from "./pages/dashboard/AlumniDataPage";
 import StakeholderContactsPage from "./pages/dashboard/StakeholderContactsPage";
@@ -119,6 +120,7 @@ const App = () => (
                 <Route path="/dashboard/kpi" element={<ProtectedRoute permission="dashboard.kpi"><KpiOverviewPage /></ProtectedRoute>} />
                 <Route path="/dashboard/compare" element={<ProtectedRoute permission="dashboard.overview"><ComparePage /></ProtectedRoute>} />
                 <Route path="/dashboard/multidimensi-insight" element={<ProtectedRoute permission="dashboard.multidimensi"><MultidimensiInsightPage /></ProtectedRoute>} />
+                <Route path="/dashboard/insight" element={<ProtectedRoute permission="dashboard.insight"><InsightPage /></ProtectedRoute>} />
 
                 {/* Konfigurasi OLAP/ETL — sejajar gate role:head_tracer di BE */}
                 <Route path="/dashboard/threshold-management" element={<ProtectedRoute permission="admin.threshold"><ThresholdManagementPage /></ProtectedRoute>} />
