@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   availableStarters,
   describeQuestion,
+  minChartWidth,
   sameQuestion,
   STARTER_QUESTIONS,
   toCsv,
@@ -124,5 +125,19 @@ describe("sameQuestion", () => {
   it("membedakan isi yang benar-benar berubah", () => {
     expect(sameQuestion(base, { ...base, colDim: "D.tahun" })).toBe(false);
     expect(sameQuestion(base, { ...base, filters: [] })).toBe(false);
+  });
+});
+
+describe("minChartWidth", () => {
+  it("6 tahun × 6 status muat di kartu biasa tanpa digeser", () => {
+    expect(minChartWidth(6, 6)).toBeLessThanOrEqual(800);
+  });
+
+  it("banyak kategori tetap diberi ruang dan boleh digeser", () => {
+    expect(minChartWidth(67, 1)).toBeGreaterThan(2000);
+  });
+
+  it("tidak pernah lebih sempit dari 320px", () => {
+    expect(minChartWidth(1, 1)).toBe(320);
   });
 });

@@ -88,7 +88,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   // Flatten menu items for page title lookup
   const allItems = menu.flatMap((g) => g.items);
-  const currentItem = allItems.find((item) => location.pathname.startsWith(item.href));
+  // Item yang paling spesifik menang: di /dashboard/insight/board yang aktif
+  // "Dashboard Saya", bukan juga "Insight" yang href-nya awalan dari path itu.
+  const currentItem = allItems
+    .filter((item) => location.pathname === item.href || location.pathname.startsWith(item.href + "/"))
+    .sort((x, y) => y.href.length - x.href.length)[0];
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -136,7 +140,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               )}
               {collapsed && gi > 0 && <div className="my-2 border-t border-sidebar-border" />}
               {group.items.map((item) => {
-                const isActive = location.pathname === item.href || location.pathname.startsWith(item.href + "/");
+                const isActive = currentItem?.href === item.href;
                 return (
                   <Link
                     key={item.href}

@@ -1,27 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   BookmarkPlus,
   Compass,
   Download,
-  Info,
+  LayoutGrid,
   Loader2,
+  Pin,
   Sparkles,
 } from "lucide-react";
 import { isAxiosError } from "axios";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import ExplorerChart from "@/components/dashboard/insight/ExplorerChart";
 import ExplorerControls from "@/components/dashboard/insight/ExplorerControls";
-import ExplorerFacets from "@/components/dashboard/insight/ExplorerFacets";
-import PivotTable from "@/components/dashboard/insight/PivotTable";
+import ExplorerResultView from "@/components/dashboard/insight/ExplorerResultView";
 import SaveQuestionDialog, {
   type SaveQuestionValues,
 } from "@/components/dashboard/insight/SaveQuestionDialog";
 import SavedQuestionsList from "@/components/dashboard/insight/SavedQuestionsList";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -32,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { useExplorerCatalog, useExplorerQuery } from "@/hooks/useExplorer";
 import { useToast } from "@/hooks/common/use-toast";
+import { useInsightBoard, usePinQuestion } from "@/hooks/useInsightBoard";
 import {
   useDeleteInsightQuestion,
   useInsightQuestion,
@@ -41,11 +41,7 @@ import {
 } from "@/hooks/useInsightQuestions";
 import {
   availableStarters,
-  buildFacets,
-  buildPivot,
-  decideChart,
   describeQuestion,
-  formatMeasure,
   sameQuestion,
   toCsv,
   type ExplorerQueryInput,
@@ -98,32 +94,6 @@ const InsightPage = () => {
 
   const [chartMeasure, setChartMeasure] = useState<string | null>(null);
 
-  const pivot = useMemo(
-    () => (result && current ? buildPivot(result, current.rowDims, current.colDim) : null),
-    [result, current],
-  );
-
-  // Chart dipecah per nilai dimensi Baris kedua (small multiples). Tabel di
-  // bawah tetap memakai pivot utuh — dua dimensi baris terbaca baik di sana
-  // sebagai kolom bersarang.
-  const plan = useMemo(
-    () => (result && current ? buildFacets(result, current.rowDims, current.colDim) : null),
-    [result, current],
-  );
-
-  // Keputusan chart memakai hasil yang sesungguhnya, bukan cuma jumlah dimensi
-  // — dua dimensi baris bisa menghasilkan ratusan kelompok.
-  const chart =
-    current && plan
-      ? decideChart(current.rowDims, current.colDim, plan)
-      : { kind: "none" as const, faceted: false, reason: undefined };
-
-  // Dimensi panel dipilih otomatis oleh buildFacets (yang nilainya paling
-  // sedikit), jadi labelnya dibaca dari rencana itu — bukan dari slot yang
-  // dipilih pengguna.
-  const facetLabel =
-    result?.dimensions.find((d) => d.key === plan?.facetDim)?.label ?? "kelompok";
-
   const activeChartMeasure =
     result?.measures.find((m) => m.key === chartMeasure) ?? result?.measures[0] ?? null;
 
@@ -158,6 +128,8 @@ const InsightPage = () => {
   const saveQuestion = useSaveInsightQuestion();
   const deleteQuestion = useDeleteInsightQuestion();
   const [saveOpen, setSaveOpen] = useState(false);
+  const { data: board = [] } = useInsightBoard();
+  const pinQuestion = usePinQuestion();
 
   // Terapkan isi pertanyaan sekali per id — perubahan pengguna sesudahnya
   // tidak boleh tertimpa setiap kali data pertanyaan dimuat ulang.
@@ -209,6 +181,18 @@ const InsightPage = () => {
         },
       },
     );
+  };
+
+  const pinned = activeQuestion !== null && board.some((i) => i.question.id === activeQuestion.id);
+
+  const handlePin = () => {
+    if (!activeQuestion) return;
+    pinQuestion.mutate(activeQuestion.id, {
+      onSuccess: () =>
+        toast({ title: "Disematkan ke Dashboard Saya", description: activeQuestion.title }),
+      onError: (e) =>
+        toast({ title: "Gagal menyematkan", description: apiMessage(e), variant: "destructive" }),
+    });
   };
 
   const handleDelete = (q: InsightQuestion) => {
@@ -342,7 +326,7 @@ const InsightPage = () => {
               </Card>
             )}
 
-            {!isFetching && !error && result && pivot && result.rows.length === 0 && (
+            {!isFetching && !error && result && result.rows.length === 0 && (
               <Card>
                 <CardContent className="py-16 text-center text-sm text-muted-foreground">
                   Tidak ada data untuk kombinasi ini. Coba longgarkan filternya.
@@ -350,7 +334,7 @@ const InsightPage = () => {
               </Card>
             )}
 
-            {!isFetching && !error && result && pivot && result.rows.length > 0 && (
+            {!isFetching && !error && result && result.rows.length > 0 && (
               <>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -371,7 +355,26 @@ const InsightPage = () => {
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    {activeQuestion &&
+                      (pinned ? (
+                        <Button asChild variant="outline" size="sm">
+                          <Link to="/dashboard/insight/board">
+                            <LayoutGrid className="mr-2 h-4 w-4" />
+                            Lihat di Dashboard Saya
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handlePin}
+                          disabled={pinQuestion.isPending}
+                        >
+                          <Pin className="mr-2 h-4 w-4" />
+                          Sematkan ke Dashboard Saya
+                        </Button>
+                      ))}
                     <Button variant="outline" size="sm" onClick={() => setSaveOpen(true)}>
                       <BookmarkPlus className="mr-2 h-4 w-4" />
                       {activeQuestion?.is_mine ? "Simpan perubahan" : "Simpan"}
@@ -398,95 +401,13 @@ const InsightPage = () => {
                   </Alert>
                 )}
 
-                {/* Tanpa dimensi sama sekali, hasilnya satu baris angka —
-                    chart tidak punya sumbu, jadi ditampilkan sebagai kartu. */}
-                {chart.kind === "number" && (
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {result.measures.map((m) => (
-                      <Card key={m.key}>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium text-muted-foreground">
-                            {m.label}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-2xl font-bold tabular-nums">
-                            {formatMeasure(
-                              pivot.rows[0]?.cells[""]?.[m.key]?.value ?? null,
-                              m.format,
-                            )}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-
-                {chart.kind === "none" && chart.reason && (
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>Tidak digambar sebagai chart</AlertTitle>
-                    <AlertDescription>{chart.reason}</AlertDescription>
-                  </Alert>
-                )}
-
-                {chart.kind !== "number" && chart.kind !== "none" && activeChartMeasure && (
-                  <Card>
-                    <CardHeader className="flex-row items-center justify-between gap-4 space-y-0 pb-2">
-                      <CardTitle className="text-base">{activeChartMeasure.label}</CardTitle>
-
-                      {result.measures.length > 1 && (
-                        <Select
-                          value={activeChartMeasure.key}
-                          onValueChange={setChartMeasure}
-                        >
-                          <SelectTrigger className="w-64">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {result.measures.map((m) => (
-                              <SelectItem key={m.key} value={m.key}>
-                                {m.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </CardHeader>
-                    <CardContent>
-                      {chart.faceted ? (
-                        <ExplorerFacets
-                          kind={chart.kind}
-                          facets={plan!.facets}
-                          measure={activeChartMeasure}
-                          facetLabel={facetLabel}
-                        />
-                      ) : (
-                        <ExplorerChart
-                          kind={chart.kind}
-                          pivot={pivot}
-                          measure={activeChartMeasure}
-                        />
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Tabel</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <PivotTable
-                      pivot={pivot}
-                      measures={result.measures}
-                      rowDimensions={result.dimensions.filter((d) =>
-                        current.rowDims.includes(d.key),
-                      )}
-                      hasColumnDimension={current.colDim !== null}
-                    />
-                  </CardContent>
-                </Card>
+                <ExplorerResultView
+                  result={result}
+                  rowDims={current.rowDims}
+                  colDim={current.colDim}
+                  chartMeasure={chartMeasure}
+                  onChartMeasureChange={setChartMeasure}
+                />
               </>
             )}
           </div>

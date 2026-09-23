@@ -12,8 +12,8 @@ import {
 } from "recharts";
 import { buildColorMap } from "@/lib/chartColors";
 import {
-  MIN_CATEGORY_WIDTH,
   chartSeriesNames,
+  minChartWidth,
   formatMeasure,
   toChartData,
   type CatalogMeasure,
@@ -93,11 +93,11 @@ const ExplorerChart = ({
   // digeser mendatar. Tanpa ini, 67 program studi dipaksa muat di lebar tetap
   // dan batangnya menyempit jadi garis dengan label yang menumpuk — gambarnya
   // ada, tapi tidak memberi tahu apa pun.
-  const lebarMinimum = data.length * MIN_CATEGORY_WIDTH * Math.max(series.length, 1);
+  const lebarMinimum = minChartWidth(data.length, series.length);
 
   return (
     <div className="w-full overflow-x-auto">
-      <div style={{ minWidth: `${Math.max(lebarMinimum, 320)}px` }}>
+      <div style={{ minWidth: `${lebarMinimum}px` }}>
     <ResponsiveContainer width="100%" height={height}>
       {kind === "line" ? (
         <LineChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>

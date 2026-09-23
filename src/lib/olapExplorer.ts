@@ -122,6 +122,23 @@ export const MAX_FACETS = 12;
 /** Lebar minimum per kategori, dipakai menghitung lebar chart yang bisa digeser. */
 export const MIN_CATEGORY_WIDTH = 32;
 
+/** Lebar minimum satu batang di dalam kelompok. */
+export const MIN_BAR_WIDTH = 12;
+
+/**
+ * Lebar minimum chart sebelum ia boleh digeser mendatar.
+ *
+ * Yang butuh ruang adalah BATANGNYA, bukan seluruh kelompok dikali jumlah
+ * seri. Rumus lama (kategori × 32px × seri) membuat 6 tahun × 6 status
+ * meminta 1152px, sehingga tahun terakhir tersembunyi di balik gulir yang
+ * tidak disadari pengguna. Sekarang tiap kelompok cukup selebar batang-
+ * batangnya plus sela, dengan batas bawah MIN_CATEGORY_WIDTH untuk label.
+ */
+export function minChartWidth(categories: number, series: number): number {
+  const perKategori = Math.max(MIN_CATEGORY_WIDTH, MIN_BAR_WIDTH * Math.max(series, 1) + 8);
+  return Math.max(categories * perKategori, 320);
+}
+
 export interface ChartDecision {
   kind: ChartKind;
   /** true = digambar sebagai beberapa panel kecil, satu per nilai dimensi panel. */

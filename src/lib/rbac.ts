@@ -20,6 +20,7 @@ import {
   History,
   Layers,
   Compass,
+  LayoutGrid,
   Mail,
 } from "lucide-react";
 
@@ -250,6 +251,7 @@ const dashboardItems: MenuItem[] = [
   // { title: "KPI Lintas Prodi", href: "/dashboard/kpi", icon: Gauge, description: "Perbandingan KPI antar program studi", permission: "dashboard.kpi" },
   { title: "Multidimensi Insight", href: "/dashboard/multidimensi-insight", icon: Layers, description: "Eksplorasi data multidimensi", permission: "dashboard.multidimensi" },
   { title: "Insight", href: "/dashboard/insight", icon: Compass, description: "Susun sendiri analisis multidimensi", permission: "dashboard.insight" },
+  { title: "Dashboard Saya", href: "/dashboard/insight/board", icon: LayoutGrid, description: "Pertanyaan Insight yang disematkan", permission: "dashboard.insight" },
 ];
 
 // Konfigurasi lapisan OLAP/ETL. Semua di balik admin.threshold / admin.etl
@@ -323,6 +325,7 @@ export const routePermissionMap: Record<string, Permission> = {
   // "/dashboard/analytics": "dashboard.analytics",
   "/dashboard/multidimensi-insight": "dashboard.multidimensi",
   "/dashboard/insight": "dashboard.insight",
+  "/dashboard/insight/board": "dashboard.insight",
   "/dashboard/staff-management": "admin.user",
   "/dashboard/email-management": "admin.credential_email",
   "/dashboard/form-management": "admin.questionnaire",
