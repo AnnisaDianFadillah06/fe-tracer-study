@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Compass, Info, Loader2 } from "lucide-react";
+import { AlertTriangle, Compass, Download, Info, Loader2, Sparkles } from "lucide-react";
 import { isAxiosError } from "axios";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import ExplorerChart from "@/components/dashboard/insight/ExplorerChart";
@@ -7,6 +7,7 @@ import ExplorerControls from "@/components/dashboard/insight/ExplorerControls";
 import ExplorerFacets from "@/components/dashboard/insight/ExplorerFacets";
 import PivotTable from "@/components/dashboard/insight/PivotTable";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -18,11 +19,15 @@ import {
 } from "@/components/ui/select";
 import { useExplorerCatalog, useExplorerQuery } from "@/hooks/useExplorer";
 import {
+  availableStarters,
   buildFacets,
   buildPivot,
   decideChart,
+  describeQuestion,
   formatMeasure,
+  toCsv,
   type ExplorerQueryInput,
+  type ExplorerResult,
 } from "@/lib/olapExplorer";
 
 /**
@@ -100,6 +105,23 @@ const InsightPage = () => {
   const activeChartMeasure =
     result?.measures.find((m) => m.key === chartMeasure) ?? result?.measures[0] ?? null;
 
+  const starters = useMemo(() => (catalog ? availableStarters(catalog) : []), [catalog]);
+
+  const question =
+    current && cube
+      ? describeQuestion(
+          current,
+          (k) => cube.measures.find((m) => m.key === k)?.label ?? k,
+          (k) =>
+            cube.dimension_groups.flatMap((g) => g.members).find((d) => d.key === k)?.label ?? k,
+        )
+      : "";
+
+  const applyInput = (next: ExplorerQueryInput) => {
+    setInput(next);
+    setChartMeasure(null);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-2 mb-6">
@@ -129,24 +151,38 @@ const InsightPage = () => {
               catalog={catalog}
               cube={cube}
               input={current}
-              onChange={(next) => {
-                setInput(next);
-                setChartMeasure(null);
-              }}
+              onChange={applyInput}
             />
           </div>
 
           <div className="space-y-6 lg:col-span-3">
             {current.measures.length === 0 && (
               <Card>
-                <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
                   <div className="rounded-full bg-primary/10 p-4">
                     <Compass className="h-8 w-8 text-primary" />
                   </div>
-                  <p className="max-w-sm text-sm text-muted-foreground">
-                    Pilih minimal satu measure di panel kiri untuk mulai. Tambahkan dimensi
-                    baris dan kolom untuk memecahnya jadi tabel silang.
+                  <p className="max-w-md text-sm text-muted-foreground">
+                    Pilih apa yang ingin dihitung di panel kiri, lalu kelompokkan menurut
+                    jurusan, tahun lulus, atau lainnya. Atau mulai dari salah satu contoh:
                   </p>
+
+                  {starters.length > 0 && (
+                    <div className="mt-2 flex max-w-2xl flex-wrap justify-center gap-2">
+                      {starters.map((s) => (
+                        <Button
+                          key={s.title}
+                          variant="outline"
+                          size="sm"
+                          className="h-auto whitespace-normal py-2 text-left"
+                          onClick={() => applyInput(s.input)}
+                        >
+                          <Sparkles className="mr-2 h-3.5 w-3.5 shrink-0 text-primary" />
+                          {s.title}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -172,6 +208,18 @@ const InsightPage = () => {
 
             {!isFetching && !error && result && pivot && result.rows.length > 0 && (
               <>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-lg font-semibold">{question}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadCsv(result, question)}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Unduh CSV
+                  </Button>
+                </div>
+
                 {result.truncated && (
                   <Alert>
                     <AlertTriangle className="h-4 w-4" />
@@ -280,6 +328,17 @@ const InsightPage = () => {
     </DashboardLayout>
   );
 };
+
+/** BOM di depan supaya Excel membaca huruf non-ASCII dengan benar. */
+function downloadCsv(result: ExplorerResult, question: string) {
+  const blob = new Blob(["\uFEFF" + toCsv(result)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${(question || "insight").replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 80)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 /**
  * Galat 422 dari katalog sudah berisi kalimat yang bisa dibaca pengguna

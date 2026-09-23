@@ -19,6 +19,8 @@ export interface CatalogMeasure {
   key: string;
   label: string;
   format: MeasureFormat;
+  /** Penjelasan singkat untuk pengguna non-IT; boleh kosong. */
+  description?: string;
 }
 
 export interface CatalogDimension {
@@ -487,4 +489,162 @@ export function toRequestBody(input: ExplorerQueryInput) {
 /** Permintaan siap dijalankan? Minimal satu measure; dimensi boleh kosong. */
 export function isRunnable(input: ExplorerQueryInput): boolean {
   return input.cube !== "" && input.measures.length > 0;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Bahasa sehari-hari
+// ═══════════════════════════════════════════════════════════
+
+function joinIndo(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} dan ${items[items.length - 1]}`;
+}
+
+/**
+ * Judul hasil dalam kalimat biasa — "Jumlah alumni menurut Jurusan dan Tahun
+ * lulus, hanya Jenjang: D3". Pengguna non-IT membaca pertanyaannya kembali,
+ * bukan susunan baris/kolom yang ia klik.
+ */
+export function describeQuestion(
+  input: ExplorerQueryInput,
+  measureLabel: (key: string) => string,
+  dimensionLabel: (key: string) => string,
+): string {
+  if (input.measures.length === 0) return "";
+
+  const measures = input.measures.map(measureLabel);
+  let text = joinIndo([measures[0], ...measures.slice(1).map((m) => m.toLowerCase())]);
+
+  const dims = [...input.rowDims, ...(input.colDim ? [input.colDim] : [])];
+  if (dims.length > 0) {
+    text += ` menurut ${joinIndo(dims.map(dimensionLabel))}`;
+  }
+
+  const filters = input.filters.filter((f) => f.values.length > 0);
+  if (filters.length > 0) {
+    text +=
+      ", hanya " +
+      joinIndo(filters.map((f) => `${dimensionLabel(f.member)}: ${f.values.join(" / ")}`));
+  }
+
+  return text;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Unduh CSV
+// ═══════════════════════════════════════════════════════════
+
+function csvCell(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return "";
+  const s = String(value);
+  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * Hasil mentah (baris datar) sebagai CSV berjudul label, bukan nama member
+ * Cube.js — supaya langsung terbaca saat dibuka di Excel. Angka dibiarkan
+ * mentah (tanpa format rupiah/pemisah ribuan) agar tetap bisa dihitung ulang.
+ */
+export function toCsv(result: ExplorerResult): string {
+  const cols = [...result.dimensions, ...result.measures];
+  const header = cols.map((c) => csvCell(c.label)).join(",");
+  const body = result.rows.map((row) => cols.map((c) => csvCell(row[c.key])).join(","));
+  return [header, ...body].join("\n");
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Contoh pertanyaan
+// ═══════════════════════════════════════════════════════════
+
+export interface StarterQuestion {
+  title: string;
+  input: ExplorerQueryInput;
+}
+
+/**
+ * Titik mulai untuk pengguna yang belum tahu harus mengklik apa. Setiap contoh
+ * hanya ditawarkan kalau SEMUA member-nya ada di katalog — katalog bisa
+ * berubah di peladen, dan contoh yang ditolak 422 lebih buruk daripada tidak
+ * ada contoh sama sekali.
+ */
+export const STARTER_QUESTIONS: StarterQuestion[] = [
+  {
+    title: "Berapa alumni di tiap jurusan?",
+    input: {
+      cube: "FactTracerStudy",
+      measures: ["FactTracerStudy.count_alumni"],
+      rowDims: ["DimProdi.jurusan"],
+      colDim: null,
+      filters: [],
+    },
+  },
+  {
+    title: "Status alumni per tahun lulus",
+    input: {
+      cube: "FactTracerStudy",
+      measures: ["FactTracerStudy.count_alumni"],
+      rowDims: ["DimAlumni.tahun_lulus"],
+      colDim: "DimStatusAlumni.label",
+      filters: [],
+    },
+  },
+  {
+    title: "Rata-rata gaji tiap program studi",
+    input: {
+      cube: "FactTracerStudy",
+      measures: ["FactTracerStudy.avg_take_home_pay"],
+      rowDims: ["DimProdi.nama_prodi"],
+      colDim: null,
+      filters: [],
+    },
+  },
+  {
+    title: "Berapa lama alumni menunggu kerja, per tahun lulus?",
+    input: {
+      cube: "FactTracerStudy",
+      measures: ["FactTracerStudy.avg_masa_tunggu_bekerja"],
+      rowDims: ["DimAlumni.tahun_lulus"],
+      colDim: null,
+      filters: [],
+    },
+  },
+  {
+    title: "Kesesuaian bidang kerja per jurusan",
+    input: {
+      cube: "FactTracerStudy",
+      measures: ["FactTracerStudy.count_alumni"],
+      rowDims: ["DimProdi.jurusan"],
+      colDim: "DimKesesuaianBidang.label",
+      filters: [],
+    },
+  },
+  {
+    title: "Di jenis instansi apa alumni bekerja?",
+    input: {
+      cube: "FactTracerStudy",
+      measures: ["FactTracerStudy.count_alumni"],
+      rowDims: ["DimPerusahaan.label_jenis_perusahaan"],
+      colDim: null,
+      filters: [],
+    },
+  },
+];
+
+export function availableStarters(
+  catalog: ExplorerCatalog,
+  starters: StarterQuestion[] = STARTER_QUESTIONS,
+): StarterQuestion[] {
+  return starters.filter(({ input }) => {
+    const cube = catalog.cubes.find((c) => c.key === input.cube);
+    if (!cube) return false;
+
+    const measures = new Set(cube.measures.map((m) => m.key));
+    const dims = new Set(cube.dimension_groups.flatMap((g) => g.members.map((m) => m.key)));
+
+    return (
+      input.measures.every((m) => measures.has(m)) &&
+      [...input.rowDims, ...(input.colDim ? [input.colDim] : []), ...input.filters.map((f) => f.member)]
+        .every((d) => dims.has(d))
+    );
+  });
 }

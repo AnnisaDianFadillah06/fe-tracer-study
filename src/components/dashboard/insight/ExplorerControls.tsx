@@ -130,7 +130,7 @@ const ExplorerControls = ({ catalog, cube, input, onChange }: Props) => {
         {/* ── Measure ─────────────────────────────────────────── */}
         <div className="space-y-2">
           <div className="flex items-baseline justify-between">
-            <Label>Measure</Label>
+            <Label>Apa yang ingin dihitung?</Label>
             <span className="text-xs text-muted-foreground">
               {input.measures.length}/{catalog.limits.max_measures}
             </span>
@@ -156,7 +156,14 @@ const ExplorerControls = ({ catalog, cube, input, onChange }: Props) => {
                       onCheckedChange={() => toggleMeasure(m.key)}
                       className="mt-0.5"
                     />
-                    <span className="leading-snug">{m.label}</span>
+                    <span className="leading-snug">
+                      {m.label}
+                      {m.description && (
+                        <span className="block text-xs text-muted-foreground">
+                          {m.description}
+                        </span>
+                      )}
+                    </span>
                   </label>
                 );
               })}
@@ -168,10 +175,10 @@ const ExplorerControls = ({ catalog, cube, input, onChange }: Props) => {
 
         {/* ── Dimensi ─────────────────────────────────────────── */}
         <div className="space-y-3">
-          <Label>Dimensi</Label>
+          <Label>Kelompokkan menurut</Label>
 
           <DimensionSelect
-            label="Baris"
+            label="Kelompok utama (baris)"
             value={input.rowDims[0] ?? null}
             groups={availableFor("row0")}
             onChange={(key) => setRowDim(0, key)}
@@ -182,7 +189,7 @@ const ExplorerControls = ({ catalog, cube, input, onChange }: Props) => {
               apa-apa, dan menampilkannya hanya membuat panel ini ramai. */}
           {input.rowDims.length > 0 && maxRowDims > 1 && (
             <DimensionSelect
-              label="Baris kedua"
+              label="Lalu dipecah lagi per"
               value={input.rowDims[1] ?? null}
               groups={availableFor("row1")}
               onChange={(key) => setRowDim(1, key)}
@@ -190,7 +197,7 @@ const ExplorerControls = ({ catalog, cube, input, onChange }: Props) => {
           )}
 
           <DimensionSelect
-            label="Kolom"
+            label="Bandingkan berdampingan per (kolom)"
             value={input.colDim}
             groups={availableFor("col")}
             onChange={(key) =>
@@ -203,7 +210,7 @@ const ExplorerControls = ({ catalog, cube, input, onChange }: Props) => {
 
         {/* ── Filter ──────────────────────────────────────────── */}
         <div className="space-y-3">
-          <Label>Filter</Label>
+          <Label>Hanya tampilkan data…</Label>
 
           {input.filters.map((f) => (
             <ExplorerFilterRow
@@ -232,7 +239,7 @@ const ExplorerControls = ({ catalog, cube, input, onChange }: Props) => {
               <SelectTrigger className="text-muted-foreground">
                 <span className="flex items-center gap-2 text-sm">
                   <Plus className="h-3.5 w-3.5" />
-                  Tambah filter
+                  Tambah saringan
                 </span>
               </SelectTrigger>
               <SelectContent>
