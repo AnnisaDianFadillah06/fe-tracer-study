@@ -249,9 +249,9 @@ const dashboardItems: MenuItem[] = [
   // Dimatikan sementara -- fokus pengujian cuma di Overview/Employment/Education.
   // { title: "Analitik", href: "/dashboard/analytics", icon: BarChart3, description: "Clustering & Survival", permission: "dashboard.analytics" },
   // { title: "KPI Lintas Prodi", href: "/dashboard/kpi", icon: Gauge, description: "Perbandingan KPI antar program studi", permission: "dashboard.kpi" },
-  { title: "Multidimensi Insight", href: "/dashboard/multidimensi-insight", icon: Layers, description: "Eksplorasi data multidimensi", permission: "dashboard.multidimensi" },
-  { title: "Insight", href: "/dashboard/insight", icon: Compass, description: "Susun sendiri analisis multidimensi", permission: "dashboard.insight" },
-  { title: "Dashboard Saya", href: "/dashboard/insight/board", icon: LayoutGrid, description: "Pertanyaan Insight yang disematkan", permission: "dashboard.insight" },
+  { title: "Multidimensi Insight", href: "/dashboard/multidimensi-insight", icon: Layers, description: "Metabase untuk analis (tab baru)", permission: "dashboard.multidimensi" },
+  { title: "Insight", href: "/dashboard/insight", icon: Compass, description: "Buat analisis sendiri", permission: "dashboard.insight" },
+  { title: "Dashboard Saya", href: "/dashboard/insight/board", icon: LayoutGrid, description: "Analisis yang Anda sematkan", permission: "dashboard.insight" },
 ];
 
 // Konfigurasi lapisan OLAP/ETL. Semua di balik admin.threshold / admin.etl

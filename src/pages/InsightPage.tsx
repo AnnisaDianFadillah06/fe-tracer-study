@@ -3,24 +3,30 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   BookmarkPlus,
-  Compass,
   Download,
   LayoutGrid,
   Loader2,
+  MoreHorizontal,
   Pin,
-  Sparkles,
 } from "lucide-react";
 import { isAxiosError } from "axios";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import ExplorerControls from "@/components/dashboard/insight/ExplorerControls";
 import ExplorerResultView from "@/components/dashboard/insight/ExplorerResultView";
+import InsightStartPanel from "@/components/dashboard/insight/InsightStartPanel";
 import SaveQuestionDialog, {
   type SaveQuestionValues,
 } from "@/components/dashboard/insight/SaveQuestionDialog";
-import SavedQuestionsList from "@/components/dashboard/insight/SavedQuestionsList";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -96,6 +102,10 @@ const InsightPage = () => {
 
   const [chartMeasure, setChartMeasure] = useState<string | null>(null);
 
+  // Panel susun dibuka saat halaman baru dimulai; setelah contoh atau pertanyaan
+  // tersimpan dibuka, diringkas jadi satu kalimat supaya hasil langsung terlihat.
+  const [controlsOpen, setControlsOpen] = useState(true);
+
   const activeChartMeasure =
     result?.measures.find((m) => m.key === chartMeasure) ?? result?.measures[0] ?? null;
 
@@ -110,6 +120,17 @@ const InsightPage = () => {
             cube.dimension_groups.flatMap((g) => g.members).find((d) => d.key === k)?.label ?? k,
         )
       : "";
+
+  /** Kalimat ringkas untuk susunan mana pun (dipakai kartu contoh). */
+  const describeInput = (i: ExplorerQueryInput): string => {
+    const c = catalog?.cubes.find((x) => x.key === i.cube);
+    if (!c) return "";
+    return describeQuestion(
+      i,
+      (k) => measureLabelOf(c, k, i.formulas),
+      (k) => c.dimension_groups.flatMap((g) => g.members).find((d) => d.key === k)?.label ?? k,
+    );
+  };
 
   const applyInput = (next: ExplorerQueryInput) => {
     setInput(next);
@@ -141,6 +162,7 @@ const InsightPage = () => {
       appliedId.current = openQuestion.id;
       setInput(openQuestion.query);
       setChartMeasure(openQuestion.chart_measure);
+      setControlsOpen(false);
     }
   }, [openQuestion]);
 
@@ -153,6 +175,7 @@ const InsightPage = () => {
     appliedId.current = null;
     setSearchParams({});
     applyInput(next);
+    setControlsOpen(false);
   };
 
   const activeQuestion = questionId !== null && openQuestion?.id === questionId ? openQuestion : null;
@@ -263,58 +286,28 @@ const InsightPage = () => {
       )}
 
       {catalog && current && cube && (
-        <div className="grid gap-6 lg:grid-cols-4">
-          <div className="lg:col-span-1">
-            <ExplorerControls
-              catalog={catalog}
-              cube={cube}
-              input={current}
-              onChange={applyInput}
-            />
-          </div>
+        <div className="space-y-6">
+          <ExplorerControls
+            catalog={catalog}
+            cube={cube}
+            input={current}
+            onChange={applyInput}
+            open={controlsOpen || !isRunnable(current)}
+            onOpenChange={setControlsOpen}
+            summary={question}
+          />
 
-          <div className="space-y-6 lg:col-span-3">
+          <div className="space-y-6">
             {!isRunnable(current) && (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-                  <div className="rounded-full bg-primary/10 p-4">
-                    <Compass className="h-8 w-8 text-primary" />
-                  </div>
-                  <p className="max-w-md text-sm text-muted-foreground">
-                    Pilih apa yang ingin dihitung di panel kiri, lalu kelompokkan menurut
-                    jurusan, tahun lulus, atau lainnya. Atau mulai dari salah satu contoh:
-                  </p>
-
-                  {starters.length > 0 && (
-                    <div className="mt-2 flex max-w-2xl flex-wrap justify-center gap-2">
-                      {starters.map((s) => (
-                        <Button
-                          key={s.title}
-                          variant="outline"
-                          size="sm"
-                          className="h-auto whitespace-normal py-2 text-left"
-                          onClick={() => startFresh(s.input)}
-                        >
-                          <Sparkles className="mr-2 h-3.5 w-3.5 shrink-0 text-primary" />
-                          {s.title}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-
-                  {savedQuestions.length > 0 && (
-                    <div className="mt-6 w-full max-w-xl space-y-2">
-                      <p className="text-left text-sm font-medium">Pertanyaan tersimpan</p>
-                      <SavedQuestionsList
-                        questions={savedQuestions}
-                        activeId={questionId}
-                        onOpen={openSaved}
-                        onDelete={handleDelete}
-                      />
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <InsightStartPanel
+                starters={starters}
+                describe={describeInput}
+                savedQuestions={savedQuestions}
+                activeId={questionId}
+                onStart={startFresh}
+                onOpen={openSaved}
+                onDelete={handleDelete}
+              />
             )}
 
             {error && <QueryError error={error} />}
@@ -323,7 +316,7 @@ const InsightPage = () => {
               <Card>
                 <CardContent className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Menghitung…
+                  Menghitung{question ? `: ${question}` : ""}…
                 </CardContent>
               </Card>
             )}
@@ -343,9 +336,9 @@ const InsightPage = () => {
                     <p className="text-lg font-semibold">
                       {activeQuestion ? activeQuestion.title : question}
                       {dirty && (
-                        <span className="ml-2 text-sm font-normal text-muted-foreground">
-                          (diubah)
-                        </span>
+                        <Badge variant="secondary" className="ml-2 align-middle font-normal">
+                          Diubah
+                        </Badge>
                       )}
                     </p>
                     {activeQuestion && (
@@ -357,38 +350,41 @@ const InsightPage = () => {
                       </p>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {activeQuestion &&
-                      (pinned ? (
-                        <Button asChild variant="outline" size="sm">
-                          <Link to="/dashboard/insight/board">
-                            <LayoutGrid className="mr-2 h-4 w-4" />
-                            Lihat di Dashboard Saya
-                          </Link>
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handlePin}
-                          disabled={pinQuestion.isPending}
-                        >
-                          <Pin className="mr-2 h-4 w-4" />
-                          Sematkan ke Dashboard Saya
-                        </Button>
-                      ))}
-                    <Button variant="outline" size="sm" onClick={() => setSaveOpen(true)}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" onClick={() => setSaveOpen(true)}>
                       <BookmarkPlus className="mr-2 h-4 w-4" />
                       {activeQuestion?.is_mine ? "Simpan perubahan" : "Simpan"}
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => downloadCsv(result, activeQuestion?.title ?? question)}
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Unduh CSV
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <MoreHorizontal className="mr-2 h-4 w-4" />
+                          Lainnya
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {activeQuestion &&
+                          (pinned ? (
+                            <DropdownMenuItem asChild>
+                              <Link to="/dashboard/insight/board">
+                                <LayoutGrid className="mr-2 h-4 w-4" />
+                                Lihat di Dashboard Saya
+                              </Link>
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onSelect={handlePin} disabled={pinQuestion.isPending}>
+                              <Pin className="mr-2 h-4 w-4" />
+                              Sematkan ke Dashboard Saya
+                            </DropdownMenuItem>
+                          ))}
+                        <DropdownMenuItem
+                          onSelect={() => downloadCsv(result, activeQuestion?.title ?? question)}
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Unduh CSV
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
 
