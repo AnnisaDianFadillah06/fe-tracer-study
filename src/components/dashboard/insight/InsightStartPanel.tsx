@@ -67,10 +67,10 @@ const InsightStartPanel = ({
 
       <CardContent>
         <Tabs defaultValue="contoh">
-          <TabsList>
-            <TabsTrigger value="contoh">Contoh ({starters.length})</TabsTrigger>
-            <TabsTrigger value="mine">Tersimpan saya ({mine.length})</TabsTrigger>
-            <TabsTrigger value="shared">Dibagikan ({shared.length})</TabsTrigger>
+          <TabsList className="mb-4 flex h-auto w-fit flex-wrap gap-1.5 rounded-xl bg-muted/40 p-1.5">
+            <TabsTrigger value="contoh" className="rounded-lg px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow">Contoh ({starters.length})</TabsTrigger>
+            <TabsTrigger value="mine" className="rounded-lg px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow">Tersimpan saya ({mine.length})</TabsTrigger>
+            <TabsTrigger value="shared" className="rounded-lg px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow">Dibagikan ({shared.length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="contoh">

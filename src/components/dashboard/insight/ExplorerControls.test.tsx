@@ -32,55 +32,74 @@ const input: ExplorerQueryInput = {
   filters: [],
 };
 
-const renderControls = (open: boolean, onOpenChange = vi.fn()) =>
+const renderControls = (
+  props: Partial<{
+    summary: string;
+    fetching: boolean;
+    onChange: (next: ExplorerQueryInput) => void;
+    onReset: () => void;
+  }> = {},
+) =>
   render(
     <TooltipProvider>
       <ExplorerControls
         catalog={catalog}
         cube={catalog.cubes[0]}
         input={input}
-        onChange={vi.fn()}
-        open={open}
-        onOpenChange={onOpenChange}
-        summary="Jumlah alumni menurut Jurusan"
+        onChange={props.onChange ?? vi.fn()}
+        onReset={props.onReset ?? vi.fn()}
+        summary={props.summary ?? ""}
+        fetching={props.fetching ?? false}
       />
     </TooltipProvider>,
   );
 
-describe("ExplorerControls", () => {
-  it("terbuka: menampilkan tiga langkah bernomor dan pengaturan tampilan terlipat", () => {
-    renderControls(true);
+describe("ExplorerControls (pita filter)", () => {
+  it("menampilkan kontrol berlabel: dihitung, per, dibandingkan, batasi, tampilan", () => {
+    renderControls();
 
-    expect(screen.getByText(/1\. Apa yang ingin dihitung/)).toBeInTheDocument();
-    expect(screen.getByText(/2\. Dibagi menurut apa/)).toBeInTheDocument();
-    expect(screen.getByText(/3\. Batasi ke/)).toBeInTheDocument();
-    expect(screen.getByText("Pengaturan tampilan", { exact: false })).toBeInTheDocument();
-    // Terlipat bawaan: isinya belum dirender.
-    expect(screen.queryByText("Tampilkan jumlah sebagai")).not.toBeInTheDocument();
+    for (const label of ["Dihitung", "Per", "Dibandingkan antar", "Batasi", "Tampilan"]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 
   it("satu sumber data: pemilih sumber data tidak ditampilkan", () => {
-    renderControls(true);
+    renderControls();
 
-    expect(screen.queryByText("Data yang dianalisis")).not.toBeInTheDocument();
+    expect(screen.queryByText("Data")).not.toBeInTheDocument();
   });
 
-  it("pengaturan tampilan terbuka saat pemicunya diklik", () => {
-    renderControls(true);
+  it("belum ada pilihan: strip status mengajak memulai", () => {
+    renderControls();
 
-    fireEvent.click(screen.getByText("Pengaturan tampilan", { exact: false }));
-
-    expect(screen.getByText("Tampilkan jumlah sebagai")).toBeInTheDocument();
+    expect(screen.getByText(/Pilih apa yang ingin dihitung untuk memulai/)).toBeInTheDocument();
   });
 
-  it("diringkas: hanya kalimat ringkasan dan tombol Ubah susunan", () => {
-    const onOpenChange = vi.fn();
-    renderControls(false, onOpenChange);
+  it("strip status menampilkan kalimat pertanyaan dan status menghitung", () => {
+    renderControls({ summary: "Jumlah alumni menurut Jurusan", fetching: true });
 
     expect(screen.getByText("Jumlah alumni menurut Jurusan")).toBeInTheDocument();
-    expect(screen.queryByText(/1\. Apa yang ingin dihitung/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Menghitung/)).toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: /Ubah susunan/ }));
-    expect(onOpenChange).toHaveBeenCalledWith(true);
+  it("memilih ukuran dari popover Dihitung mengirim perubahan", () => {
+    const onChange = vi.fn();
+    renderControls({ onChange });
+
+    fireEvent.click(screen.getByRole("button", { name: /Pilih ukuran/ }));
+    fireEvent.click(screen.getByText("Jumlah alumni"));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ measures: ["Fact.count"] }),
+    );
+  });
+
+  it("tombol Reset memanggil onReset", () => {
+    const onReset = vi.fn();
+    renderControls({ onReset });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(onReset).toHaveBeenCalledTimes(1);
   });
 });

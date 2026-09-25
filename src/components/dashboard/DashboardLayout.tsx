@@ -40,9 +40,15 @@ let sidebarCollapsed = false;
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
+  /**
+   * Pita filter khusus halaman (mis. Insight), menempel di bawah top bar di
+   * slot yang sama dengan filter global. Tidak dipakai bersamaan dengan
+   * filter global.
+   */
+  filterBar?: React.ReactNode;
 }
 
-const DashboardLayout = ({ children }: DashboardLayoutProps) => {
+const DashboardLayout = ({ children, filterBar }: DashboardLayoutProps) => {
   const [collapsed, setCollapsedState] = useState(sidebarCollapsed);
   const setCollapsed = (value: boolean) => {
     sidebarCollapsed = value;
@@ -185,7 +191,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
       {/* Main Content */}
       <div
-        className="flex-1 flex flex-col transition-all duration-300"
+        className="min-w-0 flex-1 flex flex-col transition-all duration-300"
         style={{ marginLeft: collapsed ? 80 : 260 }}
       >
         {/* Top Bar */}
@@ -259,6 +265,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             />
           </div>
         )}
+
+        {filterBar && !showGlobalFilters && <div className="sticky top-16 z-20">{filterBar}</div>}
 
         {/* Page Content */}
         <main className="flex-1 p-6 overflow-auto">

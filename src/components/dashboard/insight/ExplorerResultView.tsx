@@ -4,6 +4,7 @@ import ExplorerChart from "./ExplorerChart";
 import ExplorerDrillDown, { type DrillRequest } from "./ExplorerDrillDown";
 import ExplorerFacets from "./ExplorerFacets";
 import PivotTable from "./PivotTable";
+import VizPicker from "./VizPicker";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -19,6 +20,8 @@ import {
   buildFacets,
   buildPivot,
   chartPivotOf,
+  applyViz,
+  availableViz,
   decideChart,
   describeDrillPoint,
   drillFilters,
@@ -31,6 +34,7 @@ import {
   type ExplorerQueryInput,
   type ExplorerResult,
   type Pivot,
+  type Viz,
 } from "@/lib/olapExplorer";
 
 interface Props {
@@ -38,12 +42,14 @@ interface Props {
   /** Saringan pertanyaan — ikut dikirim saat drill-down ke daftar alumni. */
   filters: ExplorerFilter[];
   /** Olah hasil yang murni tampilan: persen & selisih kolom. */
-  display?: Pick<ExplorerQueryInput, "percent" | "diff">;
+  display?: Pick<ExplorerQueryInput, "percent" | "diff" | "viz">;
   rowDims: string[];
   colDim: string | null;
   /** Measure yang digambar; null = measure pertama. */
   chartMeasure: string | null;
   onChartMeasureChange: (key: string) => void;
+  /** Ada = pemilih visualisasi ditampilkan (halaman Insight). Kosong di kartu Dashboard Saya. */
+  onVizChange?: (viz: Viz) => void;
   /**
    * Tampilan ringkas untuk kartu Dashboard Saya: chart lebih pendek, tanpa
    * bingkai kartu sendiri, dan tabel hanya muncul kalau chart tidak bisa
@@ -63,6 +69,7 @@ const ExplorerResultView = ({
   colDim,
   chartMeasure,
   onChartMeasureChange,
+  onVizChange,
   filters,
   display,
   compact = false,
@@ -142,7 +149,16 @@ const ExplorerResultView = ({
 
   // Keputusan chart memakai hasil yang sesungguhnya, bukan cuma jumlah dimensi
   // — dua dimensi baris bisa menghasilkan ratusan kelompok.
-  const chart = decideChart(rowDims, colDim, plan);
+  const base = decideChart(rowDims, colDim, plan);
+  const seriesCount = Math.max(...plan.facets.map((f) => f.pivot.columnKeys.length), 0);
+  const categoryCount = Math.max(...plan.facets.map((f) => f.pivot.rows.length), 0);
+  const vizOptions = availableViz(base, seriesCount, categoryCount);
+  const chart = applyViz(base, display?.viz, seriesCount, categoryCount);
+  const activeViz: Viz = vizOptions.includes(display?.viz ?? "auto") ? display?.viz ?? "auto" : "auto";
+  const vizPicker =
+    onVizChange && vizOptions.length > 1 && !(base.kind === "none" && base.reason) ? (
+      <VizPicker value={activeViz} options={vizOptions} onChange={onVizChange} />
+    ) : null;
 
   // Dimensi panel dipilih otomatis oleh buildFacets (yang nilainya paling
   // sedikit), jadi labelnya dibaca dari rencana itu — bukan dari slot yang
@@ -236,6 +252,10 @@ const ExplorerResultView = ({
         </div>
       )}
 
+      {!drawable && !chart.reason && chart.kind === "none" && vizPicker && (
+        <div className="flex justify-end">{vizPicker}</div>
+      )}
+
       {chart.kind === "none" && chart.reason && (
         <Alert>
           <Info className="h-4 w-4" />
@@ -258,7 +278,10 @@ const ExplorerResultView = ({
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-4 space-y-0 pb-2">
               <CardTitle className="text-base">{activeMeasure.label}</CardTitle>
-              {measurePicker}
+              <div className="flex flex-wrap items-center gap-2">
+                {measurePicker}
+                {vizPicker}
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {chartBody}

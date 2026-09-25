@@ -96,15 +96,12 @@ const InsightPage = () => {
     data: result,
     isFetching,
     error,
+    dataUpdatedAt,
   } = useExplorerQuery(
     current ?? { cube: "", measures: [], rowDims: [], colDim: null, filters: [] },
   );
 
   const [chartMeasure, setChartMeasure] = useState<string | null>(null);
-
-  // Panel susun dibuka saat halaman baru dimulai; setelah contoh atau pertanyaan
-  // tersimpan dibuka, diringkas jadi satu kalimat supaya hasil langsung terlihat.
-  const [controlsOpen, setControlsOpen] = useState(true);
 
   const activeChartMeasure =
     result?.measures.find((m) => m.key === chartMeasure) ?? result?.measures[0] ?? null;
@@ -162,7 +159,6 @@ const InsightPage = () => {
       appliedId.current = openQuestion.id;
       setInput(openQuestion.query);
       setChartMeasure(openQuestion.chart_measure);
-      setControlsOpen(false);
     }
   }, [openQuestion]);
 
@@ -175,7 +171,6 @@ const InsightPage = () => {
     appliedId.current = null;
     setSearchParams({});
     applyInput(next);
-    setControlsOpen(false);
   };
 
   const activeQuestion = questionId !== null && openQuestion?.id === questionId ? openQuestion : null;
@@ -231,42 +226,32 @@ const InsightPage = () => {
     });
   };
 
+  const handleReset = () => {
+    if (!current) return;
+    startFresh({ cube: current.cube, measures: [], rowDims: [], colDim: null, filters: [] });
+  };
+
+  // Pita filter menempel di bawah top bar, sama seperti filter global di
+  // dashboard lain; judul halaman sudah ada di top bar.
+  const filterBar =
+    catalog && current && cube ? (
+      <ExplorerControls
+        catalog={catalog}
+        cube={cube}
+        input={current}
+        onChange={applyInput}
+        onReset={handleReset}
+        summary={question}
+        fetching={isFetching && isRunnable(current)}
+        updatedAt={result ? dataUpdatedAt : undefined}
+      />
+    ) : undefined;
+
   return (
-    <DashboardLayout>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="font-heading text-2xl font-bold">Insight</h1>
-          <p className="text-muted-foreground">
-            Susun sendiri analisis multidimensi: pilih ukuran, pecah menurut dimensi apa pun,
-            dan saring sesuai kebutuhan.
-          </p>
-        </div>
-
-        {savedQuestions.length > 0 && (
-          <Select
-            value={activeQuestion ? String(activeQuestion.id) : ""}
-            onValueChange={(v) => {
-              const q = savedQuestions.find((x) => String(x.id) === v);
-              if (q) openSaved(q);
-            }}
-          >
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder={`Pertanyaan tersimpan (${savedQuestions.length})`} />
-            </SelectTrigger>
-            <SelectContent>
-              {savedQuestions.map((q) => (
-                <SelectItem key={q.id} value={String(q.id)}>
-                  {q.title}
-                  {!q.is_mine && q.owner_name ? ` — ${q.owner_name}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
+    <DashboardLayout filterBar={filterBar}>
+      <div className="mx-auto max-w-[1400px] space-y-4">
       {openError && (
-        <Alert variant="destructive" className="mb-6">
+        <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Pertanyaan tidak bisa dibuka</AlertTitle>
           <AlertDescription>{apiMessage(openError)}</AlertDescription>
@@ -286,18 +271,8 @@ const InsightPage = () => {
       )}
 
       {catalog && current && cube && (
-        <div className="space-y-6">
-          <ExplorerControls
-            catalog={catalog}
-            cube={cube}
-            input={current}
-            onChange={applyInput}
-            open={controlsOpen || !isRunnable(current)}
-            onOpenChange={setControlsOpen}
-            summary={question}
-          />
-
-          <div className="space-y-6">
+        <div className="space-y-4">
+          <div className="space-y-4">
             {!isRunnable(current) && (
               <InsightStartPanel
                 starters={starters}
@@ -351,6 +326,27 @@ const InsightPage = () => {
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {savedQuestions.length > 0 && (
+          <Select
+            value={activeQuestion ? String(activeQuestion.id) : ""}
+            onValueChange={(v) => {
+              const q = savedQuestions.find((x) => String(x.id) === v);
+              if (q) openSaved(q);
+            }}
+          >
+            <SelectTrigger className="h-9 w-56 text-sm">
+              <SelectValue placeholder={`Pertanyaan tersimpan (${savedQuestions.length})`} />
+            </SelectTrigger>
+            <SelectContent>
+              {savedQuestions.map((q) => (
+                <SelectItem key={q.id} value={String(q.id)}>
+                  {q.title}
+                  {!q.is_mine && q.owner_name ? ` — ${q.owner_name}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+                    )}
                     <Button size="sm" onClick={() => setSaveOpen(true)}>
                       <BookmarkPlus className="mr-2 h-4 w-4" />
                       {activeQuestion?.is_mine ? "Simpan perubahan" : "Simpan"}
@@ -407,12 +403,14 @@ const InsightPage = () => {
                   display={current}
                   chartMeasure={chartMeasure}
                   onChartMeasureChange={setChartMeasure}
+                  onVizChange={(viz) => setInput({ ...current, viz })}
                 />
               </>
             )}
           </div>
         </div>
       )}
+      </div>
       <SaveQuestionDialog
         open={saveOpen}
         onOpenChange={(o) => {

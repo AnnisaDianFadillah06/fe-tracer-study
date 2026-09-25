@@ -149,7 +149,37 @@ export interface ExplorerResult {
 //  Pemilihan tipe chart
 // ═══════════════════════════════════════════════════════════
 
-export type ChartKind = "number" | "bar" | "line" | "grouped-bar" | "none";
+export type ChartKind =
+  | "number"
+  | "bar"
+  | "line"
+  | "grouped-bar"
+  | "area"
+  | "row"
+  | "stacked"
+  | "pie"
+  | "none";
+
+/**
+ * Pilihan visualisasi pengguna, seperti "Visualization" di Metabase. "auto"
+ * menyerahkan bentuknya ke `chooseChartKind`; yang lain memaksa bentuk itu
+ * selama datanya memungkinkan (lihat `availableViz`).
+ */
+export type Viz = "auto" | "table" | "bar" | "row" | "line" | "area" | "stacked" | "pie";
+
+export const VIZ_LABELS: Record<Viz, string> = {
+  auto: "Otomatis",
+  table: "Tabel",
+  bar: "Batang",
+  row: "Batang mendatar",
+  line: "Garis",
+  area: "Area",
+  stacked: "Batang bertumpuk",
+  pie: "Pai",
+};
+
+/** Lebih dari ini irisan pai tidak lagi bisa dibedakan. */
+export const MAX_PIE_SLICES = 12;
 
 /**
  * Dimensi yang nilainya berurutan dan enak dibaca sebagai garis. Hanya tahun
@@ -291,6 +321,52 @@ export function decideChart(
   }
 
   return { kind, faceted };
+}
+
+/**
+ * Visualisasi yang boleh dipilih untuk hasil ini. Kosong bila tidak ada yang
+ * bisa dipilih (angka tunggal, atau terlalu banyak dimensi untuk digambar).
+ *
+ * - Pai hanya untuk satu seri: pai berseri banyak tidak punya arti.
+ * - Bertumpuk hanya bila ada lebih dari satu seri; itu satu-satunya cara ia
+ *   berbeda dari batang biasa.
+ */
+export function availableViz(
+  decision: ChartDecision,
+  series: number,
+  categories: number,
+): Viz[] {
+  if (decision.kind === "number") return [];
+  if (decision.kind === "none" && decision.reason) return ["auto", "table"];
+
+  const out: Viz[] = ["auto", "bar", "row", "line", "area"];
+  if (series > 1) out.push("stacked");
+  if (series <= 1 && categories <= MAX_PIE_SLICES) out.push("pie");
+  out.push("table");
+
+  return out;
+}
+
+/**
+ * Terapkan pilihan pengguna ke keputusan otomatis. Pilihan yang tidak lagi
+ * tersedia (mis. pai setelah dimensi kolom ditambah) diabaikan diam-diam dan
+ * jatuh ke otomatis, supaya pertanyaan tersimpan tidak pernah rusak.
+ */
+export function applyViz(
+  decision: ChartDecision,
+  viz: Viz | undefined,
+  series: number,
+  categories: number,
+): ChartDecision {
+  if (!viz || viz === "auto") return decision;
+  if (!availableViz(decision, series, categories).includes(viz)) return decision;
+
+  if (viz === "table") return { kind: "none", faceted: false };
+
+  const kind: ChartKind =
+    viz === "bar" ? (series > 1 ? "grouped-bar" : "bar") : viz;
+
+  return { kind, faceted: decision.faceted };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -583,6 +659,8 @@ export interface ExplorerQueryInput {
   percent?: PercentMode;
   /** Tampilan saja — diolah di sisi ini, tidak dikirim. */
   diff?: ColumnDiff | null;
+  /** Bentuk visualisasi pilihan pengguna; kosong = otomatis. */
+  viz?: Viz;
 }
 
 /**
@@ -929,6 +1007,7 @@ export function sameQuestion(a: ExplorerQueryInput, b: ExplorerQueryInput): bool
       q.sort ? [q.sort.by, q.sort.direction, q.sort.limit ?? null] : null,
       q.percent ?? "none",
       q.diff ? [q.diff.a, q.diff.b] : null,
+      q.viz ?? "auto",
     ]);
 
   return canon(a) === canon(b);

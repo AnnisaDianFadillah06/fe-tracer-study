@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyViz,
+  availableViz,
   SINGLE_COLUMN,
   buildFacets,
   buildPivot,
@@ -440,5 +442,55 @@ describe("canTotal", () => {
     expect(canTotal("integer")).toBe(true);
     expect(canTotal("decimal")).toBe(false);
     expect(canTotal("currency")).toBe(false);
+  });
+});
+
+describe("availableViz / applyViz", () => {
+  const bar = { kind: "bar", faceted: false } as const;
+
+  it("angka tunggal tidak punya pilihan visualisasi", () => {
+    expect(availableViz({ kind: "number", faceted: false }, 1, 1)).toEqual([]);
+  });
+
+  it("satu seri: pai tersedia, batang bertumpuk tidak", () => {
+    const opts = availableViz(bar, 1, 5);
+    expect(opts).toContain("pie");
+    expect(opts).not.toContain("stacked");
+  });
+
+  it("banyak seri: bertumpuk tersedia, pai tidak", () => {
+    const opts = availableViz({ kind: "grouped-bar", faceted: false }, 3, 5);
+    expect(opts).toContain("stacked");
+    expect(opts).not.toContain("pie");
+  });
+
+  it("pai disembunyikan bila irisannya terlalu banyak", () => {
+    expect(availableViz(bar, 1, 40)).not.toContain("pie");
+  });
+
+  it("chart yang ditolak (ada alasan) hanya boleh otomatis atau tabel", () => {
+    expect(availableViz({ kind: "none", faceted: false, reason: "terlalu banyak" }, 1, 300)).toEqual([
+      "auto",
+      "table",
+    ]);
+  });
+
+  it("otomatis mengembalikan keputusan asli", () => {
+    expect(applyViz(bar, "auto", 1, 5)).toBe(bar);
+    expect(applyViz(bar, undefined, 1, 5)).toBe(bar);
+  });
+
+  it("tabel = tanpa chart dan tanpa alasan", () => {
+    expect(applyViz(bar, "table", 1, 5)).toEqual({ kind: "none", faceted: false });
+  });
+
+  it("batang dengan banyak seri menjadi batang berkelompok", () => {
+    expect(applyViz(bar, "bar", 3, 5).kind).toBe("grouped-bar");
+    expect(applyViz(bar, "bar", 1, 5).kind).toBe("bar");
+  });
+
+  it("pilihan yang tidak lagi tersedia jatuh ke otomatis", () => {
+    expect(applyViz(bar, "pie", 3, 5)).toBe(bar);
+    expect(applyViz(bar, "stacked", 1, 5)).toBe(bar);
   });
 });
