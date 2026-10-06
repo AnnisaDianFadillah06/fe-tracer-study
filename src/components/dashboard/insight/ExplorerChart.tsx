@@ -20,6 +20,7 @@ import {
   SINGLE_COLUMN,
   chartSeriesNames,
   minChartWidth,
+  formatAxisValue,
   formatMeasure,
   toChartData,
   type CatalogMeasure,
@@ -79,12 +80,7 @@ const ExplorerChart = ({
 
   // Nilai measure bisa besar (rupiah) — sumbu Y dipendekkan supaya labelnya
   // tidak memakan lebar chart.
-  const axisFormatter = (value: number) =>
-    Math.abs(value) >= 1_000_000
-      ? `${(value / 1_000_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} jt`
-      : Math.abs(value) >= 1_000
-        ? `${(value / 1_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} rb`
-        : value.toLocaleString("id-ID");
+  const axisFormatter = formatAxisValue;
 
   const showLegend = series.length > 1 && !hideLegend;
 
@@ -116,8 +112,8 @@ const ExplorerChart = ({
   const lebarMinimum = minChartWidth(data.length, series.length);
 
   const margin = { top: 8, right: 16, bottom: 8, left: 8 };
-  // Legenda kecil dengan teks netral dan hanya penanda berwarna, seperti
-  // Metabase — teks berwarna seri sulit dibaca dan berebut perhatian dengan chart.
+  // Legenda kecil dengan teks netral dan hanya penanda berwarna.
+  // Teks berwarna seri sulit dibaca dan berebut perhatian dengan chart.
   const legend = (
     <Legend
       iconType="circle"

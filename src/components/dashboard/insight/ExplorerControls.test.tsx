@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import ExplorerControls from "./ExplorerControls";
@@ -41,6 +42,7 @@ const renderControls = (
   }> = {},
 ) =>
   render(
+    <MemoryRouter>
     <TooltipProvider>
       <ExplorerControls
         catalog={catalog}
@@ -51,14 +53,15 @@ const renderControls = (
         summary={props.summary ?? ""}
         fetching={props.fetching ?? false}
       />
-    </TooltipProvider>,
+    </TooltipProvider>
+    </MemoryRouter>,
   );
 
 describe("ExplorerControls (pita filter)", () => {
   it("menampilkan kontrol berlabel: dihitung, per, dibandingkan, batasi, tampilan", () => {
     renderControls();
 
-    for (const label of ["Dihitung", "Per", "Dibandingkan antar", "Batasi", "Tampilan"]) {
+    for (const label of ["Dihitung", "Per (Dice)", "Dibandingkan antar (Dice)", "Batasi (Slice)", "Tampilan"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
   });
@@ -101,5 +104,14 @@ describe("ExplorerControls (pita filter)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 
     expect(onReset).toHaveBeenCalledTimes(1);
+  });
+
+  it("menyediakan tautan ke Dashboard Saya", () => {
+    renderControls();
+
+    expect(screen.getByRole("link", { name: "Dashboard Saya" })).toHaveAttribute(
+      "href",
+      "/dashboard/insight/board",
+    );
   });
 });

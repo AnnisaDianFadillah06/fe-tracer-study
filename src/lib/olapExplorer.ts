@@ -158,17 +158,19 @@ export type ChartKind =
   | "row"
   | "stacked"
   | "pie"
+  | "combo"
   | "none";
 
 /**
- * Pilihan visualisasi pengguna, seperti "Visualization" di Metabase. "auto"
+ * Pilihan visualisasi pengguna. "auto"
  * menyerahkan bentuknya ke `chooseChartKind`; yang lain memaksa bentuk itu
  * selama datanya memungkinkan (lihat `availableViz`).
  */
-export type Viz = "auto" | "table" | "bar" | "row" | "line" | "area" | "stacked" | "pie";
+export type Viz = "auto" | "combo" | "table" | "bar" | "row" | "line" | "area" | "stacked" | "pie";
 
 export const VIZ_LABELS: Record<Viz, string> = {
   auto: "Otomatis",
+  combo: "Semua ukuran",
   table: "Tabel",
   bar: "Batang",
   row: "Batang mendatar",
@@ -324,6 +326,22 @@ export function decideChart(
 }
 
 /**
+ * Chart "semua ukuran" hanya bila ada ≥2 ukuran dan satu seri (tanpa dimensi
+ * kolom, tanpa panel): kolom + panel + ukuran akan jadi tiga sumbu perbedaan
+ * sekaligus dan tidak lagi terbaca.
+ */
+export function canCombo(decision: ChartDecision, series: number, measures: number): boolean {
+  return (
+    measures > 1 &&
+    series <= 1 &&
+    !decision.faceted &&
+    decision.kind !== "none" &&
+    decision.kind !== "number" &&
+    decision.kind !== "pie"
+  );
+}
+
+/**
  * Visualisasi yang boleh dipilih untuk hasil ini. Kosong bila tidak ada yang
  * bisa dipilih (angka tunggal, atau terlalu banyak dimensi untuk digambar).
  *
@@ -335,11 +353,14 @@ export function availableViz(
   decision: ChartDecision,
   series: number,
   categories: number,
+  measures = 1,
 ): Viz[] {
   if (decision.kind === "number") return [];
   if (decision.kind === "none" && decision.reason) return ["auto", "table"];
 
-  const out: Viz[] = ["auto", "bar", "row", "line", "area"];
+  const out: Viz[] = ["auto"];
+  if (canCombo(decision, series, measures)) out.push("combo");
+  out.push("bar", "row", "line", "area");
   if (series > 1) out.push("stacked");
   if (series <= 1 && categories <= MAX_PIE_SLICES) out.push("pie");
   out.push("table");
@@ -357,9 +378,14 @@ export function applyViz(
   viz: Viz | undefined,
   series: number,
   categories: number,
+  measures = 1,
 ): ChartDecision {
+  // "Semua ukuran" hanya lewat pilihan manual; otomatis tetap seperti semula
+  // supaya tampilan hasil lama tidak berubah.
   if (!viz || viz === "auto") return decision;
-  if (!availableViz(decision, series, categories).includes(viz)) return decision;
+  if (!availableViz(decision, series, categories, measures).includes(viz)) return decision;
+
+  if (viz === "combo") return { kind: "combo", faceted: false };
 
   if (viz === "table") return { kind: "none", faceted: false };
 
@@ -605,6 +631,49 @@ export function toChartData(pivot: Pivot, measureKey: string): ChartDatum[] {
   });
 }
 
+export interface ComboSeries {
+  /** Kunci aman di data chart (kunci measure asli memuat titik). */
+  dataKey: string;
+  measure: CatalogMeasure;
+  axis: "left" | "right";
+  shape: "bar" | "line";
+}
+
+/**
+ * Menaruh ukuran-ukuran berbeda satuan pada sumbu Y yang berbeda. Ukuran
+ * dengan format sama seperti ukuran pertama memakai sumbu kiri (batang);
+ * sisanya sumbu kanan (garis). Jumlah alumni dan rata-rata gaji pada satu
+ * sumbu akan membuat salah satunya rata di dasar.
+ */
+export function comboSeries(measures: CatalogMeasure[]): ComboSeries[] {
+  const first = measures[0]?.format;
+
+  return measures.map((measure, i) => {
+    const left = measure.format === first;
+    return { dataKey: `m${i}`, measure, axis: left ? "left" : "right", shape: left ? "bar" : "line" };
+  });
+}
+
+/** Satu baris per kelompok, satu kolom data per ukuran (lihat ComboSeries.dataKey). */
+export function toComboData(pivot: Pivot, series: ComboSeries[]): ChartDatum[] {
+  const column = pivot.columnKeys[0] ?? SINGLE_COLUMN;
+
+  return pivot.rows.map((row) => {
+    const datum: ChartDatum = { name: row.keys.join(" · ") || "Total" };
+    for (const s of series) datum[s.dataKey] = row.cells[column]?.[s.measure.key]?.value ?? null;
+    return datum;
+  });
+}
+
+/** Label sumbu Y: ribuan jadi "rb", jutaan jadi "jt". */
+export function formatAxisValue(value: number): string {
+  return Math.abs(value) >= 1_000_000
+    ? `${(value / 1_000_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} jt`
+    : Math.abs(value) >= 1_000
+      ? `${(value / 1_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} rb`
+      : value.toLocaleString("id-ID");
+}
+
 export function chartSeriesNames(pivot: Pivot): string[] {
   return pivot.columnKeys.map((c) => (c === SINGLE_COLUMN ? "nilai" : c));
 }
@@ -685,6 +754,16 @@ export function toRequestBody(input: ExplorerQueryInput) {
     sort: input.sort ?? null,
     column_dimension: input.colDim,
   };
+}
+
+/**
+ * Tukar dimensi Baris pertama dengan dimensi Kolom (pivot/rotate). Tidak
+ * melakukan apa-apa bila salah satunya kosong.
+ */
+export function swapRowsColumns(input: ExplorerQueryInput): ExplorerQueryInput {
+  if (input.colDim === null || input.rowDims.length === 0) return input;
+
+  return { ...input, rowDims: [input.colDim, ...input.rowDims.slice(1)], colDim: input.rowDims[0] };
 }
 
 /** Permintaan siap dijalankan? Minimal satu ukuran atau rumus; dimensi boleh kosong. */
@@ -953,6 +1032,20 @@ export const STARTER_QUESTIONS: StarterQuestion[] = [
     },
   },
   {
+    title: "Profil tiap jurusan: jumlah, gaji, dan masa tunggu sekaligus",
+    input: {
+      cube: "FactTracerStudy",
+      measures: [
+        "FactTracerStudy.count_alumni",
+        "FactTracerStudy.avg_take_home_pay",
+        "FactTracerStudy.avg_masa_tunggu_bekerja",
+      ],
+      rowDims: ["DimProdi.jurusan"],
+      colDim: null,
+      filters: [],
+    },
+  },
+  {
     title: "Apakah menunggu kerja lebih lama berarti gaji lebih kecil?",
     input: {
       cube: "FactTracerStudy",
@@ -1044,6 +1137,61 @@ export function drillPointOf(
   if (colDim && colKey !== SINGLE_COLUMN) point[colDim] = colKey;
 
   return Object.values(point).some((v) => v === undefined || v === EMPTY_VALUE) ? null : point;
+}
+
+/**
+ * Slice: saring ke SATU titik (satu nilai per dimensi pada titik itu).
+ */
+export function sliceInput(input: ExplorerQueryInput, point: DrillPoint): ExplorerQueryInput {
+  return { ...input, filters: drillFilters(input.filters, point) };
+}
+
+/**
+ * Dice: sub-kubus dari beberapa titik. Tiap dimensi yang muncul disaring ke
+ * himpunan nilai dari semua titik (A ∈ {…}, B ∈ {…}); saringan lama pada
+ * dimensi yang sama digantikan.
+ */
+export function diceInput(input: ExplorerQueryInput, points: DrillPoint[]): ExplorerQueryInput {
+  const values = new Map<string, string[]>();
+  for (const point of points) {
+    for (const [dim, value] of Object.entries(point)) {
+      const list = values.get(dim) ?? [];
+      if (!list.includes(value)) list.push(value);
+      values.set(dim, list);
+    }
+  }
+
+  return {
+    ...input,
+    filters: [
+      ...input.filters.filter((f) => !values.has(f.member)),
+      ...[...values.entries()].map(([member, vals]) => ({
+        member,
+        operator: "equals" as const,
+        values: vals,
+      })),
+    ],
+  };
+}
+
+/**
+ * Roll-up: kebalikan drill-down, turunan dari susunan saat ini (tanpa riwayat).
+ * Dengan ≥2 dimensi baris, dimensi terakhir dilepas beserta saringan pada
+ * dimensi di atasnya (titik yang tadi dirinci). Selain itu, saringan aktif
+ * terakhir dilepas. Null bila tak ada yang bisa dilepas.
+ */
+export function rollUpInput(input: ExplorerQueryInput): ExplorerQueryInput | null {
+  if (input.rowDims.length >= 2) {
+    const rowDims = input.rowDims.slice(0, -1);
+    const parent = rowDims[rowDims.length - 1];
+    return { ...input, rowDims, filters: input.filters.filter((f) => f.member !== parent) };
+  }
+
+  const active = input.filters.filter(filterIsActive);
+  if (active.length === 0) return null;
+
+  const last = active[active.length - 1];
+  return { ...input, filters: input.filters.filter((f) => f !== last) };
 }
 
 /**

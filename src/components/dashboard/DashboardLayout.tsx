@@ -96,6 +96,7 @@ const DashboardLayout = ({ children, filterBar }: DashboardLayoutProps) => {
   const allItems = menu.flatMap((g) => g.items);
   // Item yang paling spesifik menang: di /dashboard/insight/board yang aktif
   // "Dashboard Saya", bukan juga "Insight" yang href-nya awalan dari path itu.
+  const isBoard = location.pathname === "/dashboard/insight/board";
   const currentItem = allItems
     .filter((item) => location.pathname === item.href || location.pathname.startsWith(item.href + "/"))
     .sort((x, y) => y.href.length - x.href.length)[0];
@@ -199,10 +200,10 @@ const DashboardLayout = ({ children, filterBar }: DashboardLayoutProps) => {
           <div className="flex items-center gap-4">
             <div className="hidden md:block">
               <h1 className="font-heading font-semibold text-lg">
-                {currentItem?.title || "Dashboard"}
+                {isBoard ? "Dashboard Saya" : currentItem?.title || "Dashboard"}
               </h1>
               <p className="text-sm text-muted-foreground">
-                {currentItem?.description}
+                {isBoard ? "Analisis yang Anda sematkan" : currentItem?.description}
               </p>
             </div>
           </div>

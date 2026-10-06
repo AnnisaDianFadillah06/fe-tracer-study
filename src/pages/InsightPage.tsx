@@ -48,10 +48,14 @@ import {
 import {
   availableStarters,
   describeQuestion,
+  diceInput,
+  drillFilters,
   isRunnable,
   measureLabelOf,
+  rollUpInput,
   sameQuestion,
   toCsv,
+  type DrillPoint,
   type ExplorerQueryInput,
   type ExplorerResult,
 } from "@/lib/olapExplorer";
@@ -64,8 +68,7 @@ import {
  * seluruhnya berasal dari katalog peladen (config/olap_catalog.php), jadi
  * halaman ini tidak pernah menebak nama measure atau dimensi Cube.js sendiri.
  *
- * Berbeda dari halaman Multidimensi Insight yang menautkan ke Metabase
- * eksternal, seluruh jalur di sini tetap di dalam SmartTracer dan tunduk pada
+ * Seluruh jalur di sini tetap di dalam SmartTracer dan tunduk pada
  * pembatasan prodi yang sama dengan dashboard lain.
  */
 const InsightPage = () => {
@@ -226,6 +229,37 @@ const InsightPage = () => {
     });
   };
 
+  /**
+   * Slice: saring ke kelompok yang diklik. Dengan `drillDim`, sekaligus
+   * dirinci (drill-down) per dimensi itu sebagai Baris berikutnya.
+   */
+  const handleSlice = (point: DrillPoint, drillDim?: string) => {
+    if (!current) return;
+    applyInput({
+      ...current,
+      filters: drillFilters(current.filters, point),
+      rowDims: drillDim ? [...current.rowDims, drillDim] : current.rowDims,
+    });
+  };
+
+  // Dimensi yang masih boleh dipakai "Rinci per": belum terpakai dan muat di
+  // batas dimensi katalog.
+  const drillDimensions = useMemo(() => {
+    if (!current || !cube || !catalog) return [];
+    const used = new Set([...current.rowDims, ...(current.colDim ? [current.colDim] : [])]);
+    if (used.size >= catalog.limits.max_dimensions) return [];
+    return cube.dimension_groups.flatMap((g) => g.members).filter((d) => !used.has(d.key));
+  }, [current, cube, catalog]);
+
+  const handleDice = (points: DrillPoint[]) => {
+    if (current) applyInput(diceInput(current, points));
+  };
+
+  const rolledUp = current ? rollUpInput(current) : null;
+  const handleRollUp = () => {
+    if (rolledUp) applyInput(rolledUp);
+  };
+
   const handleReset = () => {
     if (!current) return;
     startFresh({ cube: current.cube, measures: [], rowDims: [], colDim: null, filters: [] });
@@ -241,6 +275,7 @@ const InsightPage = () => {
         input={current}
         onChange={applyInput}
         onReset={handleReset}
+        onRollUp={rolledUp ? handleRollUp : undefined}
         summary={question}
         fetching={isFetching && isRunnable(current)}
         updatedAt={result ? dataUpdatedAt : undefined}
@@ -404,6 +439,10 @@ const InsightPage = () => {
                   chartMeasure={chartMeasure}
                   onChartMeasureChange={setChartMeasure}
                   onVizChange={(viz) => setInput({ ...current, viz })}
+                  onSlice={handleSlice}
+                  onDice={handleDice}
+                  onRollUp={rolledUp ? handleRollUp : undefined}
+                  drillDimensions={drillDimensions}
                 />
               </>
             )}

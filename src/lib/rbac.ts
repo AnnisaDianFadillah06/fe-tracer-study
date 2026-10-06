@@ -19,8 +19,6 @@ import {
   ShieldQuestion,
   History,
   Layers,
-  Compass,
-  LayoutGrid,
   Mail,
 } from "lucide-react";
 
@@ -63,17 +61,10 @@ export type Permission =
   // KPI lintas prodi. BE: /api/dashboard/kpi/13/* hanya di balik auth:sanctum
   // tanpa gate role, jadi semua role dashboard boleh.
   | "dashboard.kpi"
-  // Eksplorasi data multidimensi via dashboard Metabase eksternal (embed
-  // iframe). Bukan endpoint BE tracer study kita -- Metabase punya auth
-  // publik-nya sendiri per dashboard UUID, jadi gate di sini murni soal
-  // siapa yang boleh melihat menu/route-nya di FE.
-  | "dashboard.multidimensi"
-  // OLAP Explorer bawaan SmartTracer (halaman Insight). Berbeda dari
-  // dashboard.multidimensi yang menautkan ke Metabase eksternal, ini
-  // memanggil /api/dashboard/explorer/* milik kita sendiri -- lengkap dengan
-  // pembatasan prodi yang sama dengan dashboard lain. Dipisah dari
-  // dashboard.multidimensi supaya keduanya bisa diberikan atau dicabut
-  // sendiri-sendiri.
+  // OLAP Explorer bawaan SmartTracer (halaman Multidimensi Insight). Memanggil
+  // /api/dashboard/explorer/* milik kita sendiri -- lengkap dengan pembatasan
+  // prodi yang sama dengan dashboard lain. Dashboard Saya (disematkan dari
+  // halaman ini) memakai permission yang sama.
   | "dashboard.insight"
   | "admin.user"
   // Konfigurasi threshold & UMP. BE menggate seluruh prefix ump dan semua
@@ -124,7 +115,6 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.education",
     "dashboard.analytics",
     "dashboard.kpi",
-    "dashboard.multidimensi",
     "dashboard.insight",
     "admin.user",
     "admin.threshold",
@@ -149,7 +139,6 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.education",
     "dashboard.analytics",
     "dashboard.kpi",
-    "dashboard.multidimensi",
     "dashboard.insight",
     "admin.questionnaire",
     "admin.questionnaire.request",
@@ -166,7 +155,6 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.education",
     "dashboard.analytics",
     "dashboard.kpi",
-    "dashboard.multidimensi",
     "dashboard.insight",
     "academic.alumni_data",
     "academic.questionnaire_results",
@@ -176,7 +164,6 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.employment",
     "dashboard.education",
     "dashboard.kpi",
-    "dashboard.multidimensi",
     "dashboard.insight",
     "academic.alumni_data",
     "academic.questionnaire_results",
@@ -186,7 +173,6 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.employment",
     "dashboard.education",
     "dashboard.kpi",
-    "dashboard.multidimensi",
     "dashboard.insight",
     "academic.alumni_data",
     "academic.questionnaire_results",
@@ -205,7 +191,6 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.employment",
     "dashboard.education",
     "dashboard.kpi",
-    "dashboard.multidimensi",
     "dashboard.insight",
     "academic.alumni_data",
     "academic.questionnaire_results",
@@ -249,9 +234,7 @@ const dashboardItems: MenuItem[] = [
   // Dimatikan sementara -- fokus pengujian cuma di Overview/Employment/Education.
   // { title: "Analitik", href: "/dashboard/analytics", icon: BarChart3, description: "Clustering & Survival", permission: "dashboard.analytics" },
   // { title: "KPI Lintas Prodi", href: "/dashboard/kpi", icon: Gauge, description: "Perbandingan KPI antar program studi", permission: "dashboard.kpi" },
-  { title: "Multidimensi Insight", href: "/dashboard/multidimensi-insight", icon: Layers, description: "Metabase untuk analis (tab baru)", permission: "dashboard.multidimensi" },
-  { title: "Insight", href: "/dashboard/insight", icon: Compass, description: "Buat analisis sendiri", permission: "dashboard.insight" },
-  { title: "Dashboard Saya", href: "/dashboard/insight/board", icon: LayoutGrid, description: "Analisis yang Anda sematkan", permission: "dashboard.insight" },
+  { title: "Multidimensi Insight", href: "/dashboard/insight", icon: Layers, description: "Eksplorasi data multidimensi", permission: "dashboard.insight" },
 ];
 
 // Konfigurasi lapisan OLAP/ETL. Semua di balik admin.threshold / admin.etl
@@ -323,7 +306,6 @@ export const routePermissionMap: Record<string, Permission> = {
   "/dashboard/employment": "dashboard.employment",
   "/dashboard/education": "dashboard.education",
   // "/dashboard/analytics": "dashboard.analytics",
-  "/dashboard/multidimensi-insight": "dashboard.multidimensi",
   "/dashboard/insight": "dashboard.insight",
   "/dashboard/insight/board": "dashboard.insight",
   "/dashboard/staff-management": "admin.user",

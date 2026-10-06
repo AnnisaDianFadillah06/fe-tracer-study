@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
-import { Calculator, ChevronDown, Clock, Loader2, Plus, Sigma, SlidersHorizontal, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowLeftRight, ArrowUpToLine, Calculator, ChevronDown, Clock, LayoutGrid, Loader2, Plus, Sigma, SlidersHorizontal, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,6 +24,7 @@ import { useDimensionValues } from "@/hooks/useExplorer";
 import {
   lowerFirst,
   measureLabelOf,
+  swapRowsColumns,
   type CatalogCube,
   type ExplorerCatalog,
   type ExplorerQueryInput,
@@ -41,6 +43,8 @@ interface Props {
   onChange: (next: ExplorerQueryInput) => void;
   /** Kembali ke susunan kosong. */
   onReset: () => void;
+  /** Roll-up: ada hanya bila masih ada slice/dice/rincian yang bisa dilepas. */
+  onRollUp?: () => void;
   /** Kalimat ringkas susunan saat ini, tampil di strip status. */
   summary: string;
   fetching: boolean;
@@ -73,6 +77,7 @@ const ExplorerControls = ({
   input,
   onChange,
   onReset,
+  onRollUp,
   summary,
   fetching,
   updatedAt,
@@ -386,8 +391,8 @@ const ExplorerControls = ({
         </Field>
 
         <DimensionSelect
-          label="Per"
-          hint="Memecah hasil menjadi kelompok, misalnya per jurusan atau per tahun lulus. Kosongkan untuk satu angka total."
+          label="Per (Dice)"
+          hint="Memecah hasil menjadi kelompok (dice), misalnya per jurusan atau per tahun lulus. Kosongkan untuk satu angka total."
           value={input.rowDims[0] ?? null}
           groups={availableFor("row0")}
           onChange={(key) => setRowDim(0, key)}
@@ -398,7 +403,7 @@ const ExplorerControls = ({
             apa-apa. */}
         {input.rowDims.length > 0 && maxRowDims > 1 && (
           <DimensionSelect
-            label="Lalu per"
+            label="Lalu per (Dice)"
             value={input.rowDims[1] ?? null}
             groups={availableFor("row1")}
             onChange={(key) => setRowDim(1, key)}
@@ -406,14 +411,28 @@ const ExplorerControls = ({
         )}
 
         <DimensionSelect
-          label="Dibandingkan antar"
+          label="Dibandingkan antar (Dice)"
           hint="Menaruh kelompok ini sebagai kolom, sehingga bisa dibandingkan berdampingan dengan kelompok di atas, misalnya status alumni per jurusan."
           value={input.colDim}
           groups={availableFor("col")}
           onChange={(key) => update({ ...input, colDim: key === NONE ? null : key })}
         />
 
-        <Field label="Batasi" hint="Hanya menghitung sebagian data, misalnya alumni angkatan 2023 saja.">
+        <Field label="Putar" hint="Tukar dimensi Per dengan Dibandingkan antar (baris jadi kolom, kolom jadi baris).">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-9 w-9"
+            aria-label="Tukar baris dan kolom"
+            disabled={input.colDim === null || input.rowDims.length === 0}
+            onClick={() => update(swapRowsColumns(input))}
+          >
+            <ArrowLeftRight className="h-4 w-4" />
+          </Button>
+        </Field>
+
+        <Field label="Batasi (Slice)" hint="Slice: hanya menghitung sebagian data, misalnya alumni angkatan 2023 saja.">
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -644,8 +663,20 @@ const ExplorerControls = ({
               </PopoverContent>
             </Popover>
           </Field>
+          {onRollUp && (
+            <Button size="sm" variant="outline" className="h-9" onClick={onRollUp} title="Roll-up: lepas langkah rincian/saringan terakhir">
+              <ArrowUpToLine className="mr-1.5 h-4 w-4" />
+              Naik
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="h-9" onClick={onReset}>
             Reset
+          </Button>
+          <Button size="sm" variant="outline" className="h-9" asChild>
+            <Link to="/dashboard/insight/board">
+              <LayoutGrid className="mr-2 h-4 w-4" />
+              Dashboard Saya
+            </Link>
           </Button>
         </div>
       </div>

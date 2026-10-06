@@ -27,7 +27,6 @@ import EducationPage from "./pages/dashboard/education/EducationPage";
 import AnalyticsPage from "./pages/dashboard/analytics/AnalyticsPage";
 import KpiOverviewPage from "./pages/dashboard/kpi/KpiOverviewPage";
 import ComparePage from "./pages/dashboard/ComparePage";
-import MultidimensiInsightPage from "./pages/MultidimensiInsightPage";
 import InsightPage from "./pages/InsightPage";
 import InsightBoardPage from "./pages/InsightBoardPage";
 import ProfilePage from "./pages/dashboard/ProfilePage";
@@ -120,7 +119,7 @@ const App = () => (
                 {/* <Route path="/dashboard/analytics" element={<ProtectedRoute permission="dashboard.analytics"><AnalyticsPage /></ProtectedRoute>} /> */}
                 <Route path="/dashboard/kpi" element={<ProtectedRoute permission="dashboard.kpi"><KpiOverviewPage /></ProtectedRoute>} />
                 <Route path="/dashboard/compare" element={<ProtectedRoute permission="dashboard.overview"><ComparePage /></ProtectedRoute>} />
-                <Route path="/dashboard/multidimensi-insight" element={<ProtectedRoute permission="dashboard.multidimensi"><MultidimensiInsightPage /></ProtectedRoute>} />
+                <Route path="/dashboard/multidimensi-insight" element={<Navigate to="/dashboard/insight" replace />} />
                 <Route path="/dashboard/insight" element={<ProtectedRoute permission="dashboard.insight"><InsightPage /></ProtectedRoute>} />
                 <Route path="/dashboard/insight/board" element={<ProtectedRoute permission="dashboard.insight"><InsightBoardPage /></ProtectedRoute>} />
 

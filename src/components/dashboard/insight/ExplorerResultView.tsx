@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { Info, MousePointerClick } from "lucide-react";
 import ExplorerChart from "./ExplorerChart";
+import ExplorerComboChart from "./ExplorerComboChart";
+import PointActionDialog from "./PointActionDialog";
 import ExplorerDrillDown, { type DrillRequest } from "./ExplorerDrillDown";
 import ExplorerFacets from "./ExplorerFacets";
 import PivotTable from "./PivotTable";
@@ -51,6 +53,17 @@ interface Props {
   /** Ada = pemilih visualisasi ditampilkan (halaman Insight). Kosong di kartu Dashboard Saya. */
   onVizChange?: (viz: Viz) => void;
   /**
+   * Ada = klik angka/batang menawarkan "Filter ke ini" dan "Rinci per …"
+   * (halaman Insight); kosong = langsung membuka daftar alumni (kartu board).
+   */
+  onSlice?: (point: DrillPoint, drillDim?: string) => void;
+  /** Dice: sub-kubus dari beberapa titik yang dikumpulkan. */
+  onDice?: (points: DrillPoint[]) => void;
+  /** Roll-up; ada = menu klik menawarkan "Naik satu tingkat". */
+  onRollUp?: () => void;
+  /** Dimensi yang masih boleh ditambahkan lewat "Rinci per …". */
+  drillDimensions?: { key: string; label: string }[];
+  /**
    * Tampilan ringkas untuk kartu Dashboard Saya: chart lebih pendek, tanpa
    * bingkai kartu sendiri, dan tabel hanya muncul kalau chart tidak bisa
    * digambar (angka lengkapnya ada di halaman Insight).
@@ -72,9 +85,16 @@ const ExplorerResultView = ({
   onVizChange,
   filters,
   display,
+  onSlice,
+  onDice,
+  onRollUp,
+  drillDimensions = [],
   compact = false,
 }: Props) => {
+  // Titik yang dikumpulkan untuk Dice; hilang saat hasil berganti susunan.
+  const [picked, setPicked] = useState<DrillPoint[]>([]);
   const [drill, setDrill] = useState<DrillRequest | null>(null);
+  const [pending, setPending] = useState<{ point: DrillPoint; measure: CatalogMeasure; value: number | null } | null>(null);
 
   /**
    * Klik angka → daftar alumni. Yang dikirim selalu ukuran ASLI: angka
@@ -83,6 +103,21 @@ const ExplorerResultView = ({
    * pembilangnya.
    */
   const openDrill = (point: DrillPoint, shown: CatalogMeasure, value: number | null) => {
+    // Di halaman Insight klik dulu menawarkan pilihan (filter / rinci / alumni).
+    if (onSlice) {
+      setPending({ point, measure: shown, value });
+      return;
+    }
+    showAlumni(point, shown, value);
+  };
+
+  const withPoint = (list: DrillPoint[], point: DrillPoint) =>
+    list.some((p) => JSON.stringify(p) === JSON.stringify(point)) ? list : [...list, point];
+  const addPicked = (point: DrillPoint) => setPicked((list) => withPoint(list, point));
+
+  const labelOf = (k: string) => result.dimensions.find((d) => d.key === k)?.label ?? k;
+
+  const showAlumni = (point: DrillPoint, shown: CatalogMeasure, value: number | null) => {
     const labelOf = (k: string) => result.dimensions.find((d) => d.key === k)?.label ?? k;
     const original = result.measures.find((m) => m.key === shown.key) ?? shown;
 
@@ -107,19 +142,21 @@ const ExplorerResultView = ({
     rowIndex: number,
     columnKey: string | null,
     extra: DrillPoint = {},
+    measureKey?: string,
   ) => {
+    const shown = measureKey ? measures.find((m) => m.key === measureKey) ?? null : activeMeasure;
     const row = source.rows[rowIndex];
-    if (!row || !activeMeasure) return;
+    if (!row || !shown) return;
     if (columnKey !== null && source.derivedColumns?.includes(columnKey)) return;
 
     const point = drillPointOf(dims, row.keys, columnKey === null ? null : colDim, columnKey ?? SINGLE_COLUMN);
     if (point === null || Object.values(extra).includes(EMPTY_VALUE)) return;
 
     const value =
-      columnKey === null ? row.totals[activeMeasure.key] ?? null : row.cells[columnKey]?.[activeMeasure.key]?.value ?? null;
-    if (activeMeasure.format === "integer" && (value === null || value <= 0)) return;
+      columnKey === null ? row.totals[shown.key] ?? null : row.cells[columnKey]?.[shown.key]?.value ?? null;
+    if (shown.format === "integer" && (value === null || value <= 0)) return;
 
-    openDrill({ ...extra, ...point }, activeMeasure, value);
+    openDrill({ ...extra, ...point }, shown, value);
   };
 
   const percent = display?.percent;
@@ -152,8 +189,8 @@ const ExplorerResultView = ({
   const base = decideChart(rowDims, colDim, plan);
   const seriesCount = Math.max(...plan.facets.map((f) => f.pivot.columnKeys.length), 0);
   const categoryCount = Math.max(...plan.facets.map((f) => f.pivot.rows.length), 0);
-  const vizOptions = availableViz(base, seriesCount, categoryCount);
-  const chart = applyViz(base, display?.viz, seriesCount, categoryCount);
+  const vizOptions = availableViz(base, seriesCount, categoryCount, measures.length);
+  const chart = applyViz(base, display?.viz, seriesCount, categoryCount, measures.length);
   const activeViz: Viz = vizOptions.includes(display?.viz ?? "auto") ? display?.viz ?? "auto" : "auto";
   const vizPicker =
     onVizChange && vizOptions.length > 1 && !(base.kind === "none" && base.reason) ? (
@@ -169,7 +206,9 @@ const ExplorerResultView = ({
 
   const drawable = chart.kind !== "number" && chart.kind !== "none" && activeMeasure !== null;
 
-  const measurePicker = measures.length > 1 && activeMeasure && (
+  const combo = chart.kind === "combo";
+
+  const measurePicker = !combo && measures.length > 1 && activeMeasure && (
     <Select value={activeMeasure.key} onValueChange={onChartMeasureChange}>
       <SelectTrigger className={compact ? "h-8 w-52 text-xs" : "w-64"}>
         <SelectValue />
@@ -186,7 +225,16 @@ const ExplorerResultView = ({
 
   const chartBody =
     drawable &&
-    (chart.faceted ? (
+    (combo ? (
+      <ExplorerComboChart
+        pivot={chartPivotOf(pivot)}
+        measures={measures}
+        height={compact ? 240 : undefined}
+        onPointClick={(i, measureKey) =>
+          drillFromChart(chartPivotOf(pivot), rowDims, i, pivot.columnKeys[0] ?? SINGLE_COLUMN, {}, measureKey)
+        }
+      />
+    ) : chart.faceted ? (
       <ExplorerFacets
         kind={chart.kind}
         facets={plan.facets}
@@ -220,10 +268,31 @@ const ExplorerResultView = ({
     />
   );
 
+  const pickedBar = picked.length > 0 && (
+    <p className="flex flex-wrap items-center gap-2 text-xs">
+      <span className="font-medium">{picked.length} titik dipilih (Dice)</span>
+      <button
+        type="button"
+        className="underline hover:text-primary"
+        onClick={() => {
+          onDice?.(picked);
+          setPicked([]);
+        }}
+      >
+        Saring ke pilihan
+      </button>
+      <button type="button" className="text-muted-foreground underline hover:text-primary" onClick={() => setPicked([])}>
+        Kosongkan
+      </button>
+    </p>
+  );
+
   const hint = (
     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
       <MousePointerClick className="h-3.5 w-3.5" />
-      Klik batang atau angka bergaris bawah untuk melihat daftar alumninya.
+      {onSlice
+        ? "Klik batang atau angka bergaris bawah untuk menyaring ke kelompok itu, merinci, atau melihat alumninya."
+        : "Klik batang atau angka bergaris bawah untuk melihat daftar alumninya."}
     </p>
   );
 
@@ -268,16 +337,17 @@ const ExplorerResultView = ({
         (compact ? (
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium">{activeMeasure.label}</p>
+              <p className="text-sm font-medium">{combo ? "Semua ukuran" : activeMeasure.label}</p>
               {measurePicker}
             </div>
             {chartBody}
             {hint}
+            {pickedBar}
           </div>
         ) : (
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-4 space-y-0 pb-2">
-              <CardTitle className="text-base">{activeMeasure.label}</CardTitle>
+              <CardTitle className="text-base">{combo ? "Semua ukuran" : activeMeasure.label}</CardTitle>
               <div className="flex flex-wrap items-center gap-2">
                 {measurePicker}
                 {vizPicker}
@@ -286,6 +356,7 @@ const ExplorerResultView = ({
             <CardContent className="space-y-3">
               {chartBody}
               {hint}
+              {pickedBar}
             </CardContent>
           </Card>
         ))}
@@ -300,6 +371,37 @@ const ExplorerResultView = ({
           <CardContent>{table}</CardContent>
         </Card>
       )}
+
+      <PointActionDialog
+        picked={picked.length}
+        onAddPicked={() => {
+          if (pending) addPicked(pending.point);
+          setPending(null);
+        }}
+        onDice={() => {
+          const all = pending ? withPoint(picked, pending.point) : picked;
+          onDice?.(all);
+          setPicked([]);
+          setPending(null);
+        }}
+        canRollUp={onRollUp !== undefined}
+        onRollUp={() => {
+          onRollUp?.();
+          setPending(null);
+        }}
+        pending={pending}
+        pointLabel={pending ? describeDrillPoint(pending.point, labelOf) : ""}
+        dimensions={drillDimensions}
+        onClose={() => setPending(null)}
+        onSlice={(dim) => {
+          if (pending) onSlice?.(pending.point, dim);
+          setPending(null);
+        }}
+        onAlumni={() => {
+          if (pending) showAlumni(pending.point, pending.measure, pending.value);
+          setPending(null);
+        }}
+      />
 
       <ExplorerDrillDown
         key={drill ? JSON.stringify(drill) : "none"}

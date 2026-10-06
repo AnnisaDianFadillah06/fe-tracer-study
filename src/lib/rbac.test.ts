@@ -105,3 +105,13 @@ describe("routePermissionMap konsisten dengan getMenuForRole", () => {
     }
   });
 });
+
+describe("menu Dashboard", () => {
+  it("Multidimensi Insight membuka Insight, Dashboard Saya tidak ada di sidebar", () => {
+    const items = getMenuForRole("head_tracer").flatMap((g) => g.items);
+    const multi = items.filter((i) => i.title === "Multidimensi Insight");
+    expect(multi).toHaveLength(1);
+    expect(multi[0].href).toBe("/dashboard/insight");
+    expect(items.some((i) => i.title === "Dashboard Saya")).toBe(false);
+  });
+});

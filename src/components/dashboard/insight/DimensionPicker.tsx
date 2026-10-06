@@ -24,7 +24,7 @@ interface Props {
 }
 
 /**
- * Pemilih dimensi dua langkah ala Metabase: pilih dulu tabelnya (Perusahaan,
+ * Pemilih dimensi dua langkah: pilih dulu tabelnya (Perusahaan,
  * Program Studi, …), lalu sisinya (jenis instansi, jenjang, jurusan, …).
  * Pencarian melintasi semua tabel, jadi pengguna yang sudah tahu nama sisinya
  * tidak perlu menelusuri tabel satu per satu.

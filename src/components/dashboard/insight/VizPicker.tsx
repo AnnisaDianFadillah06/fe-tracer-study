@@ -1,6 +1,7 @@
 import {
   AreaChart,
   BarChart3,
+  ChartNoAxesCombined,
   Layers,
   LineChart,
   PieChart,
@@ -15,6 +16,7 @@ import { VIZ_LABELS, type Viz } from "@/lib/olapExplorer";
 
 const ICONS: Record<Viz, LucideIcon> = {
   auto: Sparkles,
+  combo: ChartNoAxesCombined,
   bar: BarChart3,
   row: AlignLeft,
   line: LineChart,
@@ -31,7 +33,7 @@ interface Props {
 }
 
 /**
- * Pemilih visualisasi ala Metabase: deretan ikon, satu aktif. Hanya bentuk
+ * Pemilih visualisasi: deretan ikon, satu aktif. Hanya bentuk
  * yang memang mungkin untuk hasil ini yang ditawarkan (lihat `availableViz`).
  */
 const VizPicker = ({ value, options, onChange }: Props) => (

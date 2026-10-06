@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   applyViz,
   availableViz,
+  comboSeries,
+  diceInput,
+  rollUpInput,
+  sliceInput,
+  swapRowsColumns,
+  toComboData,
   SINGLE_COLUMN,
   buildFacets,
   buildPivot,
@@ -492,5 +498,100 @@ describe("availableViz / applyViz", () => {
   it("pilihan yang tidak lagi tersedia jatuh ke otomatis", () => {
     expect(applyViz(bar, "pie", 3, 5)).toBe(bar);
     expect(applyViz(bar, "stacked", 1, 5)).toBe(bar);
+  });
+});
+
+describe("semua ukuran dalam satu eksekusi (combo)", () => {
+  const bar = { kind: "bar", faceted: false } as const;
+  const m = (key: string, format: "integer" | "currency" | "decimal") => ({ key, label: key, format }) as never;
+
+  it("otomatis tidak memilih combo (tampilan lama tetap); combo hanya lewat pilihan manual", () => {
+    expect(applyViz(bar, "auto", 1, 5, 2)).toBe(bar);
+    expect(applyViz(bar, "combo", 1, 5, 2).kind).toBe("combo");
+    expect(applyViz(bar, "combo", 1, 5, 1)).toBe(bar);
+  });
+
+  it("tidak combo bila ada dimensi kolom (banyak seri) atau berpanel", () => {
+    expect(applyViz(bar, "auto", 3, 5, 2)).toBe(bar);
+    expect(applyViz({ kind: "bar", faceted: true }, "auto", 1, 5, 2).kind).toBe("bar");
+    expect(availableViz(bar, 3, 5, 2)).not.toContain("combo");
+    expect(availableViz(bar, 1, 5, 2)).toContain("combo");
+  });
+
+  it("ukuran berbeda satuan ke sumbu kanan sebagai garis", () => {
+    const s = comboSeries([m("a", "integer"), m("b", "currency"), m("c", "integer")]);
+    expect(s.map((x) => [x.axis, x.shape])).toEqual([
+      ["left", "bar"],
+      ["right", "line"],
+      ["left", "bar"],
+    ]);
+    expect(s.map((x) => x.dataKey)).toEqual(["m0", "m1", "m2"]);
+  });
+
+  it("toComboData mengisi satu kolom per ukuran", () => {
+    const pivot = {
+      columnKeys: [""],
+      rows: [{ keys: ["TI"], cells: { "": { a: { value: 3 }, b: { value: 9 } } }, totals: {} }],
+      columnTotals: {},
+      grandTotals: {},
+    } as never;
+    const data = toComboData(pivot, comboSeries([m("a", "integer"), m("b", "currency")]));
+    expect(data).toEqual([{ name: "TI", m0: 3, m1: 9 }]);
+  });
+});
+
+describe("swapRowsColumns", () => {
+  const base = { cube: "c", measures: ["x"], filters: [] };
+
+  it("menukar Baris pertama dengan Kolom", () => {
+    const out = swapRowsColumns({ ...base, rowDims: ["A", "B"], colDim: "C" });
+    expect(out.rowDims).toEqual(["C", "B"]);
+    expect(out.colDim).toBe("A");
+  });
+
+  it("tidak berubah bila salah satunya kosong", () => {
+    const a = { ...base, rowDims: ["A"], colDim: null };
+    expect(swapRowsColumns(a)).toBe(a);
+  });
+});
+
+describe("slice, dice, roll-up", () => {
+  const base = { cube: "c", measures: ["x"], colDim: null, filters: [] };
+
+  it("slice menyaring ke satu titik dan menggantikan saringan lama pada dimensi itu", () => {
+    const out = sliceInput(
+      { ...base, rowDims: ["J"], filters: [{ member: "J", operator: "equals", values: ["A", "B"] }] },
+      { J: "A" },
+    );
+    expect(out.filters).toEqual([{ member: "J", operator: "equals", values: ["A"] }]);
+  });
+
+  it("dice menggabungkan nilai dari beberapa titik per dimensi", () => {
+    const out = diceInput({ ...base, rowDims: ["J", "T"] }, [
+      { J: "A", T: "2021" },
+      { J: "B", T: "2021" },
+    ]);
+    expect(out.filters).toEqual([
+      { member: "J", operator: "equals", values: ["A", "B"] },
+      { member: "T", operator: "equals", values: ["2021"] },
+    ]);
+  });
+
+  it("roll-up membalik drill-down: lepas dimensi terakhir dan saringan induknya", () => {
+    const drilled = {
+      ...base,
+      rowDims: ["J", "P"],
+      filters: [{ member: "J", operator: "equals" as const, values: ["A"] }],
+    };
+    const up = rollUpInput(drilled);
+    expect(up?.rowDims).toEqual(["J"]);
+    expect(up?.filters).toEqual([]);
+  });
+
+  it("roll-up satu dimensi melepas saringan aktif terakhir; kosong = null", () => {
+    const f1 = { member: "T", operator: "equals" as const, values: ["2021"] };
+    const f2 = { member: "S", operator: "equals" as const, values: ["Bekerja"] };
+    expect(rollUpInput({ ...base, rowDims: ["J"], filters: [f1, f2] })?.filters).toEqual([f1]);
+    expect(rollUpInput({ ...base, rowDims: ["J"] })).toBeNull();
   });
 });
