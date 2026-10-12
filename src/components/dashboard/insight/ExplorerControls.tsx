@@ -45,6 +45,9 @@ interface Props {
   onReset: () => void;
   /** Roll-up: ada hanya bila masih ada slice/dice/rincian yang bisa dilepas. */
   onRollUp?: () => void;
+  /** Mode analisis lanjutan (slice/dice/roll-up) menyala; sakelarnya ada di popover Tampilan. */
+  advanced?: boolean;
+  onAdvancedChange?: (on: boolean) => void;
   /** Kalimat ringkas susunan saat ini, tampil di strip status. */
   summary: string;
   fetching: boolean;
@@ -78,6 +81,8 @@ const ExplorerControls = ({
   onChange,
   onReset,
   onRollUp,
+  advanced = false,
+  onAdvancedChange,
   summary,
   fetching,
   updatedAt,
@@ -391,8 +396,9 @@ const ExplorerControls = ({
         </Field>
 
         <DimensionSelect
-          label="Per (Dice)"
-          hint="Memecah hasil menjadi kelompok (dice), misalnya per jurusan atau per tahun lulus. Kosongkan untuk satu angka total."
+          label={advanced ? "Per (Dice)" : "Per"}
+        width={advanced ? "w-[160px]" : undefined}
+          hint={`Memecah hasil menjadi kelompok${advanced ? " (dice)" : ""}, misalnya per jurusan atau per tahun lulus. Kosongkan untuk satu angka total.`}
           value={input.rowDims[0] ?? null}
           groups={availableFor("row0")}
           onChange={(key) => setRowDim(0, key)}
@@ -403,7 +409,8 @@ const ExplorerControls = ({
             apa-apa. */}
         {input.rowDims.length > 0 && maxRowDims > 1 && (
           <DimensionSelect
-            label="Lalu per (Dice)"
+            label={advanced ? "Lalu per (Dice)" : "Lalu per"}
+          width={advanced ? "w-[160px]" : undefined}
             value={input.rowDims[1] ?? null}
             groups={availableFor("row1")}
             onChange={(key) => setRowDim(1, key)}
@@ -411,28 +418,33 @@ const ExplorerControls = ({
         )}
 
         <DimensionSelect
-          label="Dibandingkan antar (Dice)"
+          label={advanced ? "Dibandingkan antar (Dice)" : "Dibandingkan antar"}
+        width={advanced ? "w-[160px]" : undefined}
           hint="Menaruh kelompok ini sebagai kolom, sehingga bisa dibandingkan berdampingan dengan kelompok di atas, misalnya status alumni per jurusan."
           value={input.colDim}
           groups={availableFor("col")}
           onChange={(key) => update({ ...input, colDim: key === NONE ? null : key })}
         />
 
-        <Field label="Putar" hint="Tukar dimensi Per dengan Dibandingkan antar (baris jadi kolom, kolom jadi baris).">
+        {advanced && (
           <Button
             type="button"
             variant="outline"
             size="icon"
-            className="h-9 w-9"
+            className="h-9 w-9 shrink-0"
             aria-label="Tukar baris dan kolom"
+            title="Putar: tukar dimensi Per dengan Dibandingkan antar (baris jadi kolom, kolom jadi baris)"
             disabled={input.colDim === null || input.rowDims.length === 0}
             onClick={() => update(swapRowsColumns(input))}
           >
             <ArrowLeftRight className="h-4 w-4" />
           </Button>
-        </Field>
+        )}
 
-        <Field label="Batasi (Slice)" hint="Slice: hanya menghitung sebagian data, misalnya alumni angkatan 2023 saja.">
+        <Field
+          label={advanced ? "Batasi (Slice)" : "Batasi"}
+          hint={`${advanced ? "Slice: hanya" : "Hanya"} menghitung sebagian data, misalnya alumni angkatan 2023 saja.`}
+        >
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -660,6 +672,16 @@ const ExplorerControls = ({
             )}
           </div>
         )}
+
+        {onAdvancedChange && (
+          <label className="flex cursor-pointer items-center justify-between gap-2 border-t pt-3 text-xs font-medium text-muted-foreground">
+            <span>
+              Mode analisis lanjutan{" "}
+              <HelpTip>Menampilkan Slice, Dice, dan Roll-up: klik batang untuk menyaring, merinci, atau naik satu tingkat.</HelpTip>
+            </span>
+            <Switch checked={advanced} onCheckedChange={onAdvancedChange} aria-label="Mode analisis lanjutan" />
+          </label>
+        )}
               </PopoverContent>
             </Popover>
           </Field>
@@ -804,15 +826,17 @@ interface DimensionSelectProps {
   value: string | null;
   groups: { group: string; members: { key: string; label: string }[] }[];
   onChange: (key: string) => void;
+  /** Lebar pemicu; bawaan 190px. */
+  width?: string;
 }
 
-const DimensionSelect = ({ label, hint, value, groups, onChange }: DimensionSelectProps) => (
+const DimensionSelect = ({ label, hint, value, groups, onChange, width = "w-[190px]" }: DimensionSelectProps) => (
   <Field label={label} hint={hint}>
     <DimensionPicker
       value={value}
       groups={groups}
       onChange={(key) => onChange(key ?? NONE)}
-      className="w-[190px]"
+      className={width}
     />
   </Field>
 );

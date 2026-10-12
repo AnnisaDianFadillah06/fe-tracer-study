@@ -37,6 +37,7 @@ const renderControls = (
   props: Partial<{
     summary: string;
     fetching: boolean;
+    advanced: boolean;
     onChange: (next: ExplorerQueryInput) => void;
     onReset: () => void;
   }> = {},
@@ -50,6 +51,8 @@ const renderControls = (
         input={input}
         onChange={props.onChange ?? vi.fn()}
         onReset={props.onReset ?? vi.fn()}
+        advanced={props.advanced ?? false}
+        onAdvancedChange={vi.fn()}
         summary={props.summary ?? ""}
         fetching={props.fetching ?? false}
       />
@@ -61,9 +64,19 @@ describe("ExplorerControls (pita filter)", () => {
   it("menampilkan kontrol berlabel: dihitung, per, dibandingkan, batasi, tampilan", () => {
     renderControls();
 
-    for (const label of ["Dihitung", "Per (Dice)", "Dibandingkan antar (Dice)", "Batasi (Slice)", "Tampilan"]) {
+    for (const label of ["Dihitung", "Per", "Dibandingkan antar", "Batasi", "Tampilan"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
+    expect(screen.queryByRole("button", { name: "Tukar baris dan kolom" })).not.toBeInTheDocument();
+  });
+
+  it("mode lanjutan: label bertanda Dice/Slice dan kolom Putar muncul", () => {
+    renderControls({ advanced: true });
+
+    for (const label of ["Per (Dice)", "Dibandingkan antar (Dice)", "Batasi (Slice)"]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+    expect(screen.getByRole("button", { name: "Tukar baris dan kolom" })).toBeInTheDocument();
   });
 
   it("satu sumber data: pemilih sumber data tidak ditampilkan", () => {

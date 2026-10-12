@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { useExplorerCatalog, useExplorerQuery } from "@/hooks/useExplorer";
 import { useToast } from "@/hooks/common/use-toast";
+import { useAdvancedMode } from "@/hooks/useAdvancedMode";
 import { useInsightBoard, usePinQuestion } from "@/hooks/useInsightBoard";
 import {
   useDeleteInsightQuestion,
@@ -76,6 +77,8 @@ const InsightPage = () => {
     useExplorerCatalog();
 
   const [input, setInput] = useState<ExplorerQueryInput | null>(null);
+  // Slice/dice/roll-up hanya ditawarkan bila mode lanjutan dinyalakan.
+  const [advanced, setAdvanced] = useAdvancedMode();
 
   // Pilihan awal ditentukan setelah katalog tiba: sumber data pertama, tanpa
   // measure apa pun. Tidak ada query yang berjalan sampai pengguna memilih —
@@ -275,7 +278,9 @@ const InsightPage = () => {
         input={current}
         onChange={applyInput}
         onReset={handleReset}
-        onRollUp={rolledUp ? handleRollUp : undefined}
+        onRollUp={advanced && rolledUp ? handleRollUp : undefined}
+        advanced={advanced}
+        onAdvancedChange={setAdvanced}
         summary={question}
         fetching={isFetching && isRunnable(current)}
         updatedAt={result ? dataUpdatedAt : undefined}
@@ -439,9 +444,9 @@ const InsightPage = () => {
                   chartMeasure={chartMeasure}
                   onChartMeasureChange={setChartMeasure}
                   onVizChange={(viz) => setInput({ ...current, viz })}
-                  onSlice={handleSlice}
-                  onDice={handleDice}
-                  onRollUp={rolledUp ? handleRollUp : undefined}
+                  onSlice={advanced ? handleSlice : undefined}
+                  onDice={advanced ? handleDice : undefined}
+                  onRollUp={advanced && rolledUp ? handleRollUp : undefined}
                   drillDimensions={drillDimensions}
                 />
               </>
