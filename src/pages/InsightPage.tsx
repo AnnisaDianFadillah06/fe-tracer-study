@@ -289,7 +289,7 @@ const InsightPage = () => {
 
   return (
     <DashboardLayout filterBar={filterBar}>
-      <div className="mx-auto max-w-[1400px] space-y-4">
+      <div className="space-y-4">
       {openError && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />

@@ -3,6 +3,7 @@ import {
   BarChart3,
   ChartNoAxesCombined,
   Layers,
+  LayoutGrid,
   LineChart,
   PieChart,
   Sparkles,
@@ -24,6 +25,7 @@ const ICONS: Record<Viz, LucideIcon> = {
   stacked: Layers,
   pie: PieChart,
   table: Table2,
+  panels: LayoutGrid,
 };
 
 interface Props {

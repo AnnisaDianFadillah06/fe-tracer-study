@@ -159,6 +159,8 @@ export type ChartKind =
   | "stacked"
   | "pie"
   | "combo"
+  /** Dua dimensi baris bertingkat di sumbu X (luar › dalam), lihat buildNestedPlan. */
+  | "nested-bar"
   | "none";
 
 /**
@@ -166,7 +168,17 @@ export type ChartKind =
  * menyerahkan bentuknya ke `chooseChartKind`; yang lain memaksa bentuk itu
  * selama datanya memungkinkan (lihat `availableViz`).
  */
-export type Viz = "auto" | "combo" | "table" | "bar" | "row" | "line" | "area" | "stacked" | "pie";
+export type Viz =
+  | "auto"
+  | "combo"
+  | "table"
+  | "bar"
+  | "row"
+  | "line"
+  | "area"
+  | "stacked"
+  | "pie"
+  | "panels";
 
 export const VIZ_LABELS: Record<Viz, string> = {
   auto: "Otomatis",
@@ -178,6 +190,7 @@ export const VIZ_LABELS: Record<Viz, string> = {
   area: "Area",
   stacked: "Batang bertumpuk",
   pie: "Pai",
+  panels: "Panel terpisah",
 };
 
 /** Lebih dari ini irisan pai tidak lagi bisa dibedakan. */
@@ -256,6 +269,12 @@ export interface ChartDecision {
   faceted: boolean;
   /** Diisi hanya kalau kind === "none": alasan yang ditampilkan ke pengguna. */
   reason?: string;
+  /**
+   * Hanya pada "nested-bar": keputusan jalur panel untuk hasil yang sama.
+   * Dipakai saat pengguna memilih "Panel terpisah" atau bentuk yang tidak
+   * bisa bertingkat (garis, area, bertumpuk, batang mendatar).
+   */
+  panels?: ChartDecision;
 }
 
 /**
@@ -268,8 +287,26 @@ export interface ChartDecision {
  * chart dua dimensi yang normal. Ini berlaku untuk semua measure, termasuk
  * rata-rata; menumpuk rata-rata (stacked bar) akan menghasilkan tinggi batang
  * yang tidak berarti apa pun.
+ *
+ * KECUALI kombinasinya cukup kecil untuk satu grafik: dua dimensi baris lalu
+ * ditaruh bertingkat di sumbu X (lihat buildNestedPlan). Satu grafik berarti
+ * satu sumbu Y bersama, sedangkan panel menskalakan sumbu Y-nya sendiri-sendiri.
+ * Keputusan panelnya tetap dihitung dan dibawa di `panels`.
  */
 export function decideChart(
+  rowDims: string[],
+  colDim: string | null,
+  plan: FacetPlan,
+  nested: NestedPlan | null = null,
+): ChartDecision {
+  const panels = decidePanels(rowDims, colDim, plan);
+
+  if (nested && canNest(nested)) return { kind: "nested-bar", faceted: false, panels };
+
+  return panels;
+}
+
+function decidePanels(
   rowDims: string[],
   colDim: string | null,
   plan: FacetPlan,
@@ -355,6 +392,14 @@ export function availableViz(
   categories: number,
   measures = 1,
 ): Viz[] {
+  // Bertingkat: pilihannya pilihan jalur panel, ditambah "Panel terpisah".
+  // "Batang" di sini berarti bertingkat (lihat applyViz).
+  if (decision.kind === "nested-bar" && decision.panels) {
+    const viaPanels = availableViz(decision.panels, series, categories, measures);
+    if (!viaPanels.includes("bar")) return ["auto", "table"];
+    return [...viaPanels.filter((v) => v !== "table"), "panels", "table"];
+  }
+
   if (decision.kind === "number") return [];
   if (decision.kind === "none" && decision.reason) return ["auto", "table"];
 
@@ -385,9 +430,18 @@ export function applyViz(
   if (!viz || viz === "auto") return decision;
   if (!availableViz(decision, series, categories, measures).includes(viz)) return decision;
 
+  if (decision.kind === "nested-bar" && decision.panels) {
+    if (viz === "bar") return decision;
+    if (viz === "panels") return decision.panels;
+    return applyViz(decision.panels, viz, series, categories, measures);
+  }
+
   if (viz === "combo") return { kind: "combo", faceted: false };
 
   if (viz === "table") return { kind: "none", faceted: false };
+
+  // Tidak pernah ditawarkan di luar grafik bertingkat (lihat availableViz).
+  if (viz === "panels") return decision;
 
   const kind: ChartKind =
     viz === "bar" ? (series > 1 ? "grouped-bar" : "bar") : viz;
@@ -605,6 +659,164 @@ export function buildFacets(
 }
 
 // ═══════════════════════════════════════════════════════════
+//  Sumbu X bertingkat (dua dimensi baris dalam satu grafik)
+// ═══════════════════════════════════════════════════════════
+
+/** Lebih dari ini label dalam saling menimpa; jatuh ke panel. */
+export const MAX_NESTED_CATEGORIES = 40;
+
+/** Lebih dari ini label luar tidak lagi terbaca sebagai kelompok. */
+export const MAX_NESTED_GROUPS = 12;
+
+export interface NestedGroup {
+  /** Nilai dimensi luar. */
+  key: string;
+  /** id batang pertama dan terakhir kelompok, untuk menggambar label luar. */
+  firstId: string;
+  lastId: string;
+}
+
+export interface NestedPlan {
+  outerDim: string;
+  innerDim: string;
+  /** true bila setiap nilai dalam hanya dimiliki satu nilai luar (jurusan → prodi). */
+  hierarchical: boolean;
+  /** Pivot dengan baris [luar, dalam], sudah dikelompokkan per luar. */
+  pivot: Pivot;
+  groups: NestedGroup[];
+}
+
+export interface NestedDatum {
+  /** Kunci unik batang (lihat nestedId); spacer diberi kunci sendiri. */
+  id: string;
+  outer: string;
+  inner: string;
+  /** Indeks baris di NestedPlan.pivot; -1 untuk spacer antar kelompok. */
+  rowIndex: number;
+  [series: string]: string | number | null;
+}
+
+const keyOfValue = (v: ExplorerRow[string] | undefined): string =>
+  v === null || v === undefined ? EMPTY_VALUE : String(v);
+
+/**
+ * Kunci batang = luar + dalam. Nama dalam saja tidak cukup: dengan Jenjang di
+ * luar, prodi bernama sama bisa muncul di kelompok D3 dan D4, dan Recharts
+ * menganggap kategori bernama sama sebagai satu kategori.
+ */
+export function nestedId(outer: string, inner: string): string {
+  return `${outer}\u0000${inner}`;
+}
+
+/** B bergantung pada A: setiap nilai B hanya muncul bersama satu nilai A. */
+export function isNestedIn(rows: ExplorerRow[], a: string, b: string): boolean {
+  const parentOf = new Map<string, string>();
+
+  for (const row of rows) {
+    const parent = keyOfValue(row[a]);
+    const child = keyOfValue(row[b]);
+    const seen = parentOf.get(child);
+    if (seen !== undefined && seen !== parent) return false;
+    parentOf.set(child, parent);
+  }
+
+  return true;
+}
+
+/**
+ * Rencana grafik bertingkat dari dua dimensi baris; null untuk jumlah dimensi
+ * baris lainnya.
+ *
+ * MANA YANG DI LUAR dibaca dari hasil query, bukan dari urutan slot: induk
+ * hierarki selalu di luar (jurusan › prodi, bukan prodi › jurusan). Tanpa
+ * hierarki, dimensi bernilai lebih sedikit yang di luar -- aturan yang sama
+ * dengan pemilihan dimensi panel di buildFacets. Data yang sudah disaring bisa
+ * membentuk hierarki walau dimensinya secara umum tidak, jadi hasil query
+ * adalah satu-satunya sumber yang pasti benar untuk grafik ini.
+ *
+ * Kelompok luar diurutkan (angka sebagai angka, jadi tahun lulus naik); urutan
+ * di dalam kelompok mengikuti hasil query, sehingga pengurutan/N teratas dari
+ * peladen tetap berlaku per kelompok.
+ */
+export function buildNestedPlan(
+  result: ExplorerResult,
+  rowDims: string[],
+  colDim: string | null,
+): NestedPlan | null {
+  if (rowDims.length !== 2) return null;
+
+  const [a, b] = rowDims;
+  let outerDim: string;
+  let hierarchical = true;
+
+  if (isNestedIn(result.rows, a, b)) {
+    outerDim = a;
+  } else if (isNestedIn(result.rows, b, a)) {
+    outerDim = b;
+  } else {
+    hierarchical = false;
+    outerDim = jumlahNilaiUnik(result.rows, b) < jumlahNilaiUnik(result.rows, a) ? b : a;
+  }
+
+  const innerDim = outerDim === a ? b : a;
+  const pivot = buildPivot(result, [outerDim, innerDim], colDim);
+
+  const groupOrder: string[] = [];
+  for (const row of pivot.rows) {
+    if (!groupOrder.includes(row.keys[0])) groupOrder.push(row.keys[0]);
+  }
+  groupOrder.sort((x, y) => x.localeCompare(y, "id", { numeric: true }));
+
+  const rows = groupOrder.flatMap((g) => pivot.rows.filter((r) => r.keys[0] === g));
+
+  const groups = groupOrder.map((key) => {
+    const members = rows.filter((r) => r.keys[0] === key);
+    return {
+      key,
+      firstId: nestedId(key, members[0].keys[1]),
+      lastId: nestedId(key, members[members.length - 1].keys[1]),
+    };
+  });
+
+  return { outerDim, innerDim, hierarchical, pivot: { ...pivot, rows }, groups };
+}
+
+/** Muat dalam satu grafik? Di luar batas ini grafiknya jatuh ke panel. */
+export function canNest(plan: NestedPlan): boolean {
+  return (
+    plan.pivot.rows.length <= MAX_NESTED_CATEGORIES &&
+    plan.groups.length <= MAX_NESTED_GROUPS &&
+    plan.pivot.columnKeys.length <= MAX_CHART_SERIES
+  );
+}
+
+/**
+ * Data Recharts untuk satu measure: satu datum per batang, dengan satu datum
+ * kosong (spacer) di antara kelompok supaya kelompoknya terlihat terpisah.
+ * Klik memakai `rowIndex`, bukan indeks array -- spacer menggeser indeks itu.
+ */
+export function toNestedChartData(plan: NestedPlan, measureKey: string): NestedDatum[] {
+  const data: NestedDatum[] = [];
+
+  plan.pivot.rows.forEach((row, rowIndex) => {
+    const [outer, inner] = row.keys;
+
+    if (rowIndex > 0 && plan.pivot.rows[rowIndex - 1].keys[0] !== outer) {
+      data.push({ id: `\u0000spacer\u0000${rowIndex}`, outer: "", inner: "", rowIndex: -1 });
+    }
+
+    const datum: NestedDatum = { id: nestedId(outer, inner), outer, inner, rowIndex };
+    for (const colKey of plan.pivot.columnKeys) {
+      const series = colKey === SINGLE_COLUMN ? "nilai" : colKey;
+      datum[series] = row.cells[colKey]?.[measureKey]?.value ?? null;
+    }
+    data.push(datum);
+  });
+
+  return data;
+}
+
+// ═══════════════════════════════════════════════════════════
 //  Bentuk data untuk Recharts
 // ═══════════════════════════════════════════════════════════
 
@@ -672,6 +884,26 @@ export function formatAxisValue(value: number): string {
     : Math.abs(value) >= 1_000
       ? `${(value / 1_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} rb`
       : value.toLocaleString("id-ID");
+}
+
+/**
+ * Jumlah seri terisi terbanyak dalam satu batang/kategori.
+ *
+ * Bernilai 1 bila dimensi warna ditentukan oleh kategorinya (prodi → jurusan:
+ * tiap prodi hanya punya satu jurusan). Batang berkelompok lalu menyediakan
+ * slot untuk SETIAP seri di setiap kategori, padahal hanya satu yang terisi --
+ * batangnya menyusut jadi garis tipis di pinggir slot. Pemanggil memakai
+ * angka ini untuk menggambar satu batang selebar kategori dan menghitung
+ * lebar grafik dari satu seri, bukan dari seluruh seri.
+ */
+export function filledSeriesPerBar(
+  data: Array<Record<string, string | number | null | undefined>>,
+  series: string[],
+): number {
+  return Math.max(
+    0,
+    ...data.map((d) => series.filter((s) => typeof d[s] === "number").length),
+  );
 }
 
 export function chartSeriesNames(pivot: Pivot): string[] {

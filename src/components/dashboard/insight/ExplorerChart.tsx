@@ -19,6 +19,7 @@ import { buildColorMap } from "@/lib/chartColors";
 import {
   SINGLE_COLUMN,
   chartSeriesNames,
+  filledSeriesPerBar,
   minChartWidth,
   formatAxisValue,
   formatMeasure,
@@ -109,7 +110,12 @@ const ExplorerChart = ({
   // digeser mendatar. Tanpa ini, 67 program studi dipaksa muat di lebar tetap
   // dan batangnya menyempit jadi garis dengan label yang menumpuk — gambarnya
   // ada, tapi tidak memberi tahu apa pun.
-  const lebarMinimum = minChartWidth(data.length, series.length);
+  // Warna ditentukan kategorinya (mis. Per prodi, Dibandingkan antar jurusan):
+  // hanya satu seri terisi per kategori. Batang berkelompok lalu menyusut
+  // jadi garis tipis di satu slot; ditumpuk, yang satu itu selebar kategori.
+  // Tidak ada yang dijumlahkan, jadi tetap sah untuk rata-rata.
+  const solo = (kind === "grouped-bar" || kind === "bar") && filledSeriesPerBar(data, series) <= 1;
+  const lebarMinimum = minChartWidth(data.length, solo ? 1 : series.length);
 
   const margin = { top: 8, right: 16, bottom: 8, left: 8 };
   // Legenda kecil dengan teks netral dan hanya penanda berwarna.
@@ -287,7 +293,7 @@ const ExplorerChart = ({
                   key={s}
                   dataKey={s}
                   fill={colors[s]}
-                  stackId={kind === "stacked" ? "total" : undefined}
+                  stackId={kind === "stacked" ? "total" : solo ? "solo" : undefined}
                   radius={kind === "stacked" ? 0 : [3, 3, 0, 0]}
                   style={clickable}
                   onClick={onPointClick ? (_d, index) => onPointClick(index, columnKeyOf(s)) : undefined}

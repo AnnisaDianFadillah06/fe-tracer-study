@@ -10,7 +10,14 @@ import {
   toComboData,
   SINGLE_COLUMN,
   buildFacets,
+  buildNestedPlan,
   buildPivot,
+  filledSeriesPerBar,
+  isNestedIn,
+  nestedId,
+  toNestedChartData,
+  MAX_NESTED_CATEGORIES,
+  MAX_NESTED_GROUPS,
   canTotal,
   chartSeriesNames,
   chooseChartKind,
@@ -593,5 +600,276 @@ describe("slice, dice, roll-up", () => {
     const f2 = { member: "S", operator: "equals" as const, values: ["Bekerja"] };
     expect(rollUpInput({ ...base, rowDims: ["J"], filters: [f1, f2] })?.filters).toEqual([f1]);
     expect(rollUpInput({ ...base, rowDims: ["J"] })).toBeNull();
+  });
+});
+
+describe("sumbu X bertingkat", () => {
+  const J = "DimProdi.jurusan";
+  const P = "DimProdi.nama_prodi";
+  const G = "DimProdi.jenjang";
+  const T = "DimAlumni.tahun_lulus";
+
+  const baris = (j: string, p: string, g: string, n: number) => ({
+    [J]: j,
+    [P]: p,
+    [G]: g,
+    "F.count_alumni": n,
+  });
+
+  /** Jurusan → prodi: tiap prodi hanya milik satu jurusan. */
+  const hierarki = [
+    baris("Teknik Sipil", "Konstruksi Gedung", "D3", 5),
+    baris("Teknik Kimia", "Analis Kimia", "D3", 3),
+    baris("Teknik Sipil", "Jalan", "D4", 4),
+    baris("Teknik Kimia", "Teknik Kimia", "D4", 2),
+    baris("Teknik Kimia", "Analis Kimia", "D4", 1),
+  ];
+
+  describe("isNestedIn", () => {
+    it("prodi bergantung pada jurusan", () => {
+      expect(isNestedIn(hierarki, J, P)).toBe(true);
+    });
+
+    it("jurusan tidak bergantung pada prodi bila satu jurusan punya beberapa prodi", () => {
+      expect(isNestedIn(hierarki, P, J)).toBe(false);
+    });
+
+    it("jenjang bukan anak jurusan (muncul di beberapa jurusan)", () => {
+      expect(isNestedIn(hierarki, J, G)).toBe(false);
+    });
+
+    it("nilai kosong dihitung sebagai (kosong)", () => {
+      const rows = [
+        { [J]: "A", [P]: null },
+        { [J]: "B", [P]: null },
+      ];
+      expect(isNestedIn(rows, J, P)).toBe(false);
+    });
+  });
+
+  describe("buildNestedPlan", () => {
+    it("bukan dua dimensi baris → null", () => {
+      expect(buildNestedPlan(hasil(hierarki), [J], G)).toBeNull();
+      expect(buildNestedPlan(hasil(hierarki), [], null)).toBeNull();
+    });
+
+    it("induk hierarki jadi luar walau disebut di slot kedua", () => {
+      const plan = buildNestedPlan(hasil(hierarki), [P, J], G)!;
+      expect(plan.outerDim).toBe(J);
+      expect(plan.innerDim).toBe(P);
+      expect(plan.hierarchical).toBe(true);
+    });
+
+    it("bukan hierarki: dimensi bernilai lebih sedikit jadi luar", () => {
+      const rows = [
+        { [T]: "2021", [G]: "D3", "F.count_alumni": 1 },
+        { [T]: "2022", [G]: "D3", "F.count_alumni": 1 },
+        { [T]: "2023", [G]: "D3", "F.count_alumni": 1 },
+        { [T]: "2021", [G]: "D4", "F.count_alumni": 1 },
+        { [T]: "2022", [G]: "D4", "F.count_alumni": 1 },
+      ];
+      const plan = buildNestedPlan(hasil(rows), [T, G], null)!;
+      expect(plan.outerDim).toBe(G);
+      expect(plan.hierarchical).toBe(false);
+    });
+
+    it("jumlah nilai sama dan bukan hierarki: slot pertama jadi luar", () => {
+      const rows = [
+        { [T]: "2021", [G]: "D3", "F.count_alumni": 1 },
+        { [T]: "2022", [G]: "D4", "F.count_alumni": 1 },
+        { [T]: "2021", [G]: "D4", "F.count_alumni": 1 },
+        { [T]: "2022", [G]: "D3", "F.count_alumni": 1 },
+      ];
+      expect(buildNestedPlan(hasil(rows), [G, T], null)!.outerDim).toBe(G);
+      expect(buildNestedPlan(hasil(rows), [T, G], null)!.outerDim).toBe(T);
+    });
+
+    it("baris pivot dikelompokkan per luar, urutan di dalam kelompok mengikuti hasil query", () => {
+      const plan = buildNestedPlan(hasil(hierarki), [J, P], G)!;
+      expect(plan.pivot.rows.map((r) => r.keys)).toEqual([
+        ["Teknik Kimia", "Analis Kimia"],
+        ["Teknik Kimia", "Teknik Kimia"],
+        ["Teknik Sipil", "Konstruksi Gedung"],
+        ["Teknik Sipil", "Jalan"],
+      ]);
+      expect(plan.pivot.columnKeys).toEqual(["D3", "D4"]);
+    });
+
+    it("kelompok tahun lulus diurutkan sebagai angka", () => {
+      const rows = ["2010", "2009", "2020"].map((t) => ({ [T]: t, [P]: `P${t}`, "F.count_alumni": 1 }));
+      const plan = buildNestedPlan(hasil(rows), [T, P], null)!;
+      expect(plan.groups.map((g) => g.key)).toEqual(["2009", "2010", "2020"]);
+    });
+
+    it("daftar kelompok menunjuk batang pertama dan terakhirnya", () => {
+      const plan = buildNestedPlan(hasil(hierarki), [J, P], G)!;
+      expect(plan.groups).toEqual([
+        {
+          key: "Teknik Kimia",
+          firstId: nestedId("Teknik Kimia", "Analis Kimia"),
+          lastId: nestedId("Teknik Kimia", "Teknik Kimia"),
+        },
+        {
+          key: "Teknik Sipil",
+          firstId: nestedId("Teknik Sipil", "Konstruksi Gedung"),
+          lastId: nestedId("Teknik Sipil", "Jalan"),
+        },
+      ]);
+    });
+  });
+
+  describe("toNestedChartData", () => {
+    it("satu spacer di antara kelompok, tidak di awal dan akhir", () => {
+      const plan = buildNestedPlan(hasil(hierarki), [J, P], G)!;
+      const data = toNestedChartData(plan, "F.count_alumni");
+      expect(data.map((d) => d.rowIndex)).toEqual([0, 1, -1, 2, 3]);
+      expect(data[2].inner).toBe("");
+      expect(new Set(data.map((d) => d.id)).size).toBe(5);
+    });
+
+    it("rowIndex menunjuk baris pivot, bukan indeks array data", () => {
+      const plan = buildNestedPlan(hasil(hierarki), [J, P], G)!;
+      const data = toNestedChartData(plan, "F.count_alumni");
+      const jalan = data.find((d) => d.inner === "Jalan")!;
+      expect(plan.pivot.rows[jalan.rowIndex].keys).toEqual(["Teknik Sipil", "Jalan"]);
+      expect(jalan.D4).toBe(4);
+      expect(jalan.D3).toBeNull();
+    });
+
+    it("nama dalam yang sama di kelompok berbeda tetap jadi batang berbeda", () => {
+      const rows = [
+        { [G]: "D3", [P]: "Teknik Kimia", "F.count_alumni": 1 },
+        { [G]: "D4", [P]: "Teknik Kimia", "F.count_alumni": 2 },
+        { [G]: "D4", [P]: "Analis Kimia", "F.count_alumni": 3 },
+      ];
+      const plan = buildNestedPlan(hasil(rows), [G, P], null)!;
+      const bars = toNestedChartData(plan, "F.count_alumni").filter((d) => d.rowIndex >= 0);
+      expect(bars.map((d) => d.inner)).toEqual(["Teknik Kimia", "Teknik Kimia", "Analis Kimia"]);
+      expect(new Set(bars.map((d) => d.id)).size).toBe(3);
+      expect(bars.map((d) => d.nilai)).toEqual([1, 2, 3]);
+    });
+  });
+
+  describe("filledSeriesPerBar", () => {
+    it("satu seri terisi per batang bila warna bergantung pada batang (prodi → jurusan)", () => {
+      const data = [
+        { name: "a", X: 1, Y: null },
+        { name: "b", X: null, Y: 2 },
+      ];
+      expect(filledSeriesPerBar(data, ["X", "Y"])).toBe(1);
+    });
+
+    it("menghitung seri terisi terbanyak dalam satu batang", () => {
+      const data = [
+        { name: "a", X: 1, Y: 3 },
+        { name: "b", X: null, Y: 2 },
+      ];
+      expect(filledSeriesPerBar(data, ["X", "Y"])).toBe(2);
+    });
+
+    it("spacer dan nilai yang hilang tidak dihitung", () => {
+      expect(filledSeriesPerBar([{ name: "a" }, { name: "b", X: 0 }], ["X", "Y"])).toBe(1);
+      expect(filledSeriesPerBar([], ["X"])).toBe(0);
+    });
+  });
+
+  describe("decideChart dengan rencana bertingkat", () => {
+    function rencana(kelompok: number, perKelompok: number, seri = 1) {
+      const rows = [];
+      for (let g = 0; g < kelompok; g++) {
+        for (let k = 0; k < perKelompok; k++) {
+          for (let s = 0; s < seri; s++) {
+            rows.push({ [J]: `J${g}`, [P]: `J${g}-P${k}`, [T]: `${2000 + s}`, "F.count_alumni": 1 });
+          }
+        }
+      }
+      const rowDims = [J, P];
+      const colDim = seri > 1 ? T : null;
+      const result = hasil(rows);
+      return {
+        rowDims,
+        colDim,
+        plan: buildFacets(result, rowDims, colDim),
+        nested: buildNestedPlan(result, rowDims, colDim),
+      };
+    }
+
+    it("tiga dimensi dalam batas jadi satu grafik bertingkat", () => {
+      const { rowDims, colDim, plan, nested } = rencana(3, 5, 2);
+      const d = decideChart(rowDims, colDim, plan, nested);
+      expect(d.kind).toBe("nested-bar");
+      expect(d.faceted).toBe(false);
+      expect(d.panels?.faceted).toBe(true);
+    });
+
+    it("dua dimensi baris tanpa kolom juga bertingkat", () => {
+      const { rowDims, colDim, plan, nested } = rencana(2, 4);
+      expect(decideChart(rowDims, colDim, plan, nested).kind).toBe("nested-bar");
+    });
+
+    it(`lebih dari ${MAX_NESTED_CATEGORIES} batang jatuh ke panel`, () => {
+      const { rowDims, colDim, plan, nested } = rencana(3, 14);
+      const d = decideChart(rowDims, colDim, plan, nested);
+      expect(d.kind).not.toBe("nested-bar");
+      expect(d.faceted).toBe(true);
+    });
+
+    it(`lebih dari ${MAX_NESTED_GROUPS} kelompok luar tidak bertingkat`, () => {
+      const { rowDims, colDim, plan, nested } = rencana(13, 1);
+      expect(decideChart(rowDims, colDim, plan, nested).kind).not.toBe("nested-bar");
+    });
+
+    it("seri terlalu banyak tetap ditolak dengan alasan seri", () => {
+      const { rowDims, colDim, plan, nested } = rencana(2, 2, 13);
+      const d = decideChart(rowDims, colDim, plan, nested);
+      expect(d.kind).toBe("none");
+      expect(d.reason).toContain("13 seri");
+    });
+
+    it("tanpa rencana bertingkat perilaku lama tidak berubah", () => {
+      const { rowDims, colDim, plan } = rencana(3, 5, 2);
+      expect(decideChart(rowDims, colDim, plan).faceted).toBe(true);
+    });
+  });
+
+  describe("pilihan visualisasi untuk grafik bertingkat", () => {
+    const panels = { kind: "grouped-bar", faceted: true } as const;
+    const nested = { kind: "nested-bar", faceted: false, panels } as const;
+
+    it("menawarkan Panel terpisah", () => {
+      const opts = availableViz(nested, 2, 5);
+      expect(opts).toContain("panels");
+      expect(opts).toContain("bar");
+      expect(opts[opts.length - 1]).toBe("table");
+    });
+
+    it("otomatis dan batang tetap bertingkat", () => {
+      expect(applyViz(nested, "auto", 2, 5)).toBe(nested);
+      expect(applyViz(nested, "bar", 2, 5)).toBe(nested);
+    });
+
+    it("Panel terpisah kembali ke panel", () => {
+      expect(applyViz(nested, "panels", 2, 5)).toBe(panels);
+    });
+
+    it("garis dan bertumpuk memakai jalur panel", () => {
+      expect(applyViz(nested, "line", 2, 5)).toEqual({ kind: "line", faceted: true });
+      expect(applyViz(nested, "stacked", 2, 5)).toEqual({ kind: "stacked", faceted: true });
+    });
+
+    it("bila panel sendiri ditolak, hanya otomatis dan tabel", () => {
+      const ditolak = {
+        kind: "nested-bar",
+        faceted: false,
+        panels: { kind: "none", faceted: false, reason: "x" },
+      } as const;
+      expect(availableViz(ditolak, 2, 5)).toEqual(["auto", "table"]);
+    });
+
+    it("pilihan Panel terpisah tidak ada di luar grafik bertingkat", () => {
+      expect(availableViz({ kind: "grouped-bar", faceted: true }, 2, 5)).not.toContain("panels");
+      const bar = { kind: "bar", faceted: false } as const;
+      expect(applyViz(bar, "panels", 1, 5)).toBe(bar);
+    });
   });
 });

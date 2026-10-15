@@ -5,6 +5,7 @@ import ExplorerComboChart from "./ExplorerComboChart";
 import PointActionDialog from "./PointActionDialog";
 import ExplorerDrillDown, { type DrillRequest } from "./ExplorerDrillDown";
 import ExplorerFacets from "./ExplorerFacets";
+import ExplorerNestedChart from "./ExplorerNestedChart";
 import PivotTable from "./PivotTable";
 import VizPicker from "./VizPicker";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -20,6 +21,7 @@ import {
   EMPTY_VALUE,
   SINGLE_COLUMN,
   buildFacets,
+  buildNestedPlan,
   buildPivot,
   chartPivotOf,
   applyViz,
@@ -184,9 +186,17 @@ const ExplorerResultView = ({
     };
   }, [result, rowDims, colDim, percent, diff]);
 
+  // Dua dimensi baris yang muat dalam satu grafik digambar bertingkat di
+  // sumbu X, bukan dipecah jadi panel (lihat decideChart). Olahan tampilannya
+  // sama dengan panel supaya angka grafik tetap sama dengan tabel.
+  const nested = useMemo(() => {
+    const raw = buildNestedPlan(result, rowDims, colDim);
+    return raw && { ...raw, pivot: chartPivotOf(presentPivot(raw.pivot, { percent, diff }, result.measures).pivot) };
+  }, [result, rowDims, colDim, percent, diff]);
+
   // Keputusan chart memakai hasil yang sesungguhnya, bukan cuma jumlah dimensi
   // — dua dimensi baris bisa menghasilkan ratusan kelompok.
-  const base = decideChart(rowDims, colDim, plan);
+  const base = decideChart(rowDims, colDim, plan, nested);
   const seriesCount = Math.max(...plan.facets.map((f) => f.pivot.columnKeys.length), 0);
   const categoryCount = Math.max(...plan.facets.map((f) => f.pivot.rows.length), 0);
   const vizOptions = availableViz(base, seriesCount, categoryCount, measures.length);
@@ -233,6 +243,13 @@ const ExplorerResultView = ({
         onPointClick={(i, measureKey) =>
           drillFromChart(chartPivotOf(pivot), rowDims, i, pivot.columnKeys[0] ?? SINGLE_COLUMN, {}, measureKey)
         }
+      />
+    ) : chart.kind === "nested-bar" && nested ? (
+      <ExplorerNestedChart
+        plan={nested}
+        measure={activeMeasure}
+        height={compact ? 240 : undefined}
+        onPointClick={(i, col) => drillFromChart(nested.pivot, [nested.outerDim, nested.innerDim], i, col)}
       />
     ) : chart.faceted ? (
       <ExplorerFacets
