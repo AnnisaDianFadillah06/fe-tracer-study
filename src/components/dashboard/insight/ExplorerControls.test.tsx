@@ -72,10 +72,10 @@ describe("ExplorerControls (pita filter)", () => {
     expect(screen.queryByRole("button", { name: "Tukar baris dan kolom" })).not.toBeInTheDocument();
   });
 
-  it("mode lanjutan: label bertanda Dice/Slice dan kolom Putar muncul", () => {
+  it("mode lanjutan: slot dimensi bernomor, Batasi bertanda Slice, kolom Putar muncul", () => {
     renderControls({ advanced: true });
 
-    for (const label of ["Per (Dice)", "Dibandingkan antar (Dice)", "Batasi (Slice)"]) {
+    for (const label of ["Per (Dimensi-1)", "Dibandingkan antar (Dimensi-2)", "Batasi (Slice)"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(screen.getByRole("button", { name: "Tukar baris dan kolom" })).toBeInTheDocument();
@@ -134,6 +134,19 @@ describe("ExplorerControls (pita filter)", () => {
       colDim,
     });
     const tombol = () => screen.queryByRole("button", { name: "Tingkat" });
+
+    it("mode lanjutan menomori dimensi berurutan, kolom sesudah semua slot baris", () => {
+      renderControls({ catalog: katalog(5), input: dengan(["D.A", "D.B", "D.C"], "D.D"), advanced: true });
+      for (const label of ["Per (Dimensi-1)", "Lalu per (Dimensi-2)", "Lalu per (Dimensi-3)", "Dibandingkan antar (Dimensi-4)"]) {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
+    });
+
+    it("slot kosong ikut bernomor, dan kolom bergeser satu", () => {
+      renderControls({ catalog: katalog(5), input: dengan(["D.A"]), advanced: true });
+      expect(screen.getByText("Lalu per (Dimensi-2)")).toBeInTheDocument();
+      expect(screen.getByText("Dibandingkan antar (Dimensi-3)")).toBeInTheDocument();
+    });
 
     it("tingkat kedua langsung berupa slot; tombol baru muncul setelahnya", () => {
       renderControls({ catalog: katalog(5), input: dengan(["D.A"]) });

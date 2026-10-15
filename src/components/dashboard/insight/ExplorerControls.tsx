@@ -101,6 +101,19 @@ const ExplorerControls = ({
   // Slot kosong tingkat ke-3 dst. hanya muncul setelah "+ Tingkat" diklik,
   // supaya pita kontrol tidak penuh slot kosong.
   const [addingLevel, setAddingLevel] = useState(false);
+
+  // Slot baris yang tampil: "Per" selalu ada, lalu satu slot kosong bila
+  // tingkat berikutnya sedang ditawarkan (tingkat kedua, atau setelah
+  // "+ Tingkat" diklik).
+  const canAddLevel = input.rowDims.length > 0 && input.rowDims.length < maxRowDims;
+  const emptySlot = canAddLevel && (input.rowDims.length === 1 || addingLevel);
+  const rowSlots = Math.max(input.rowDims.length, 1) + (emptySlot ? 1 : 0);
+  /**
+   * Mode lanjutan menomori setiap slot dimensi berurutan -- Per = Dimensi-1,
+   * Lalu per = Dimensi-2 dst., Dibandingkan antar sesudahnya -- supaya jelas
+   * berapa dimensi kubus yang sedang dipakai.
+   */
+  const nomor = (n: number) => (advanced ? ` (Dimensi-${n})` : "");
   const curatedKeys = new Set(cube.measures.map((m) => m.key));
   const fromColumns = input.measures.filter((m) => !curatedKeys.has(m));
   const measuresFull = input.measures.length >= catalog.limits.max_measures;
@@ -407,9 +420,9 @@ const ExplorerControls = ({
         </Field>
 
         <DimensionSelect
-          label={advanced ? "Per (Dice)" : "Per"}
+          label={`Per${nomor(1)}`}
         width={advanced ? "w-[160px]" : undefined}
-          hint={`Memecah hasil menjadi kelompok${advanced ? " (dice)" : ""}, misalnya per jurusan atau per tahun lulus. Kosongkan untuk satu angka total.`}
+          hint={`Memecah hasil menjadi kelompok, misalnya per jurusan atau per tahun lulus. Kosongkan untuk satu angka total.`}
           value={input.rowDims[0] ?? null}
           groups={availableFor(0)}
           onChange={(key) => setRowDim(0, key)}
@@ -422,7 +435,7 @@ const ExplorerControls = ({
         {input.rowDims.slice(1).map((dim, i) => (
           <DimensionSelect
             key={dim}
-            label={advanced ? "Lalu per (Dice)" : "Lalu per"}
+            label={`Lalu per${nomor(i + 2)}`}
             width={advanced ? "w-[160px]" : undefined}
             value={dim}
             groups={availableFor(i + 1)}
@@ -430,11 +443,10 @@ const ExplorerControls = ({
           />
         ))}
 
-        {input.rowDims.length > 0 &&
-          input.rowDims.length < maxRowDims &&
-          (input.rowDims.length === 1 || addingLevel ? (
+        {canAddLevel &&
+          (emptySlot ? (
             <DimensionSelect
-              label={advanced ? "Lalu per (Dice)" : "Lalu per"}
+              label={`Lalu per${nomor(input.rowDims.length + 1)}`}
               width={advanced ? "w-[160px]" : undefined}
               value={null}
               groups={availableFor(input.rowDims.length)}
@@ -453,7 +465,7 @@ const ExplorerControls = ({
           ))}
 
         <DimensionSelect
-          label={advanced ? "Dibandingkan antar (Dice)" : "Dibandingkan antar"}
+          label={`Dibandingkan antar${nomor(rowSlots + 1)}`}
         width={advanced ? "w-[160px]" : undefined}
           hint="Menaruh kelompok ini sebagai kolom, sehingga bisa dibandingkan berdampingan dengan kelompok di atas, misalnya status alumni per jurusan."
           value={input.colDim}
