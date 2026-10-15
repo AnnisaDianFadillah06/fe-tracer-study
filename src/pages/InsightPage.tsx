@@ -53,6 +53,7 @@ import {
   drillFilters,
   isRunnable,
   measureLabelOf,
+  maxDimensionsOf,
   rollUpInput,
   sameQuestion,
   toCsv,
@@ -250,7 +251,7 @@ const InsightPage = () => {
   const drillDimensions = useMemo(() => {
     if (!current || !cube || !catalog) return [];
     const used = new Set([...current.rowDims, ...(current.colDim ? [current.colDim] : [])]);
-    if (used.size >= catalog.limits.max_dimensions) return [];
+    if (used.size >= maxDimensionsOf(cube, catalog)) return [];
     return cube.dimension_groups.flatMap((g) => g.members).filter((d) => !used.has(d.key));
   }, [current, cube, catalog]);
 

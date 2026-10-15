@@ -23,6 +23,7 @@ import HelpTip from "./HelpTip";
 import { useDimensionValues } from "@/hooks/useExplorer";
 import {
   lowerFirst,
+  maxDimensionsOf,
   measureLabelOf,
   swapRowsColumns,
   type CatalogCube,
@@ -95,7 +96,11 @@ const ExplorerControls = ({
 
   const formulas = input.formulas ?? [];
   const maxFormulas = catalog.limits.max_formulas ?? 3;
-  const maxRowDims = catalog.limits.max_dimensions - (input.colDim ? 1 : 0);
+  const maxDimensions = maxDimensionsOf(cube, catalog);
+  const maxRowDims = maxDimensions - (input.colDim ? 1 : 0);
+  // Slot kosong tingkat ke-3 dst. hanya muncul setelah "+ Tingkat" diklik,
+  // supaya pita kontrol tidak penuh slot kosong.
+  const [addingLevel, setAddingLevel] = useState(false);
   const curatedKeys = new Set(cube.measures.map((m) => m.key));
   const fromColumns = input.measures.filter((m) => !curatedKeys.has(m));
   const measuresFull = input.measures.length >= catalog.limits.max_measures;
@@ -122,15 +127,20 @@ const ExplorerControls = ({
     });
   };
 
-  /** Dimensi yang sudah terpakai di tempat lain tidak ditawarkan lagi. */
-  const availableFor = (slot: "row0" | "row1" | "col") => {
+  /**
+   * Dimensi yang sudah terpakai di tempat lain tidak ditawarkan lagi.
+   * `slot` = indeks dimensi baris, atau "col" untuk Dibandingkan antar.
+   */
+  const availableFor = (slot: number | "col") => {
+    // Kolom baru tidak boleh melewati batas cube bila baris sudah penuh.
+    if (slot === "col" && !input.colDim && input.rowDims.length >= maxDimensions) return [];
+
     const taken = new Set<string>([
       ...input.rowDims,
       ...(input.colDim ? [input.colDim] : []),
     ]);
 
-    const current =
-      slot === "col" ? input.colDim : input.rowDims[slot === "row0" ? 0 : 1];
+    const current = slot === "col" ? input.colDim : input.rowDims[slot];
     if (current) taken.delete(current);
 
     return cube.dimension_groups
@@ -151,6 +161,7 @@ const ExplorerControls = ({
     }
 
     update({ ...input, rowDims: next.filter(Boolean) });
+    setAddingLevel(false);
   };
 
   const addFilter = (member: string) => {
@@ -400,22 +411,46 @@ const ExplorerControls = ({
         width={advanced ? "w-[160px]" : undefined}
           hint={`Memecah hasil menjadi kelompok${advanced ? " (dice)" : ""}, misalnya per jurusan atau per tahun lulus. Kosongkan untuk satu angka total.`}
           value={input.rowDims[0] ?? null}
-          groups={availableFor("row0")}
+          groups={availableFor(0)}
           onChange={(key) => setRowDim(0, key)}
         />
 
-        {/* Slot baris kedua baru muncul setelah yang pertama terisi —
-            memilih dimensi baris kedua tanpa yang pertama tidak berarti
-            apa-apa. */}
-        {input.rowDims.length > 0 && maxRowDims > 1 && (
+        {/* Tingkat baris berikutnya. Slot kedua langsung muncul setelah yang
+            pertama terisi (memilih tingkat kedua tanpa yang pertama tidak
+            berarti apa-apa); tingkat ketiga dst. lewat tombol "+ Tingkat"
+            sampai batas dimensi sumber data ini. */}
+        {input.rowDims.slice(1).map((dim, i) => (
           <DimensionSelect
+            key={dim}
             label={advanced ? "Lalu per (Dice)" : "Lalu per"}
-          width={advanced ? "w-[160px]" : undefined}
-            value={input.rowDims[1] ?? null}
-            groups={availableFor("row1")}
-            onChange={(key) => setRowDim(1, key)}
+            width={advanced ? "w-[160px]" : undefined}
+            value={dim}
+            groups={availableFor(i + 1)}
+            onChange={(key) => setRowDim(i + 1, key)}
           />
-        )}
+        ))}
+
+        {input.rowDims.length > 0 &&
+          input.rowDims.length < maxRowDims &&
+          (input.rowDims.length === 1 || addingLevel ? (
+            <DimensionSelect
+              label={advanced ? "Lalu per (Dice)" : "Lalu per"}
+              width={advanced ? "w-[160px]" : undefined}
+              value={null}
+              groups={availableFor(input.rowDims.length)}
+              onChange={(key) => setRowDim(input.rowDims.length, key)}
+            />
+          ) : (
+            <Field
+              label="Tingkat"
+              hint={`Tambah tingkat pengelompokan baris. Sumber data ini menampung sampai ${maxDimensions} dimensi; di atas 3 dimensi hasilnya berupa tabel bersarang dan peta panas.`}
+            >
+              <Button variant="outline" className="h-9" onClick={() => setAddingLevel(true)}>
+                <Plus className="mr-1 h-4 w-4" />
+                Tingkat
+              </Button>
+            </Field>
+          ))}
 
         <DimensionSelect
           label={advanced ? "Dibandingkan antar (Dice)" : "Dibandingkan antar"}

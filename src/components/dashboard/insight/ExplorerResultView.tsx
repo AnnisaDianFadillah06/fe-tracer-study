@@ -31,6 +31,7 @@ import {
   lowerFirst,
   preferHeatmap,
   sortColumns,
+  sortRows,
   applyViz,
   availableViz,
   decideChart,
@@ -53,7 +54,7 @@ interface Props {
   /** Saringan pertanyaan — ikut dikirim saat drill-down ke daftar alumni. */
   filters: ExplorerFilter[];
   /** Olah hasil yang murni tampilan: persen & selisih kolom. */
-  display?: Pick<ExplorerQueryInput, "percent" | "diff" | "viz">;
+  display?: Pick<ExplorerQueryInput, "percent" | "diff" | "viz" | "sort">;
   rowDims: string[];
   colDim: string | null;
   /** Measure yang digambar; null = measure pertama. */
@@ -170,14 +171,16 @@ const ExplorerResultView = ({
 
   const percent = display?.percent;
   const diff = display?.diff;
+  // Urutan dari peladen hanya bermakna bila pengguna memilih urutan.
+  const serverOrder = Boolean(display?.sort);
 
   // Persen & selisih kolom diterapkan SETELAH pivot dibangun dan sebelum apa
   // pun digambar, supaya tabel, chart, dan panel selalu menampilkan angka
   // yang sama.
-  const { pivot, measures } = useMemo(
-    () => presentPivot(buildPivot(result, rowDims, colDim), { percent, diff }, result.measures),
-    [result, rowDims, colDim, percent, diff],
-  );
+  const { pivot, measures } = useMemo(() => {
+    const base = buildPivot(result, rowDims, colDim);
+    return presentPivot(serverOrder ? base : sortRows(base), { percent, diff }, result.measures);
+  }, [result, rowDims, colDim, percent, diff, serverOrder]);
 
   // Chart dipecah per nilai dimensi Baris kedua (small multiples). Tabel di
   // bawah tetap memakai pivot utuh — dua dimensi baris terbaca baik di sana
@@ -324,7 +327,9 @@ const ExplorerResultView = ({
     <PivotTable
       pivot={pivot}
       measures={measures}
-      rowDimensions={result.dimensions.filter((d) => rowDims.includes(d.key))}
+      // Urut sesuai rowDims, bukan urutan hasil: kunci baris pivot dan
+      // pengelompokan tabel bersarang mengikuti urutan rowDims.
+      rowDimensions={rowDims.map((key) => ({ key, label: labelOf(key) }))}
       hasColumnDimension={colDim !== null}
       colDim={colDim}
       onCellClick={openDrill}

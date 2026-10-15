@@ -12,6 +12,8 @@ import {
   buildFacets,
   buildNestedPlan,
   buildPivot,
+  buildTableLayout,
+  maxDimensionsOf,
   canHeatmap,
   canScatter,
   filledSeriesPerBar,
@@ -20,6 +22,7 @@ import {
   median,
   preferHeatmap,
   sortColumns,
+  sortRows,
   toScatterPoints,
   MAX_HEATMAP_COLUMNS,
   MAX_HEATMAP_ROWS,
@@ -1056,5 +1059,140 @@ describe("pilihan heatmap dan sebaran titik", () => {
     const nested = { kind: "nested-bar", faceted: false, panels: { kind: "grouped-bar", faceted: true } } as const;
     expect(availableViz(nested, 2, 5, 1, { heatmap: true })).toContain("heatmap");
     expect(applyViz(nested, "heatmap", 2, 5, 1, { heatmap: true })).toEqual({ kind: "heatmap", faceted: false });
+  });
+});
+
+describe("lebih dari tiga dimensi", () => {
+  const J = "DimProdi.jurusan";
+  const P = "DimProdi.nama_prodi";
+  const T = "DimAlumni.tahun_lulus";
+  const S = "DimStatusAlumni.label";
+
+  describe("maxDimensionsOf", () => {
+    const limits = { max_dimensions: 3, max_measures: 4, max_rows: 5000 };
+    const cube = { key: "F", label: "F", description: "", measures: [], dimension_groups: [] };
+
+    it("memakai batas per cube dari katalog", () => {
+      expect(maxDimensionsOf({ ...cube, max_dimensions: 8 }, { cubes: [], limits })).toBe(8);
+    });
+
+    it("jatuh ke batas global untuk peladen lama", () => {
+      expect(maxDimensionsOf(cube, { cubes: [], limits })).toBe(3);
+    });
+  });
+
+  it("lebih dari dua dimensi baris tidak digambar sebagai batang, lalu jadi peta panas", () => {
+    const rows = [
+      { [J]: "Sipil", [P]: "KG", [T]: "2021", [S]: "Bekerja", "F.count_alumni": 3 },
+      { [J]: "Sipil", [P]: "KG", [T]: "2021", [S]: "Wiraswasta", "F.count_alumni": 1 },
+    ];
+    const rowDims = [J, P, T];
+    const result = hasil(rows);
+    const d = decideChart(rowDims, S, buildFacets(result, rowDims, S), buildNestedPlan(result, rowDims, S));
+
+    expect(d.kind).toBe("none");
+    expect(d.reason).toContain("3 dimensi baris");
+    expect(preferHeatmap(d, true).kind).toBe("heatmap");
+  });
+
+  it("tiga dimensi baris tanpa kolom pun tidak digambar sebagai batang", () => {
+    const rows = [{ [J]: "Sipil", [P]: "KG", [T]: "2021", "F.count_alumni": 3 }];
+    const rowDims = [J, P, T];
+    const result = hasil(rows);
+    expect(decideChart(rowDims, null, buildFacets(result, rowDims, null)).kind).toBe("none");
+  });
+
+  it("sortRows mengurutkan baris per tingkat kunci, angka sebagai angka", () => {
+    const rows = [
+      { [J]: "Sipil", [T]: "2022", "F.count_alumni": 1 },
+      { [J]: "Kimia", [T]: "2021", "F.count_alumni": 2 },
+      { [J]: "Sipil", [T]: "2019", "F.count_alumni": 3 },
+    ];
+    const pivot = buildPivot(hasil(rows), [J, T], null);
+    expect(sortRows(pivot).rows.map((r) => r.keys)).toEqual([
+      ["Kimia", "2021"],
+      ["Sipil", "2019"],
+      ["Sipil", "2022"],
+    ]);
+    expect(pivot.rows[0].keys).toEqual(["Sipil", "2022"]);
+  });
+
+  describe("buildTableLayout", () => {
+    const baris = (j: string, p: string, n: number | null, t = "2021") => ({ [J]: j, [P]: p, [T]: t, "F.count_alumni": n });
+    const pivotDua = (rows: ExplorerResult["rows"], measures: CatalogMeasure[] = [measureCount]) =>
+      buildPivot(hasil(rows, measures), [J, P], T);
+
+    it("satu dimensi baris: hanya baris data, tanpa subtotal", () => {
+      const pivot = buildPivot(hasil([baris("Sipil", "KG", 1), baris("Kimia", "AK", 2)]), [J], null);
+      const lines = buildTableLayout(pivot, [measureCount], 1);
+      expect(lines.map((l) => l.kind)).toEqual(["data", "data"]);
+      expect(lines[0].keyCells).toEqual([{ text: "Sipil", rowSpan: 1 }]);
+    });
+
+    it("mengelompokkan per kunci luar dengan urutan kemunculan pertama", () => {
+      const pivot = pivotDua([baris("Sipil", "KG", 1), baris("Kimia", "AK", 2), baris("Sipil", "JJ", 3)]);
+      const lines = buildTableLayout(pivot, [measureCount], 2).filter((l) => l.kind === "data");
+      expect(lines.map((l) => l.path)).toEqual([
+        ["Sipil", "KG"],
+        ["Sipil", "JJ"],
+        ["Kimia", "AK"],
+      ]);
+    });
+
+    it("sel luar memakai rowSpan sepanjang kelompoknya; baris berikutnya tertutup", () => {
+      const pivot = pivotDua([baris("Sipil", "KG", 1), baris("Sipil", "JJ", 3), baris("Kimia", "AK", 2)]);
+      const lines = buildTableLayout(pivot, [measureCount], 2);
+      expect(lines[0].keyCells).toEqual([{ text: "Sipil", rowSpan: 2 }, { text: "KG", rowSpan: 1 }]);
+      expect(lines[1].keyCells).toEqual([undefined, { text: "JJ", rowSpan: 1 }]);
+    });
+
+    it("subtotal setelah kelompok berisi lebih dari satu baris, menjumlahkan cacah", () => {
+      const pivot = pivotDua([baris("Sipil", "KG", 1), baris("Sipil", "JJ", 3), baris("Kimia", "AK", 2)]);
+      const lines = buildTableLayout(pivot, [measureCount], 2);
+      expect(lines.map((l) => l.kind)).toEqual(["data", "data", "subtotal", "data"]);
+
+      const sub = lines[2];
+      expect(sub.path).toEqual(["Sipil"]);
+      expect(sub.labelLevel).toBe(1);
+      expect(sub.values["2021"]["F.count_alumni"]).toBe(4);
+      expect(sub.totals["F.count_alumni"]).toBe(4);
+    });
+
+    it("tiga tingkat: subtotal bersarang dan rowSpan luar mencakup subtotal dalam", () => {
+      const rows = [
+        { [J]: "Sipil", [P]: "KG", [T]: "2021", "F.count_alumni": 1 },
+        { [J]: "Sipil", [P]: "KG", [T]: "2022", "F.count_alumni": 2 },
+        { [J]: "Sipil", [P]: "JJ", [T]: "2021", "F.count_alumni": 4 },
+      ];
+      const pivot = buildPivot(hasil(rows), [J, P, T], null);
+      const lines = buildTableLayout(pivot, [measureCount], 3);
+
+      expect(lines.map((l) => [l.kind, l.path.join("/")])).toEqual([
+        ["data", "Sipil/KG/2021"],
+        ["data", "Sipil/KG/2022"],
+        ["subtotal", "Sipil/KG"],
+        ["data", "Sipil/JJ/2021"],
+        ["subtotal", "Sipil"],
+      ]);
+      // Jurusan mencakup 3 baris data + subtotal prodi KG; subtotal jurusannya sendiri di luar.
+      expect(lines[0].keyCells[0]).toEqual({ text: "Sipil", rowSpan: 4 });
+      expect(lines[0].keyCells[1]).toEqual({ text: "KG", rowSpan: 2 });
+      expect(lines[2].labelLevel).toBe(2);
+      expect(lines[4].values[SINGLE_COLUMN]["F.count_alumni"]).toBe(7);
+    });
+
+    it("rata-rata tidak dijumlahkan; tanpa ukuran cacah tidak ada baris subtotal", () => {
+      const rows = [
+        { [J]: "Sipil", [P]: "KG", [T]: "2021", "F.avg_masa_tunggu": 2 },
+        { [J]: "Sipil", [P]: "JJ", [T]: "2021", "F.avg_masa_tunggu": 4 },
+      ];
+      const pivot = pivotDua(rows, [measureAvg]);
+      expect(buildTableLayout(pivot, [measureAvg], 2).map((l) => l.kind)).toEqual(["data", "data"]);
+
+      const campur = buildPivot(hasil(rows.map((r) => ({ ...r, "F.count_alumni": 1 })), [measureAvg, measureCount]), [J, P], T);
+      const sub = buildTableLayout(campur, [measureAvg, measureCount], 2).find((l) => l.kind === "subtotal")!;
+      expect(sub.values["2021"]["F.avg_masa_tunggu"]).toBeNull();
+      expect(sub.values["2021"]["F.count_alumni"]).toBe(2);
+    });
   });
 });

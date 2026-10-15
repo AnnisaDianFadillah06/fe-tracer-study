@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from "react";
 import {
   SINGLE_COLUMN,
+  buildTableLayout,
   canTotal,
   drillPointOf,
   formatMeasure,
@@ -67,8 +68,10 @@ const PivotTable = ({
     // Kolom hasil hitungan (selisih) bukan kelompok data — tidak ada alumninya.
     if (colKey !== null && pivot.derivedColumns?.includes(colKey)) return content;
 
+    // Baris subtotal hanya membawa kunci kelompoknya (prefiks); dimensi yang
+    // lebih dalam berarti "semua nilai".
     const point = drillPointOf(
-      rowKeys ? rowDims : [],
+      rowKeys ? rowDims.slice(0, rowKeys.length) : [],
       rowKeys ?? [],
       colKey === null ? null : colDim,
       colKey ?? SINGLE_COLUMN,
@@ -86,6 +89,48 @@ const PivotTable = ({
       </button>
     );
   };
+
+  // Baris dikelompokkan per dimensi luar dengan subtotal per tingkat
+  // (buildTableLayout); satu dimensi baris tetap berupa daftar biasa.
+  const layout = buildTableLayout(pivot, measures, rowDimensions.length);
+
+  /** Sel angka satu baris tabel: setiap kolom × ukuran, lalu total baris. */
+  const valueCells = (
+    valueOf: (col: string, m: CatalogMeasure) => number | null,
+    totalOf: (m: CatalogMeasure) => number | null | undefined,
+    keys: string[],
+    bold = false,
+  ) => (
+    <>
+      {pivot.columnKeys.map((col) =>
+        measures.map((m, i) => {
+          const value = valueOf(col, m);
+          return (
+            <TableCell
+              key={`${col}-${m.key}`}
+              className={`text-right tabular-nums ${i === 0 ? "border-l" : ""} ${bold ? "font-semibold" : ""}`}
+            >
+              {/* Subtotal rata-rata sengaja kosong: tidak boleh dijumlah. */}
+              {bold && !canTotal(m.format) ? "—" : cell(formatMeasure(value, m.format), value, m, keys, col)}
+            </TableCell>
+          );
+        }),
+      )}
+
+      {showTotals &&
+        totalableMeasures.map((m, i) => {
+          const total = totalOf(m) ?? null;
+          return (
+            <TableCell
+              key={`total-${m.key}`}
+              className={`text-right font-semibold tabular-nums ${i === 0 ? "border-l" : ""}`}
+            >
+              {cell(formatMeasure(total, m.format), total, m, keys, null)}
+            </TableCell>
+          );
+        })}
+    </>
+  );
 
   return (
     <div className="overflow-x-auto">
@@ -149,48 +194,51 @@ const PivotTable = ({
         </TableHeader>
 
         <TableBody>
-          {pivot.rows.map((row) => (
-            <TableRow key={row.keys.join("\u0000") || "total"}>
-              {rowDimensions.length > 0 ? (
-                row.keys.map((k, i) => (
-                  <TableCell key={i} className="whitespace-nowrap font-medium">
-                    {k}
-                  </TableCell>
-                ))
-              ) : (
-                <TableCell className="font-medium">Seluruh data</TableCell>
-              )}
-
-              {pivot.columnKeys.map((col) =>
-                measures.map((m, i) => (
-                  <TableCell
-                    key={`${col}-${m.key}`}
-                    className={`text-right tabular-nums ${i === 0 ? "border-l" : ""}`}
-                  >
-                    {cell(
-                      formatMeasure(row.cells[col]?.[m.key]?.value ?? null, m.format),
-                      row.cells[col]?.[m.key]?.value ?? null,
-                      m,
-                      row.keys,
-                      col,
+          {rowDimensions.length === 0
+            ? pivot.rows.map((row) => (
+                <TableRow key="total">
+                  <TableCell className="font-medium">Seluruh data</TableCell>
+                  {valueCells(
+                    (col, m) => row.cells[col]?.[m.key]?.value ?? null,
+                    (m) => row.totals[m.key],
+                    row.keys,
+                  )}
+                </TableRow>
+              ))
+            : layout.map((line) =>
+                line.kind === "subtotal" ? (
+                  <TableRow key={`sub-${line.path.join("\u0000")}`} className="bg-muted/50 font-semibold hover:bg-muted/60">
+                    <TableCell colSpan={rowDimensions.length - (line.labelLevel! - 1)} className="whitespace-nowrap">
+                      Subtotal {line.path[line.path.length - 1]}
+                    </TableCell>
+                    {valueCells(
+                      (col, m) => line.values[col]?.[m.key] ?? null,
+                      (m) => line.totals[m.key],
+                      line.path,
+                      true,
                     )}
-                  </TableCell>
-                )),
+                  </TableRow>
+                ) : (
+                  <TableRow key={line.path.join("\u0000")}>
+                    {line.keyCells.map((k, i) =>
+                      k ? (
+                        <TableCell
+                          key={i}
+                          rowSpan={k.rowSpan}
+                          className={`whitespace-nowrap align-top font-medium ${k.rowSpan > 1 ? "border-r bg-card" : ""}`}
+                        >
+                          {k.text}
+                        </TableCell>
+                      ) : null,
+                    )}
+                    {valueCells(
+                      (col, m) => line.values[col]?.[m.key] ?? null,
+                      (m) => line.totals[m.key],
+                      line.path,
+                    )}
+                  </TableRow>
+                ),
               )}
-
-              {showTotals &&
-                totalableMeasures.map((m, i) => (
-                  <TableCell
-                    key={`total-${m.key}`}
-                    className={`text-right font-semibold tabular-nums ${
-                      i === 0 ? "border-l" : ""
-                    }`}
-                  >
-                    {cell(formatMeasure(row.totals[m.key], m.format), row.totals[m.key], m, row.keys, null)}
-                  </TableCell>
-                ))}
-            </TableRow>
-          ))}
         </TableBody>
 
         {showTotals && totalableMeasures.length > 0 && (

@@ -64,7 +64,17 @@ export interface CatalogCube {
   numeric_columns?: NumericColumn[];
   /** Cacah dasar sumber data ini; dasar "sembunyikan kelompok < n". */
   count_measure?: string | null;
+  /** Batas dimensi sekaligus untuk cube ini (lihat maxDimensionsOf). */
+  max_dimensions?: number;
   dimension_groups: CatalogDimensionGroup[];
+}
+
+/**
+ * Batas dimensi sekaligus untuk satu sumber data. Peladen menghitungnya dari
+ * jumlah tabel dimensi cube itu; peladen lama hanya mengirim batas global.
+ */
+export function maxDimensionsOf(cube: CatalogCube, catalog: ExplorerCatalog): number {
+  return cube.max_dimensions ?? catalog.limits.max_dimensions;
 }
 
 export interface ExplorerCatalog {
@@ -261,6 +271,9 @@ export const MAX_CHART_SERIES = 12;
 /** Panel dibandingkan berdampingan; lebih dari ini tidak lagi bisa dibandingkan. */
 export const MAX_FACETS = 12;
 
+/** Dimensi baris terbanyak yang masih bisa digambar sebagai batang/garis. */
+export const MAX_CHART_ROW_DIMENSIONS = 2;
+
 /** Lebar minimum per kategori, dipakai menghitung lebar chart yang bisa digeser. */
 export const MIN_CATEGORY_WIDTH = 32;
 
@@ -317,6 +330,21 @@ export function decideChart(
   plan: FacetPlan,
   nested: NestedPlan | null = null,
 ): ChartDecision {
+  // Batang, garis, bertingkat, dan panel paling banyak memuat dua dimensi
+  // baris. Lebih dari itu ditolak dengan alasan; pemanggil menggantinya
+  // dengan peta panas bila ada dimensi kolom (preferHeatmap), dan tabel
+  // bersarang selalu ada. Tanpa ini buildFacets diam-diam membuang dimensi
+  // baris ketiga dan grafiknya menggambar angka yang salah dikelompokkan.
+  if (rowDims.length > MAX_CHART_ROW_DIMENSIONS) {
+    return {
+      kind: "none",
+      faceted: false,
+      reason:
+        `${rowDims.length} dimensi baris terlalu banyak untuk grafik batang atau garis. ` +
+        "Angkanya ada di tabel bersarang di bawah; pilih \"Dibandingkan antar\" untuk melihatnya juga sebagai peta panas.",
+    };
+  }
+
   const panels = decidePanels(rowDims, colDim, plan);
 
   if (nested && canNest(nested)) return { kind: "nested-bar", faceted: false, panels };
@@ -611,6 +639,123 @@ function sumCells(values: (number | null)[]): number | null {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  Tabulasi silang bersarang (baris berkelompok + subtotal)
+// ═══════════════════════════════════════════════════════════
+
+export interface TableKeyCell {
+  text: string;
+  /** Jumlah baris tabel yang dicakup sel ini (termasuk subtotal di dalamnya). */
+  rowSpan: number;
+}
+
+export interface TableLine {
+  kind: "data" | "subtotal";
+  /**
+   * Hanya baris data: sel kunci yang DIMULAI di baris ini per tingkat;
+   * undefined = tingkat itu tertutup rowSpan sel di atasnya.
+   */
+  keyCells: Array<TableKeyCell | undefined>;
+  /** Kunci titik untuk drill-down: seluruh kunci (data) atau prefiks kelompok (subtotal). */
+  path: string[];
+  /**
+   * Hanya subtotal: tingkat kelompoknya (= panjang path). Sel labelnya
+   * dimulai di kolom kunci ke-(labelLevel - 1) dan membentang ke kanan.
+   */
+  labelLevel?: number;
+  /** values[kolom][measure] */
+  values: Record<string, Record<string, number | null>>;
+  /** Total baris lintas kolom per measure; null untuk yang tak boleh dijumlah. */
+  totals: Record<string, number | null>;
+}
+
+/**
+ * Susunan tabel pivot dengan dimensi baris bertingkat, seperti cross-tab
+ * berhierarki (kategori › barang): baris dikelompokkan per kunci luar, sel
+ * kunci yang berulang digabung (rowSpan), dan setiap kelompok yang berisi
+ * lebih dari satu baris diberi baris subtotal di tiap tingkat.
+ *
+ * Kelompok disusun menurut urutan kemunculan pertama, bukan abjad, supaya
+ * pengurutan dan "N teratas" dari peladen tetap berlaku di dalam kelompok.
+ * Subtotal hanya untuk cacah (canTotal) -- rata-rata dikosongkan dengan
+ * alasan yang sama seperti total di buildPivot. Tanpa satu pun cacah, tidak
+ * ada baris subtotal sama sekali: baris yang seluruhnya kosong hanya bising.
+ */
+export function buildTableLayout(pivot: Pivot, measures: CatalogMeasure[], depth: number): TableLine[] {
+  const withSubtotals = depth > 1 && measures.some((m) => canTotal(m.format));
+  const lines: TableLine[] = [];
+
+  const dataLine = (row: PivotRow): TableLine => ({
+    kind: "data",
+    keyCells: [],
+    path: row.keys,
+    values: Object.fromEntries(
+      pivot.columnKeys.map((c) => [c, Object.fromEntries(measures.map((m) => [m.key, row.cells[c]?.[m.key]?.value ?? null]))]),
+    ),
+    totals: row.totals,
+  });
+
+  const subtotalLine = (rows: PivotRow[], path: string[]): TableLine => {
+    const sum = (m: CatalogMeasure, pick: (r: PivotRow) => number | null) =>
+      canTotal(m.format) ? sumCells(rows.map(pick)) : null;
+
+    return {
+      kind: "subtotal",
+      keyCells: [],
+      path,
+      labelLevel: path.length,
+      values: Object.fromEntries(
+        pivot.columnKeys.map((c) => [
+          c,
+          Object.fromEntries(measures.map((m) => [m.key, sum(m, (r) => r.cells[c]?.[m.key]?.value ?? null)])),
+        ]),
+      ),
+      totals: Object.fromEntries(measures.map((m) => [m.key, sum(m, (r) => r.totals[m.key] ?? null)])),
+    };
+  };
+
+  /** Menyusun baris untuk satu kelompok; mengembalikan jumlah baris tabel yang dibuat. */
+  const emit = (rows: PivotRow[], level: number): number => {
+    if (level >= depth - 1) {
+      for (const row of rows) {
+        const line = dataLine(row);
+        line.keyCells[level] = { text: row.keys[level] ?? "", rowSpan: 1 };
+        lines.push(line);
+      }
+      return rows.length;
+    }
+
+    const order: string[] = [];
+    const groups = new Map<string, PivotRow[]>();
+    for (const row of rows) {
+      const key = row.keys[level] ?? "";
+      if (!groups.has(key)) {
+        groups.set(key, []);
+        order.push(key);
+      }
+      groups.get(key)!.push(row);
+    }
+
+    let made = 0;
+    for (const key of order) {
+      const members = groups.get(key)!;
+      const first = lines.length;
+      const span = emit(members, level + 1);
+      lines[first].keyCells[level] = { text: key, rowSpan: span };
+      made += span;
+
+      if (withSubtotals && members.length > 1) {
+        lines.push(subtotalLine(members, members[0].keys.slice(0, level + 1)));
+        made += 1;
+      }
+    }
+    return made;
+  };
+
+  emit(pivot.rows, 0);
+  return lines;
+}
+
+// ═══════════════════════════════════════════════════════════
 //  Panel (small multiples)
 // ═══════════════════════════════════════════════════════════
 
@@ -887,6 +1032,24 @@ export function sortColumns(pivot: Pivot): Pivot {
     ...pivot,
     columnKeys: [...pivot.columnKeys].sort((a, b) => a.localeCompare(b, "id", { numeric: true })),
   };
+}
+
+/**
+ * Baris diurutkan per tingkat kunci (jurusan › prodi › tahun naik). Tanpa
+ * pengurutan dari pengguna, urutan baris dari Cube.js tidak bermakna, dan
+ * dengan banyak dimensi baris tahun-tahun satu prodi tercecer di mana-mana.
+ * Pemanggil TIDAK memakai ini bila pengguna memilih urutan ("N teratas"):
+ * di situ urutan dari peladen justru isinya.
+ */
+export function sortRows(pivot: Pivot): Pivot {
+  const compare = (a: PivotRow, b: PivotRow) => {
+    for (let i = 0; i < Math.max(a.keys.length, b.keys.length); i++) {
+      const c = (a.keys[i] ?? "").localeCompare(b.keys[i] ?? "", "id", { numeric: true });
+      if (c !== 0) return c;
+    }
+    return 0;
+  };
+  return { ...pivot, rows: [...pivot.rows].sort(compare) };
 }
 
 export interface HeatScale {

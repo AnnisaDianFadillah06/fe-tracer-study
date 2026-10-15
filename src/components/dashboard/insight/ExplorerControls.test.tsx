@@ -40,15 +40,17 @@ const renderControls = (
     advanced: boolean;
     onChange: (next: ExplorerQueryInput) => void;
     onReset: () => void;
+    catalog: ExplorerCatalog;
+    input: ExplorerQueryInput;
   }> = {},
 ) =>
   render(
     <MemoryRouter>
     <TooltipProvider>
       <ExplorerControls
-        catalog={catalog}
-        cube={catalog.cubes[0]}
-        input={input}
+        catalog={props.catalog ?? catalog}
+        cube={(props.catalog ?? catalog).cubes[0]}
+        input={props.input ?? input}
         onChange={props.onChange ?? vi.fn()}
         onReset={props.onReset ?? vi.fn()}
         advanced={props.advanced ?? false}
@@ -117,6 +119,51 @@ describe("ExplorerControls (pita filter)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 
     expect(onReset).toHaveBeenCalledTimes(1);
+  });
+
+  describe("tingkat dimensi baris", () => {
+    const dims = ["A", "B", "C", "D", "E"].map((k) => ({ key: `D.${k}`, label: `Dim ${k}` }));
+    const katalog = (max: number): ExplorerCatalog => ({
+      ...catalog,
+      cubes: [{ ...catalog.cubes[0], max_dimensions: max, dimension_groups: [{ group: "G", members: dims }] }],
+    });
+    const dengan = (rowDims: string[], colDim: string | null = null): ExplorerQueryInput => ({
+      ...input,
+      measures: ["Fact.count"],
+      rowDims,
+      colDim,
+    });
+    const tombol = () => screen.queryByRole("button", { name: "Tingkat" });
+
+    it("tingkat kedua langsung berupa slot; tombol baru muncul setelahnya", () => {
+      renderControls({ catalog: katalog(5), input: dengan(["D.A"]) });
+      expect(screen.getAllByText("Lalu per")).toHaveLength(1);
+      expect(tombol()).not.toBeInTheDocument();
+    });
+
+    it("tombol Tingkat membuka slot kosong berikutnya", () => {
+      renderControls({ catalog: katalog(5), input: dengan(["D.A", "D.B"]) });
+      fireEvent.click(tombol()!);
+      expect(screen.getAllByText("Lalu per")).toHaveLength(2);
+    });
+
+    it("tombol hilang saat dimensi baris mencapai batas cube", () => {
+      renderControls({ catalog: katalog(3), input: dengan(["D.A", "D.B", "D.C"]) });
+      expect(tombol()).not.toBeInTheDocument();
+    });
+
+    it("dimensi kolom ikut memakai jatah batas", () => {
+      renderControls({ catalog: katalog(3), input: dengan(["D.A", "D.B"], "D.C") });
+      expect(tombol()).not.toBeInTheDocument();
+    });
+
+    it("tanpa batas per cube memakai batas global (peladen lama)", () => {
+      const lama = { ...katalog(5), cubes: [{ ...katalog(5).cubes[0], max_dimensions: undefined }] };
+      renderControls({ catalog: lama, input: dengan(["D.A", "D.B"]) });
+      expect(tombol()).toBeInTheDocument();
+      renderControls({ catalog: lama, input: dengan(["D.A", "D.B", "D.C"]) });
+      expect(screen.getAllByRole("button", { name: "Tingkat" })).toHaveLength(1);
+    });
   });
 
   it("menyediakan tautan ke Dashboard Saya", () => {
