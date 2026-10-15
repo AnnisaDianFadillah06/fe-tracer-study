@@ -5,7 +5,9 @@ import ExplorerComboChart from "./ExplorerComboChart";
 import PointActionDialog from "./PointActionDialog";
 import ExplorerDrillDown, { type DrillRequest } from "./ExplorerDrillDown";
 import ExplorerFacets from "./ExplorerFacets";
+import ExplorerHeatmap from "./ExplorerHeatmap";
 import ExplorerNestedChart from "./ExplorerNestedChart";
+import ExplorerScatterChart from "./ExplorerScatterChart";
 import PivotTable from "./PivotTable";
 import VizPicker from "./VizPicker";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -23,7 +25,12 @@ import {
   buildFacets,
   buildNestedPlan,
   buildPivot,
+  canHeatmap,
+  canScatter,
   chartPivotOf,
+  lowerFirst,
+  preferHeatmap,
+  sortColumns,
   applyViz,
   availableViz,
   decideChart,
@@ -194,16 +201,32 @@ const ExplorerResultView = ({
     return raw && { ...raw, pivot: chartPivotOf(presentPivot(raw.pivot, { percent, diff }, result.measures).pivot) };
   }, [result, rowDims, colDim, percent, diff]);
 
+  // Heatmap dan sebaran titik memakai pivot utuh tanpa kolom selisih: kolom
+  // selisih berskala lain (selisih vs nilai), dan sebaran butuh pasangan X–Y.
+  const gridPivot = useMemo(() => {
+    const derived = pivot.derivedColumns ?? [];
+    return sortColumns(
+      derived.length === 0 ? pivot : { ...pivot, columnKeys: pivot.columnKeys.filter((c) => !derived.includes(c)) },
+    );
+  }, [pivot]);
+  const extra = {
+    heatmap: canHeatmap(gridPivot, colDim),
+    scatter: rowDims.length > 0 && canScatter(gridPivot, measures),
+  };
+
   // Keputusan chart memakai hasil yang sesungguhnya, bukan cuma jumlah dimensi
-  // — dua dimensi baris bisa menghasilkan ratusan kelompok.
-  const base = decideChart(rowDims, colDim, plan, nested);
+  // — dua dimensi baris bisa menghasilkan ratusan kelompok. Yang ditolak
+  // (seri/panel terlalu banyak) diganti heatmap bila bentuk datanya cocok.
+  const base = preferHeatmap(decideChart(rowDims, colDim, plan, nested), extra.heatmap);
   const seriesCount = Math.max(...plan.facets.map((f) => f.pivot.columnKeys.length), 0);
   const categoryCount = Math.max(...plan.facets.map((f) => f.pivot.rows.length), 0);
-  const vizOptions = availableViz(base, seriesCount, categoryCount, measures.length);
-  const chart = applyViz(base, display?.viz, seriesCount, categoryCount, measures.length);
+  const vizOptions = availableViz(base, seriesCount, categoryCount, measures.length, extra);
+  const chart = applyViz(base, display?.viz, seriesCount, categoryCount, measures.length, extra);
   const activeViz: Viz = vizOptions.includes(display?.viz ?? "auto") ? display?.viz ?? "auto" : "auto";
+  // Grafik yang ditolak hanya punya Otomatis/Tabel -- pemilihnya disembunyikan,
+  // kecuali masih ada pilihan lain (mis. sebaran titik).
   const vizPicker =
-    onVizChange && vizOptions.length > 1 && !(base.kind === "none" && base.reason) ? (
+    onVizChange && vizOptions.length > 1 && (!(base.kind === "none" && base.reason) || vizOptions.length > 2) ? (
       <VizPicker value={activeViz} options={vizOptions} onChange={onVizChange} />
     ) : null;
 
@@ -217,8 +240,15 @@ const ExplorerResultView = ({
   const drawable = chart.kind !== "number" && chart.kind !== "none" && activeMeasure !== null;
 
   const combo = chart.kind === "combo";
+  const scatter = chart.kind === "scatter";
+  // Kedua bentuk ini memakai beberapa ukuran sekaligus, bukan satu yang dipilih.
+  const chartTitle = combo
+    ? "Semua ukuran"
+    : scatter
+      ? `${measures[1]?.label} terhadap ${lowerFirst(measures[0]?.label ?? "")}`
+      : activeMeasure?.label;
 
-  const measurePicker = !combo && measures.length > 1 && activeMeasure && (
+  const measurePicker = !combo && !scatter && measures.length > 1 && activeMeasure && (
     <Select value={activeMeasure.key} onValueChange={onChartMeasureChange}>
       <SelectTrigger className={compact ? "h-8 w-52 text-xs" : "w-64"}>
         <SelectValue />
@@ -243,6 +273,22 @@ const ExplorerResultView = ({
         onPointClick={(i, measureKey) =>
           drillFromChart(chartPivotOf(pivot), rowDims, i, pivot.columnKeys[0] ?? SINGLE_COLUMN, {}, measureKey)
         }
+      />
+    ) : chart.kind === "heatmap" ? (
+      <ExplorerHeatmap
+        pivot={gridPivot}
+        measure={activeMeasure}
+        rowLabels={rowDims.map(labelOf)}
+        columnLabel={colDim ? labelOf(colDim) : ""}
+        maxHeight={compact ? 320 : 640}
+        onCellClick={(i, col) => drillFromChart(gridPivot, rowDims, i, col)}
+      />
+    ) : scatter ? (
+      <ExplorerScatterChart
+        pivot={gridPivot}
+        measures={measures}
+        height={compact ? 260 : undefined}
+        onPointClick={(i, col) => drillFromChart(gridPivot, rowDims, i, col, {}, measures[0].key)}
       />
     ) : chart.kind === "nested-bar" && nested ? (
       <ExplorerNestedChart
@@ -308,8 +354,8 @@ const ExplorerResultView = ({
     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
       <MousePointerClick className="h-3.5 w-3.5" />
       {onSlice
-        ? "Klik batang atau angka bergaris bawah untuk menyaring ke kelompok itu, merinci, atau melihat alumninya."
-        : "Klik batang atau angka bergaris bawah untuk melihat daftar alumninya."}
+        ? "Klik batang, titik, sel, atau angka bergaris bawah untuk menyaring ke kelompok itu, merinci, atau melihat alumninya."
+        : "Klik batang, titik, sel, atau angka bergaris bawah untuk melihat daftar alumninya."}
     </p>
   );
 
@@ -338,7 +384,7 @@ const ExplorerResultView = ({
         </div>
       )}
 
-      {!drawable && !chart.reason && chart.kind === "none" && vizPicker && (
+      {!drawable && chart.kind === "none" && vizPicker && (
         <div className="flex justify-end">{vizPicker}</div>
       )}
 
@@ -354,7 +400,7 @@ const ExplorerResultView = ({
         (compact ? (
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium">{combo ? "Semua ukuran" : activeMeasure.label}</p>
+              <p className="text-sm font-medium">{chartTitle}</p>
               {measurePicker}
             </div>
             {chartBody}
@@ -364,7 +410,7 @@ const ExplorerResultView = ({
         ) : (
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-4 space-y-0 pb-2">
-              <CardTitle className="text-base">{combo ? "Semua ukuran" : activeMeasure.label}</CardTitle>
+              <CardTitle className="text-base">{chartTitle}</CardTitle>
               <div className="flex flex-wrap items-center gap-2">
                 {measurePicker}
                 {vizPicker}

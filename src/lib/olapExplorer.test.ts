@@ -12,7 +12,17 @@ import {
   buildFacets,
   buildNestedPlan,
   buildPivot,
+  canHeatmap,
+  canScatter,
   filledSeriesPerBar,
+  heatIntensity,
+  heatScale,
+  median,
+  preferHeatmap,
+  sortColumns,
+  toScatterPoints,
+  MAX_HEATMAP_COLUMNS,
+  MAX_HEATMAP_ROWS,
   isNestedIn,
   nestedId,
   toNestedChartData,
@@ -871,5 +881,180 @@ describe("sumbu X bertingkat", () => {
       const bar = { kind: "bar", faceted: false } as const;
       expect(applyViz(bar, "panels", 1, 5)).toBe(bar);
     });
+  });
+});
+
+describe("heatmap", () => {
+  const P = "DimProdi.nama_prodi";
+  const T = "DimAlumni.tahun_lulus";
+  const gaji = { key: "F.gaji", label: "Rata-rata gaji", format: "currency" as const };
+
+  const sel = (p: string, t: string, v: number | null) => ({ [P]: p, [T]: t, "F.gaji": v });
+  const pivotDari = (rows: ExplorerResult["rows"], colDim: string | null = T) =>
+    buildPivot(hasil(rows, [gaji]), [P], colDim);
+
+  describe("canHeatmap", () => {
+    const rows = [sel("A", "2021", 1), sel("A", "2022", 2), sel("B", "2021", 3)];
+
+    it("butuh dimensi kolom dengan minimal dua nilai", () => {
+      expect(canHeatmap(pivotDari(rows), T)).toBe(true);
+      expect(canHeatmap(pivotDari(rows, null), null)).toBe(false);
+      expect(canHeatmap(pivotDari([sel("A", "2021", 1), sel("B", "2021", 2)]), T)).toBe(false);
+    });
+
+    it(`menolak lebih dari ${MAX_HEATMAP_COLUMNS} kolom`, () => {
+      const lebar = Array.from({ length: MAX_HEATMAP_COLUMNS + 1 }, (_, i) => sel("A", `${1900 + i}`, i));
+      expect(canHeatmap(pivotDari(lebar), T)).toBe(false);
+    });
+
+    it(`menolak lebih dari ${MAX_HEATMAP_ROWS} baris`, () => {
+      const tinggi = Array.from({ length: MAX_HEATMAP_ROWS + 1 }, (_, i) => [sel(`P${i}`, "2021", i), sel(`P${i}`, "2022", i)]).flat();
+      expect(canHeatmap(pivotDari(tinggi), T)).toBe(false);
+    });
+  });
+
+  describe("heatScale / heatIntensity", () => {
+    it("skala dari nilai terkecil ke terbesar, bukan dari nol", () => {
+      const pivot = pivotDari([sel("A", "2021", 4_000_000), sel("A", "2022", 5_000_000), sel("B", "2021", 4_500_000)]);
+      const scale = heatScale(pivot, "F.gaji")!;
+      expect(scale).toEqual({ min: 4_000_000, max: 5_000_000, diverging: false });
+      expect(heatIntensity(4_000_000, scale)).toBe(0);
+      expect(heatIntensity(4_500_000, scale)).toBeCloseTo(0.5);
+      expect(heatIntensity(5_000_000, scale)).toBe(1);
+    });
+
+    it("nilai bertanda campuran memakai skala divergen di sekitar nol", () => {
+      const pivot = pivotDari([sel("A", "2021", -2), sel("A", "2022", 4), sel("B", "2021", 1)]);
+      const scale = heatScale(pivot, "F.gaji")!;
+      expect(scale.diverging).toBe(true);
+      expect(heatIntensity(-2, scale)).toBeCloseTo(-0.5);
+      expect(heatIntensity(4, scale)).toBe(1);
+      expect(heatIntensity(0, scale)).toBe(0);
+    });
+
+    it("semua nilai sama → intensitas penuh, bukan pembagian nol", () => {
+      const pivot = pivotDari([sel("A", "2021", 3), sel("A", "2022", 3)]);
+      const scale = heatScale(pivot, "F.gaji")!;
+      expect(heatIntensity(3, scale)).toBe(1);
+    });
+
+    it("tanpa nilai sama sekali → null", () => {
+      expect(heatScale(pivotDari([sel("A", "2021", null), sel("A", "2022", null)]), "F.gaji")).toBeNull();
+    });
+  });
+
+  it("sortColumns mengurutkan kolom, angka sebagai angka, tanpa mengubah isi sel", () => {
+    const pivot = pivotDari([sel("A", "2021", 1), sel("A", "2019", 2), sel("A", "2020", 3)]);
+    const sorted = sortColumns(pivot);
+    expect(sorted.columnKeys).toEqual(["2019", "2020", "2021"]);
+    expect(sorted.rows[0].cells["2019"]["F.gaji"].value).toBe(2);
+    expect(pivot.columnKeys).toEqual(["2021", "2019", "2020"]);
+  });
+
+  describe("preferHeatmap", () => {
+    const ditolak = { kind: "none", faceted: false, reason: "20 seri" } as const;
+
+    it("grafik yang ditolak diganti heatmap bila heatmap memungkinkan", () => {
+      expect(preferHeatmap(ditolak, true)).toEqual({ kind: "heatmap", faceted: false });
+    });
+
+    it("tidak mengganti bila heatmap tidak memungkinkan atau grafik tidak ditolak", () => {
+      expect(preferHeatmap(ditolak, false)).toBe(ditolak);
+      const bar = { kind: "bar", faceted: false } as const;
+      expect(preferHeatmap(bar, true)).toBe(bar);
+      const tabel = { kind: "none", faceted: false } as const;
+      expect(preferHeatmap(tabel, true)).toBe(tabel);
+    });
+  });
+});
+
+describe("sebaran titik (scatter/bubble)", () => {
+  const P = "DimProdi.nama_prodi";
+  const G = "DimProdi.jenjang";
+  const tunggu = { key: "F.tunggu", label: "Rata-rata masa tunggu", format: "decimal" as const };
+  const gaji = { key: "F.gaji", label: "Rata-rata gaji", format: "currency" as const };
+  const jumlah = { key: "F.jumlah", label: "Jumlah alumni", format: "integer" as const };
+
+  const rows = [
+    { [P]: "A", "F.tunggu": 2, "F.gaji": 5, "F.jumlah": 10 },
+    { [P]: "B", "F.tunggu": 6, "F.gaji": 3, "F.jumlah": 4 },
+    { [P]: "C", "F.tunggu": null, "F.gaji": 4, "F.jumlah": 7 },
+  ];
+  const pivot = buildPivot(hasil(rows, [tunggu, gaji, jumlah]), [P], null);
+
+  it("satu titik per kelompok; kelompok tanpa X atau Y dibuang", () => {
+    const pts = toScatterPoints(pivot, "F.tunggu", "F.gaji", "F.jumlah");
+    expect(pts.map((p) => [p.name, p.x, p.y, p.z, p.rowIndex])).toEqual([
+      ["A", 2, 5, 10, 0],
+      ["B", 6, 3, 4, 1],
+    ]);
+    expect(pts[0].columnKey).toBe(SINGLE_COLUMN);
+  });
+
+  it("tanpa ukuran ketiga, z kosong", () => {
+    expect(toScatterPoints(pivot, "F.tunggu", "F.gaji", null)[0].z).toBeNull();
+  });
+
+  it("dimensi kolom menjadi seri; satu titik per baris × kolom", () => {
+    const r = [
+      { [P]: "A", [G]: "D3", "F.tunggu": 1, "F.gaji": 2 },
+      { [P]: "A", [G]: "D4", "F.tunggu": 3, "F.gaji": 4 },
+    ];
+    const pv = buildPivot(hasil(r, [tunggu, gaji]), [P], G);
+    const pts = toScatterPoints(pv, "F.tunggu", "F.gaji", null);
+    expect(pts.map((p) => [p.name, p.series, p.columnKey])).toEqual([
+      ["A", "D3", "D3"],
+      ["A", "D4", "D4"],
+    ]);
+  });
+
+  it("canScatter butuh minimal dua ukuran dan dua titik", () => {
+    expect(canScatter(pivot, [tunggu, gaji])).toBe(true);
+    expect(canScatter(pivot, [tunggu])).toBe(false);
+    const satu = buildPivot(hasil([rows[0]], [tunggu, gaji]), [P], null);
+    expect(canScatter(satu, [tunggu, gaji])).toBe(false);
+  });
+
+  it("canScatter menolak kolom hasil hitungan (selisih)", () => {
+    expect(canScatter({ ...pivot, derivedColumns: ["x"] }, [tunggu, gaji])).toBe(false);
+  });
+
+  it("median ganjil, genap, dan kosong", () => {
+    expect(median([3, 1, 2])).toBe(2);
+    expect(median([4, 1, 2, 3])).toBe(2.5);
+    expect(median([])).toBeNull();
+  });
+});
+
+describe("pilihan heatmap dan sebaran titik", () => {
+  const grouped = { kind: "grouped-bar", faceted: false } as const;
+
+  it("ditawarkan sebelum Tabel hanya bila memungkinkan", () => {
+    const opts = availableViz(grouped, 3, 5, 2, { heatmap: true, scatter: true });
+    expect(opts.slice(-3)).toEqual(["heatmap", "scatter", "table"]);
+    expect(availableViz(grouped, 3, 5, 2)).not.toContain("heatmap");
+  });
+
+  it("grafik ditolak tetap menawarkan heatmap", () => {
+    const ditolak = { kind: "none", faceted: false, reason: "x" } as const;
+    expect(availableViz(ditolak, 20, 5, 1, { heatmap: true })).toEqual(["auto", "heatmap", "table"]);
+  });
+
+  it("heatmap otomatis tidak menawarkan heatmap dua kali", () => {
+    const heat = { kind: "heatmap", faceted: false } as const;
+    expect(availableViz(heat, 20, 5, 2, { heatmap: true, scatter: true })).toEqual(["auto", "scatter", "table"]);
+  });
+
+  it("memilih heatmap/sebaran menghasilkan jenis grafiknya", () => {
+    const extra = { heatmap: true, scatter: true };
+    expect(applyViz(grouped, "heatmap", 3, 5, 2, extra)).toEqual({ kind: "heatmap", faceted: false });
+    expect(applyViz(grouped, "scatter", 3, 5, 2, extra)).toEqual({ kind: "scatter", faceted: false });
+    expect(applyViz(grouped, "scatter", 3, 5, 2)).toBe(grouped);
+  });
+
+  it("grafik bertingkat meneruskan pilihan heatmap", () => {
+    const nested = { kind: "nested-bar", faceted: false, panels: { kind: "grouped-bar", faceted: true } } as const;
+    expect(availableViz(nested, 2, 5, 1, { heatmap: true })).toContain("heatmap");
+    expect(applyViz(nested, "heatmap", 2, 5, 1, { heatmap: true })).toEqual({ kind: "heatmap", faceted: false });
   });
 });

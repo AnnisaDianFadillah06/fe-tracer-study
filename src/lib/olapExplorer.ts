@@ -161,6 +161,10 @@ export type ChartKind =
   | "combo"
   /** Dua dimensi baris bertingkat di sumbu X (luar › dalam), lihat buildNestedPlan. */
   | "nested-bar"
+  /** Pivot sebagai grid berwarna menurut nilai, lihat canHeatmap. */
+  | "heatmap"
+  /** Satu titik per kelompok, X dan Y dari dua ukuran, lihat toScatterPoints. */
+  | "scatter"
   | "none";
 
 /**
@@ -178,7 +182,9 @@ export type Viz =
   | "area"
   | "stacked"
   | "pie"
-  | "panels";
+  | "panels"
+  | "heatmap"
+  | "scatter";
 
 export const VIZ_LABELS: Record<Viz, string> = {
   auto: "Otomatis",
@@ -191,7 +197,19 @@ export const VIZ_LABELS: Record<Viz, string> = {
   stacked: "Batang bertumpuk",
   pie: "Pai",
   panels: "Panel terpisah",
+  heatmap: "Peta panas",
+  scatter: "Sebaran titik",
 };
+
+/**
+ * Bentuk yang kelayakannya bergantung pada hasil, bukan pada keputusan chart:
+ * heatmap butuh dimensi kolom (canHeatmap), sebaran titik butuh dua ukuran
+ * (canScatter). Dihitung pemanggil lalu diteruskan ke availableViz/applyViz.
+ */
+export interface ExtraViz {
+  heatmap?: boolean;
+  scatter?: boolean;
+}
 
 /** Lebih dari ini irisan pai tidak lagi bisa dibedakan. */
 export const MAX_PIE_SLICES = 12;
@@ -385,30 +403,44 @@ export function canCombo(decision: ChartDecision, series: number, measures: numb
  * - Pai hanya untuk satu seri: pai berseri banyak tidak punya arti.
  * - Bertumpuk hanya bila ada lebih dari satu seri; itu satu-satunya cara ia
  *   berbeda dari batang biasa.
+ * - Heatmap dan sebaran titik bergantung pada hasil (lihat ExtraViz), dan
+ *   tetap ditawarkan walau grafik batang/garis ditolak -- justru di situ
+ *   keduanya paling berguna.
  */
 export function availableViz(
   decision: ChartDecision,
   series: number,
   categories: number,
   measures = 1,
+  extra: ExtraViz = {},
 ): Viz[] {
+  if (decision.kind === "number") return [];
+
+  const tambahan: Viz[] = [];
+  // Heatmap otomatis (pengganti grafik yang ditolak) sudah tampil lewat "Otomatis".
+  if (extra.heatmap && decision.kind !== "heatmap") tambahan.push("heatmap");
+  if (extra.scatter) tambahan.push("scatter");
+
+  return ["auto", ...chartViz(decision, series, categories, measures), ...tambahan, "table"];
+}
+
+/** Pilihan batang/garis/area/pai untuk keputusan ini, tanpa Otomatis dan Tabel. */
+function chartViz(decision: ChartDecision, series: number, categories: number, measures: number): Viz[] {
   // Bertingkat: pilihannya pilihan jalur panel, ditambah "Panel terpisah".
   // "Batang" di sini berarti bertingkat (lihat applyViz).
   if (decision.kind === "nested-bar" && decision.panels) {
-    const viaPanels = availableViz(decision.panels, series, categories, measures);
-    if (!viaPanels.includes("bar")) return ["auto", "table"];
-    return [...viaPanels.filter((v) => v !== "table"), "panels", "table"];
+    const viaPanels = chartViz(decision.panels, series, categories, measures);
+    return viaPanels.includes("bar") ? [...viaPanels, "panels"] : [];
   }
 
-  if (decision.kind === "number") return [];
-  if (decision.kind === "none" && decision.reason) return ["auto", "table"];
+  // Ditolak, atau sudah diganti heatmap karena ditolak.
+  if ((decision.kind === "none" && decision.reason) || decision.kind === "heatmap") return [];
 
-  const out: Viz[] = ["auto"];
+  const out: Viz[] = [];
   if (canCombo(decision, series, measures)) out.push("combo");
   out.push("bar", "row", "line", "area");
   if (series > 1) out.push("stacked");
   if (series <= 1 && categories <= MAX_PIE_SLICES) out.push("pie");
-  out.push("table");
 
   return out;
 }
@@ -424,16 +456,20 @@ export function applyViz(
   series: number,
   categories: number,
   measures = 1,
+  extra: ExtraViz = {},
 ): ChartDecision {
   // "Semua ukuran" hanya lewat pilihan manual; otomatis tetap seperti semula
   // supaya tampilan hasil lama tidak berubah.
   if (!viz || viz === "auto") return decision;
-  if (!availableViz(decision, series, categories, measures).includes(viz)) return decision;
+  if (!availableViz(decision, series, categories, measures, extra).includes(viz)) return decision;
+
+  if (viz === "heatmap") return { kind: "heatmap", faceted: false };
+  if (viz === "scatter") return { kind: "scatter", faceted: false };
 
   if (decision.kind === "nested-bar" && decision.panels) {
     if (viz === "bar") return decision;
     if (viz === "panels") return decision.panels;
-    return applyViz(decision.panels, viz, series, categories, measures);
+    return applyViz(decision.panels, viz, series, categories, measures, extra);
   }
 
   if (viz === "combo") return { kind: "combo", faceted: false };
@@ -814,6 +850,172 @@ export function toNestedChartData(plan: NestedPlan, measureKey: string): NestedD
   });
 
   return data;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Heatmap (peta panas)
+// ═══════════════════════════════════════════════════════════
+
+/** Di atas ini grid tidak lagi bisa dibaca per sel; tabel lebih jujur. */
+export const MAX_HEATMAP_ROWS = 300;
+export const MAX_HEATMAP_COLUMNS = 60;
+
+/**
+ * Heatmap = pivot yang selnya diwarnai menurut nilai, jadi bentuknya harus
+ * benar-benar dua arah: ada dimensi kolom dengan minimal dua nilai. Batasnya
+ * jauh lebih longgar dari batang -- 34 provinsi × 40 prodi tetap terbaca
+ * sebagai pola warna, sedangkan sebagai batang sudah jadi gumpalan.
+ */
+export function canHeatmap(pivot: Pivot, colDim: string | null): boolean {
+  return (
+    colDim !== null &&
+    pivot.rows.length >= 1 &&
+    pivot.rows.length <= MAX_HEATMAP_ROWS &&
+    pivot.columnKeys.length >= 2 &&
+    pivot.columnKeys.length <= MAX_HEATMAP_COLUMNS
+  );
+}
+
+/**
+ * Kolom diurutkan (angka sebagai angka). Urutan kolom pivot mengikuti baris
+ * pertama yang muncul di hasil query, jadi tahun lulus bisa tersusun 2020,
+ * 2021, 2023, 2019 -- di heatmap pola dari tahun ke tahun justru yang dibaca,
+ * dan urutan acak membuatnya tidak terbaca.
+ */
+export function sortColumns(pivot: Pivot): Pivot {
+  return {
+    ...pivot,
+    columnKeys: [...pivot.columnKeys].sort((a, b) => a.localeCompare(b, "id", { numeric: true })),
+  };
+}
+
+export interface HeatScale {
+  min: number;
+  max: number;
+  /** Nilai bertanda campuran (mis. kolom selisih): warna dua arah di sekitar nol. */
+  diverging: boolean;
+}
+
+/** Rentang nilai seluruh grid untuk satu ukuran; null bila tidak ada nilai. */
+export function heatScale(pivot: Pivot, measureKey: string): HeatScale | null {
+  const values = pivot.rows.flatMap((r) =>
+    pivot.columnKeys
+      .map((c) => r.cells[c]?.[measureKey]?.value ?? null)
+      .filter((v): v is number => v !== null && !Number.isNaN(v)),
+  );
+  if (values.length === 0) return null;
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  return { min, max, diverging: min < 0 && max > 0 };
+}
+
+/**
+ * Kepekatan warna sel.
+ *
+ * Berurutan (semua bertanda sama): 0..1 dari nilai TERKECIL ke terbesar,
+ * bukan dari nol. Rata-rata gaji 4–5 juta yang diskalakan dari nol akan
+ * tampil seragam pekat; justru selisih di antara merekalah yang dicari.
+ *
+ * Divergen: -1..1 terhadap nilai mutlak terbesar, nol di tengah, sehingga
+ * selisih +2 dan -2 sama pekatnya dengan warna berbeda.
+ */
+export function heatIntensity(value: number, scale: HeatScale): number {
+  if (scale.diverging) {
+    const span = Math.max(Math.abs(scale.min), Math.abs(scale.max));
+    return value / span;
+  }
+  if (scale.max === scale.min) return 1;
+  return (value - scale.min) / (scale.max - scale.min);
+}
+
+/**
+ * Grafik yang ditolak (seri atau panel terlalu banyak) diganti heatmap bila
+ * bentuk datanya memungkinkan, daripada hanya menyisakan tabel. Keputusan
+ * lain tidak disentuh: tampilan otomatis yang sudah ada tidak berubah.
+ */
+export function preferHeatmap(decision: ChartDecision, heatmap: boolean): ChartDecision {
+  return heatmap && decision.kind === "none" && decision.reason
+    ? { kind: "heatmap", faceted: false }
+    : decision;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Sebaran titik (scatter / bubble)
+// ═══════════════════════════════════════════════════════════
+
+/** Lebih dari ini titiknya menumpuk jadi awan tanpa label. */
+export const MAX_SCATTER_POINTS = 500;
+
+export interface ScatterPoint {
+  /** Label kelompok, mis. "D-3 Akuntansi". */
+  name: string;
+  x: number;
+  y: number;
+  /** Ukuran gelembung (ukuran ketiga); null = semua titik sama besar. */
+  z: number | null;
+  /** Indeks baris pivot dan kunci kolomnya, untuk drill-down. */
+  rowIndex: number;
+  columnKey: string;
+  /** Nama seri (nilai dimensi kolom), "nilai" bila tanpa dimensi kolom. */
+  series: string;
+}
+
+/**
+ * Satu titik per kelompok (baris × kolom pivot): X dan Y dari dua ukuran.
+ *
+ * Titiknya KELOMPOK, bukan alumni -- Explorer hanya menerima hasil agregasi.
+ * Kelompok yang X atau Y-nya kosong dibuang: menaruhnya di nol akan terbaca
+ * sebagai "masa tunggu nol bulan", padahal artinya tidak ada datanya.
+ */
+export function toScatterPoints(
+  pivot: Pivot,
+  xKey: string,
+  yKey: string,
+  zKey: string | null,
+): ScatterPoint[] {
+  const points: ScatterPoint[] = [];
+
+  pivot.rows.forEach((row, rowIndex) => {
+    for (const columnKey of pivot.columnKeys) {
+      const cells = row.cells[columnKey];
+      const x = cells?.[xKey]?.value ?? null;
+      const y = cells?.[yKey]?.value ?? null;
+      if (x === null || y === null || Number.isNaN(x) || Number.isNaN(y)) continue;
+
+      points.push({
+        name: row.keys.join(" · ") || "Total",
+        x,
+        y,
+        z: zKey ? cells?.[zKey]?.value ?? null : null,
+        rowIndex,
+        columnKey,
+        series: columnKey === SINGLE_COLUMN ? "nilai" : columnKey,
+      });
+    }
+  });
+
+  return points;
+}
+
+/**
+ * Butuh dua ukuran (X dan Y) dan minimal dua titik. Kolom selisih ditolak:
+ * isinya hanya satu ukuran yang sudah dikurangkan, bukan pasangan X–Y.
+ */
+export function canScatter(pivot: Pivot, measures: CatalogMeasure[]): boolean {
+  if (measures.length < 2 || (pivot.derivedColumns?.length ?? 0) > 0) return false;
+  if (pivot.columnKeys.length > MAX_CHART_SERIES) return false;
+
+  const n = toScatterPoints(pivot, measures[0].key, measures[1].key, null).length;
+  return n >= 2 && n <= MAX_SCATTER_POINTS;
+}
+
+/** Median untuk garis pembagi kuadran; tidak tertarik pencilan seperti rata-rata. */
+export function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 // ═══════════════════════════════════════════════════════════
