@@ -66,9 +66,11 @@ describe("ExplorerControls (pita filter)", () => {
   it("menampilkan kontrol berlabel: dihitung, per, dibandingkan, batasi, tampilan", () => {
     renderControls();
 
-    for (const label of ["Dihitung", "Per", "Dibandingkan antar", "Batasi", "Tampilan"]) {
+    for (const label of ["Dihitung", "Per", "Dibandingkan antar", "Batasi"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
+    // Aksi tampilan ada di strip ringkasan, bukan sebagai kolom berlabel.
+    expect(screen.getByRole("button", { name: /Atur/ })).toHaveAttribute("title", "Atur tampilan");
     expect(screen.queryByRole("button", { name: "Tukar baris dan kolom" })).not.toBeInTheDocument();
   });
 

@@ -24,6 +24,7 @@ import { useDimensionValues } from "@/hooks/useExplorer";
 import {
   lowerFirst,
   maxDimensionsOf,
+  applyFilterChange,
   measureLabelOf,
   swapRowsColumns,
   type CatalogCube,
@@ -44,8 +45,10 @@ interface Props {
   onChange: (next: ExplorerQueryInput) => void;
   /** Kembali ke susunan kosong. */
   onReset: () => void;
-  /** Roll-up: ada hanya bila masih ada slice/dice/rincian yang bisa dilepas. */
+  /** Roll-up: ada hanya bila masih ada level/dimensi yang bisa dinaikkan. */
   onRollUp?: () => void;
+  /** "Roll-up ke Jurusan" — tujuan roll-up berikutnya, untuk keterangan tombol. */
+  rollUpLabel?: string | null;
   /** Mode analisis lanjutan (slice/dice/roll-up) menyala; sakelarnya ada di popover Tampilan. */
   advanced?: boolean;
   onAdvancedChange?: (on: boolean) => void;
@@ -82,6 +85,7 @@ const ExplorerControls = ({
   onChange,
   onReset,
   onRollUp,
+  rollUpLabel,
   advanced = false,
   onAdvancedChange,
   summary,
@@ -517,18 +521,10 @@ const ExplorerControls = ({
         cube={input.cube}
         filter={f}
         label={labelOf(f.member)}
-        onChange={(next) =>
-          update({
-            ...input,
-            filters: input.filters.map((x) => (x.member === f.member ? next : x)),
-          })
-        }
-        onRemove={() =>
-          update({
-            ...input,
-            filters: input.filters.filter((x) => x.member !== f.member),
-          })
-        }
+        // Satu nilai pada dimensi yang tampil = slice: dimensinya keluar
+        // dari Per/Dibandingkan antar, dan kembali bila slice dibatalkan.
+        onChange={(next) => update(applyFilterChange(input, f.member, next, maxDimensions))}
+        onRemove={() => update(applyFilterChange(input, f.member, null, maxDimensions))}
       />
     ))}
 
@@ -555,233 +551,233 @@ const ExplorerControls = ({
             </PopoverContent>
           </Popover>
         </Field>
-
-        <div className="ml-auto flex items-end gap-2">
-          <Field label="Tampilan">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="h-9 gap-2 text-sm font-normal hover:bg-muted hover:text-foreground data-[state=open]:bg-muted">
-                  <SlidersHorizontal className="h-4 w-4" />
-                  Atur
-                  {displayChanged && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" onOpenAutoFocus={(e) => e.preventDefault()} className="max-h-[75vh] w-[340px] space-y-4 overflow-y-auto">
-        <div className="space-y-1.5">
-          <span className="text-xs font-medium text-muted-foreground">
-            Tampilkan jumlah sebagai{" "}
-            <HelpTip>Ubah angka jumlah menjadi persen dari totalnya, agar kelompok besar dan kecil mudah dibandingkan.</HelpTip>
-          </span>
-          <Select
-            value={input.percent ?? "none"}
-            onValueChange={(v) => update({ ...input, percent: v as PercentMode })}
-            disabled={!hasCount}
-          >
-            <SelectTrigger className="h-8 text-xs" aria-label="Tampilkan jumlah sebagai">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Angka apa adanya</SelectItem>
-              {input.colDim && <SelectItem value="row">Persen dari total baris</SelectItem>}
-              {input.colDim && <SelectItem value="column">Persen dari total kolom</SelectItem>}
-              <SelectItem value="all">Persen dari total keseluruhan</SelectItem>
-            </SelectContent>
-          </Select>
-          {!hasCount && (
-            <p className="text-xs text-muted-foreground">Tersedia bila ada ukuran berupa jumlah.</p>
-          )}
-        </div>
-
-        {cube.count_measure && (
-          <div className="space-y-1.5">
-            <label className="flex cursor-pointer items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
-              <span>
-                Sembunyikan kelompok kecil{" "}
-                <HelpTip>Menyembunyikan kelompok dengan responden sedikit, karena angkanya kurang bisa dipercaya.</HelpTip>
-              </span>
-              <Switch
-                checked={!!input.minN}
-                onCheckedChange={(on) => update({ ...input, minN: on ? DEFAULT_MIN_N : null })}
-                aria-label="Sembunyikan kelompok kecil"
-              />
-            </label>
-            {!!input.minN && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                responden kurang dari
-                <Input
-                  type="number"
-                  min={1}
-                  value={input.minN}
-                  onChange={(e) => {
-                    const n = Math.max(1, Number(e.target.value) || 1);
-                    update({ ...input, minN: n });
-                  }}
-                  className="h-8 w-20 text-xs"
-                  aria-label="Jumlah responden minimum"
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="space-y-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Urutkan</span>
-          <Select
-            value={input.sort?.by ?? NONE}
-            onValueChange={(v) =>
-              update({
-                ...input,
-                sort:
-                  v === NONE
-                    ? null
-                    : { by: v, direction: input.sort?.direction ?? "desc", limit: input.sort?.limit ?? null },
-              })
-            }
-            disabled={sortables.length === 0}
-          >
-            <SelectTrigger className="h-8 text-xs" aria-label="Urutkan">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>Urutan bawaan</SelectItem>
-              {sortables.map((s) => (
-                <SelectItem key={s.key} value={s.key}>
-                  menurut {lowerFirst(s.label)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {input.sort && (
-            <div className="grid gap-2">
-              <Select
-                value={input.sort.direction}
-                onValueChange={(v) =>
-                  update({ ...input, sort: { ...input.sort!, direction: v as "asc" | "desc" } })
-                }
-              >
-                <SelectTrigger className="h-8 text-xs" aria-label="Arah urutan">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="desc">Terbesar dulu</SelectItem>
-                  <SelectItem value="asc">Terkecil dulu</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={input.sort.limit ? String(input.sort.limit) : "all"}
-                onValueChange={(v) =>
-                  update({ ...input, sort: { ...input.sort!, limit: v === "all" ? null : Number(v) } })
-                }
-              >
-                <SelectTrigger className="h-8 text-xs" aria-label="Jumlah yang ditampilkan">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tampilkan semua</SelectItem>
-                  {[5, 10, 20, 50].map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n} teratas
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
-
-        {input.colDim && diffChoices.length >= 2 && (
-          <div className="space-y-1.5">
-            <label className="flex cursor-pointer items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
-              Tampilkan selisih dua kolom
-              <Switch
-                checked={!!input.diff}
-                onCheckedChange={(on) =>
-                  update({ ...input, diff: on ? { a: diffChoices[0], b: diffChoices[1] } : null })
-                }
-                aria-label="Tampilkan selisih dua kolom"
-              />
-            </label>
-            {input.diff && (
-              <div className="grid gap-1 text-xs">
-                <ValueSelect
-                  value={input.diff.b}
-                  choices={diffChoices}
-                  onChange={(b) => update({ ...input, diff: { ...input.diff!, b } })}
-                />
-                <span className="pl-1 text-muted-foreground">dikurangi</span>
-                <ValueSelect
-                  value={input.diff.a}
-                  choices={diffChoices}
-                  onChange={(a) => update({ ...input, diff: { ...input.diff!, a } })}
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {onAdvancedChange && (
-          <label className="flex cursor-pointer items-center justify-between gap-2 border-t pt-3 text-xs font-medium text-muted-foreground">
-            <span>
-              Mode analisis lanjutan{" "}
-              <HelpTip>Menampilkan Slice, Dice, dan Roll-up: klik batang untuk menyaring, merinci, atau naik satu tingkat.</HelpTip>
-            </span>
-            <Switch checked={advanced} onCheckedChange={onAdvancedChange} aria-label="Mode analisis lanjutan" />
-          </label>
-        )}
-              </PopoverContent>
-            </Popover>
-          </Field>
-          {onRollUp && (
-            <Button size="sm" variant="outline" className="h-9" onClick={onRollUp} title="Roll-up: lepas langkah rincian/saringan terakhir">
-              <ArrowUpToLine className="mr-1.5 h-4 w-4" />
-              Naik
-            </Button>
-          )}
-          <Button size="sm" variant="outline" className="h-9" onClick={onReset}>
-            Reset
-          </Button>
-          <Button size="sm" variant="outline" className="h-9" asChild>
-            <Link to="/dashboard/insight/board">
-              <LayoutGrid className="mr-2 h-4 w-4" />
-              Dashboard Saya
-            </Link>
-          </Button>
-        </div>
       </div>
 
-      {/* Ringkasan apa yang sedang ditampilkan + status hitung, sejajar dengan
-          strip snapshot di dashboard lain. */}
-      <div
-        className="flex w-full flex-wrap items-center justify-between gap-2 border-t border-border/60 bg-muted/30 px-6 py-1.5 text-xs"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
+      {/* Ringkasan apa yang sedang ditampilkan + status hitung + aksi tampilan,
+          sejajar dengan strip snapshot di dashboard lain. Aksi ditaruh di sini
+          (bukan di baris pilihan di atas) supaya baris itu tidak terbungkus
+          menggantung. Hanya ringkasan & status yang jadi wilayah live — tombol
+          tidak ikut dibacakan setiap hasil berubah. */}
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 border-t border-border/60 bg-muted/30 px-6 py-1.5 text-xs">
         <Badge
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
           variant="outline"
           className="h-6 max-w-full gap-1 border-primary/30 bg-primary/5 px-2 font-normal text-foreground"
         >
           <Sigma className="h-3 w-3 shrink-0" />
           <span className="truncate">{summary || "Pilih apa yang ingin dihitung untuk memulai"}</span>
         </Badge>
-        <div className="flex items-center gap-1.5 text-muted-foreground">
-          {fetching ? (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin text-primary" /> Menghitung…
-            </>
-          ) : (
-            updatedAt && (
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 text-muted-foreground" role="status" aria-live="polite">
+            {fetching ? (
               <>
-                <Clock className="h-3 w-3" /> Diperbarui{" "}
-                {new Date(updatedAt).toLocaleTimeString("id-ID", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
+                <Loader2 className="h-3 w-3 animate-spin text-primary" /> Menghitung…
               </>
-            )
-          )}
+            ) : (
+              updatedAt && (
+                <>
+                  <Clock className="h-3 w-3" /> Diperbarui{" "}
+                  {new Date(updatedAt).toLocaleTimeString("id-ID", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </>
+              )
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" title="Atur tampilan" className="h-7 gap-1.5 px-2.5 text-xs font-normal hover:bg-muted hover:text-foreground data-[state=open]:bg-muted">
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  Atur
+                  {displayChanged && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" onOpenAutoFocus={(e) => e.preventDefault()} className="max-h-[75vh] w-[340px] space-y-4 overflow-y-auto">
+                <div className="space-y-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Tampilkan jumlah sebagai{" "}
+                    <HelpTip>Ubah angka jumlah menjadi persen dari totalnya, agar kelompok besar dan kecil mudah dibandingkan.</HelpTip>
+                  </span>
+                  <Select
+                    value={input.percent ?? "none"}
+                    onValueChange={(v) => update({ ...input, percent: v as PercentMode })}
+                    disabled={!hasCount}
+                  >
+                    <SelectTrigger className="h-8 text-xs" aria-label="Tampilkan jumlah sebagai">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Angka apa adanya</SelectItem>
+                      {input.colDim && <SelectItem value="row">Persen dari total baris</SelectItem>}
+                      {input.colDim && <SelectItem value="column">Persen dari total kolom</SelectItem>}
+                      <SelectItem value="all">Persen dari total keseluruhan</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {!hasCount && (
+                    <p className="text-xs text-muted-foreground">Tersedia bila ada ukuran berupa jumlah.</p>
+                  )}
+                </div>
+
+                  {cube.count_measure && (
+                    <div className="space-y-1.5">
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
+                        <span>
+                          Sembunyikan kelompok kecil{" "}
+                          <HelpTip>Menyembunyikan kelompok dengan responden sedikit, karena angkanya kurang bisa dipercaya.</HelpTip>
+                        </span>
+                        <Switch
+                          checked={!!input.minN}
+                          onCheckedChange={(on) => update({ ...input, minN: on ? DEFAULT_MIN_N : null })}
+                          aria-label="Sembunyikan kelompok kecil"
+                        />
+                      </label>
+                      {!!input.minN && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          responden kurang dari
+                          <Input
+                            type="number"
+                            min={1}
+                            value={input.minN}
+                            onChange={(e) => {
+                              const n = Math.max(1, Number(e.target.value) || 1);
+                              update({ ...input, minN: n });
+                            }}
+                            className="h-8 w-20 text-xs"
+                            aria-label="Jumlah responden minimum"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">Urutkan</span>
+                    <Select
+                      value={input.sort?.by ?? NONE}
+                      onValueChange={(v) =>
+                        update({
+                          ...input,
+                          sort:
+                            v === NONE
+                              ? null
+                              : { by: v, direction: input.sort?.direction ?? "desc", limit: input.sort?.limit ?? null },
+                        })
+                      }
+                      disabled={sortables.length === 0}
+                    >
+                      <SelectTrigger className="h-8 text-xs" aria-label="Urutkan">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>Urutan bawaan</SelectItem>
+                        {sortables.map((s) => (
+                          <SelectItem key={s.key} value={s.key}>
+                            menurut {lowerFirst(s.label)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {input.sort && (
+                      <div className="grid gap-2">
+                        <Select
+                          value={input.sort.direction}
+                          onValueChange={(v) =>
+                            update({ ...input, sort: { ...input.sort!, direction: v as "asc" | "desc" } })
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs" aria-label="Arah urutan">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="desc">Terbesar dulu</SelectItem>
+                            <SelectItem value="asc">Terkecil dulu</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={input.sort.limit ? String(input.sort.limit) : "all"}
+                          onValueChange={(v) =>
+                            update({ ...input, sort: { ...input.sort!, limit: v === "all" ? null : Number(v) } })
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs" aria-label="Jumlah yang ditampilkan">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tampilkan semua</SelectItem>
+                            {[5, 10, 20, 50].map((n) => (
+                              <SelectItem key={n} value={String(n)}>
+                                {n} teratas
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  {input.colDim && diffChoices.length >= 2 && (
+                    <div className="space-y-1.5">
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
+                        Tampilkan selisih dua kolom
+                        <Switch
+                          checked={!!input.diff}
+                          onCheckedChange={(on) =>
+                            update({ ...input, diff: on ? { a: diffChoices[0], b: diffChoices[1] } : null })
+                          }
+                          aria-label="Tampilkan selisih dua kolom"
+                        />
+                      </label>
+                      {input.diff && (
+                        <div className="grid gap-1 text-xs">
+                          <ValueSelect
+                            value={input.diff.b}
+                            choices={diffChoices}
+                            onChange={(b) => update({ ...input, diff: { ...input.diff!, b } })}
+                          />
+                          <span className="pl-1 text-muted-foreground">dikurangi</span>
+                          <ValueSelect
+                            value={input.diff.a}
+                            choices={diffChoices}
+                            onChange={(a) => update({ ...input, diff: { ...input.diff!, a } })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {onAdvancedChange && (
+                    <label className="flex cursor-pointer items-center justify-between gap-2 border-t pt-3 text-xs font-medium text-muted-foreground">
+                      <span>
+                        Mode analisis lanjutan{" "}
+                        <HelpTip>Menampilkan Slice, Dice, dan Roll-up: klik batang untuk menyaring, merinci, atau naik satu tingkat.</HelpTip>
+                      </span>
+                      <Switch checked={advanced} onCheckedChange={onAdvancedChange} aria-label="Mode analisis lanjutan" />
+                    </label>
+                  )}
+              </PopoverContent>
+            </Popover>
+            {onRollUp && (
+              <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" onClick={onRollUp} title={rollUpLabel ?? "Roll-up"}>
+                <ArrowUpToLine className="mr-1 h-3.5 w-3.5" />
+                Naik
+              </Button>
+            )}
+            <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" onClick={onReset}>
+              Reset
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" asChild>
+              <Link to="/dashboard/insight/board">
+                <LayoutGrid className="mr-1 h-3.5 w-3.5" />
+                Dashboard Saya
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
 

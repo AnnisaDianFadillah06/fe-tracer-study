@@ -56,6 +56,12 @@ export interface CatalogDimensionGroup {
   members: CatalogDimension[];
 }
 
+/** Jenjang dimensi untuk roll-up / drill-down, level ringkas → rinci. */
+export interface CatalogHierarchy {
+  name: string;
+  levels: string[];
+}
+
 export interface CatalogCube {
   key: string;
   label: string;
@@ -67,6 +73,8 @@ export interface CatalogCube {
   /** Batas dimensi sekaligus untuk cube ini (lihat maxDimensionsOf). */
   max_dimensions?: number;
   dimension_groups: CatalogDimensionGroup[];
+  /** Peladen lama tidak mengirimnya → tidak ada drill-down berjenjang. */
+  hierarchies?: CatalogHierarchy[];
 }
 
 /**
@@ -101,7 +109,21 @@ export interface ExplorerFilter {
   /** Tanpa operator = "adalah" (bentuk lama pertanyaan tersimpan). */
   operator?: FilterOperator;
   values: string[];
+  /**
+   * "drill" = dipasang drill-down, jadi boleh dilepas roll-up. Saringan
+   * buatan pengguna tidak punya penanda ini dan tidak pernah dilepas
+   * roll-up. Hanya di sisi ini; tidak dikirim ke peladen.
+   */
+  origin?: "drill";
+  /**
+   * Posisi dimensi yang dikeluarkan dari tampilan saat saringan ini menjadi
+   * slice (satu nilai). Dipakai untuk mengembalikannya bila slice dibatalkan.
+   */
+  slicedFrom?: SliceOrigin;
 }
+
+/** Bekas posisi dimensi yang di-slice: urutan ke-n di Baris, atau Kolom. */
+export type SliceOrigin = { slot: "row"; index: number } | { slot: "col" };
 
 /** "adalah"/"bukan" baru berlaku setelah ada nilai; "ada nilainya"/"kosong" langsung berlaku. */
 export function filterIsActive(f: ExplorerFilter): boolean {
@@ -655,7 +677,7 @@ export interface TableLine {
    * undefined = tingkat itu tertutup rowSpan sel di atasnya.
    */
   keyCells: Array<TableKeyCell | undefined>;
-  /** Kunci titik untuk drill-down: seluruh kunci (data) atau prefiks kelompok (subtotal). */
+  /** Kunci titik yang bisa diklik: seluruh kunci (data) atau prefiks kelompok (subtotal). */
   path: string[];
   /**
    * Hanya subtotal: tingkat kelompoknya (= panjang path). Sel labelnya
@@ -1117,7 +1139,7 @@ export interface ScatterPoint {
   y: number;
   /** Ukuran gelembung (ukuran ketiga); null = semua titik sama besar. */
   z: number | null;
-  /** Indeks baris pivot dan kunci kolomnya, untuk drill-down. */
+  /** Indeks baris pivot dan kunci kolomnya, untuk aksi klik titik. */
   rowIndex: number;
   columnKey: string;
   /** Nama seri (nilai dimensi kolom), "nilai" bila tanpa dimensi kolom. */
@@ -1531,7 +1553,7 @@ export const STARTER_QUESTIONS: StarterQuestion[] = [
     input: {
       cube: "FactTracerStudy",
       measures: ["FactTracerStudy.avg_take_home_pay"],
-      rowDims: ["DimProdi.nama_prodi"],
+      rowDims: ["DimProdi.prodi_jenjang"],
       colDim: null,
       filters: [],
     },
@@ -1704,7 +1726,7 @@ export function sameQuestion(a: ExplorerQueryInput, b: ExplorerQueryInput): bool
 }
 
 // ═══════════════════════════════════════════════════════════
-//  Drill-down: dari satu angka ke daftar alumninya
+//  Titik & drill-through: dari satu angka ke daftar alumninya
 // ═══════════════════════════════════════════════════════════
 
 /** Nilai tiap dimensi pada titik yang diklik: { "DimProdi.jurusan": "Akuntansi", ... }. */
@@ -1714,7 +1736,7 @@ export type DrillPoint = Record<string, string>;
 export const EMPTY_VALUE = "(kosong)";
 
 /**
- * Titik drill-down dari posisi di pivot. Mengembalikan null kalau salah satu
+ * Titik yang diklik, dari posisi di pivot. Mengembalikan null kalau salah satu
  * nilainya kosong: kelompok "(kosong)" berasal dari NULL di gudang data, dan
  * penyaring `equals` tidak bisa mencocokkan NULL — daftarnya akan selalu
  * kosong, jadi lebih jujur tidak menawarkan klik sama sekali.
@@ -1736,11 +1758,100 @@ export function drillPointOf(
   return Object.values(point).some((v) => v === undefined || v === EMPTY_VALUE) ? null : point;
 }
 
+/** Level di atas `dim` pada hierarkinya; null bila level teratas / tanpa hierarki. */
+export function parentOf(cube: CatalogCube, dim: string): string | null {
+  for (const h of cube.hierarchies ?? []) {
+    const i = h.levels.indexOf(dim);
+    if (i > 0) return h.levels[i - 1];
+  }
+  return null;
+}
+
+/** Level di bawah `dim` pada hierarkinya; null bila level terbawah / tanpa hierarki. */
+export function childOf(cube: CatalogCube, dim: string): string | null {
+  for (const h of cube.hierarchies ?? []) {
+    const i = h.levels.indexOf(dim);
+    if (i >= 0 && i < h.levels.length - 1) return h.levels[i + 1];
+  }
+  return null;
+}
+
+function usedDims(input: ExplorerQueryInput): string[] {
+  return [...input.rowDims, ...(input.colDim ? [input.colDim] : [])];
+}
+
+function sliceOriginOf(input: ExplorerQueryInput, dim: string): SliceOrigin | null {
+  if (input.colDim === dim) return { slot: "col" };
+  const index = input.rowDims.indexOf(dim);
+  return index >= 0 ? { slot: "row", index } : null;
+}
+
+function withoutDim(input: ExplorerQueryInput, dim: string): ExplorerQueryInput {
+  return {
+    ...input,
+    rowDims: input.rowDims.filter((d) => d !== dim),
+    colDim: input.colDim === dim ? null : input.colDim,
+  };
+}
+
 /**
- * Slice: saring ke SATU titik (satu nilai per dimensi pada titik itu).
+ * Slice: kunci SATU dimensi ke satu nilai, lalu dimensi itu keluar dari
+ * tampilan — sisa kubusnya berdimensi satu lebih sedikit (TIME = day 1).
+ * Mengunci beberapa dimensi sekaligus adalah dice (diceInput).
  */
-export function sliceInput(input: ExplorerQueryInput, point: DrillPoint): ExplorerQueryInput {
-  return { ...input, filters: drillFilters(input.filters, point) };
+export function sliceInput(input: ExplorerQueryInput, dim: string, value: string): ExplorerQueryInput {
+  const slicedFrom = sliceOriginOf(input, dim) ?? undefined;
+  return {
+    ...withoutDim(input, dim),
+    filters: [
+      ...input.filters.filter((f) => f.member !== dim),
+      { member: dim, operator: "equals", values: [value], slicedFrom },
+    ],
+  };
+}
+
+/** Saringan "adalah" tepat satu nilai = slice pada dimensi itu. */
+function isSlice(f: ExplorerFilter): boolean {
+  return (f.operator ?? "equals") === "equals" && f.values.length === 1;
+}
+
+/**
+ * Ubah (next) atau hapus (next = null) saringan pada `member` dari panel
+ * Batasi, dengan aturan slice yang sama seperti klik "Slice: hanya …":
+ *  - saringan jadi tepat satu nilai pada dimensi yang sedang tampil →
+ *    dimensi itu keluar dari tampilan dan posisinya dicatat;
+ *  - slice itu dibatalkan (jadi beberapa nilai, dikosongkan, atau dihapus) →
+ *    dimensi kembali ke posisinya, bila masih muat di batas dimensi.
+ * Saringan hasil drill-down tidak disentuh: induknya memang tetap tampil.
+ */
+export function applyFilterChange(
+  input: ExplorerQueryInput,
+  member: string,
+  next: ExplorerFilter | null,
+  maxDimensions: number,
+): ExplorerQueryInput {
+  const prev = input.filters.find((f) => f.member === member);
+  const replace = (f: ExplorerFilter | null) => ({
+    ...input,
+    filters: f ? input.filters.map((x) => (x.member === member ? f : x)) : input.filters.filter((x) => x.member !== member),
+  });
+
+  if (next && next.origin !== "drill" && isSlice(next)) {
+    const origin = sliceOriginOf(input, member);
+    if (origin) return withoutDim(replace({ ...next, slicedFrom: origin }), member);
+    return replace(next);
+  }
+
+  const origin = prev?.slicedFrom;
+  if (!origin) return replace(next);
+
+  const out = replace(next ? { ...next, slicedFrom: undefined } : null);
+  if (usedDims(out).includes(member) || usedDims(out).length >= maxDimensions) return out;
+  if (origin.slot === "col") return out.colDim === null ? { ...out, colDim: member } : out;
+
+  const rowDims = [...out.rowDims];
+  rowDims.splice(Math.min(origin.index, rowDims.length), 0, member);
+  return { ...out, rowDims };
 }
 
 /**
@@ -1772,27 +1883,135 @@ export function diceInput(input: ExplorerQueryInput, points: DrillPoint[]): Expl
 }
 
 /**
- * Roll-up: kebalikan drill-down, turunan dari susunan saat ini (tanpa riwayat).
- * Dengan ≥2 dimensi baris, dimensi terakhir dilepas beserta saringan pada
- * dimensi di atasnya (titik yang tadi dirinci). Selain itu, saringan aktif
- * terakhir dilepas. Null bila tak ada yang bisa dilepas.
+ * Nama operasi untuk menyaring ke titik-titik terpilih. Patokannya jumlah
+ * DIMENSI yang dikunci, bukan jumlah nilai: satu dimensi (berapa pun
+ * nilainya) = slice, dua dimensi atau lebih = dice (Silberschatz 11.68).
  */
-export function rollUpInput(input: ExplorerQueryInput): ExplorerQueryInput | null {
-  if (input.rowDims.length >= 2) {
-    const rowDims = input.rowDims.slice(0, -1);
-    const parent = rowDims[rowDims.length - 1];
-    return { ...input, rowDims, filters: input.filters.filter((f) => f.member !== parent) };
-  }
+export function selectionOperation(points: DrillPoint[]): "Slice" | "Dice" {
+  return new Set(points.flatMap((p) => Object.keys(p))).size >= 2 ? "Dice" : "Slice";
+}
 
-  const active = input.filters.filter(filterIsActive);
-  if (active.length === 0) return null;
+/** Satu langkah drill-down yang bisa ditawarkan: dari level `from` ke anaknya `to`. */
+export interface DrillTarget {
+  from: string;
+  to: string;
+}
 
-  const last = active[active.length - 1];
-  return { ...input, filters: input.filters.filter((f) => f !== last) };
+/** Langkah drill-down untuk titik yang diklik: tiap dimensinya yang punya level anak belum tampil. */
+export function drillTargets(cube: CatalogCube, input: ExplorerQueryInput, point: DrillPoint): DrillTarget[] {
+  const used = usedDims(input);
+  return Object.keys(point).flatMap((from) => {
+    const to = childOf(cube, from);
+    return to && used.includes(from) && !used.includes(to) ? [{ from, to }] : [];
+  });
 }
 
 /**
- * Saringan untuk drill-down: saringan pengguna + nilai titik yang diklik.
+ * Drill-down: kunci `from` ke nilai titik (saringan berpenanda drill), lalu
+ * tampilkan level anaknya tepat setelah `from` — induk tetap tampil supaya
+ * nama anak yang kembar antar-induk (kota, pertanyaan) tidak ambigu. Bila
+ * batas dimensi penuh, atau `from` adalah dimensi kolom, `from` diganti
+ * anaknya; konteksnya tetap terbaca dari saringan.
+ */
+export function drillDownInput(
+  input: ExplorerQueryInput,
+  point: DrillPoint,
+  { from, to }: DrillTarget,
+  maxDimensions: number,
+): ExplorerQueryInput {
+  const filters: ExplorerFilter[] = [
+    ...input.filters.filter((f) => f.member !== from),
+    { member: from, operator: "equals", values: [point[from]], origin: "drill" },
+  ];
+
+  if (input.colDim === from) return { ...input, colDim: to, filters };
+
+  const i = input.rowDims.indexOf(from);
+  const rowDims =
+    usedDims(input).length < maxDimensions
+      ? [...input.rowDims.slice(0, i + 1), to, ...input.rowDims.slice(i + 1)]
+      : input.rowDims.map((d) => (d === from ? to : d));
+
+  return { ...input, rowDims, filters };
+}
+
+/**
+ * Langkah roll-up berikutnya, diturunkan dari susunan saat ini (tanpa riwayat):
+ *  - collapse: anak tampil tepat setelah induknya → lepas anak;
+ *  - climb:    anak tampil tanpa induknya → ganti dengan induknya;
+ *  - remove:   level teratas / tanpa hierarki → lepas dimensi (agregasi
+ *              sampai total, sale(*,*,*)).
+ * Dimensi yang induknya disaring drill-down didahulukan, supaya roll-up
+ * membalik drill-down terakhir — juga bila drill-down itu di kolom.
+ */
+export type RollUpStep =
+  | { kind: "collapse" | "climb"; dim: string; parent: string }
+  | { kind: "remove"; dim: string };
+
+export function rollUpStep(input: ExplorerQueryInput, cube: CatalogCube): RollUpStep | null {
+  const dims = [...[...input.rowDims].reverse(), ...(input.colDim ? [input.colDim] : [])];
+  if (dims.length === 0) return null;
+
+  const drilled = (d: string) => {
+    const parent = parentOf(cube, d);
+    return parent !== null && input.filters.some((f) => f.member === parent && f.origin === "drill");
+  };
+  const dim = dims.find(drilled) ?? dims[0];
+  const parent = parentOf(cube, dim);
+
+  if (parent === null) return { kind: "remove", dim };
+
+  const i = input.rowDims.indexOf(dim);
+  if (i > 0 && input.rowDims[i - 1] === parent) return { kind: "collapse", dim, parent };
+  if (!usedDims(input).includes(parent)) return { kind: "climb", dim, parent };
+  return { kind: "remove", dim };
+}
+
+/**
+ * Roll-up: kebalikan drill-down (lihat rollUpStep). Hanya saringan
+ * berpenanda drill pada induk yang ikut dilepas — saringan pengguna tidak
+ * pernah disentuh. Null bila sudah di total.
+ */
+export function rollUpInput(input: ExplorerQueryInput, cube: CatalogCube): ExplorerQueryInput | null {
+  const step = rollUpStep(input, cube);
+  if (!step) return null;
+
+  if (step.kind === "remove") {
+    return {
+      ...input,
+      rowDims: input.rowDims.filter((d) => d !== step.dim),
+      colDim: input.colDim === step.dim ? null : input.colDim,
+    };
+  }
+
+  const filters = input.filters.filter((f) => !(f.member === step.parent && f.origin === "drill"));
+
+  if (step.kind === "collapse") {
+    return { ...input, rowDims: input.rowDims.filter((d) => d !== step.dim), filters };
+  }
+
+  return {
+    ...input,
+    rowDims: input.rowDims.map((d) => (d === step.dim ? step.parent : d)),
+    colDim: input.colDim === step.dim ? step.parent : input.colDim,
+    filters,
+  };
+}
+
+/** "Roll-up ke Jurusan", "Roll-up ke total", atau "Roll-up: lepas Status alumni". */
+export function rollUpLabel(
+  input: ExplorerQueryInput,
+  cube: CatalogCube,
+  dimensionLabel: (key: string) => string,
+): string | null {
+  const step = rollUpStep(input, cube);
+  if (!step) return null;
+  if (step.kind !== "remove") return `Roll-up ke ${dimensionLabel(step.parent)}`;
+  return usedDims(input).length === 1 ? "Roll-up ke total" : `Roll-up: lepas ${dimensionLabel(step.dim)}`;
+}
+
+/**
+ * Saringan untuk drill-through: saringan pengguna + nilai titik yang diklik.
  * Nilai titik menggantikan saringan pengguna pada dimensi yang sama — titik
  * selalu lebih sempit (satu nilai) daripada pilihan saringannya.
  */
@@ -1877,7 +2096,7 @@ export function applyPercent(
  * Tambah kolom "B − A" di ujung pivot — misalnya kompetensi yang dibutuhkan
  * di pekerjaan dikurangi yang dikuasai saat lulus (gap kompetensi). Kolom
  * ini hasil hitungan, bukan kelompok data: ditandai derivedColumns supaya
- * tidak ditawarkan untuk drill-down. Tanpa kedua kolom, pivot dikembalikan
+ * tidak bisa diklik. Tanpa kedua kolom, pivot dikembalikan
  * apa adanya.
  */
 export function addColumnDifference(

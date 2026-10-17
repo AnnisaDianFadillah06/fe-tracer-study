@@ -38,10 +38,12 @@ import {
   describeDrillPoint,
   drillFilters,
   drillPointOf,
+  selectionOperation,
   formatMeasure,
   presentPivot,
   type CatalogMeasure,
   type DrillPoint,
+  type DrillTarget,
   type ExplorerFilter,
   type ExplorerQueryInput,
   type ExplorerResult,
@@ -51,7 +53,7 @@ import {
 
 interface Props {
   result: ExplorerResult;
-  /** Saringan pertanyaan — ikut dikirim saat drill-down ke daftar alumni. */
+  /** Saringan pertanyaan — ikut dikirim saat drill-through ke daftar alumni. */
   filters: ExplorerFilter[];
   /** Olah hasil yang murni tampilan: persen & selisih kolom. */
   display?: Pick<ExplorerQueryInput, "percent" | "diff" | "viz" | "sort">;
@@ -63,16 +65,19 @@ interface Props {
   /** Ada = pemilih visualisasi ditampilkan (halaman Insight). Kosong di kartu Dashboard Saya. */
   onVizChange?: (viz: Viz) => void;
   /**
-   * Ada = klik angka/batang menawarkan "Filter ke ini" dan "Rinci per …"
+   * Ada = klik angka/batang membuka pilihan slice/dice/drill-down/roll-up
    * (halaman Insight); kosong = langsung membuka daftar alumni (kartu board).
    */
-  onSlice?: (point: DrillPoint, drillDim?: string) => void;
+  onSlice?: (dim: string, value: string) => void;
+  /** Drill-down berjenjang menurut hierarki katalog. */
+  onDrillDown?: (point: DrillPoint, target: DrillTarget) => void;
+  /** Langkah drill-down yang tersedia untuk sebuah titik. */
+  drillTargetsOf?: (point: DrillPoint) => (DrillTarget & { toLabel: string })[];
   /** Dice: sub-kubus dari beberapa titik yang dikumpulkan. */
   onDice?: (points: DrillPoint[]) => void;
-  /** Roll-up; ada = menu klik menawarkan "Naik satu tingkat". */
+  /** Roll-up; ada = menu klik menawarkannya dengan label rollUpLabel. */
   onRollUp?: () => void;
-  /** Dimensi yang masih boleh ditambahkan lewat "Rinci per …". */
-  drillDimensions?: { key: string; label: string }[];
+  rollUpLabel?: string | null;
   /**
    * Tampilan ringkas untuk kartu Dashboard Saya: chart lebih pendek, tanpa
    * bingkai kartu sendiri, dan tabel hanya muncul kalau chart tidak bisa
@@ -96,12 +101,14 @@ const ExplorerResultView = ({
   filters,
   display,
   onSlice,
+  onDrillDown,
+  drillTargetsOf,
   onDice,
   onRollUp,
-  drillDimensions = [],
+  rollUpLabel = null,
   compact = false,
 }: Props) => {
-  // Titik yang dikumpulkan untuk Dice; hilang saat hasil berganti susunan.
+  // Titik yang dikumpulkan untuk disaring bersama (slice/dice); hilang saat hasil berganti susunan.
   const [picked, setPicked] = useState<DrillPoint[]>([]);
   const [drill, setDrill] = useState<DrillRequest | null>(null);
   const [pending, setPending] = useState<{ point: DrillPoint; measure: CatalogMeasure; value: number | null } | null>(null);
@@ -113,7 +120,7 @@ const ExplorerResultView = ({
    * pembilangnya.
    */
   const openDrill = (point: DrillPoint, shown: CatalogMeasure, value: number | null) => {
-    // Di halaman Insight klik dulu menawarkan pilihan (filter / rinci / alumni).
+    // Di halaman Insight klik dulu menawarkan pilihan operasi OLAP.
     if (onSlice) {
       setPending({ point, measure: shown, value });
       return;
@@ -338,7 +345,9 @@ const ExplorerResultView = ({
 
   const pickedBar = picked.length > 0 && (
     <p className="flex flex-wrap items-center gap-2 text-xs">
-      <span className="font-medium">{picked.length} titik dipilih (Dice)</span>
+      <span className="font-medium">
+        {picked.length} titik dipilih ({selectionOperation(picked)})
+      </span>
       <button
         type="button"
         className="underline hover:text-primary"
@@ -442,6 +451,7 @@ const ExplorerResultView = ({
 
       <PointActionDialog
         picked={picked.length}
+        pickedOperation={selectionOperation(pending ? withPoint(picked, pending.point) : picked)}
         onAddPicked={() => {
           if (pending) addPicked(pending.point);
           setPending(null);
@@ -452,17 +462,37 @@ const ExplorerResultView = ({
           setPicked([]);
           setPending(null);
         }}
-        canRollUp={onRollUp !== undefined}
+        rollUpLabel={onRollUp ? rollUpLabel : null}
         onRollUp={() => {
           onRollUp?.();
           setPending(null);
         }}
         pending={pending}
         pointLabel={pending ? describeDrillPoint(pending.point, labelOf) : ""}
-        dimensions={drillDimensions}
+        pointDims={
+          pending
+            ? Object.entries(pending.point).map(([key, value]) => ({ key, label: labelOf(key), value }))
+            : []
+        }
+        drillTargets={
+          pending && onDrillDown && drillTargetsOf
+            ? drillTargetsOf(pending.point).map((t) => ({
+                ...t,
+                label: `${labelOf(t.from)} ${pending.point[t.from]} → ${t.toLabel}`,
+              }))
+            : []
+        }
+        onDrillDown={(target) => {
+          if (pending) onDrillDown?.(pending.point, target);
+          setPending(null);
+        }}
         onClose={() => setPending(null)}
         onSlice={(dim) => {
-          if (pending) onSlice?.(pending.point, dim);
+          if (pending) onSlice?.(dim, pending.point[dim]);
+          setPending(null);
+        }}
+        onDiceAll={() => {
+          if (pending) onDice?.([pending.point]);
           setPending(null);
         }}
         onAlumni={() => {

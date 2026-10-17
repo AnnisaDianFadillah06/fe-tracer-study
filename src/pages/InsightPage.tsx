@@ -50,14 +50,18 @@ import {
   availableStarters,
   describeQuestion,
   diceInput,
-  drillFilters,
+  drillDownInput,
+  drillTargets,
   isRunnable,
   measureLabelOf,
   maxDimensionsOf,
   rollUpInput,
+  rollUpLabel,
   sameQuestion,
+  sliceInput,
   toCsv,
   type DrillPoint,
+  type DrillTarget,
   type ExplorerQueryInput,
   type ExplorerResult,
 } from "@/lib/olapExplorer";
@@ -233,33 +237,31 @@ const InsightPage = () => {
     });
   };
 
-  /**
-   * Slice: saring ke kelompok yang diklik. Dengan `drillDim`, sekaligus
-   * dirinci (drill-down) per dimensi itu sebagai Baris berikutnya.
-   */
-  const handleSlice = (point: DrillPoint, drillDim?: string) => {
-    if (!current) return;
-    applyInput({
-      ...current,
-      filters: drillFilters(current.filters, point),
-      rowDims: drillDim ? [...current.rowDims, drillDim] : current.rowDims,
-    });
+  // Slice: kunci satu dimensi titik, dimensinya keluar dari tampilan.
+  const handleSlice = (dim: string, value: string) => {
+    if (current) applyInput(sliceInput(current, dim, value));
   };
 
-  // Dimensi yang masih boleh dipakai "Rinci per": belum terpakai dan muat di
-  // batas dimensi katalog.
-  const drillDimensions = useMemo(() => {
-    if (!current || !cube || !catalog) return [];
-    const used = new Set([...current.rowDims, ...(current.colDim ? [current.colDim] : [])]);
-    if (used.size >= maxDimensionsOf(cube, catalog)) return [];
-    return cube.dimension_groups.flatMap((g) => g.members).filter((d) => !used.has(d.key));
-  }, [current, cube, catalog]);
+  // Drill-down mengikuti hierarki katalog (jurusan → prodi, provinsi → kota, ...).
+  const drillTargetsOf = (point: DrillPoint) =>
+    current && cube
+      ? drillTargets(cube, current, point).map((t) => ({ ...t, toLabel: labelOfDimension(t.to) }))
+      : [];
+
+  const handleDrillDown = (point: DrillPoint, target: DrillTarget) => {
+    if (current && cube && catalog) {
+      applyInput(drillDownInput(current, point, target, maxDimensionsOf(cube, catalog)));
+    }
+  };
 
   const handleDice = (points: DrillPoint[]) => {
     if (current) applyInput(diceInput(current, points));
   };
 
-  const rolledUp = current ? rollUpInput(current) : null;
+  const labelOfDimension = (key: string) =>
+    cube?.dimension_groups.flatMap((g) => g.members).find((d) => d.key === key)?.label ?? key;
+  const rolledUp = current && cube ? rollUpInput(current, cube) : null;
+  const rollUpTitle = current && cube ? rollUpLabel(current, cube, labelOfDimension) : null;
   const handleRollUp = () => {
     if (rolledUp) applyInput(rolledUp);
   };
@@ -280,6 +282,7 @@ const InsightPage = () => {
         onChange={applyInput}
         onReset={handleReset}
         onRollUp={advanced && rolledUp ? handleRollUp : undefined}
+        rollUpLabel={rollUpTitle}
         advanced={advanced}
         onAdvancedChange={setAdvanced}
         summary={question}
@@ -446,9 +449,11 @@ const InsightPage = () => {
                   onChartMeasureChange={setChartMeasure}
                   onVizChange={(viz) => setInput({ ...current, viz })}
                   onSlice={advanced ? handleSlice : undefined}
+                  onDrillDown={advanced ? handleDrillDown : undefined}
+                  drillTargetsOf={drillTargetsOf}
                   onDice={advanced ? handleDice : undefined}
                   onRollUp={advanced && rolledUp ? handleRollUp : undefined}
-                  drillDimensions={drillDimensions}
+                  rollUpLabel={rollUpTitle}
                 />
               </>
             )}

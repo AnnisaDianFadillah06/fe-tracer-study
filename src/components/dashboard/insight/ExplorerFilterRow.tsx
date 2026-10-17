@@ -43,8 +43,10 @@ const ExplorerFilterRow = ({ cube, filter, label, onChange, onRemove }: Props) =
   const { data: values, isLoading } = useDimensionValues(needsValues ? filter.member : null, cube);
 
   const toggle = (value: string) => {
+    // Diubah pengguna = saringan pengguna; roll-up tidak lagi melepasnya.
     onChange({
       ...filter,
+      origin: undefined,
       values: filter.values.includes(value)
         ? filter.values.filter((v) => v !== value)
         : [...filter.values, value],
@@ -68,7 +70,7 @@ const ExplorerFilterRow = ({ cube, filter, label, onChange, onRemove }: Props) =
 
       <Select
         value={operator}
-        onValueChange={(v) => onChange({ ...filter, operator: v as FilterOperator })}
+        onValueChange={(v) => onChange({ ...filter, origin: undefined, operator: v as FilterOperator })}
       >
         <SelectTrigger className="h-8 text-xs" aria-label={`Jenis saringan ${label}`}>
           <SelectValue />

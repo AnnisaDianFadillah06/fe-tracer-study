@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { ArrowUpToLine, Filter, ListPlus, ListTree, Users } from "lucide-react";
+import { ArrowDownToLine, ArrowUpToLine, Filter, Grid2x2, ListPlus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,113 +7,138 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { DrillTarget } from "@/lib/olapExplorer";
 
 interface Props {
   /** null = tertutup. */
   pending: object | null;
   /** "Jurusan Akuntansi · Tahun lulus 2022" */
   pointLabel: string;
-  /** Dimensi yang masih boleh ditambahkan; kosong = "Rinci per" disembunyikan. */
-  dimensions: { key: string; label: string }[];
+  /** Dimensi-dimensi titik ini; satu tombol slice per dimensi. */
+  pointDims: { key: string; label: string; value: string }[];
   onClose: () => void;
-  /** Menyaring ke titik ini; dim terisi = sekaligus merinci per dimensi itu. */
-  onSlice: (dim?: string) => void;
+  /** Slice: kunci satu dimensi ke nilai titik ini. */
+  onSlice: (dim: string) => void;
+  /** Dice: kunci SEMUA dimensi titik ini sekaligus. */
+  onDiceAll: () => void;
+  /** Drill-down menurut hierarki; kosong = tombolnya tidak ada. */
+  drillTargets: (DrillTarget & { label: string })[];
+  onDrillDown: (target: DrillTarget) => void;
   onAlumni: () => void;
-  /** Dice: jumlah titik yang sudah dikumpulkan, titik ini ditambahkan ke sana. */
+  /** Jumlah titik yang sudah dikumpulkan; titik ini ditambahkan ke sana. */
   picked: number;
+  /** Slice bila pilihan hanya mencakup satu dimensi, Dice bila dua atau lebih. */
+  pickedOperation: "Slice" | "Dice";
   onAddPicked: () => void;
-  /** Dice ke titik terkumpul (termasuk titik ini bila belum ditambahkan). */
+  /** Saring ke titik terkumpul (termasuk titik ini bila belum ditambahkan). */
   onDice: () => void;
-  /** Roll-up; tombolnya hanya ada bila ada yang bisa dilepas. */
-  canRollUp: boolean;
+  /** Label roll-up ("Roll-up ke Jurusan"); null = tidak ada yang bisa di-roll-up. */
+  rollUpLabel: string | null;
   onRollUp: () => void;
 }
 
+// Label tombol memuat nilai kelompok ("… D3 Teknik Pendingin & Tata Udara"),
+// jadi harus boleh turun baris — Button bawaan memakai whitespace-nowrap.
+const WRAP = "h-auto min-h-10 w-full justify-start whitespace-normal py-2 text-left";
+
 /**
- * Pilihan setelah mengklik batang/angka: menyaring ke kelompok itu (slice),
- * mengumpulkan beberapa kelompok lalu menyaring ke semuanya (dice), merinci
- * per dimensi lain (drill-down), naik satu tingkat (roll-up), atau melihat
- * daftar alumninya (drill-through).
+ * Pilihan setelah mengklik batang/angka: mengunci satu dimensi (slice),
+ * mengunci beberapa dimensi (dice), turun satu level hierarki (drill-down),
+ * naik satu level (roll-up), atau melihat daftar alumninya (drill-through).
  */
 const PointActionDialog = ({
   pending,
   pointLabel,
-  dimensions,
+  pointDims,
   onClose,
   onSlice,
+  onDiceAll,
+  drillTargets,
+  onDrillDown,
   onAlumni,
   picked,
+  pickedOperation,
   onAddPicked,
   onDice,
-  canRollUp,
+  rollUpLabel,
   onRollUp,
-}: Props) => {
-  const [dim, setDim] = useState<string>("");
+}: Props) => (
+  <Dialog open={pending !== null} onOpenChange={(open) => !open && onClose()}>
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle className="pr-6 leading-snug">{pointLabel}</DialogTitle>
+        <DialogDescription>Mau diapakan kelompok ini?</DialogDescription>
+      </DialogHeader>
 
-  return (
-    <Dialog open={pending !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{pointLabel}</DialogTitle>
-          <DialogDescription>Mau diapakan kelompok ini?</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-3">
-          <Button className="w-full justify-start" variant="outline" onClick={() => onSlice()}>
+      <div className="space-y-3">
+        {pointDims.map((d) => (
+          <Button
+            key={d.key}
+            className={WRAP}
+            variant="outline"
+            onClick={() => onSlice(d.key)}
+            title={`Hanya hitung ${d.label} ${d.value}; ${d.label} tidak lagi ditampilkan per kelompok`}
+          >
             <Filter className="mr-2 h-4 w-4" />
-            Filter ke ini
+            Slice: hanya {d.label} {d.value}
           </Button>
+        ))}
 
-          {dimensions.length > 0 && (
-            <div className="flex items-center gap-2">
-              <ListTree className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <Select value={dim} onValueChange={setDim}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Rinci per…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dimensions.map((d) => (
-                    <SelectItem key={d.key} value={d.key}>
-                      {d.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button disabled={dim === ""} onClick={() => dim && onSlice(dim)}>
-                Rinci
-              </Button>
-            </div>
-          )}
+        {pointDims.length >= 2 && (
+          <Button className={WRAP} variant="outline" onClick={onDiceAll}>
+            <Grid2x2 className="mr-2 h-4 w-4" />
+            Dice: kunci {pointDims.map((d) => d.label).join(" & ")}
+          </Button>
+        )}
 
+        {drillTargets.map((t) => (
+          <Button
+            key={`${t.from}>${t.to}`}
+            className={WRAP}
+            variant="outline"
+            onClick={() => onDrillDown({ from: t.from, to: t.to })}
+          >
+            <ArrowDownToLine className="mr-2 h-4 w-4" />
+            Drill-down: {t.label}
+          </Button>
+        ))}
+
+        <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Button className="flex-1 justify-start" variant="outline" onClick={onAddPicked}>
+            <Button className="h-auto min-h-10 flex-1 justify-start whitespace-normal py-2 text-left" variant="outline" onClick={onAddPicked}>
               <ListPlus className="mr-2 h-4 w-4" />
-              Tambah ke pilihan (Dice)
+              Tambah ke pilihan
               {picked > 0 && <span className="ml-auto text-xs text-muted-foreground">{picked} terpilih</span>}
             </Button>
             {picked > 0 && (
               <Button onClick={onDice} title="Saring ke semua titik yang dipilih">
-                Dice
+                {pickedOperation}
               </Button>
             )}
           </div>
-
-          {canRollUp && (
-            <Button className="w-full justify-start" variant="outline" onClick={onRollUp}>
-              <ArrowUpToLine className="mr-2 h-4 w-4" />
-              Naik satu tingkat (Roll-up)
-            </Button>
+          {picked > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {pickedOperation === "Dice"
+                ? "Dice: hasil memuat semua kombinasi nilai yang dipilih."
+                : "Slice: hanya kelompok yang dipilih yang ditampilkan."}
+            </p>
           )}
-
-          <Button className="w-full justify-start" variant="outline" onClick={onAlumni}>
-            <Users className="mr-2 h-4 w-4" />
-            Lihat daftar alumni
-          </Button>
         </div>
-      </DialogContent>
-    </Dialog>
-  );
-};
+
+        {rollUpLabel && (
+          <Button className={WRAP} variant="outline" onClick={onRollUp}>
+            <ArrowUpToLine className="mr-2 h-4 w-4" />
+            {rollUpLabel}
+          </Button>
+        )}
+
+        <Button className={WRAP} variant="outline" onClick={onAlumni}>
+          <Users className="mr-2 h-4 w-4" />
+          Lihat daftar alumni (drill-through)
+        </Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+);
 
 export default PointActionDialog;

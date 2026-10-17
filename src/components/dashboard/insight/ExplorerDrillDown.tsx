@@ -35,8 +35,10 @@ interface Props {
 const PER_PAGE = 15;
 
 /**
- * Daftar alumni di balik satu angka Insight, memakai DrillDownModal yang sama
- * dengan dashboard lain.
+ * Drill-through: daftar alumni di balik satu angka Insight, memakai
+ * DrillDownModal yang sama dengan dashboard lain. Bukan drill-down OLAP
+ * (turun level hierarki, lihat drillDownInput) — nama endpoint
+ * /explorer/drill-down dipertahankan demi kompatibilitas.
  *
  * Untuk cacah, jumlah baris daftar sama dengan angka yang diklik (peladen
  * menyaring alumni yang ikut terhitung), jadi angka itu dipakai sebagai total.

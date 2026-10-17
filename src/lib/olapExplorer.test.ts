@@ -3,8 +3,15 @@ import {
   applyViz,
   availableViz,
   comboSeries,
+  applyFilterChange,
+  childOf,
   diceInput,
+  drillDownInput,
+  drillTargets,
+  parentOf,
   rollUpInput,
+  rollUpLabel,
+  selectionOperation,
   sliceInput,
   swapRowsColumns,
   toComboData,
@@ -575,15 +582,89 @@ describe("swapRowsColumns", () => {
   });
 });
 
-describe("slice, dice, roll-up", () => {
+describe("slice, dice, roll-up, drill-down", () => {
   const base = { cube: "c", measures: ["x"], colDim: null, filters: [] };
+  const cube = {
+    key: "c",
+    label: "C",
+    description: "",
+    measures: [],
+    dimension_groups: [],
+    hierarchies: [
+      { name: "Program Studi", levels: ["J", "P"] },
+      { name: "Lokasi", levels: ["Prov", "Kota"] },
+    ],
+  };
+  const drillFilter = (member: string, value: string) => ({
+    member,
+    operator: "equals" as const,
+    values: [value],
+    origin: "drill" as const,
+  });
 
-  it("slice menyaring ke satu titik dan menggantikan saringan lama pada dimensi itu", () => {
+  it("parentOf / childOf membaca hierarki; dimensi satu level tidak punya keduanya", () => {
+    expect(childOf(cube, "J")).toBe("P");
+    expect(parentOf(cube, "P")).toBe("J");
+    expect(parentOf(cube, "J")).toBeNull();
+    expect(childOf(cube, "P")).toBeNull();
+    expect(childOf(cube, "Status")).toBeNull();
+  });
+
+  it("slice mengunci satu dimensi dan mengeluarkannya dari tampilan", () => {
     const out = sliceInput(
-      { ...base, rowDims: ["J"], filters: [{ member: "J", operator: "equals", values: ["A", "B"] }] },
-      { J: "A" },
+      { ...base, rowDims: ["J"], colDim: "T", filters: [{ member: "T", operator: "equals", values: ["2021", "2022"] }] },
+      "T",
+      "2022",
     );
-    expect(out.filters).toEqual([{ member: "J", operator: "equals", values: ["A"] }]);
+    expect(out.rowDims).toEqual(["J"]);
+    expect(out.colDim).toBeNull();
+    expect(out.filters).toEqual([{ member: "T", operator: "equals", values: ["2022"], slicedFrom: { slot: "col" } }]);
+  });
+
+  it("panel Batasi: satu nilai pada dimensi tampil = slice, dimensinya keluar", () => {
+    const input = { ...base, rowDims: ["J", "P"], filters: [{ member: "P", operator: "equals" as const, values: [] }] };
+    const out = applyFilterChange(input, "P", { member: "P", operator: "equals", values: ["D3 A"] }, 3);
+    expect(out.rowDims).toEqual(["J"]);
+    expect(out.filters[0].slicedFrom).toEqual({ slot: "row", index: 1 });
+  });
+
+  it("panel Batasi: slice dibatalkan (dua nilai / dihapus) → dimensi kembali ke posisinya", () => {
+    const sliced = applyFilterChange(
+      { ...base, rowDims: ["P", "T"], filters: [{ member: "P", operator: "equals" as const, values: [] }] },
+      "P",
+      { member: "P", operator: "equals", values: ["D3 A"] },
+      3,
+    );
+    expect(sliced.rowDims).toEqual(["T"]);
+
+    const two = applyFilterChange(sliced, "P", { ...sliced.filters[0], values: ["D3 A", "D4 A"] }, 3);
+    expect(two.rowDims).toEqual(["P", "T"]);
+    expect(two.filters[0].slicedFrom).toBeUndefined();
+
+    expect(applyFilterChange(sliced, "P", null, 3).rowDims).toEqual(["P", "T"]);
+  });
+
+  it("panel Batasi: saringan banyak nilai, dimensi tak tampil, dan saringan drill tidak diubah", () => {
+    const input = { ...base, rowDims: ["J", "P"] };
+    const many = applyFilterChange({ ...input, filters: [{ member: "P", values: [] }] }, "P", { member: "P", values: ["a", "b"] }, 3);
+    expect(many.rowDims).toEqual(["J", "P"]);
+
+    const hidden = applyFilterChange({ ...input, filters: [{ member: "T", values: [] }] }, "T", { member: "T", values: ["2022"] }, 3);
+    expect(hidden.rowDims).toEqual(["J", "P"]);
+
+    const drill = { member: "J", operator: "equals" as const, values: ["A"], origin: "drill" as const };
+    const kept = applyFilterChange({ ...input, filters: [drill] }, "J", drill, 3);
+    expect(kept.rowDims).toEqual(["J", "P"]);
+  });
+
+  it("pilihan beberapa titik: satu dimensi = Slice, dua dimensi atau lebih = Dice", () => {
+    expect(selectionOperation([{ P: "D3 A" }, { P: "D3 B" }, { P: "D3 C" }])).toBe("Slice");
+    expect(selectionOperation([{ J: "A", T: "2021" }, { J: "B", T: "2021" }])).toBe("Dice");
+  });
+
+  it("slice lewat klik bisa dibatalkan dari panel", () => {
+    const sliced = sliceInput({ ...base, rowDims: ["J", "T"] }, "J", "A");
+    expect(applyFilterChange(sliced, "J", null, 3).rowDims).toEqual(["J", "T"]);
   });
 
   it("dice menggabungkan nilai dari beberapa titik per dimensi", () => {
@@ -597,22 +678,60 @@ describe("slice, dice, roll-up", () => {
     ]);
   });
 
-  it("roll-up membalik drill-down: lepas dimensi terakhir dan saringan induknya", () => {
-    const drilled = {
-      ...base,
-      rowDims: ["J", "P"],
-      filters: [{ member: "J", operator: "equals" as const, values: ["A"] }],
-    };
-    const up = rollUpInput(drilled);
-    expect(up?.rowDims).toEqual(["J"]);
-    expect(up?.filters).toEqual([]);
+  it("drill-down hanya ditawarkan ke level anak yang belum tampil", () => {
+    const input = { ...base, rowDims: ["J", "Status"] };
+    expect(drillTargets(cube, input, { J: "A", Status: "Bekerja" })).toEqual([{ from: "J", to: "P" }]);
+    expect(drillTargets(cube, { ...base, rowDims: ["J", "P"] }, { J: "A", P: "D3" })).toEqual([]);
   });
 
-  it("roll-up satu dimensi melepas saringan aktif terakhir; kosong = null", () => {
-    const f1 = { member: "T", operator: "equals" as const, values: ["2021"] };
-    const f2 = { member: "S", operator: "equals" as const, values: ["Bekerja"] };
-    expect(rollUpInput({ ...base, rowDims: ["J"], filters: [f1, f2] })?.filters).toEqual([f1]);
-    expect(rollUpInput({ ...base, rowDims: ["J"] })).toBeNull();
+  it("drill-down menyisipkan anak setelah induk dan mengunci induk dengan penanda drill", () => {
+    const out = drillDownInput({ ...base, rowDims: ["J", "T"] }, { J: "A", T: "2021" }, { from: "J", to: "P" }, 3);
+    expect(out.rowDims).toEqual(["J", "P", "T"]);
+    expect(out.filters).toEqual([drillFilter("J", "A")]);
+  });
+
+  it("drill-down mengganti induk bila batas dimensi penuh atau induknya di kolom", () => {
+    const full = drillDownInput({ ...base, rowDims: ["J", "T"] }, { J: "A" }, { from: "J", to: "P" }, 2);
+    expect(full.rowDims).toEqual(["P", "T"]);
+
+    const col = drillDownInput({ ...base, rowDims: ["T"], colDim: "Prov" }, { Prov: "Bali" }, { from: "Prov", to: "Kota" }, 3);
+    expect(col.colDim).toBe("Kota");
+    expect(col.filters).toEqual([drillFilter("Prov", "Bali")]);
+  });
+
+  it("roll-up membalik drill-down persis, termasuk di kolom dan saat batas penuh", () => {
+    const cases = [
+      { input: { ...base, rowDims: ["J", "T"] }, point: { J: "A" }, target: { from: "J", to: "P" }, max: 3 },
+      { input: { ...base, rowDims: ["J", "T"] }, point: { J: "A" }, target: { from: "J", to: "P" }, max: 2 },
+      { input: { ...base, rowDims: ["T"], colDim: "Prov" }, point: { Prov: "Bali" }, target: { from: "Prov", to: "Kota" }, max: 3 },
+    ];
+    for (const c of cases) {
+      expect(rollUpInput(drillDownInput(c.input, c.point, c.target, c.max), cube)).toEqual(c.input);
+    }
+  });
+
+  it("roll-up tidak pernah melepas saringan pengguna", () => {
+    const user = { member: "J", operator: "equals" as const, values: ["A"] };
+    const up = rollUpInput({ ...base, rowDims: ["J", "P"], filters: [user] }, cube);
+    expect(up?.rowDims).toEqual(["J"]);
+    expect(up?.filters).toEqual([user]);
+  });
+
+  it("roll-up naik ke induk bila induknya tidak tampil, lalu melepas dimensi sampai total", () => {
+    const climbed = rollUpInput({ ...base, rowDims: ["P"] }, cube);
+    expect(climbed?.rowDims).toEqual(["J"]);
+
+    const removed = rollUpInput(climbed!, cube);
+    expect(removed?.rowDims).toEqual([]);
+    expect(rollUpInput(removed!, cube)).toBeNull();
+  });
+
+  it("rollUpLabel menyebut tujuan roll-up", () => {
+    const label = (k: string) => ({ J: "Jurusan", P: "Program studi", Status: "Status alumni" })[k] ?? k;
+    expect(rollUpLabel({ ...base, rowDims: ["J", "P"] }, cube, label)).toBe("Roll-up ke Jurusan");
+    expect(rollUpLabel({ ...base, rowDims: ["J", "Status"] }, cube, label)).toBe("Roll-up: lepas Status alumni");
+    expect(rollUpLabel({ ...base, rowDims: ["J"] }, cube, label)).toBe("Roll-up ke total");
+    expect(rollUpLabel({ ...base, rowDims: [] }, cube, label)).toBeNull();
   });
 });
 
