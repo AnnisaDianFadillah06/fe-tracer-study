@@ -1637,7 +1637,7 @@ export const STARTER_QUESTIONS: StarterQuestion[] = [
     title: "Gap kompetensi: dikuasai saat lulus vs dibutuhkan di kerja",
     input: {
       cube: "FactRangeEvaluasi",
-      measures: ["FactRangeEvaluasi.agg_avg_skor"],
+      measures: ["FactRangeEvaluasi.avg_skor"],
       rowDims: ["DimIndikatorEvaluasi.grup_gap"],
       colDim: "DimIndikatorEvaluasi.kategori_label",
       filters: [

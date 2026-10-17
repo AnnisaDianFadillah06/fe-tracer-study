@@ -710,6 +710,32 @@ describe("slice, dice, roll-up, drill-down", () => {
     }
   });
 
+  it("hierarki tiga level: jenjang → jurusan → prodi, lalu roll-up kembali", () => {
+    const deep = { ...cube, hierarchies: [{ name: "Program Studi", levels: ["Jen", "J", "P"] }] };
+    const start = { ...base, rowDims: ["Jen", "T"] };
+
+    expect(drillTargets(deep, start, { Jen: "D4", T: "2021" })).toEqual([{ from: "Jen", to: "J" }]);
+
+    // Muat: induk tetap tampil, anak disisipkan setelahnya.
+    const wide = { ...base, rowDims: ["Jen"] };
+    const toJurusan = drillDownInput(wide, { Jen: "D4" }, { from: "Jen", to: "J" }, 3);
+    expect(toJurusan.rowDims).toEqual(["Jen", "J"]);
+    expect(drillTargets(deep, toJurusan, { Jen: "D4", J: "Kimia" })).toEqual([{ from: "J", to: "P" }]);
+    const toProdi = drillDownInput(toJurusan, { Jen: "D4", J: "Kimia" }, { from: "J", to: "P" }, 3);
+    expect(toProdi.rowDims).toEqual(["Jen", "J", "P"]);
+    expect(toProdi.filters).toEqual([drillFilter("Jen", "D4"), drillFilter("J", "Kimia")]);
+    expect(rollUpInput(rollUpInput(toProdi, deep)!, deep)).toEqual(wide);
+
+    // Batas penuh: tiap level menggantikan induknya; saringan jenjang tetap
+    // ada saat di level prodi, jadi jurusan tidak tercampur D3 dan D4.
+    const narrow = drillDownInput(start, { Jen: "D4" }, { from: "Jen", to: "J" }, 2);
+    const deepest = drillDownInput(narrow, { J: "Kimia" }, { from: "J", to: "P" }, 2);
+    expect(deepest.rowDims).toEqual(["P", "T"]);
+    expect(deepest.filters).toEqual([drillFilter("Jen", "D4"), drillFilter("J", "Kimia")]);
+    expect(rollUpInput(deepest, deep)).toEqual(narrow);
+    expect(rollUpInput(narrow, deep)).toEqual(start);
+  });
+
   it("roll-up tidak pernah melepas saringan pengguna", () => {
     const user = { member: "J", operator: "equals" as const, values: ["A"] };
     const up = rollUpInput({ ...base, rowDims: ["J", "P"], filters: [user] }, cube);
