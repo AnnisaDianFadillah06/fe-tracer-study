@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { buildColorMap } from "@/lib/chartColors";
+import { buildInsightColorMap } from "@/lib/chartColors";
 import { tooltipStyle } from "../charts/common/KpiCard";
 import {
   comboSeries,
@@ -39,7 +39,7 @@ interface Props {
 const ExplorerComboChart = ({ pivot, measures, height = 340, onPointClick }: Props) => {
   const series = comboSeries(measures);
   const data = toComboData(pivot, series);
-  const colors = buildColorMap(series.map((s) => s.measure.label));
+  const colors = buildInsightColorMap(series.map((s) => s.measure.label));
   const hasRight = series.some((s) => s.axis === "right");
   const clickable = onPointClick ? { cursor: "pointer" } : undefined;
 

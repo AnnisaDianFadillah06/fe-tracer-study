@@ -252,11 +252,17 @@ const ExplorerResultView = ({
   const combo = chart.kind === "combo";
   const scatter = chart.kind === "scatter";
   // Kedua bentuk ini memakai beberapa ukuran sekaligus, bukan satu yang dipilih.
+  // Grafik bar/garis hanya menggambar kolom selisih bila ada (chartPivotOf),
+  // jadi judulnya harus menyebut selisih — "Rata-rata skor (1–5)" di atas
+  // batang bernilai ±0,04 menyesatkan. Heatmap tetap memakai nilai asli.
+  const drawsDiff = Boolean(diff && pivot.derivedColumns?.length) && chart.kind !== "heatmap";
   const chartTitle = combo
     ? "Semua ukuran"
     : scatter
       ? `${measures[1]?.label} terhadap ${lowerFirst(measures[0]?.label ?? "")}`
-      : activeMeasure?.label;
+      : drawsDiff && diff
+        ? `Selisih ${lowerFirst(activeMeasure?.label ?? "")}: ${diff.b} − ${diff.a}`
+        : activeMeasure?.label;
 
   const measurePicker = !combo && !scatter && measures.length > 1 && activeMeasure && (
     <Select value={activeMeasure.key} onValueChange={onChartMeasureChange}>

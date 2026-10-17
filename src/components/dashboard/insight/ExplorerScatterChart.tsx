@@ -10,7 +10,7 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { buildColorMap } from "@/lib/chartColors";
+import { buildInsightColorMap } from "@/lib/chartColors";
 import {
   formatAxisValue,
   formatMeasure,
@@ -46,7 +46,7 @@ const ExplorerScatterChart = ({ pivot, measures, height = 380, onPointClick }: P
   const [mx, my, mz] = measures;
   const points = toScatterPoints(pivot, mx.key, my.key, mz?.key ?? null);
   const series = Array.from(new Set(points.map((p) => p.series)));
-  const colors = buildColorMap(series);
+  const colors = buildInsightColorMap(series);
   const showLegend = series.length > 1;
 
   const medianX = median(points.map((p) => p.x));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildColorMap, getSegmentColor, getShortLabel } from "./chartColors";
+import { buildColorMap, buildInsightColorMap, getSegmentColor, getShortLabel } from "./chartColors";
 
 describe("getSegmentColor", () => {
   it("label yang dikenal memakai warna tetap, mengabaikan fallbackIndex", () => {
@@ -49,5 +49,24 @@ describe("getShortLabel", () => {
   it("label yang sudah pendek/tidak dikenal dikembalikan apa adanya", () => {
     expect(getShortLabel("Bekerja")).toBe("Bekerja");
     expect(getShortLabel("Label Asing")).toBe("Label Asing");
+  });
+});
+
+describe("buildInsightColorMap", () => {
+  it("seri tunggal memakai warna pertama palet netral, bukan pink fallback", () => {
+    expect(buildInsightColorMap(["nilai"])).toEqual({ nilai: "var(--viz-1)" });
+  });
+
+  it("kategori nominal mendapat palet netral berurutan; label bermakna tetap", () => {
+    expect(buildInsightColorMap(["D3", "Bekerja", "D4"])).toEqual({
+      D3: "var(--viz-1)",
+      Bekerja: "#10b981",
+      D4: "var(--viz-2)",
+    });
+  });
+
+  it("lebih dari lima seri berputar ke awal palet", () => {
+    const map = buildInsightColorMap(["a", "b", "c", "d", "e", "f"]);
+    expect(map.f).toBe("var(--viz-1)");
   });
 });

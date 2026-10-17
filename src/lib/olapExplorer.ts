@@ -1647,7 +1647,9 @@ export const STARTER_QUESTIONS: StarterQuestion[] = [
           values: ["Kompetensi dikuasai saat lulus", "Kompetensi dibutuhkan di pekerjaan"],
         },
       ],
-      diff: { a: "Kompetensi dikuasai saat lulus", b: "Kompetensi dibutuhkan di pekerjaan" },
+      // Dikuasai − dibutuhkan, searah KPI 9 di dashboard Pendidikan: di bawah 0
+      // berarti lulusan kurang dari yang dibutuhkan pekerjaan.
+      diff: { a: "Kompetensi dibutuhkan di pekerjaan", b: "Kompetensi dikuasai saat lulus" },
     },
   },
   {

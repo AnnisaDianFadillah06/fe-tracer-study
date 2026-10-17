@@ -1,5 +1,5 @@
 import ExplorerChart from "./ExplorerChart";
-import { buildColorMap } from "@/lib/chartColors";
+import { buildInsightColorMap } from "@/lib/chartColors";
 import {
   SINGLE_COLUMN,
   chartSeriesNames,
@@ -48,7 +48,7 @@ const ExplorerFacets = ({ kind, facets, measure, facetLabel, onPointClick }: Pro
   const semuaSeri = Array.from(
     new Set(facets.flatMap((f) => chartSeriesNames(f.pivot))),
   );
-  const colors = buildColorMap(semuaSeri);
+  const colors = buildInsightColorMap(semuaSeri);
   const kategoriTerbanyak = Math.max(...facets.map((f) => f.pivot.rows.length), 0);
   const padat = kategoriTerbanyak > 14;
   const adaLegenda = semuaSeri.length > 1 || semuaSeri[0] !== "nilai";

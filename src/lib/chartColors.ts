@@ -101,6 +101,29 @@ export function buildColorMap(labels: string[]): Record<string, string> {
   );
 }
 
+// ─── Palet seri Insight ───────────────────────────────────────────────────────
+// FALLBACK_PALETTE dibuka dengan pink lalu kuning, sehingga grafik satu seri di
+// Insight selalu pink dan D3/D4 jadi pink/kuning -- warna tanpa makna yang
+// bisa terbaca sebagai status. Insight memakai palet netral sendiri (token
+// --viz-n di index.css, nilainya beda untuk mode gelap); dashboard lain tetap
+// memakai buildColorMap supaya tampilannya tidak berubah.
+const INSIGHT_PALETTE = [1, 2, 3, 4, 5].map((n) => `var(--viz-${n})`);
+
+/**
+ * Seperti buildColorMap, tetapi label yang belum dikenal mendapat warna dari
+ * palet netral Insight. Label bermakna (status, masa tunggu, kesesuaian)
+ * tetap memakai warna tetapnya. Seri tunggal otomatis mendapat warna pertama.
+ */
+export function buildInsightColorMap(labels: string[]): Record<string, string> {
+  let idx = 0;
+  return Object.fromEntries(
+    labels.map((label) => {
+      if (label in KNOWN_SEGMENT_COLORS) return [label, KNOWN_SEGMENT_COLORS[label]];
+      return [label, INSIGHT_PALETTE[idx++ % INSIGHT_PALETTE.length]];
+    })
+  );
+}
+
 // ─── Label pendek untuk OLAP long-form labels ─────────────────────────────────
 
 const OLAP_SHORT_LABELS: Record<string, string> = {

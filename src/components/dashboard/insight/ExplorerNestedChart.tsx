@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { buildColorMap } from "@/lib/chartColors";
+import { buildInsightColorMap } from "@/lib/chartColors";
 import {
   SINGLE_COLUMN,
   chartSeriesNames,
@@ -59,7 +59,7 @@ interface CustomizedProps {
 const ExplorerNestedChart = ({ plan, measure, height = 340, onPointClick }: Props) => {
   const data = toNestedChartData(plan, measure.key);
   const series = chartSeriesNames(plan.pivot);
-  const colors = buildColorMap(series);
+  const colors = buildInsightColorMap(series);
   const byId = new Map(data.map((d) => [d.id, d]));
 
   const showLegend = series.length > 1;

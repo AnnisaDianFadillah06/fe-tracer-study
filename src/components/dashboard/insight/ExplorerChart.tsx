@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { buildColorMap } from "@/lib/chartColors";
+import { buildInsightColorMap } from "@/lib/chartColors";
 import {
   SINGLE_COLUMN,
   chartSeriesNames,
@@ -74,7 +74,7 @@ const ExplorerChart = ({
 
   const data = toChartData(pivot, measure.key);
   const series = chartSeriesNames(pivot);
-  const colors = colorsProp ?? buildColorMap(series);
+  const colors = colorsProp ?? buildInsightColorMap(series);
 
   const tooltipFormatter = (value: number | string) =>
     formatMeasure(typeof value === "number" ? value : Number(value), measure.format);
@@ -117,6 +117,29 @@ const ExplorerChart = ({
   const solo = (kind === "grouped-bar" || kind === "bar") && filledSeriesPerBar(data, series) <= 1;
   const lebarMinimum = minChartWidth(data.length, solo ? 1 : series.length);
 
+  // Kolom selisih (B − A) bertanda: warnanya mengikuti tanda tiap batang,
+  // bukan serinya, supaya yang di bawah 0 langsung terbaca berlawanan arah.
+  const derived = new Set(pivot.derivedColumns ?? []);
+  const adaSelisih = series.some((s) => derived.has(s));
+  const signCells = (s: string) =>
+    derived.has(s)
+      ? data.map((d, i) => (
+          <Cell key={i} fill={Number(d[s] ?? 0) < 0 ? "var(--viz-neg)" : "var(--viz-pos)"} />
+        ))
+      : null;
+  const signLegend = adaSelisih && (
+    <div className="mb-2 flex gap-4 text-xs text-muted-foreground">
+      <span className="flex items-center gap-1.5">
+        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "var(--viz-pos)" }} />
+        Di atas 0
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "var(--viz-neg)" }} />
+        Di bawah 0
+      </span>
+    </div>
+  );
+
   const margin = { top: 8, right: 16, bottom: 8, left: 8 };
   // Legenda kecil dengan teks netral dan hanya penanda berwarna.
   // Teks berwarna seri sulit dibaca dan berebut perhatian dengan chart.
@@ -142,7 +165,7 @@ const ExplorerChart = ({
     const slices = data
       .map((d) => ({ name: d.name, value: Number(d[first] ?? 0) }))
       .filter((d) => d.value > 0);
-    const sliceColors = buildColorMap(slices.map((d) => d.name));
+    const sliceColors = buildInsightColorMap(slices.map((d) => d.name));
     const total = slices.reduce((sum, d) => sum + d.value, 0);
 
     return (
@@ -187,37 +210,43 @@ const ExplorerChart = ({
     const tinggi = Math.max(height, data.length * (series.length * 18 + 10) + 48);
 
     return (
-      <ResponsiveContainer width="100%" height={tinggi}>
-        <BarChart data={data} layout="vertical" margin={{ ...margin, left: 16 }}>
-          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-          <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={axisFormatter} />
-          <YAxis
-            type="category"
-            dataKey="name"
-            width={150}
-            interval={0}
-            tick={{ fontSize: 12 }}
-            tickFormatter={(v: string) => (v.length > 24 ? `${v.slice(0, 23)}…` : v)}
-          />
-          <Tooltip formatter={tooltipFormatter} labelFormatter={(l) => String(l)} />
-          {showLegend && legend}
-          {series.map((s) => (
-            <Bar
-              key={s}
-              dataKey={s}
-              fill={colors[s]}
-              radius={[0, 3, 3, 0]}
-              style={clickable}
-              onClick={onPointClick ? (_d, index) => onPointClick(index, columnKeyOf(s)) : undefined}
+      <>
+        {signLegend}
+        <ResponsiveContainer width="100%" height={tinggi}>
+          <BarChart data={data} layout="vertical" margin={{ ...margin, left: 16 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={axisFormatter} />
+            <YAxis
+              type="category"
+              dataKey="name"
+              width={150}
+              interval={0}
+              tick={{ fontSize: 12 }}
+              tickFormatter={(v: string) => (v.length > 24 ? `${v.slice(0, 23)}…` : v)}
             />
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
+            <Tooltip formatter={tooltipFormatter} labelFormatter={(l) => String(l)} />
+            {showLegend && legend}
+            {series.map((s) => (
+              <Bar
+                key={s}
+                dataKey={s}
+                fill={colors[s]}
+                radius={[0, 3, 3, 0]}
+                style={clickable}
+                onClick={onPointClick ? (_d, index) => onPointClick(index, columnKeyOf(s)) : undefined}
+              >
+                {signCells(s)}
+              </Bar>
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </>
     );
   }
 
   return (
     <div className="w-full overflow-x-auto">
+      {kind !== "line" && kind !== "area" && signLegend}
       <div style={{ minWidth: `${lebarMinimum}px` }}>
         <ResponsiveContainer width="100%" height={height}>
           {kind === "line" ? (
@@ -297,7 +326,9 @@ const ExplorerChart = ({
                   radius={kind === "stacked" ? 0 : [3, 3, 0, 0]}
                   style={clickable}
                   onClick={onPointClick ? (_d, index) => onPointClick(index, columnKeyOf(s)) : undefined}
-                />
+                >
+                  {signCells(s)}
+                </Bar>
               ))}
             </BarChart>
           )}
