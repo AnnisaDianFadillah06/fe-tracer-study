@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import DrillDownModal, { type DrillDownData } from "@/components/dashboard/DrillDownModal";
+import DrillDownModal, { type ContextColumn, type DrillDownData } from "@/components/dashboard/DrillDownModal";
 import api from "@/lib/api";
 import {
   canTotal,
@@ -25,6 +25,8 @@ export interface DrillRequest {
 interface DrillResponse {
   data: Array<Record<string, string | number | null>>;
   pagination: DrillDownData["pagination"];
+  /** Kolom tambahan dari peladen, mis. isian ketikan saat kelompok "Lainnya" diklik. */
+  context?: ContextColumn | null;
 }
 
 interface Props {
@@ -111,7 +113,8 @@ const ExplorerDrillDown = ({ request, onClose }: Props) => {
           : null
       }
       contextColumn={
-        isCount ? { key: "status", label: "Status" } : { key: "nilai", label: measure.label }
+        data?.context ??
+        (isCount ? { key: "status", label: "Status" } : { key: "nilai", label: measure.label })
       }
       onPageChange={(p, q) => {
         setPage(p);
