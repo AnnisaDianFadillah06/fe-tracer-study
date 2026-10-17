@@ -6,7 +6,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 export interface DimensionGroup {
   group: string;
-  members: { key: string; label: string }[];
+  /** disabledReason: tampil tapi tidak bisa dipilih, dengan alasannya. */
+  members: { key: string; label: string; disabledReason?: string }[];
 }
 
 interface Props {
@@ -129,7 +130,8 @@ const DimensionPicker = ({
                 <Option
                   selected={m.key === value}
                   label={m.label}
-                  caption={m.group}
+                  caption={m.disabledReason ?? m.group}
+                  disabled={!!m.disabledReason}
                   onClick={() => choose(m.key)}
                 />
               </li>
@@ -163,7 +165,13 @@ const DimensionPicker = ({
             <ul className="max-h-72 overflow-y-auto p-1" aria-label="Sisi dimensi">
               {activeGroup?.members.map((m) => (
                 <li key={m.key}>
-                  <Option selected={m.key === value} label={m.label} onClick={() => choose(m.key)} />
+                  <Option
+                    selected={m.key === value}
+                    label={m.label}
+                    caption={m.disabledReason}
+                    disabled={!!m.disabledReason}
+                    onClick={() => choose(m.key)}
+                  />
                 </li>
               ))}
             </ul>
@@ -178,21 +186,26 @@ const Option = ({
   label,
   caption,
   selected,
+  disabled = false,
   onClick,
 }: {
   label: string;
   caption?: string;
   selected: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) => (
   <button
     type="button"
     onClick={onClick}
-    className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-accent"
+    disabled={disabled}
+    className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
   >
     <span className="min-w-0">
       <span className="block truncate">{label}</span>
-      {caption && <span className="block truncate text-xs text-muted-foreground">{caption}</span>}
+      {caption && (
+        <span className={`block text-xs text-muted-foreground ${disabled ? "" : "truncate"}`}>{caption}</span>
+      )}
     </span>
     {selected && <Check className="h-4 w-4 shrink-0 text-primary" />}
   </button>

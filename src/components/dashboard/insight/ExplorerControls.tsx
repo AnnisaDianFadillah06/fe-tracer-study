@@ -18,13 +18,14 @@ import {
 } from "@/components/ui/select";
 import ExplorerFilterRow from "./ExplorerFilterRow";
 import FormulaDialog from "./FormulaDialog";
-import DimensionPicker from "./DimensionPicker";
+import DimensionPicker, { type DimensionGroup } from "./DimensionPicker";
 import HelpTip from "./HelpTip";
 import { useDimensionValues } from "@/hooks/useExplorer";
 import {
   lowerFirst,
   maxDimensionsOf,
   applyFilterChange,
+  hierarchyMateIn,
   measureLabelOf,
   swapRowsColumns,
   type CatalogCube,
@@ -160,10 +161,23 @@ const ExplorerControls = ({
     const current = slot === "col" ? input.colDim : input.rowDims[slot];
     if (current) taken.delete(current);
 
+    // Level lain dari hierarki yang sama (Jurusan untuk Prodi) tetap terlihat
+    // tapi tidak bisa dipilih: keduanya satu dimensi, berpindah level lewat
+    // drill-down/roll-up. Ditampilkan supaya pengguna tahu alasannya.
+    const labelOf = (key: string) =>
+      cube.dimension_groups.flatMap((g) => g.members).find((m) => m.key === key)?.label ?? key;
+
     return cube.dimension_groups
       .map((g) => ({
         group: g.group,
-        members: g.members.filter((m) => !taken.has(m.key)),
+        members: g.members
+          .filter((m) => !taken.has(m.key))
+          .map((m) => {
+            const mate = hierarchyMateIn(cube, [...taken], m.key);
+            return mate
+              ? { ...m, disabledReason: `Satu hierarki dengan ${labelOf(mate)} — pakai drill-down` }
+              : m;
+          }),
       }))
       .filter((g) => g.members.length > 0);
   };
@@ -523,8 +537,8 @@ const ExplorerControls = ({
         label={labelOf(f.member)}
         // Satu nilai pada dimensi yang tampil = slice: dimensinya keluar
         // dari Per/Dibandingkan antar, dan kembali bila slice dibatalkan.
-        onChange={(next) => update(applyFilterChange(input, f.member, next, maxDimensions))}
-        onRemove={() => update(applyFilterChange(input, f.member, null, maxDimensions))}
+        onChange={(next) => update(applyFilterChange(input, f.member, next, maxDimensions, cube))}
+        onRemove={() => update(applyFilterChange(input, f.member, null, maxDimensions, cube))}
       />
     ))}
 
@@ -867,7 +881,7 @@ interface DimensionSelectProps {
   /** Penjelasan singkat yang muncul di ikon "?" di samping label. */
   hint?: string;
   value: string | null;
-  groups: { group: string; members: { key: string; label: string }[] }[];
+  groups: DimensionGroup[];
   onChange: (key: string) => void;
   /** Lebar pemicu; bawaan 190px. */
   width?: string;

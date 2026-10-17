@@ -7,6 +7,7 @@ import {
   childOf,
   diceInput,
   drillDownInput,
+  hierarchyMateIn,
   drillTargets,
   parentOf,
   rollUpInput,
@@ -684,29 +685,23 @@ describe("slice, dice, roll-up, drill-down", () => {
     expect(drillTargets(cube, { ...base, rowDims: ["J", "P"] }, { J: "A", P: "D3" })).toEqual([]);
   });
 
-  it("drill-down menyisipkan anak setelah induk dan mengunci induk dengan penanda drill", () => {
-    const out = drillDownInput({ ...base, rowDims: ["J", "T"] }, { J: "A", T: "2021" }, { from: "J", to: "P" }, 3);
-    expect(out.rowDims).toEqual(["J", "P", "T"]);
+  it("drill-down mengganti induk di slot yang sama dan mengunci induk dengan penanda drill", () => {
+    const out = drillDownInput({ ...base, rowDims: ["J", "T"] }, { J: "A", T: "2021" }, { from: "J", to: "P" });
+    expect(out.rowDims).toEqual(["P", "T"]);
     expect(out.filters).toEqual([drillFilter("J", "A")]);
-  });
 
-  it("drill-down mengganti induk bila batas dimensi penuh atau induknya di kolom", () => {
-    const full = drillDownInput({ ...base, rowDims: ["J", "T"] }, { J: "A" }, { from: "J", to: "P" }, 2);
-    expect(full.rowDims).toEqual(["P", "T"]);
-
-    const col = drillDownInput({ ...base, rowDims: ["T"], colDim: "Prov" }, { Prov: "Bali" }, { from: "Prov", to: "Kota" }, 3);
+    const col = drillDownInput({ ...base, rowDims: ["T"], colDim: "Prov" }, { Prov: "Bali" }, { from: "Prov", to: "Kota" });
     expect(col.colDim).toBe("Kota");
     expect(col.filters).toEqual([drillFilter("Prov", "Bali")]);
   });
 
-  it("roll-up membalik drill-down persis, termasuk di kolom dan saat batas penuh", () => {
+  it("roll-up membalik drill-down persis, di baris maupun kolom", () => {
     const cases = [
-      { input: { ...base, rowDims: ["J", "T"] }, point: { J: "A" }, target: { from: "J", to: "P" }, max: 3 },
-      { input: { ...base, rowDims: ["J", "T"] }, point: { J: "A" }, target: { from: "J", to: "P" }, max: 2 },
-      { input: { ...base, rowDims: ["T"], colDim: "Prov" }, point: { Prov: "Bali" }, target: { from: "Prov", to: "Kota" }, max: 3 },
+      { input: { ...base, rowDims: ["J", "T"] }, point: { J: "A" }, target: { from: "J", to: "P" } },
+      { input: { ...base, rowDims: ["T"], colDim: "Prov" }, point: { Prov: "Bali" }, target: { from: "Prov", to: "Kota" } },
     ];
     for (const c of cases) {
-      expect(rollUpInput(drillDownInput(c.input, c.point, c.target, c.max), cube)).toEqual(c.input);
+      expect(rollUpInput(drillDownInput(c.input, c.point, c.target), cube)).toEqual(c.input);
     }
   });
 
@@ -716,24 +711,32 @@ describe("slice, dice, roll-up, drill-down", () => {
 
     expect(drillTargets(deep, start, { Jen: "D4", T: "2021" })).toEqual([{ from: "Jen", to: "J" }]);
 
-    // Muat: induk tetap tampil, anak disisipkan setelahnya.
-    const wide = { ...base, rowDims: ["Jen"] };
-    const toJurusan = drillDownInput(wide, { Jen: "D4" }, { from: "Jen", to: "J" }, 3);
-    expect(toJurusan.rowDims).toEqual(["Jen", "J"]);
-    expect(drillTargets(deep, toJurusan, { Jen: "D4", J: "Kimia" })).toEqual([{ from: "J", to: "P" }]);
-    const toProdi = drillDownInput(toJurusan, { Jen: "D4", J: "Kimia" }, { from: "J", to: "P" }, 3);
-    expect(toProdi.rowDims).toEqual(["Jen", "J", "P"]);
-    expect(toProdi.filters).toEqual([drillFilter("Jen", "D4"), drillFilter("J", "Kimia")]);
-    expect(rollUpInput(rollUpInput(toProdi, deep)!, deep)).toEqual(wide);
+    // Tiap level menggantikan induknya; saringan jenjang tetap ada saat di
+    // level prodi, jadi jurusan tidak tercampur D3 dan D4.
+    const toJurusan = drillDownInput(start, { Jen: "D4" }, { from: "Jen", to: "J" });
+    expect(toJurusan.rowDims).toEqual(["J", "T"]);
+    expect(drillTargets(deep, toJurusan, { J: "Kimia" })).toEqual([{ from: "J", to: "P" }]);
 
-    // Batas penuh: tiap level menggantikan induknya; saringan jenjang tetap
-    // ada saat di level prodi, jadi jurusan tidak tercampur D3 dan D4.
-    const narrow = drillDownInput(start, { Jen: "D4" }, { from: "Jen", to: "J" }, 2);
-    const deepest = drillDownInput(narrow, { J: "Kimia" }, { from: "J", to: "P" }, 2);
-    expect(deepest.rowDims).toEqual(["P", "T"]);
-    expect(deepest.filters).toEqual([drillFilter("Jen", "D4"), drillFilter("J", "Kimia")]);
-    expect(rollUpInput(deepest, deep)).toEqual(narrow);
-    expect(rollUpInput(narrow, deep)).toEqual(start);
+    const toProdi = drillDownInput(toJurusan, { J: "Kimia" }, { from: "J", to: "P" });
+    expect(toProdi.rowDims).toEqual(["P", "T"]);
+    expect(toProdi.filters).toEqual([drillFilter("Jen", "D4"), drillFilter("J", "Kimia")]);
+
+    expect(rollUpInput(toProdi, deep)).toEqual(toJurusan);
+    expect(rollUpInput(toJurusan, deep)).toEqual(start);
+  });
+
+  it("membatalkan slice tidak mengembalikan dimensi bila level lain hierarkinya sedang tampil", () => {
+    const sliced = sliceInput({ ...base, rowDims: ["J"] }, "J", "A");
+    const withProdi = { ...sliced, rowDims: ["P"] };
+    expect(applyFilterChange(withProdi, "J", null, 3, cube).rowDims).toEqual(["P"]);
+  });
+
+  it("level satu hierarki dianggap satu dimensi; atribut yang saling silang tidak", () => {
+    const deep = { ...cube, hierarchies: [{ name: "Program Studi", levels: ["Jen", "J", "P"] }] };
+    expect(hierarchyMateIn(deep, ["J", "T"], "P")).toBe("J");
+    expect(hierarchyMateIn(deep, ["P"], "Jen")).toBe("P");
+    expect(hierarchyMateIn(deep, ["J", "T"], "J")).toBeNull();
+    expect(hierarchyMateIn(deep, ["J"], "T")).toBeNull();
   });
 
   it("roll-up tidak pernah melepas saringan pengguna", () => {

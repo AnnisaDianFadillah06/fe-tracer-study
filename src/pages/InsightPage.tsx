@@ -54,7 +54,6 @@ import {
   drillTargets,
   isRunnable,
   measureLabelOf,
-  maxDimensionsOf,
   rollUpInput,
   rollUpLabel,
   sameQuestion,
@@ -249,9 +248,7 @@ const InsightPage = () => {
       : [];
 
   const handleDrillDown = (point: DrillPoint, target: DrillTarget) => {
-    if (current && cube && catalog) {
-      applyInput(drillDownInput(current, point, target, maxDimensionsOf(cube, catalog)));
-    }
+    if (current) applyInput(drillDownInput(current, point, target));
   };
 
   const handleDice = (points: DrillPoint[]) => {

@@ -1778,6 +1778,17 @@ export function childOf(cube: CatalogCube, dim: string): string | null {
   return null;
 }
 
+/**
+ * Dimensi terpakai yang satu hierarki dengan `dim` (mis. Jurusan untuk Prodi),
+ * atau null. Level-level satu hierarki adalah SATU dimensi di kerincian
+ * berbeda, jadi tidak boleh menempati slot terpisah; berpindah level lewat
+ * drill-down/roll-up. Atribut yang saling silang tetap boleh berdampingan.
+ */
+export function hierarchyMateIn(cube: CatalogCube, used: string[], dim: string): string | null {
+  const levels = (cube.hierarchies ?? []).find((h) => h.levels.includes(dim))?.levels ?? [];
+  return used.find((u) => u !== dim && levels.includes(u)) ?? null;
+}
+
 function usedDims(input: ExplorerQueryInput): string[] {
   return [...input.rowDims, ...(input.colDim ? [input.colDim] : [])];
 }
@@ -1824,13 +1835,16 @@ function isSlice(f: ExplorerFilter): boolean {
  *    dimensi itu keluar dari tampilan dan posisinya dicatat;
  *  - slice itu dibatalkan (jadi beberapa nilai, dikosongkan, atau dihapus) →
  *    dimensi kembali ke posisinya, bila masih muat di batas dimensi.
- * Saringan hasil drill-down tidak disentuh: induknya memang tetap tampil.
+ * Saringan hasil drill-down tidak disentuh: induknya sudah digantikan
+ * anaknya. Dimensi juga tidak dikembalikan bila level lain dari hierarkinya
+ * sedang tampil (`cube`), karena keduanya satu dimensi.
  */
 export function applyFilterChange(
   input: ExplorerQueryInput,
   member: string,
   next: ExplorerFilter | null,
   maxDimensions: number,
+  cube?: CatalogCube,
 ): ExplorerQueryInput {
   const prev = input.filters.find((f) => f.member === member);
   const replace = (f: ExplorerFilter | null) => ({
@@ -1849,6 +1863,7 @@ export function applyFilterChange(
 
   const out = replace(next ? { ...next, slicedFrom: undefined } : null);
   if (usedDims(out).includes(member) || usedDims(out).length >= maxDimensions) return out;
+  if (cube && hierarchyMateIn(cube, usedDims(out), member)) return out;
   if (origin.slot === "col") return out.colDim === null ? { ...out, colDim: member } : out;
 
   const rowDims = [...out.rowDims];
@@ -1910,31 +1925,26 @@ export function drillTargets(cube: CatalogCube, input: ExplorerQueryInput, point
 
 /**
  * Drill-down: kunci `from` ke nilai titik (saringan berpenanda drill), lalu
- * tampilkan level anaknya tepat setelah `from` — induk tetap tampil supaya
- * nama anak yang kembar antar-induk (kota, pertanyaan) tidak ambigu. Bila
- * batas dimensi penuh, atau `from` adalah dimensi kolom, `from` diganti
- * anaknya; konteksnya tetap terbaca dari saringan.
+ * ganti `from` dengan level anaknya di slot yang sama. Induk dan anak satu
+ * hierarki = satu dimensi, jadi tidak ditampilkan berdampingan; konteks
+ * induknya tetap terbaca dari saringan.
  */
 export function drillDownInput(
   input: ExplorerQueryInput,
   point: DrillPoint,
   { from, to }: DrillTarget,
-  maxDimensions: number,
 ): ExplorerQueryInput {
   const filters: ExplorerFilter[] = [
     ...input.filters.filter((f) => f.member !== from),
     { member: from, operator: "equals", values: [point[from]], origin: "drill" },
   ];
 
-  if (input.colDim === from) return { ...input, colDim: to, filters };
-
-  const i = input.rowDims.indexOf(from);
-  const rowDims =
-    usedDims(input).length < maxDimensions
-      ? [...input.rowDims.slice(0, i + 1), to, ...input.rowDims.slice(i + 1)]
-      : input.rowDims.map((d) => (d === from ? to : d));
-
-  return { ...input, rowDims, filters };
+  return {
+    ...input,
+    rowDims: input.rowDims.map((d) => (d === from ? to : d)),
+    colDim: input.colDim === from ? to : input.colDim,
+    filters,
+  };
 }
 
 /**
