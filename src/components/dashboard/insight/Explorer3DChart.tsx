@@ -37,14 +37,27 @@ const VIEWS = {
 } as const;
 type View = keyof typeof VIEWS;
 
-/** Lebih dari ini label kategori sumbu ditampilkan berselang. */
-const MAX_LABELS = 14;
+/**
+ * Jarak minimum antarlabel kategori di layar. Label 3D selalu mendatar,
+ * sedangkan sumbu X menurun miring, jadi label yang lebih rapat dari ini
+ * bertumpuk seperti anak tangga.
+ */
+const LABEL_GAP_PX = { x: 90, z: 14 };
+
+/**
+ * Tinggi yang benar-benar terlihat = orthographicSize × angka ini (diukur
+ * dari layar: echarts-gl tidak memakai orthographicSize apa adanya).
+ */
+const ORTHO_KE_PANDANG = 1.38;
+
+/** Batas lebar label kategori (karakter); nama lengkap di tooltip. */
+const LABEL_CHARS = 13;
 
 /** Jeda antarbingkai saat diputar otomatis. */
 const PLAY_INTERVAL_MS = 2500;
 
 /** Label kategori dipotong supaya sumbu tidak saling menimpa; nama lengkap di tooltip. */
-const potong = (s: string, n = 16) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+const potong = (s: string, n = LABEL_CHARS) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /** Warna tema dari variabel CSS ("24 95% 50%") ke bentuk yang dimengerti echarts. */
 function themeColor(name: string, alpha = 1): string {
@@ -86,7 +99,7 @@ const Explorer3DChart = ({
   xLabel,
   zLabel,
   frameLabel,
-  height = 520,
+  height,
   onBarClick,
   clickAction = "melihat daftar alumninya",
 }: Props) => {
@@ -118,26 +131,41 @@ const Explorer3DChart = ({
   const clickable = (value: number, point: DrillPoint | null) =>
     point !== null && !(measure.format === "integer" && value <= 0);
 
+  const nx = Math.max(...plan.frames.map((f) => f.xCategories.length));
+  const nz = Math.max(...plan.frames.map((f) => f.zCategories.length));
+  // Banyak kategori butuh kanvas lebih tinggi, bukan cuma batang lebih tipis.
+  const tinggiKanvas = height ?? (nx > 30 ? 640 : nx > 15 ? 580 : 520);
+
+  // Lebar kanvas ikut menentukan zoom: kotak yang panjang dibatasi lebar,
+  // bukan tinggi, dan label berselang dihitung dari jarak dalam piksel.
+  const [lebarKanvas, setLebarKanvas] = useState(0);
+
   // Ukuran kotak mengikuti jumlah kategori, supaya 6 tahun tidak
   // direntangkan selebar 38 prodi.
   const box = useMemo(() => {
-    const nx = Math.max(...plan.frames.map((f) => f.xCategories.length));
-    const nz = Math.max(...plan.frames.map((f) => f.zCategories.length));
     const boxWidth = clamp(nx * 9, 130, 260);
-    const boxDepth = clamp(nz * 14, 60, 150);
-    const boxHeight = 75;
+    const boxDepth = clamp(nz * 16, 70, 150);
+    const boxHeight = 100;
     // X yang panjang dilihat lebih landai, supaya kotaknya terbentang mendatar
     // mengikuti kanvas yang lebar, bukan menurun ke bawah.
     const miringBeta = boxWidth > boxDepth * 2.5 ? 22 : 38;
-    // orthographicSize = tinggi pandangan dalam satuan dunia. Dihitung dari
-    // tinggi proyeksi kotak pada sudut miring, ditambah ruang label sumbu.
+    // orthographicSize = tinggi pandangan dalam satuan dunia. Ambil yang
+    // lebih besar dari dua kebutuhan: tinggi proyeksi kotak, dan lebar
+    // proyeksinya dibagi rasio kanvas. Tambahan untuk ruang label sumbu.
     const a = (VIEWS.miring.alpha * Math.PI) / 180;
     const b = (miringBeta * Math.PI) / 180;
     const tinggiProyeksi =
       boxHeight * Math.cos(a) + (boxWidth * Math.sin(b) + boxDepth * Math.cos(b)) * Math.sin(a);
-    const orthographicSize = tinggiProyeksi * 1.15 + 45;
-    return { boxWidth, boxDepth, boxHeight, orthographicSize, miringBeta };
-  }, [plan]);
+    const lebarProyeksi = boxWidth * Math.cos(b) + boxDepth * Math.sin(b);
+    const rasio = lebarKanvas > 0 ? lebarKanvas / tinggiKanvas : 1.6;
+    const tinggiPandang = Math.max(tinggiProyeksi + 50, (lebarProyeksi + 50) / rasio);
+    const orthographicSize = tinggiPandang / ORTHO_KE_PANDANG;
+    // Piksel per satuan dunia, untuk menjarangkan label sumbu.
+    const pxPerUnit = tinggiKanvas / tinggiPandang;
+    const jarakX = (boxWidth / nx) * Math.cos(b) * pxPerUnit;
+    const jarakZ = (boxDepth / nz) * Math.cos(b) * Math.sin(a) * pxPerUnit;
+    return { boxWidth, boxDepth, boxHeight, orthographicSize, miringBeta, jarakX, jarakZ };
+  }, [nx, nz, lebarKanvas, tinggiKanvas]);
 
   const sudut = (k: View) => (k === "miring" ? { alpha: VIEWS.miring.alpha, beta: box.miringBeta } : VIEWS[k]);
 
@@ -173,7 +201,11 @@ const Explorer3DChart = ({
       setTimeout(() => click(point, bar.value), 0);
     });
 
-    const ro = new ResizeObserver(() => instance.resize());
+    const ro = new ResizeObserver((entries) => {
+      instance.resize();
+      // Dibulatkan supaya geseran kecil tidak menyusun ulang opsi (dan kamera).
+      setLebarKanvas(Math.round(entries[0].contentRect.width / 50) * 50);
+    });
     ro.observe(el.current);
 
     return () => {
@@ -196,15 +228,15 @@ const Explorer3DChart = ({
     const v = sudut(view);
     const frame = latest.current.frame;
 
-    // Banyak kategori (38 prodi): label ditampilkan berselang supaya tidak
-    // bertumpuk; nama lengkap tiap batang ada di tooltip.
-    const selang = (n: number) => (n > MAX_LABELS ? Math.ceil(n / MAX_LABELS) - 1 : 0);
+    // Banyak kategori (38 prodi): label ditampilkan berselang sampai jaraknya
+    // di layar cukup; nama lengkap tiap batang ada di tooltip.
+    const selang = (jarakPx: number, minPx: number) => Math.max(0, Math.ceil(minPx / Math.max(jarakPx, 1)) - 1);
 
-    const sumbu = (name: string, n = 0) => ({
+    const sumbu = (name: string, interval = 0, nameGap = 28) => ({
       name: potong(name, 24),
       nameTextStyle: { color: redup, fontSize: 11 },
-      nameGap: 28,
-      axisLabel: { color: teks, fontSize: 10, interval: selang(n) },
+      nameGap,
+      axisLabel: { color: teks, fontSize: 10, interval },
       axisLine: { lineStyle: { color: garis } },
       axisTick: { lineStyle: { color: garis } },
       splitLine: { lineStyle: { color: garis, opacity: 0.6 } },
@@ -240,18 +272,35 @@ const Explorer3DChart = ({
             ],
           },
         },
-        xAxis3D: { type: "category", data: frame.xCategories.map((c) => potong(c)), ...sumbu(xLabel, frame.xCategories.length) },
-        yAxis3D: { type: "category", data: frame.zCategories.map((c) => potong(c)), ...sumbu(zLabel, frame.zCategories.length) },
+        xAxis3D: {
+          type: "category",
+          data: frame.xCategories.map((c) => potong(c)),
+          // Nama sumbu diberi jarak lebih: label kategori di atasnya menurun.
+          ...sumbu(xLabel, selang(box.jarakX, LABEL_GAP_PX.x), 48),
+        },
+        yAxis3D: {
+          type: "category",
+          data: frame.zCategories.map((c) => potong(c)),
+          ...sumbu(zLabel, selang(box.jarakZ, LABEL_GAP_PX.z), 40),
+        },
         zAxis3D: {
           type: "value",
           // Dikunci lintas bingkai, sama seperti skala warnanya.
           min: Math.min(0, plan.min),
           max: plan.max,
           ...sumbu(measure.label),
-          axisLabel: { color: teks, fontSize: 10, formatter: (val: number) => formatAxisValue(val) },
+          axisLabel: {
+            color: teks,
+            fontSize: 10,
+            // Angka 0 berada tepat di pojok tempat label X pertama; disembunyikan
+            // supaya keduanya tidak bertabrakan.
+            formatter: (val: number) => (val === 0 ? "" : formatAxisValue(val)),
+          },
         },
         grid3D: {
-          ...box,
+          boxWidth: box.boxWidth,
+          boxDepth: box.boxDepth,
+          boxHeight: box.boxHeight,
           top: 24,
           axisPointer: { show: false },
           splitArea: { show: false },
@@ -385,7 +434,7 @@ const Explorer3DChart = ({
       </div>
 
       <div className="relative">
-        <div ref={el} style={{ height }} className="w-full" />
+        <div ref={el} style={{ height: tinggiKanvas }} className="w-full" />
         {hoveredBar && (
           <div
             className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md border bg-card px-3 py-2 text-xs shadow-md"
