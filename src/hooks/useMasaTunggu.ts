@@ -14,6 +14,8 @@ export interface MasaTungguBarItem {
   tahun_lulus: string;
   count_alumni: number;
   count_terserap: number;
+  /** Alumni bekerja/wiraswasta yang punya masa tunggu: penyebut % cepat dan bobot rata-rata/median. */
+  count_bekerja: number;
   count_masa_tunggu_cepat: number;
   pct_cepat: number;
   avg_masa_tunggu_bekerja: number;

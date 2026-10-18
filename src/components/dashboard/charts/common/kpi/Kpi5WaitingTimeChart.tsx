@@ -73,8 +73,10 @@ const Kpi5WaitingTimeChart = () => {
     const byTahun = new Map<string, { total: number; totalCepat: number }>();
     barHook.data.data.forEach((d) => {
       const cur = byTahun.get(d.tahun_lulus) ?? { total: 0, totalCepat: 0 };
+      // Penyebut: alumni bekerja/wiraswasta, bukan semua alumni -- yang
+      // sedang kuliah atau mencari kerja tidak punya masa tunggu kerja.
       byTahun.set(d.tahun_lulus, {
-        total:      cur.total      + d.count_alumni,
+        total:      cur.total      + d.count_bekerja,
         totalCepat: cur.totalCepat + d.count_masa_tunggu_cepat,
       });
     });
@@ -87,6 +89,13 @@ const Kpi5WaitingTimeChart = () => {
         total: v.total,
       }));
   }, [barHook.data]);
+
+  const latestYear = comboData.length > 0 ? comboData[comboData.length - 1].year : undefined;
+  const isAllYear = tahunLulus === "all";
+  // Distribusi (useMasaTungguDistribusi) default ke tahun_lulus terbaru
+  // kalau "all"; tabel ringkasan di bawah memakai tahun yang SAMA supaya
+  // "% ≤ 6 bln"-nya sama dengan distribusi. Hanya grafik tren yang lintas tahun.
+  const distTahun = isAllYear ? latestYear : tahunLulus;
 
   // FR-025: ringkasan rata-rata & median masa tunggu per prodi (weighted
   // average lintas tahun yang sedang tampil di filter global) — dipakai
@@ -106,17 +115,21 @@ const Kpi5WaitingTimeChart = () => {
     if (!barHook.data?.data) return [];
     const byProdi = new Map<string, {
       jenjang: string; jurusan: string;
-      totalAlumni: number; totalCepat: number; weightedWaktu: number; weightedMedian: number;
+      totalAlumni: number; totalBekerja: number; totalCepat: number; weightedWaktu: number; weightedMedian: number;
     }>();
-    barHook.data.data.forEach((d) => {
-      const cur = byProdi.get(d.nama_prodi) ?? { jenjang: d.jenjang, jurusan: d.jurusan, totalAlumni: 0, totalCepat: 0, weightedWaktu: 0, weightedMedian: 0 };
+    // Data bar sengaja lintas tahun (untuk tren); tabel hanya tahun distTahun.
+    barHook.data.data.filter((d) => d.tahun_lulus === distTahun).forEach((d) => {
+      const cur = byProdi.get(d.nama_prodi) ?? { jenjang: d.jenjang, jurusan: d.jurusan, totalAlumni: 0, totalBekerja: 0, totalCepat: 0, weightedWaktu: 0, weightedMedian: 0 };
+      // Total Alumni tetap semua alumni; % cepat dan bobot rata-rata/median
+      // memakai alumni bekerja/wiraswasta -- populasi yang punya masa tunggu.
       byProdi.set(d.nama_prodi, {
         jenjang: cur.jenjang,
         jurusan: cur.jurusan,
         totalAlumni:    cur.totalAlumni    + d.count_alumni,
+        totalBekerja:   cur.totalBekerja   + d.count_bekerja,
         totalCepat:     cur.totalCepat     + d.count_masa_tunggu_cepat,
-        weightedWaktu:  cur.weightedWaktu  + d.avg_masa_tunggu_bekerja * d.count_alumni,
-        weightedMedian: cur.weightedMedian + d.median_masa_tunggu_bekerja * d.count_alumni,
+        weightedWaktu:  cur.weightedWaktu  + d.avg_masa_tunggu_bekerja * d.count_bekerja,
+        weightedMedian: cur.weightedMedian + d.median_masa_tunggu_bekerja * d.count_bekerja,
       });
     });
     return [...byProdi.entries()]
@@ -125,12 +138,12 @@ const Kpi5WaitingTimeChart = () => {
         jenjang: v.jenjang,
         jurusan: v.jurusan,
         totalAlumni: v.totalAlumni,
-        avgMasaTunggu: v.totalAlumni > 0 ? Math.round((v.weightedWaktu / v.totalAlumni) * 10) / 10 : 0,
-        medianMasaTunggu: v.totalAlumni > 0 ? Math.round((v.weightedMedian / v.totalAlumni) * 10) / 10 : 0,
-        pctCepat: v.totalAlumni > 0 ? Math.round((v.totalCepat / v.totalAlumni) * 100 * 10) / 10 : 0,
+        avgMasaTunggu: v.totalBekerja > 0 ? Math.round((v.weightedWaktu / v.totalBekerja) * 10) / 10 : 0,
+        medianMasaTunggu: v.totalBekerja > 0 ? Math.round((v.weightedMedian / v.totalBekerja) * 10) / 10 : 0,
+        pctCepat: v.totalBekerja > 0 ? Math.round((v.totalCepat / v.totalBekerja) * 100 * 10) / 10 : 0,
       }))
       .sort((a, b) => a.avgMasaTunggu - b.avgMasaTunggu);
-  }, [barHook.data]);
+  }, [barHook.data, distTahun]);
 
   // FR-027: gabungkan titik historis + 1 titik prediksi jadi satu seri chart,
   // dengan garis solid untuk historis dan garis putus-putus untuk prediksi.
@@ -193,12 +206,6 @@ const Kpi5WaitingTimeChart = () => {
       { cat: "> 6 bulan", value: Math.round(t6plus / total * 100 * 10) / 10, count: t6plus, total, rentang: ">6"   as const, color: colorMap["> 6 bulan"] },
     ];
   }, [distribusiHook.data]);
-
-  const latestYear = comboData.length > 0 ? comboData[comboData.length - 1].year : undefined;
-  const isAllYear = tahunLulus === "all";
-  // Distribusi (useMasaTungguDistribusi) sekarang default ke tahun_lulus
-  // terbaru kalau "all" -- subtitle harus konsisten dengan itu.
-  const distTahun = isAllYear ? latestYear : tahunLulus;
 
   const showRefLine = !lam.isDisabled && !!lam.threshold;
   const isLoading   = barHook.loading || distribusiHook.loading;
@@ -379,12 +386,12 @@ const Kpi5WaitingTimeChart = () => {
         loading={isLoading} error={hasError}
         empty={!isLoading && prodiSummary.length === 0}
         title="Ringkasan Masa Tunggu per Program Studi"
-        subtitle="Rata-rata & median masa tunggu kerja (bulan) diurutkan tercepat ke terlama."
+        subtitle={distTahun ? `Tahun kelulusan ${distTahun}${isAllYear ? " (default: terbaru)" : ""} — rata-rata & median masa tunggu kerja (bulan), tercepat ke terlama.` : "Memuat…"}
         methodology={
           <MethodologyBlock
-            description="Rata-rata dan median masa tunggu kerja per program studi, dihitung berbobot jumlah alumni lintas tahun kelulusan yang sedang tampil di filter."
-            formula={<>Rata-rata (bln) = Σ(avg_masa_tunggu_tahun × jumlah_alumni_tahun) / Σ(jumlah_alumni_tahun)</>}
-            notes="Kolom median memakai measure percentile_cont(0.5) langsung dari Cube.js. Saat filter tahun tunggal, nilainya median asli tahun tsb.; saat 'semua tahun' dipilih, nilainya adalah rata-rata berbobot dari median per tahun — pendekatan yang representatif untuk ranking, bukan median murni lintas tahun (median tidak bisa digabung linear seperti rata-rata)."
+            description="Rata-rata dan median masa tunggu kerja per program studi untuk satu tahun kelulusan — tahun yang sama dengan Distribusi Kategori Masa Tunggu — dari alumni bekerja/wiraswasta yang punya data masa tunggu."
+            formula={<>% ≤ {batasLabel} bln = Lulusan bekerja/wiraswasta dengan masa tunggu ≤ {batasLabel} bln / Lulusan bekerja/wiraswasta × 100%</>}
+            notes="Kolom median memakai measure percentile_cont(0.5) langsung dari Cube.js, jadi nilainya median asli tahun kelulusan tersebut. Saat filter 'Semua Tahun', tabel memakai tahun kelulusan terbaru, sama seperti distribusi."
           />
         }
       >
