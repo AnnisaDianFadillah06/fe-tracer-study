@@ -37,6 +37,7 @@ const OFFICIAL_JENIS_MAP: Record<string, string> = {
 const JENIS_DISPLAY = [
   "Instansi Pemerintah", "Organisasi Non-profit", "Perusahaan Swasta",
   "Wiraswasta", "BUMN/BUMD", "Institusi/Organisasi Multilateral", "Lainnya",
+  "Tidak Mengisi",
 ];
 const JENIS_COLORS: Record<string, string> = {
   "Instansi Pemerintah": "#3b82f6",
@@ -46,9 +47,12 @@ const JENIS_COLORS: Record<string, string> = {
   "BUMN/BUMD": "#10b981",
   "Institusi/Organisasi Multilateral": "#06b6d4",
   "Lainnya": "#9ca3af",
+  "Tidak Mengisi": "#d1d5db",
 };
-const normalizeJenis = (l: string): string => {
-  if (!l || l === "0" || l === "Lainnya, tuliskan") return "Lainnya";
+// Kosong/"0" = alumni tidak mengisi -- dipisah dari "Lainnya" (isian bebas).
+export const normalizeJenis = (l: string): string => {
+  if (!l || l === "0" || l === "Tidak Mengisi") return "Tidak Mengisi";
+  if (l === "Lainnya, tuliskan") return "Lainnya";
   const key = l.toLowerCase().trim();
   return OFFICIAL_JENIS_MAP[key] ?? "Lainnya";
 };
@@ -107,9 +111,8 @@ const Kpi12WorkplaceDistributionChart = () => {
   // 6 kategori selalu kosong (hanya BUMN/BUMD dan Institusi/Organisasi
   // Multilateral yang kebetulan raw = prettified). Map ini dipakai untuk
   // SEMUA kategori saat drill-down, bukan cuma "Lainnya" seperti sebelumnya.
-  // "0" sengaja ikut dikumpulkan (bukan dibuang) karena normalizeJenis()
-  // memasukkannya ke "Lainnya"; yang dibuang cukup label kosong, karena
-  // tidak bisa difilter.
+  // "Tidak Mengisi" ikut dikumpulkan: backend menerjemahkannya ke notSet.
+  // Yang dibuang cukup label kosong, karena tidak bisa difilter.
   const rawLabelsByDisplay = useMemo(() => {
     const map: Record<string, string[]> = {};
     if (!jenisHook.data?.data) return map;
@@ -145,6 +148,7 @@ const Kpi12WorkplaceDistributionChart = () => {
   // hukum", dst).
   const classifyTingkatColor = (label: string): string => {
     const l = label.toLowerCase();
+    if (l === "tidak mengisi") return "#d1d5db";
     if (l.includes("internasional") || l.includes("multinasional")) return "#1e3a8a";
     if (l.includes("nasional")) return "#3b82f6";
     return "#6ee7b7";
@@ -161,6 +165,7 @@ const Kpi12WorkplaceDistributionChart = () => {
   // singkatnya di bawah chart supaya tidak perlu ditebak dari nama kategori.
   const tingkatExplain = (label: string): string => {
     const l = label.toLowerCase();
+    if (l === "tidak mengisi") return "#d1d5db";
     if (l.includes("internasional") || l.includes("multinasional")) {
       return "Perusahaan/instansi multinasional atau beroperasi lintas negara.";
     }

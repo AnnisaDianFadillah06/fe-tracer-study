@@ -136,6 +136,14 @@ const Kpi11FundingSourceChart = () => {
     return map;
   }, [antarResult.data]);
 
+  // Angkatan yang hampir seluruhnya "Tidak Mengisi" -- pertanyaannya tidak
+  // dikumpulkan untuk angkatan itu (pada data riil: ekspor lulusan 2023 tanpa
+  // f1201), bukan alumni yang lalai mengisi.
+  const tahunTanpaData = useMemo(
+    () => antarData.filter((r) => (r["Tidak Mengisi"] ?? 0) >= 90).map((r) => r.tahun as string),
+    [antarData],
+  );
+
   const isEmpty = !loading && (view === "pie" ? pieData.length === 0 : antarData.length === 0);
   const total   = pieResult.data?.total ?? 0;
 
@@ -329,6 +337,12 @@ const Kpi11FundingSourceChart = () => {
                   ))}
                 </ul>
               </>
+            )}
+            {tahunTanpaData.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Lulusan {tahunTanpaData.join(", ")} hampir seluruhnya tercatat <strong>Tidak Mengisi</strong>:
+                pertanyaan sumber biaya tidak dikumpulkan untuk angkatan tersebut.
+              </p>
             )}
           </aside>
         </div>
