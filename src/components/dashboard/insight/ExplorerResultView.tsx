@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Info, MousePointerClick } from "lucide-react";
+import { Suspense, lazy, useMemo, useState } from "react";
+import { Info, Loader2, MousePointerClick } from "lucide-react";
 import ExplorerChart from "./ExplorerChart";
 import ExplorerComboChart from "./ExplorerComboChart";
 import PointActionDialog from "./PointActionDialog";
@@ -10,6 +10,7 @@ import ExplorerNestedChart from "./ExplorerNestedChart";
 import ExplorerScatterChart from "./ExplorerScatterChart";
 import PivotTable from "./PivotTable";
 import VizPicker from "./VizPicker";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -50,6 +51,11 @@ import {
   type Pivot,
   type Viz,
 } from "@/lib/olapExplorer";
+import { build3DPlan } from "@/lib/olap3d";
+
+// echarts + echarts-gl besar (~1 MB); dimuat hanya saat tampilan 3D dibuka.
+const Explorer3DChart = lazy(() => import("./Explorer3DChart"));
+const MODE_3D_KEY = "insight.chart3d";
 
 interface Props {
   result: ExplorerResult;
@@ -112,6 +118,24 @@ const ExplorerResultView = ({
   const [picked, setPicked] = useState<DrillPoint[]>([]);
   const [drill, setDrill] = useState<DrillRequest | null>(null);
   const [pending, setPending] = useState<{ point: DrillPoint; measure: CatalogMeasure; value: number | null } | null>(null);
+  // Grafik 3D sebagai pengganti grafik 2D (lihat plan3D di bawah). Diingat
+  // selama sesi: komponen ini dipasang ulang setiap susunan berganti, dan
+  // pengguna yang sedang menjelajah dalam 3D tidak mau kembali ke 2D.
+  const [mode3D, setMode3DState] = useState(() => {
+    try {
+      return sessionStorage.getItem(MODE_3D_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const setMode3D = (on: boolean) => {
+    setMode3DState(on);
+    try {
+      sessionStorage.setItem(MODE_3D_KEY, on ? "1" : "0");
+    } catch {
+      /* penyimpanan tidak tersedia: cukup untuk tampilan ini */
+    }
+  };
 
   /**
    * Klik angka → daftar alumni. Yang dikirim selalu ukuran ASLI: angka
@@ -236,7 +260,7 @@ const ExplorerResultView = ({
   // Grafik yang ditolak hanya punya Otomatis/Tabel -- pemilihnya disembunyikan,
   // kecuali masih ada pilihan lain (mis. sebaran titik).
   const vizPicker =
-    onVizChange && vizOptions.length > 1 && (!(base.kind === "none" && base.reason) || vizOptions.length > 2) ? (
+    onVizChange && !mode3D && vizOptions.length > 1 && (!(base.kind === "none" && base.reason) || vizOptions.length > 2) ? (
       <VizPicker value={activeViz} options={vizOptions} onChange={onVizChange} />
     ) : null;
 
@@ -249,14 +273,28 @@ const ExplorerResultView = ({
 
   const drawable = chart.kind !== "number" && chart.kind !== "none" && activeMeasure !== null;
 
+  // Grafik 3D: dua atau tiga dimensi + satu ukuran (lihat build3DPlan). Hanya
+  // di halaman Insight; kartu Dashboard Saya tetap 2D. Pilihan 2D/3D tidak
+  // disimpan bersama pertanyaan -- grafik 2D tetap tampilan bakunya.
+  const plan3D = useMemo(
+    () => (activeMeasure ? build3DPlan(gridPivot, rowDims, colDim, activeMeasure.key) : null),
+    [gridPivot, rowDims, colDim, activeMeasure],
+  );
+  const can3D = !compact && onVizChange !== undefined && plan3D?.ok === true;
+  const show3D = can3D && mode3D;
+  const chartCard = drawable || can3D;
+
   const combo = chart.kind === "combo";
   const scatter = chart.kind === "scatter";
   // Kedua bentuk ini memakai beberapa ukuran sekaligus, bukan satu yang dipilih.
   // Grafik bar/garis hanya menggambar kolom selisih bila ada (chartPivotOf),
   // jadi judulnya harus menyebut selisih — "Rata-rata skor (1–5)" di atas
-  // batang bernilai ±0,04 menyesatkan. Heatmap tetap memakai nilai asli.
+  // batang bernilai ±0,04 menyesatkan. Heatmap tetap memakai nilai asli,
+  // begitu juga grafik 3D (dibangun dari gridPivot, tanpa kolom selisih).
   const drawsDiff = Boolean(diff && pivot.derivedColumns?.length) && chart.kind !== "heatmap";
-  const chartTitle = combo
+  const chartTitle = show3D
+    ? activeMeasure?.label
+    : combo
     ? "Semua ukuran"
     : scatter
       ? `${measures[1]?.label} terhadap ${lowerFirst(measures[0]?.label ?? "")}`
@@ -264,7 +302,7 @@ const ExplorerResultView = ({
         ? `Selisih ${lowerFirst(activeMeasure?.label ?? "")}: ${diff.b} − ${diff.a}`
         : activeMeasure?.label;
 
-  const measurePicker = !combo && !scatter && measures.length > 1 && activeMeasure && (
+  const measurePicker = (show3D || (!combo && !scatter)) && measures.length > 1 && activeMeasure && (
     <Select value={activeMeasure.key} onValueChange={onChartMeasureChange}>
       <SelectTrigger className={compact ? "h-8 w-52 text-xs" : "w-64"}>
         <SelectValue />
@@ -335,6 +373,47 @@ const ExplorerResultView = ({
         onPointClick={(i, col) => drillFromChart(chartPivotOf(pivot), rowDims, i, col)}
       />
     ));
+
+  const toggle3D = can3D && (
+    <ToggleGroup
+      type="single"
+      value={show3D ? "3d" : "2d"}
+      onValueChange={(v) => v && setMode3D(v === "3d")}
+      className="gap-0.5 rounded-lg bg-muted/40 p-0.5"
+      aria-label="Grafik 2D atau 3D"
+    >
+      {(["2d", "3d"] as const).map((v) => (
+        <ToggleGroupItem
+          key={v}
+          value={v}
+          className="h-8 rounded-md px-2.5 text-xs font-semibold data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+        >
+          {v.toUpperCase()}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  );
+
+  const body3D = show3D && plan3D?.ok && activeMeasure && (
+    <Suspense
+      fallback={
+        <div className="flex h-[520px] items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Memuat grafik 3D…
+        </div>
+      }
+    >
+      <Explorer3DChart
+        plan={plan3D.plan}
+        measure={activeMeasure}
+        xLabel={labelOf(plan3D.plan.xDim)}
+        zLabel={labelOf(plan3D.plan.zDim)}
+        frameLabel={plan3D.plan.frameDim ? labelOf(plan3D.plan.frameDim) : null}
+        onBarClick={(point, value) => openDrill(point, activeMeasure, value)}
+        clickAction={onSlice ? "menyaring, merinci, atau melihat alumninya" : "melihat daftar alumninya"}
+      />
+    </Suspense>
+  );
 
   const table = (
     <PivotTable
@@ -408,7 +487,7 @@ const ExplorerResultView = ({
         <div className="flex justify-end">{vizPicker}</div>
       )}
 
-      {chart.kind === "none" && chart.reason && (
+      {chart.kind === "none" && chart.reason && !show3D && (
         <Alert>
           <Info className="h-4 w-4" />
           <AlertTitle>Tidak digambar sebagai chart</AlertTitle>
@@ -416,7 +495,7 @@ const ExplorerResultView = ({
         </Alert>
       )}
 
-      {drawable &&
+      {chartCard &&
         (compact ? (
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -434,11 +513,23 @@ const ExplorerResultView = ({
               <div className="flex flex-wrap items-center gap-2">
                 {measurePicker}
                 {vizPicker}
+                {toggle3D}
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {chartBody}
-              {hint}
+              {show3D ? (
+                body3D
+              ) : drawable ? (
+                <>
+                  {chartBody}
+                  {hint}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Kombinasi ini tidak bisa digambar sebagai grafik 2D. Pilih <b>3D</b> untuk melihatnya sebagai grafik
+                  batang tiga dimensi.
+                </p>
+              )}
               {pickedBar}
             </CardContent>
           </Card>

@@ -59,6 +59,8 @@ export default defineConfig(() => ({
       "@hookform/resolvers/zod",
       "zod",
       "recharts",
+      "echarts",
+      "echarts-gl",
       "lucide-react",
       "date-fns",
       "clsx",
