@@ -30,6 +30,8 @@ interface Props {
   /** Slice bila pilihan hanya mencakup satu dimensi, Dice bila dua atau lebih. */
   pickedOperation: "Slice" | "Dice";
   onAddPicked: () => void;
+  /** false = titik ini tidak bisa dikumpulkan (kelompok "Tidak ada data"). */
+  canPick: boolean;
   /** Saring ke titik terkumpul (termasuk titik ini bila belum ditambahkan). */
   onDice: () => void;
   /** Label roll-up ("Roll-up ke Jurusan"); null = tidak ada yang bisa di-roll-up. */
@@ -59,6 +61,7 @@ const PointActionDialog = ({
   picked,
   pickedOperation,
   onAddPicked,
+  canPick,
   onDice,
   rollUpLabel,
   onRollUp,
@@ -103,27 +106,29 @@ const PointActionDialog = ({
           </Button>
         ))}
 
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Button className="h-auto min-h-10 flex-1 justify-start whitespace-normal py-2 text-left" variant="outline" onClick={onAddPicked}>
-              <ListPlus className="mr-2 h-4 w-4" />
-              Tambah ke pilihan
-              {picked > 0 && <span className="ml-auto text-xs text-muted-foreground">{picked} terpilih</span>}
-            </Button>
-            {picked > 0 && (
-              <Button onClick={onDice} title="Saring ke semua titik yang dipilih">
-                {pickedOperation}
+        {canPick && (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Button className="h-auto min-h-10 flex-1 justify-start whitespace-normal py-2 text-left" variant="outline" onClick={onAddPicked}>
+                <ListPlus className="mr-2 h-4 w-4" />
+                Tambah ke pilihan
+                {picked > 0 && <span className="ml-auto text-xs text-muted-foreground">{picked} terpilih</span>}
               </Button>
+              {picked > 0 && (
+                <Button onClick={onDice} title="Saring ke semua titik yang dipilih">
+                  {pickedOperation}
+                </Button>
+              )}
+            </div>
+            {picked > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {pickedOperation === "Dice"
+                  ? "Dice: hasil memuat semua kombinasi nilai yang dipilih."
+                  : "Slice: hanya kelompok yang dipilih yang ditampilkan."}
+              </p>
             )}
           </div>
-          {picked > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {pickedOperation === "Dice"
-                ? "Dice: hasil memuat semua kombinasi nilai yang dipilih."
-                : "Slice: hanya kelompok yang dipilih yang ditampilkan."}
-            </p>
-          )}
-        </div>
+        )}
 
         {rollUpLabel && (
           <Button className={WRAP} variant="outline" onClick={onRollUp}>

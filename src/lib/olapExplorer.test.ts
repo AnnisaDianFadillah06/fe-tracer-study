@@ -6,6 +6,7 @@ import {
   applyFilterChange,
   childOf,
   diceInput,
+  EMPTY_VALUE,
   drillDownInput,
   hierarchyMateIn,
   drillTargets,
@@ -164,7 +165,7 @@ describe("buildPivot", () => {
 
     const pivot = buildPivot(hasil(adaNull), ["DimProdi.nama_prodi"], "DimAlumni.tahun_lulus");
 
-    expect(pivot.rows[0].keys[0]).toBe("(kosong)");
+    expect(pivot.rows[0].keys[0]).toBe("Tidak ada data");
   });
 
   it("tanpa dimensi kolom memakai satu kolom penanda", () => {
@@ -236,7 +237,7 @@ describe("buildFacets", () => {
       null,
     );
 
-    expect(p.facets[0].key).toBe("(kosong)");
+    expect(p.facets[0].key).toBe("Tidak ada data");
   });
 });
 
@@ -593,6 +594,20 @@ describe("slice, dice, roll-up, drill-down", () => {
     expect(childOf(cube, "Status")).toBeNull();
   });
 
+  it("kelompok Tidak ada data: slice & dice jadi notSet, tanpa drill-down", () => {
+    const sliced = sliceInput({ ...base, rowDims: ["J", "T"] }, "J", EMPTY_VALUE);
+    expect(sliced.rowDims).toEqual(["T"]);
+    expect(sliced.filters).toEqual([{ member: "J", operator: "notSet", values: [], slicedFrom: { slot: "row", index: 0 } }]);
+
+    expect(diceInput({ ...base, rowDims: ["J", "T"] }, [{ J: EMPTY_VALUE, T: "2022" }]).filters).toEqual([
+      { member: "J", operator: "notSet", values: [] },
+      { member: "T", operator: "equals", values: ["2022"] },
+    ]);
+
+    expect(drillTargets(cube, { ...base, rowDims: ["J"] }, { J: EMPTY_VALUE })).toEqual([]);
+    expect(drillTargets(cube, { ...base, rowDims: ["J"] }, { J: "Akuntansi" })).toEqual([{ from: "J", to: "P" }]);
+  });
+
   it("slice mengunci satu dimensi dan mengeluarkannya dari tampilan", () => {
     const out = sliceInput(
       { ...base, rowDims: ["J"], colDim: "T", filters: [{ member: "T", operator: "equals", values: ["2021", "2022"] }] },
@@ -781,7 +796,7 @@ describe("sumbu X bertingkat", () => {
       expect(isNestedIn(hierarki, J, G)).toBe(false);
     });
 
-    it("nilai kosong dihitung sebagai (kosong)", () => {
+    it("nilai kosong dihitung sebagai Tidak ada data", () => {
       const rows = [
         { [J]: "A", [P]: null },
         { [J]: "B", [P]: null },

@@ -100,10 +100,10 @@ describe("grafik batang 3D", () => {
     expect(tahun.frames[0].zCategories).toEqual(["2019", "2022"]);
   });
 
-  it("nilai kosong tetap digambar, tapi tidak bisa diklik", () => {
+  it("nilai kosong tetap digambar dan bisa diklik sebagai Tidak ada data", () => {
     const plan = plan3D([{ [P]: null, [T]: "2021", [M]: 5 }], [P, T], null);
     expect(plan.frames[0].xCategories).toEqual([EMPTY_VALUE]);
-    expect(plan.frames[0].bars[0].point).toBeNull();
+    expect(plan.frames[0].bars[0].point).toEqual({ [P]: EMPTY_VALUE, [T]: "2021" });
   });
 
   it("menolak satu dimensi, lebih dari tiga, dan kategori yang terlalu banyak", () => {

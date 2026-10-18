@@ -13,6 +13,8 @@ import {
   describeQuestion,
   drillFilters,
   drillPointOf,
+  canPickPoint,
+  EMPTY_VALUE,
   minChartWidth,
   sameQuestion,
   STARTER_QUESTIONS,
@@ -162,9 +164,15 @@ describe("drill-down", () => {
     expect(drillPointOf([], [], null, "")).toEqual({});
   });
 
-  it("kelompok kosong tidak bisa di-drill", () => {
-    expect(drillPointOf(["D.jurusan"], ["(kosong)"], null, "")).toBeNull();
-    expect(drillPointOf(["D.jurusan"], ["Akuntansi"], "D.tahun", "(kosong)")).toBeNull();
+  it("kelompok Tidak ada data di-drill dengan saringan kosong (notSet)", () => {
+    const point = drillPointOf(["D.jurusan"], ["Akuntansi"], "D.tahun", EMPTY_VALUE);
+    expect(point).toEqual({ "D.jurusan": "Akuntansi", "D.tahun": EMPTY_VALUE });
+    expect(drillFilters([{ member: "D.tahun", values: ["2022"] }], point!)).toEqual([
+      { member: "D.jurusan", operator: "equals", values: ["Akuntansi"] },
+      { member: "D.tahun", operator: "notSet", values: [] },
+    ]);
+    expect(canPickPoint(point!)).toBe(false);
+    expect(canPickPoint({ "D.jurusan": "Akuntansi" })).toBe(true);
   });
 
   it("nilai titik menggantikan saringan pada dimensi yang sama", () => {

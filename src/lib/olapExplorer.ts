@@ -614,7 +614,7 @@ export function buildPivot(
   const rowMap = new Map<string, PivotRow>();
 
   const cellOf = (row: ExplorerRow, dim: string): string =>
-    row[dim] === null || row[dim] === undefined ? "(kosong)" : String(row[dim]);
+    row[dim] === null || row[dim] === undefined ? EMPTY_VALUE : String(row[dim]);
 
   for (const row of result.rows) {
     const keys = rowDims.map((d) => cellOf(row, d));
@@ -820,7 +820,7 @@ export interface FacetPlan {
 }
 
 function jumlahNilaiUnik(rows: ExplorerRow[], dim: string): number {
-  return new Set(rows.map((r) => String(r[dim] ?? "(kosong)"))).size;
+  return new Set(rows.map((r) => String(r[dim] ?? EMPTY_VALUE))).size;
 }
 
 /**
@@ -860,7 +860,7 @@ export function buildFacets(
 
   for (const row of result.rows) {
     const raw = row[facetDim];
-    const key = raw === null || raw === undefined ? "(kosong)" : String(raw);
+    const key = raw === null || raw === undefined ? EMPTY_VALUE : String(raw);
 
     if (!grouped.has(key)) {
       grouped.set(key, []);
@@ -1758,14 +1758,27 @@ export function sameQuestion(a: ExplorerQueryInput, b: ExplorerQueryInput): bool
 /** Nilai tiap dimensi pada titik yang diklik: { "DimProdi.jurusan": "Akuntansi", ... }. */
 export type DrillPoint = Record<string, string>;
 
-/** Label pengganti nilai kosong di pivot (lihat buildPivot). */
-export const EMPTY_VALUE = "(kosong)";
+/**
+ * Label pengganti nilai kosong di pivot (lihat buildPivot). Sengaja bukan
+ * "Tidak Mengisi" seperti di dashboard: NULL di sini juga berarti pertanyaannya
+ * tidak berlaku (mis. instansi bagi alumni yang tidak bekerja), dan Insight
+ * tidak tahu yang mana.
+ */
+export const EMPTY_VALUE = "Tidak ada data";
 
 /**
- * Titik yang diklik, dari posisi di pivot. Mengembalikan null kalau salah satu
- * nilainya kosong: kelompok "(kosong)" berasal dari NULL di gudang data, dan
- * penyaring `equals` tidak bisa mencocokkan NULL — daftarnya akan selalu
- * kosong, jadi lebih jujur tidak menawarkan klik sama sekali.
+ * Saringan untuk satu nilai titik. Kelompok EMPTY_VALUE berasal dari NULL di
+ * gudang data, yang tidak tertangkap `equals`, jadi disaring dengan `notSet`.
+ */
+function pointFilter(member: string, value: string): ExplorerFilter {
+  return value === EMPTY_VALUE
+    ? { member, operator: "notSet", values: [] }
+    : { member, operator: "equals", values: [value] };
+}
+
+/**
+ * Titik yang diklik, dari posisi di pivot; null bila posisinya tidak lengkap.
+ * Kelompok EMPTY_VALUE tetap bisa diklik — lihat pointFilter().
  */
 export function drillPointOf(
   rowDims: string[],
@@ -1781,7 +1794,7 @@ export function drillPointOf(
 
   if (colDim && colKey !== SINGLE_COLUMN) point[colDim] = colKey;
 
-  return Object.values(point).some((v) => v === undefined || v === EMPTY_VALUE) ? null : point;
+  return Object.values(point).some((v) => v === undefined) ? null : point;
 }
 
 /** Level di atas `dim` pada hierarkinya; null bila level teratas / tanpa hierarki. */
@@ -1842,7 +1855,7 @@ export function sliceInput(input: ExplorerQueryInput, dim: string, value: string
     ...withoutDim(input, dim),
     filters: [
       ...input.filters.filter((f) => f.member !== dim),
-      { member: dim, operator: "equals", values: [value], slicedFrom },
+      { ...pointFilter(dim, value), slicedFrom },
     ],
   };
 }
@@ -1914,11 +1927,15 @@ export function diceInput(input: ExplorerQueryInput, points: DrillPoint[]): Expl
     ...input,
     filters: [
       ...input.filters.filter((f) => !values.has(f.member)),
-      ...[...values.entries()].map(([member, vals]) => ({
-        member,
-        operator: "equals" as const,
-        values: vals,
-      })),
+      // Satu saringan tidak bisa memuat "nilai ini ATAU kosong", jadi titik
+      // EMPTY_VALUE tidak bisa dikumpulkan bersama titik lain (canPickPoint);
+      // sendirian ia menjadi notSet.
+      ...[...values.entries()].map(([member, vals]) => {
+        const real = vals.filter((v) => v !== EMPTY_VALUE);
+        return real.length > 0
+          ? { member, operator: "equals" as const, values: real }
+          : pointFilter(member, EMPTY_VALUE);
+      }),
     ],
   };
 }
@@ -1943,6 +1960,8 @@ export function drillTargets(cube: CatalogCube, input: ExplorerQueryInput, point
   const used = usedDims(input);
   return Object.keys(point).flatMap((from) => {
     const to = childOf(cube, from);
+    // Merinci "Tidak ada data" tidak bermakna: anak dari induk kosong pun kosong.
+    if (point[from] === EMPTY_VALUE) return [];
     return to && used.includes(from) && !used.includes(to) ? [{ from, to }] : [];
   });
 }
@@ -2056,12 +2075,13 @@ export function drillFilters(filters: ExplorerFilter[], point: DrillPoint): Expl
     ...filters
       .filter((f) => filterIsActive(f) && !(f.member in point))
       .map((f) => ({ member: f.member, operator: f.operator ?? "equals", values: f.values })),
-    ...Object.entries(point).map(([member, value]) => ({
-      member,
-      operator: "equals" as const,
-      values: [value],
-    })),
+    ...Object.entries(point).map(([member, value]) => pointFilter(member, value)),
   ];
+}
+
+/** Titik berisi EMPTY_VALUE tidak bisa dikumpulkan untuk dice (lihat diceInput). */
+export function canPickPoint(point: DrillPoint): boolean {
+  return !Object.values(point).includes(EMPTY_VALUE);
 }
 
 /** "Jurusan Akuntansi · Tahun lulus 2022" — atau "Seluruh data" tanpa dimensi. */

@@ -39,6 +39,7 @@ import {
   describeDrillPoint,
   drillFilters,
   drillPointOf,
+  canPickPoint,
   selectionOperation,
   formatMeasure,
   presentPivot,
@@ -191,7 +192,7 @@ const ExplorerResultView = ({
     if (columnKey !== null && source.derivedColumns?.includes(columnKey)) return;
 
     const point = drillPointOf(dims, row.keys, columnKey === null ? null : colDim, columnKey ?? SINGLE_COLUMN);
-    if (point === null || Object.values(extra).includes(EMPTY_VALUE)) return;
+    if (point === null) return;
 
     const value =
       columnKey === null ? row.totals[shown.key] ?? null : row.cells[columnKey]?.[shown.key]?.value ?? null;
@@ -449,6 +450,22 @@ const ExplorerResultView = ({
     </p>
   );
 
+  // Kelompok "Tidak ada data" butuh penjelasan: isinya campuran alumni yang
+  // tidak mengisi dan yang memang tidak ditanya.
+  const hasEmpty = useMemo(
+    () => result.rows.some((r) => [...rowDims, colDim].some((d) => d && (r[d] === null || r[d] === undefined))),
+    [result, rowDims, colDim],
+  );
+  const emptyNote = hasEmpty && (
+    <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <span>
+        <b>{EMPTY_VALUE}</b>: alumni tidak mengisi, atau pertanyaannya tidak berlaku baginya (mis. instansi bagi
+        yang tidak bekerja). Sembunyikan lewat <b>Batasi</b> → <i>ada nilainya</i>.
+      </span>
+    </p>
+  );
+
   const hint = (
     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
       <MousePointerClick className="h-3.5 w-3.5" />
@@ -504,6 +521,7 @@ const ExplorerResultView = ({
             </div>
             {chartBody}
             {hint}
+            {emptyNote}
             {pickedBar}
           </div>
         ) : (
@@ -523,6 +541,7 @@ const ExplorerResultView = ({
                 <>
                   {chartBody}
                   {hint}
+                  {emptyNote}
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -549,6 +568,7 @@ const ExplorerResultView = ({
       <PointActionDialog
         picked={picked.length}
         pickedOperation={selectionOperation(pending ? withPoint(picked, pending.point) : picked)}
+        canPick={pending ? canPickPoint(pending.point) : true}
         onAddPicked={() => {
           if (pending) addPicked(pending.point);
           setPending(null);

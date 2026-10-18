@@ -53,9 +53,9 @@ const PivotTable = ({
   const rowDims = rowDimensions.map((d) => d.key);
 
   /**
-   * Angka yang bisa diklik: ada nilainya, bukan cacah nol (daftarnya pasti
-   * kosong), dan titiknya tidak memuat kelompok "(kosong)". Baris/kolom yang
-   * tidak disebut (sel total) berarti "semua nilai" dimensi itu.
+   * Angka yang bisa diklik: ada nilainya dan bukan cacah nol (daftarnya pasti
+   * kosong). Baris/kolom yang tidak disebut (sel total) berarti "semua nilai"
+   * dimensi itu.
    */
   const cell = (
     content: ReactNode,
