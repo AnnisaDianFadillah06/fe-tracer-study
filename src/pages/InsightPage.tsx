@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { useExplorerCatalog, useExplorerQuery } from "@/hooks/useExplorer";
 import { useToast } from "@/hooks/common/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useAdvancedMode } from "@/hooks/useAdvancedMode";
 import { useInsightBoard, usePinQuestion } from "@/hooks/useInsightBoard";
 import {
@@ -158,6 +159,8 @@ const InsightPage = () => {
   const saveQuestion = useSaveInsightQuestion();
   const deleteQuestion = useDeleteInsightQuestion();
   const [saveOpen, setSaveOpen] = useState(false);
+  // Dialog Simpan dibuka dari "Sematkan": setelah tersimpan langsung disematkan.
+  const [pinAfterSave, setPinAfterSave] = useState(false);
   const { data: board = [] } = useInsightBoard();
   const pinQuestion = usePinQuestion();
 
@@ -207,7 +210,27 @@ const InsightPage = () => {
           setSaveOpen(false);
           appliedId.current = saved.id;
           setSearchParams({ q: String(saved.id) });
-          toast({ title: updating ? "Perubahan disimpan" : "Pertanyaan disimpan", description: saved.title });
+          // Yang sudah tersemat cukup disimpan: Dashboard Saya merujuk
+          // pertanyaannya, jadi ikut berubah.
+          const alreadyPinned = board.some((i) => i.question.id === saved.id);
+          if (pinAfterSave) {
+            setPinAfterSave(false);
+            if (!alreadyPinned) {
+              pin(saved);
+              return;
+            }
+          }
+          // Menyimpan belum menyematkan; tawarkan langsung di notifikasinya
+          // supaya tidak perlu mencari menu Lainnya.
+          toast({
+            title: updating ? "Perubahan disimpan" : "Pertanyaan disimpan",
+            description: saved.title,
+            action: alreadyPinned ? undefined : (
+              <ToastAction altText="Sematkan ke Dashboard Saya" onClick={() => pin(saved)}>
+                Sematkan
+              </ToastAction>
+            ),
+          });
         },
       },
     );
@@ -215,14 +238,23 @@ const InsightPage = () => {
 
   const pinned = activeQuestion !== null && board.some((i) => i.question.id === activeQuestion.id);
 
-  const handlePin = () => {
-    if (!activeQuestion) return;
-    pinQuestion.mutate(activeQuestion.id, {
-      onSuccess: () =>
-        toast({ title: "Disematkan ke Dashboard Saya", description: activeQuestion.title }),
+  const pin = (q: Pick<InsightQuestion, "id" | "title">) => {
+    pinQuestion.mutate(q.id, {
+      onSuccess: () => toast({ title: "Disematkan ke Dashboard Saya", description: q.title }),
       onError: (e) =>
         toast({ title: "Gagal menyematkan", description: apiMessage(e), variant: "destructive" }),
     });
+  };
+
+  // Dashboard Saya merujuk pertanyaan tersimpan. Belum disimpan, atau ada
+  // perubahan yang belum disimpan: simpan dulu (minta nama), lalu sematkan.
+  const handlePin = () => {
+    if (activeQuestion && !dirty) {
+      pin(activeQuestion);
+      return;
+    }
+    setPinAfterSave(true);
+    setSaveOpen(true);
   };
 
   const handleDelete = (q: InsightQuestion) => {
@@ -400,20 +432,19 @@ const InsightPage = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {activeQuestion &&
-                          (pinned ? (
-                            <DropdownMenuItem asChild>
-                              <Link to="/dashboard/insight/board">
-                                <LayoutGrid className="mr-2 h-4 w-4" />
-                                Lihat di Dashboard Saya
-                              </Link>
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem onSelect={handlePin} disabled={pinQuestion.isPending}>
-                              <Pin className="mr-2 h-4 w-4" />
-                              Sematkan ke Dashboard Saya
-                            </DropdownMenuItem>
-                          ))}
+                        {pinned ? (
+                          <DropdownMenuItem asChild>
+                            <Link to="/dashboard/insight/board">
+                              <LayoutGrid className="mr-2 h-4 w-4" />
+                              Lihat di Dashboard Saya
+                            </Link>
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onSelect={handlePin} disabled={pinQuestion.isPending}>
+                            <Pin className="mr-2 h-4 w-4" />
+                            Sematkan ke Dashboard Saya
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           onSelect={() => downloadCsv(result, activeQuestion?.title ?? question)}
                         >
@@ -462,8 +493,12 @@ const InsightPage = () => {
         open={saveOpen}
         onOpenChange={(o) => {
           setSaveOpen(o);
-          if (!o) saveQuestion.reset();
+          if (!o) {
+            saveQuestion.reset();
+            setPinAfterSave(false);
+          }
         }}
+        pinning={pinAfterSave}
         defaultTitle={activeQuestion?.is_mine ? activeQuestion.title : question}
         defaultShared={activeQuestion?.is_mine ? activeQuestion.is_shared : false}
         editing={activeQuestion?.is_mine ?? false}

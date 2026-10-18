@@ -29,6 +29,8 @@ interface Props {
   editing: boolean;
   saving: boolean;
   error: string | null;
+  /** Dibuka dari "Sematkan ke Dashboard Saya": setelah disimpan langsung disematkan. */
+  pinning?: boolean;
   onSave: (values: SaveQuestionValues) => void;
 }
 
@@ -40,6 +42,7 @@ const SaveQuestionDialog = ({
   editing,
   saving,
   error,
+  pinning = false,
   onSave,
 }: Props) => {
   const [title, setTitle] = useState(defaultTitle);
@@ -68,8 +71,15 @@ const SaveQuestionDialog = ({
           className="space-y-4"
         >
           <DialogHeader>
-            <DialogTitle>{editing && !asNew ? "Simpan perubahan" : "Simpan pertanyaan"}</DialogTitle>
+            <DialogTitle>
+              {pinning
+                ? "Simpan & sematkan ke Dashboard Saya"
+                : editing && !asNew
+                  ? "Simpan perubahan"
+                  : "Simpan pertanyaan"}
+            </DialogTitle>
             <DialogDescription>
+              {pinning && "Dashboard Saya menampilkan pertanyaan tersimpan, jadi beri nama dulu. "}
               Yang disimpan adalah pertanyaannya, bukan angkanya — setiap kali dibuka,
               angkanya dihitung ulang dari data terbaru.
             </DialogDescription>
@@ -115,7 +125,7 @@ const SaveQuestionDialog = ({
             </Button>
             <Button type="submit" disabled={!trimmed || saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Simpan
+              {pinning ? "Simpan & sematkan" : "Simpan"}
             </Button>
           </DialogFooter>
         </form>
