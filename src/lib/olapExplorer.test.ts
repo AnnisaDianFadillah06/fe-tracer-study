@@ -272,37 +272,31 @@ describe("decideChart", () => {
   });
 
   /**
-   * Inti fitur ini: tiga dimensi dulu tidak digambar sama sekali, sekarang
-   * jadi beberapa panel yang masing-masing chart dua dimensi biasa.
+   * Kombinasi yang tidak muat sebagai SATU grafik tidak lagi dipecah otomatis
+   * jadi panel: ditolak dengan alasan teks, dan tidak diganti peta panas.
    */
-  it("tiga dimensi jadi panel, bukan ditolak", () => {
+  it("tiga dimensi yang tidak muat satu grafik ditolak dengan teks, bukan dipecah panel", () => {
     const { rowDims, colDim, plan } = facetsDengan(4, 5, 3);
     const d = decideChart(rowDims, colDim, plan);
 
-    expect(d.faceted).toBe(true);
-    expect(d.kind).toBe("grouped-bar");
-    expect(d.reason).toBeUndefined();
+    expect(d.faceted).toBe(false);
+    expect(d.kind).toBe("none");
+    expect(d.reason).toContain("satu grafik");
+    expect(d.keepRejected).toBe(true);
+    expect(preferHeatmap(d, true)).toBe(d);
   });
 
-  it("dua dimensi baris juga jadi panel", () => {
-    const { rowDims, colDim, plan } = facetsDengan(3, 5);
-    const d = decideChart(rowDims, colDim, plan);
-
-    expect(d.faceted).toBe(true);
-    expect(plan.facets).toHaveLength(3);
-  });
-
-  /**
-   * Yang menentukan jumlah panel adalah dimensi dengan nilai paling sedikit,
-   * jadi penolakan baru terjadi kalau KEDUA dimensi barisnya sama-sama banyak.
-   */
-  it("memilih dimensi yang lebih sedikit jadi panel, bukan menolak", () => {
-    const { rowDims, colDim, plan } = facetsDengan(20, 3);
-    const d = decideChart(rowDims, colDim, plan);
-
-    expect(d.kind).toBe("bar");
-    expect(d.faceted).toBe(true);
-    expect(plan.facets).toHaveLength(3);
+  it("dua dimensi baris tanpa rencana bertingkat juga ditolak, berapa pun kategorinya", () => {
+    for (const [panel, kategori] of [
+      [3, 5],
+      [20, 3],
+      [2, 40],
+    ]) {
+      const { rowDims, colDim, plan } = facetsDengan(panel, kategori);
+      const d = decideChart(rowDims, colDim, plan);
+      expect(d.kind).toBe("none");
+      expect(d.faceted).toBe(false);
+    }
   });
 
   it("menolak kalau kedua dimensi baris sama-sama banyak", () => {
@@ -311,18 +305,6 @@ describe("decideChart", () => {
 
     expect(d.kind).toBe("none");
     expect(d.reason).toContain("20 panel");
-  });
-
-  /**
-   * Banyak kategori bukan lagi alasan menolak — chart-nya digeser mendatar.
-   * Yang dulu ditolak di sini sekarang harus digambar.
-   */
-  it("panel dengan banyak kategori tetap digambar", () => {
-    const { rowDims, colDim, plan } = facetsDengan(2, 40);
-    const d = decideChart(rowDims, colDim, plan);
-
-    expect(d.kind).toBe("bar");
-    expect(d.faceted).toBe(true);
   });
 
   it("menolak kalau serinya terlalu banyak", () => {
@@ -968,11 +950,12 @@ describe("sumbu X bertingkat", () => {
       expect(decideChart(rowDims, colDim, plan, nested).kind).toBe("nested-bar");
     });
 
-    it(`lebih dari ${MAX_NESTED_CATEGORIES} batang jatuh ke panel`, () => {
+    it(`lebih dari ${MAX_NESTED_CATEGORIES} batang ditolak dengan teks, tidak dipecah panel`, () => {
       const { rowDims, colDim, plan, nested } = rencana(3, 14);
       const d = decideChart(rowDims, colDim, plan, nested);
-      expect(d.kind).not.toBe("nested-bar");
-      expect(d.faceted).toBe(true);
+      expect(d.kind).toBe("none");
+      expect(d.faceted).toBe(false);
+      expect(d.reason).toContain("satu grafik");
     });
 
     it(`lebih dari ${MAX_NESTED_GROUPS} kelompok luar tidak bertingkat`, () => {
@@ -987,9 +970,11 @@ describe("sumbu X bertingkat", () => {
       expect(d.reason).toContain("13 seri");
     });
 
-    it("tanpa rencana bertingkat perilaku lama tidak berubah", () => {
+    it("tanpa rencana bertingkat tidak pernah jatuh ke panel otomatis", () => {
       const { rowDims, colDim, plan } = rencana(3, 5, 2);
-      expect(decideChart(rowDims, colDim, plan).faceted).toBe(true);
+      const d = decideChart(rowDims, colDim, plan);
+      expect(d.faceted).toBe(false);
+      expect(d.kind).toBe("none");
     });
   });
 

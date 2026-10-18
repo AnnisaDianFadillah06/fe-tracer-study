@@ -328,6 +328,12 @@ export interface ChartDecision {
    * bisa bertingkat (garis, area, bertumpuk, batang mendatar).
    */
   panels?: ChartDecision;
+  /**
+   * Penolakan yang TIDAK boleh diganti peta panas otomatis (lihat
+   * preferHeatmap): kombinasi yang tidak muat sebagai satu grafik cukup
+   * dijelaskan dengan teks, bukan diam-diam berganti bentuk.
+   */
+  keepRejected?: boolean;
 }
 
 /**
@@ -371,6 +377,22 @@ export function decideChart(
 
   if (nested && canNest(nested)) return { kind: "nested-bar", faceted: false, panels };
 
+  // Tidak muat sebagai SATU grafik: jangan dipecah otomatis jadi beberapa
+  // panel. Puluhan grafik kecil yang masing-masing berskala sendiri lebih
+  // menyesatkan daripada tidak ada grafik; angkanya tetap di tabel.
+  // "Panel terpisah" masih bisa dipilih manual dari grafik bertingkat.
+  if (panels.faceted) {
+    return {
+      kind: "none",
+      faceted: false,
+      keepRejected: true,
+      reason:
+        "Kombinasi ini terlalu banyak untuk digambar sebagai satu grafik. " +
+        "Batasi datanya atau drill-down dari level di atasnya supaya kelompoknya lebih sedikit. " +
+        "Angkanya lengkap di tabel di bawah.",
+    };
+  }
+
   return panels;
 }
 
@@ -399,6 +421,7 @@ function decidePanels(
     return {
       kind: "none",
       faceted: false,
+      keepRejected: true,
       reason:
         `Dimensi Kolom menghasilkan ${series} seri — terlalu banyak untuk dibedakan warnanya. ` +
         "Saring nilainya, atau pindahkan dimensi itu ke Baris. Angkanya lengkap di tabel di bawah.",
@@ -409,6 +432,7 @@ function decidePanels(
     return {
       kind: "none",
       faceted: false,
+      keepRejected: true,
       reason:
         `Kombinasi ini menghasilkan ${plan.facets.length} panel — terlalu banyak untuk dibandingkan berdampingan. ` +
         "Saring dimensi itu, atau pindahkan salah satunya ke Kolom. Angkanya lengkap di tabel di bawah.",
@@ -1120,7 +1144,7 @@ export function heatIntensity(value: number, scale: HeatScale): number {
  * lain tidak disentuh: tampilan otomatis yang sudah ada tidak berubah.
  */
 export function preferHeatmap(decision: ChartDecision, heatmap: boolean): ChartDecision {
-  return heatmap && decision.kind === "none" && decision.reason
+  return heatmap && decision.kind === "none" && decision.reason && !decision.keepRejected
     ? { kind: "heatmap", faceted: false }
     : decision;
 }
