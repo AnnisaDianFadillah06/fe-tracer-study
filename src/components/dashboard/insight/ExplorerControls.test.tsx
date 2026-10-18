@@ -74,13 +74,28 @@ describe("ExplorerControls (pita filter)", () => {
     expect(screen.queryByRole("button", { name: "Tukar baris dan kolom" })).not.toBeInTheDocument();
   });
 
-  it("mode lanjutan: slot dimensi bernomor, Batasi bertanda Slice, kolom Putar muncul", () => {
+  it("mode lanjutan: slot dimensi bernomor, Batasi bertanda Slice/Dice, kolom Putar muncul", () => {
     renderControls({ advanced: true });
 
-    for (const label of ["Per (Dimensi-1)", "Dibandingkan antar (Dimensi-2)", "Batasi (Slice)"]) {
+    for (const label of ["Per (Dimensi-1)", "Dibandingkan antar (Dimensi-2)", "Batasi (Slice/Dice)"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(screen.getByRole("button", { name: "Tukar baris dan kolom" })).toBeInTheDocument();
+  });
+
+  it("Batasi hanya menghitung saringan yang sudah berisi nilai", () => {
+    renderControls({
+      advanced: true,
+      input: {
+        ...input,
+        filters: [
+          { member: "DimProdi.jurusan", values: ["Akuntansi"] },
+          { member: "DimAlumni.tahun_lulus", values: [] },
+        ],
+      },
+    });
+
+    expect(screen.getByText("1 batasan")).toBeInTheDocument();
   });
 
   it("satu sumber data: pemilih sumber data tidak ditampilkan", () => {

@@ -25,6 +25,7 @@ import {
   lowerFirst,
   maxDimensionsOf,
   applyFilterChange,
+  filterIsActive,
   hierarchyMateIn,
   measureLabelOf,
   swapRowsColumns,
@@ -254,7 +255,8 @@ const ExplorerControls = ({
           ? measureLabelOf(cube, input.measures[0])
           : formulas[0].label
         : `${measureCount} ukuran`;
-  const filterCount = input.filters.length;
+  // Baris saringan yang belum diisi nilainya belum membatasi apa pun.
+  const filterCount = input.filters.filter(filterIsActive).length;
   const displayChanged =
     (input.percent ?? "none") !== "none" || !!input.minN || !!input.sort || !!input.diff;
 
@@ -507,8 +509,12 @@ const ExplorerControls = ({
         )}
 
         <Field
-          label={advanced ? "Batasi (Slice)" : "Batasi"}
-          hint={`${advanced ? "Slice: hanya" : "Hanya"} menghitung sebagian data, misalnya alumni angkatan 2023 saja.`}
+          label={advanced ? "Batasi (Slice/Dice)" : "Batasi"}
+          hint={
+            advanced
+              ? "Menghitung sebagian data saja. Menyaring di satu dimensi (misalnya angkatan 2023) adalah slice; di dua dimensi atau lebih sekaligus (jurusan tertentu dan angkatan 2023) adalah dice."
+              : "Hanya menghitung sebagian data, misalnya alumni angkatan 2023 saja."
+          }
         >
           <Popover>
             <PopoverTrigger asChild>
