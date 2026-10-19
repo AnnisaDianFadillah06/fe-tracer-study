@@ -5,6 +5,7 @@ import { Pause, Play, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatAxisValue, formatMeasure, type CatalogMeasure, type DrillPoint } from "@/lib/olapExplorer";
 import { highlightOpacity, type Plan3D } from "@/lib/olap3d";
+import { measureDirection, statusRamp } from "@/lib/chartColors";
 
 interface Props {
   plan: Plan3D;
@@ -66,15 +67,26 @@ function themeColor(name: string, alpha = 1): string {
   return h ? `hsla(${h}, ${s}, ${l}, ${alpha})` : `rgba(128, 128, 128, ${alpha})`;
 }
 
+/** Warna hex palet Insight (`--viz-1`, `--viz-neg`, ...) dari variabel CSS. */
+function vizColor(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#808080";
+}
+
 /**
- * Varian solid warna tema dengan kecerahan lain. Ujung bawah skala warna
- * TIDAK boleh memakai alpha: batang yang transparan terlihat tembus pandang,
- * dan transparansi sudah dipakai sebagai tanda "tidak disorot".
+ * Skala warna batang dari nilai terendah ke tertinggi.
+ *  - ukuran berarah  → merah-kuning-hijau (hijau = lebih baik), seperti status dashboard;
+ *  - selisih bertanda → merah di bawah 0, biru di atas 0, seperti batang selisih 2D;
+ *  - selain itu      → biru netral, seperti seri tunggal grafik 2D.
+ * Ujung pucatnya TIDAK memakai alpha: batang transparan terlihat tembus
+ * pandang, dan transparansi sudah dipakai sebagai tanda "tidak disorot".
  */
-function themeShade(name: string, lightness: number): string {
-  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  const [h, s] = raw.split(/\s+/);
-  return h ? `hsl(${h}, ${s}, ${lightness}%)` : `hsl(0, 0%, ${lightness}%)`;
+function skalaWarna(measureKey: string, min: number, max: number): string[] {
+  const ramp = statusRamp(measureDirection(measureKey));
+  if (ramp) return ramp;
+  const pucat = (c: string) =>
+    echarts.color.modifyHSL(c, undefined, undefined, document.documentElement.classList.contains("dark") ? 0.26 : 0.86);
+  const pos = vizColor(min < 0 && max > 0 ? "--viz-pos" : "--viz-1");
+  return min < 0 && max > 0 ? [vizColor("--viz-neg"), pucat(pos), pos] : [pucat(pos), pos];
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -263,14 +275,7 @@ const Explorer3DChart = ({
           itemHeight: 140,
           text: [formatAxisValue(plan.max), formatAxisValue(plan.min)],
           textStyle: { color: redup, fontSize: 11 },
-          // Ujung bawah: oranye pucat di tema terang, oranye gelap di tema gelap
-          // -- keduanya tetap kalah mencolok dari latar dibanding nilai tinggi.
-          inRange: {
-            color: [
-              themeShade("--primary", document.documentElement.classList.contains("dark") ? 26 : 86),
-              themeColor("--primary"),
-            ],
-          },
+          inRange: { color: skalaWarna(measure.key, plan.min, plan.max) },
         },
         xAxis3D: {
           type: "category",
@@ -502,7 +507,8 @@ const Explorer3DChart = ({
         Seret untuk memutar, gulir untuk memperbesar. Arahkan kursor ke batang untuk menyorot baris dan kolomnya
         {adaKlik ? `; klik batang untuk ${clickAction}` : ""}. Tinggi dan warna sama-sama
         menunjukkan {measure.label.toLowerCase()}
-        {frameLabel ? `; skalanya sama untuk semua ${frameLabel.toLowerCase()}` : ""}.
+        {frameLabel ? `; skalanya sama untuk semua ${frameLabel.toLowerCase()}` : ""}
+        {measureDirection(measure.key) ? " (hijau = lebih baik, merah = kurang baik)" : ""}.
       </p>
     </div>
   );

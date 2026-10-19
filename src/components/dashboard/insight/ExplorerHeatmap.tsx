@@ -7,6 +7,7 @@ import {
   type CatalogMeasure,
   type Pivot,
 } from "@/lib/olapExplorer";
+import { measureDirection, rampColor, statusRamp } from "@/lib/chartColors";
 
 interface Props {
   pivot: Pivot;
@@ -21,15 +22,22 @@ interface Props {
   onCellClick?: (rowIndex: number, columnKey: string) => void;
 }
 
-/** Warna seri negatif pada skala divergen: biru, kontras dengan oranye primer. */
-const NEGATIVE = "217 91% 60%";
-
 /** Kepekatan minimum & maksimum: sel terendah tetap sedikit berwarna, tertinggi tidak menutupi teks. */
 const ALPHA_MIN = 0.06;
 const ALPHA_RANGE = 0.84;
 
-/** Di atas ini teks sel ditulis dengan warna kontras primer. */
+/** Di atas ini teks sel ditulis putih. */
 const ALPHA_TEXT_FLIP = 0.55;
+
+/**
+ * Kepekatan sel berwarna status: tetap, karena maknanya ada di warnanya.
+ * Cukup pucat supaya teks bawaan terbaca di tema terang maupun gelap.
+ */
+const STATUS_MIX = 0.45;
+
+/** Warna `color` dengan kepekatan `alpha` di atas latar. */
+const campur = (color: string, alpha: number) =>
+  `color-mix(in srgb, ${color} ${(alpha * 100).toFixed(1)}%, transparent)`;
 
 /**
  * Angka sel diringkas: rupiah dan angka besar jadi "4,3 jt"; sisanya format
@@ -51,13 +59,18 @@ const ExplorerHeatmap = ({ pivot, measure, rowLabels, columnLabel, maxHeight, on
   const scale = heatScale(pivot, measure.key);
   if (!scale) return null;
 
+  // Ukuran berarah (keterserapan, masa tunggu, gaji): merah-kuning-hijau.
+  // Selisih bertanda: biru di atas 0, merah di bawah 0, sama dengan batang
+  // selisih. Selain itu biru netral, sama dengan seri tunggal grafik 2D.
+  const ramp = scale.diverging ? null : statusRamp(measureDirection(measure.key));
+
   const warna = (value: number) => {
     const t = heatIntensity(value, scale);
+    if (ramp) return { backgroundColor: campur(rampColor(t, ramp), STATUS_MIX) };
     const alpha = ALPHA_MIN + ALPHA_RANGE * Math.abs(t);
-    const hue = t < 0 ? NEGATIVE : "var(--primary)";
     return {
-      backgroundColor: `hsl(${hue} / ${alpha.toFixed(3)})`,
-      color: alpha > ALPHA_TEXT_FLIP ? "hsl(var(--primary-foreground))" : undefined,
+      backgroundColor: campur(t < 0 ? "var(--viz-neg)" : scale.diverging ? "var(--viz-pos)" : "var(--viz-1)", alpha),
+      color: alpha > ALPHA_TEXT_FLIP ? "#ffffff" : undefined,
     };
   };
 
@@ -66,9 +79,11 @@ const ExplorerHeatmap = ({ pivot, measure, rowLabels, columnLabel, maxHeight, on
 
   const legendaKiri = scale.diverging ? -Math.max(Math.abs(scale.min), Math.abs(scale.max)) : scale.min;
   const legendaKanan = scale.diverging ? -legendaKiri : scale.max;
-  const gradien = scale.diverging
-    ? `linear-gradient(to right, hsl(${NEGATIVE} / 0.9), hsl(var(--primary) / ${ALPHA_MIN}), hsl(var(--primary) / 0.9))`
-    : `linear-gradient(to right, hsl(var(--primary) / ${ALPHA_MIN}), hsl(var(--primary) / 0.9))`;
+  const gradien = ramp
+    ? `linear-gradient(to right, ${ramp.map((c) => campur(c, STATUS_MIX)).join(", ")})`
+    : scale.diverging
+      ? `linear-gradient(to right, ${campur("var(--viz-neg)", 0.9)}, ${campur("var(--viz-pos)", ALPHA_MIN)}, ${campur("var(--viz-pos)", 0.9)})`
+      : `linear-gradient(to right, ${campur("var(--viz-1)", ALPHA_MIN)}, ${campur("var(--viz-1)", 0.9)})`;
 
   return (
     <div className="space-y-3">
@@ -76,6 +91,7 @@ const ExplorerHeatmap = ({ pivot, measure, rowLabels, columnLabel, maxHeight, on
         <span className="tabular-nums">{formatMeasure(legendaKiri, measure.format)}</span>
         <span className="h-2.5 w-40 rounded-full" style={{ background: gradien }} />
         <span className="tabular-nums">{formatMeasure(legendaKanan, measure.format)}</span>
+        {ramp && <span>· hijau = lebih baik, merah = kurang baik</span>}
       </div>
 
       <div className="w-full overflow-auto rounded-md border" style={maxHeight ? { maxHeight } : undefined}>

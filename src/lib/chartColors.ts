@@ -124,6 +124,57 @@ export function buildInsightColorMap(labels: string[]): Record<string, string> {
   );
 }
 
+// ─── Warna nilai bermakna (3D & heatmap Insight) ──────────────────────────────
+// Grafik 3D dan heatmap mewarnai batang/sel menurut NILAINYA. Untuk ukuran yang
+// punya arah baik-buruk, warnanya mengikuti status dashboard (merah = kurang
+// baik, kuning = sedang, hijau = baik; nilai sama dengan C.red/C.yellow/C.green
+// di KpiCard). Ukuran tanpa arah (jumlah alumni, UMP) tetap biru netral.
+
+/** "higher" = makin tinggi makin baik; "lower" = makin rendah makin baik; null = netral. */
+export type MeasureDirection = "higher" | "lower" | null;
+
+export const STATUS_COLORS = { buruk: "#ef4444", sedang: "#eab308", baik: "#10b981" } as const;
+
+const HIGHER_MEASURES = new Set(["count_terserap", "count_above_ump", "count_masa_tunggu_cepat", "count_sesuai_bidang"]);
+const LOWER_MEASURES = new Set(["count_tidak_terserap", "count_below_ump", "count_tidak_sesuai_bidang"]);
+/** Kolom angka (rata-rata/nilai tengah/terkecil/terbesar-nya ikut arah kolom). */
+const HIGHER_COLUMNS = new Set(["take_home_pay", "skor"]);
+const LOWER_COLUMNS = new Set(["masa_tunggu_bekerja", "masa_tunggu_wirausaha", "bulan_sesudah_lulus"]);
+
+/**
+ * Arah baik-buruk ukuran Insight dari kuncinya ("FactTracerStudy.count_terserap",
+ * "FactTracerStudy.agg_avg_take_home_pay"). Total (sum) selalu netral: besarnya
+ * ikut banyaknya alumni, bukan mutunya. Ukuran rumus dan yang belum dikenal netral.
+ */
+export function measureDirection(measureKey: string): MeasureDirection {
+  const name = measureKey.slice(measureKey.lastIndexOf(".") + 1);
+  if (HIGHER_MEASURES.has(name)) return "higher";
+  if (LOWER_MEASURES.has(name)) return "lower";
+  const agg = /^(?:agg_)?(avg|median|min|max|sum)_(.+)$/.exec(name);
+  if (!agg || agg[1] === "sum") return null;
+  if (HIGHER_COLUMNS.has(agg[2])) return "higher";
+  if (LOWER_COLUMNS.has(agg[2])) return "lower";
+  return null;
+}
+
+/** Warna dari nilai terendah ke tertinggi untuk ukuran berarah; null bila netral. */
+export function statusRamp(direction: MeasureDirection): string[] | null {
+  const naik = [STATUS_COLORS.buruk, STATUS_COLORS.sedang, STATUS_COLORS.baik];
+  if (direction === "higher") return naik;
+  if (direction === "lower") return [...naik].reverse();
+  return null;
+}
+
+/** Interpolasi linear warna hex sepanjang `colors` untuk t di 0..1. */
+export function rampColor(t: number, colors: string[]): string {
+  const pos = Math.min(1, Math.max(0, t)) * (colors.length - 1);
+  const i = Math.min(Math.floor(pos), colors.length - 2);
+  const f = pos - i;
+  const rgb = (hex: string) => [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+  const [a, b] = [rgb(colors[i]), rgb(colors[i + 1])];
+  return `#${a.map((v, k) => Math.round(v + (b[k] - v) * f).toString(16).padStart(2, "0")).join("")}`;
+}
+
 // ─── Label pendek untuk OLAP long-form labels ─────────────────────────────────
 
 const OLAP_SHORT_LABELS: Record<string, string> = {

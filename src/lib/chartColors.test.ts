@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { buildColorMap, buildInsightColorMap, getSegmentColor, getShortLabel } from "./chartColors";
+import {
+  buildColorMap,
+  buildInsightColorMap,
+  getSegmentColor,
+  getShortLabel,
+  measureDirection,
+  rampColor,
+  statusRamp,
+  STATUS_COLORS,
+} from "./chartColors";
 
 describe("getSegmentColor", () => {
   it("label yang dikenal memakai warna tetap, mengabaikan fallbackIndex", () => {
@@ -68,5 +77,42 @@ describe("buildInsightColorMap", () => {
   it("lebih dari lima seri berputar ke awal palet", () => {
     const map = buildInsightColorMap(["a", "b", "c", "d", "e", "f"]);
     expect(map.f).toBe("var(--viz-1)");
+  });
+});
+
+describe("measureDirection", () => {
+  it("ukuran yang makin tinggi makin baik", () => {
+    expect(measureDirection("FactTracerStudy.count_terserap")).toBe("higher");
+    expect(measureDirection("FactTracerStudy.agg_avg_take_home_pay")).toBe("higher");
+    expect(measureDirection("FactRangeEvaluasi.avg_skor")).toBe("higher");
+  });
+
+  it("ukuran yang makin rendah makin baik", () => {
+    expect(measureDirection("FactTracerStudy.avg_masa_tunggu_bekerja")).toBe("lower");
+    expect(measureDirection("FactTracerStudy.agg_median_bulan_sesudah_lulus")).toBe("lower");
+    expect(measureDirection("FactTracerStudy.count_tidak_sesuai_bidang")).toBe("lower");
+  });
+
+  it("jumlah, total, UMP, dan ukuran rumus netral", () => {
+    expect(measureDirection("FactTracerStudy.count_alumni")).toBeNull();
+    expect(measureDirection("FactTracerStudy.agg_sum_take_home_pay")).toBeNull();
+    expect(measureDirection("FactTracerStudy.agg_avg_nilai_ump")).toBeNull();
+    expect(measureDirection("rasio")).toBeNull();
+  });
+});
+
+describe("statusRamp & rampColor", () => {
+  it("arah menentukan ujung merah dan hijau", () => {
+    expect(statusRamp("higher")).toEqual([STATUS_COLORS.buruk, STATUS_COLORS.sedang, STATUS_COLORS.baik]);
+    expect(statusRamp("lower")?.[0]).toBe(STATUS_COLORS.baik);
+    expect(statusRamp(null)).toBeNull();
+  });
+
+  it("interpolasi melewati warna tengah", () => {
+    const ramp = statusRamp("higher")!;
+    expect(rampColor(0, ramp)).toBe(STATUS_COLORS.buruk);
+    expect(rampColor(0.5, ramp)).toBe(STATUS_COLORS.sedang);
+    expect(rampColor(1, ramp)).toBe(STATUS_COLORS.baik);
+    expect(rampColor(2, ramp)).toBe(STATUS_COLORS.baik);
   });
 });
