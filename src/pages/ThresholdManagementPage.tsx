@@ -570,6 +570,12 @@ const ThresholdManagementPage = () => {
 
             <div className="space-y-2">
               <Label>Nilai Threshold per Indikator *</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Kosongkan indikator yang tidak ditetapkan oleh standar ini; bisa diisi belakangan.
+              </p>
+              {stdFormErrors.thresholdsEmpty && (
+                <p className="text-[11px] text-destructive">{stdFormErrors.thresholdsEmpty}</p>
+              )}
               <div className="border rounded-md overflow-hidden">
                 <Table>
                   <TableHeader>
@@ -651,7 +657,7 @@ const ThresholdManagementPage = () => {
                                 <Input
                                   type="number" min={0} step="0.1"
                                   value={row?.param_value ?? ""}
-                                  onChange={(e) => updateThresholdParam(ind.id, Number(e.target.value))}
+                                  onChange={(e) => updateThresholdParam(ind.id, e.target.value === "" ? null : Number(e.target.value))}
                                   className="h-7 w-24"
                                 />
                               </div>
@@ -660,8 +666,9 @@ const ThresholdManagementPage = () => {
                           <TableCell>
                             <Input
                               type="number" min={0} max={100}
-                              value={row?.baik ?? 0}
-                              onChange={(e) => updateThreshold(ind.id, "baik", Number(e.target.value))}
+                              value={row?.baik ?? ""}
+                              placeholder="—"
+                              onChange={(e) => updateThreshold(ind.id, "baik", e.target.value === "" ? null : Number(e.target.value))}
                               className="h-8"
                               aria-invalid={!!tErr?.baik}
                             />
@@ -670,8 +677,9 @@ const ThresholdManagementPage = () => {
                           <TableCell>
                             <Input
                               type="number" min={0} max={100}
-                              value={row?.unggul ?? 0}
-                              onChange={(e) => updateThreshold(ind.id, "unggul", Number(e.target.value))}
+                              value={row?.unggul ?? ""}
+                              placeholder="—"
+                              onChange={(e) => updateThreshold(ind.id, "unggul", e.target.value === "" ? null : Number(e.target.value))}
                               className="h-8"
                               aria-invalid={!!tErr?.unggul}
                             />

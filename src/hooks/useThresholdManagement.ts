@@ -31,9 +31,10 @@ export type IndicatorThreshold = {
   indicator_id: number;
   indicator_name: string;       // sudah terinterpolasi dari BE (mis. "Lulusan Bekerja ≤ 4 Bulan")
   baik_threshold_id?: number;
-  baik: number;
+  /** null = indikator ini belum diisi untuk standar ini (tidak semua LAM menetapkan angka tiap indikator) */
+  baik: number | null;
   unggul_threshold_id?: number;
-  unggul: number;
+  unggul: number | null;
   /** hanya relevan kalau indikator punya dynamic_param_unit (employment_time / salary_above_ump) */
   param_value?: number | null;
   /** true untuk tracer_response — nilainya dihitung sistem, bukan dari kolom baik/unggul di sini */
@@ -77,10 +78,26 @@ const makeDefaultThresholds = (indicators: ThresholdIndicatorMeta[]): IndicatorT
     .map((i) => ({
       indicator_id: i.id,
       indicator_name: i.name,
-      baik: 0,
-      unggul: 0,
-      param_value: i.dynamic_param_unit ? 0 : undefined,
+      baik: null,
+      unggul: null,
+      param_value: i.dynamic_param_unit ? null : undefined,
     }));
+
+/**
+ * Baris form untuk SEMUA indikator manual: yang sudah tersimpan memakai nilainya,
+ * yang belum tersimpan kosong. Tanpa ini, indikator yang belum punya threshold
+ * tidak punya baris di form edit, sehingga isian di kolomnya tidak tersimpan.
+ */
+const withAllIndicators = (
+  thresholds: IndicatorThreshold[],
+  indicators: ThresholdIndicatorMeta[],
+): IndicatorThreshold[] =>
+  makeDefaultThresholds(indicators).map(
+    (empty) => thresholds.find((t) => t.indicator_id === empty.indicator_id) ?? empty,
+  );
+
+/** Indikator tanpa nilai baik maupun unggul dianggap belum ditetapkan (boleh). */
+const isEmptyRow = (t: IndicatorThreshold) => t.baik == null && t.unggul == null;
 
 function mapApiLam(apiLam: ApiLam): Lam {
   return {
@@ -108,9 +125,9 @@ function mapApiStandar(apiLam: ApiLam, version: LamVersion): Standar {
       indicator_id: t.indicator_id,
       indicator_name: t.indicator_name,
       baik_threshold_id: t.baik?.threshold_id,
-      baik: t.baik?.value ?? 0,
+      baik: t.baik?.value ?? null,
       unggul_threshold_id: t.unggul?.threshold_id,
-      unggul: t.unggul?.value ?? 0,
+      unggul: t.unggul?.value ?? null,
       param_value: t.dynamic_param?.value ?? undefined,
       is_system_calculated: t.is_system_calculated,
     })),
@@ -146,6 +163,8 @@ export type StandarFormErrors = {
   version_name?: string;
   year?: string;
   thresholds?: Record<number, { baik?: string; unggul?: string; param_value?: string }>;
+  /** semua indikator kosong — standar tanpa satu pun threshold tidak bisa disimpan */
+  thresholdsEmpty?: string;
 };
 
 const validateStandar = (
@@ -166,14 +185,20 @@ const validateStandar = (
     const meta = indicatorById[t.indicator_id];
     const row: { baik?: string; unggul?: string; param_value?: string } = {};
 
-    // Indikator system-calculated (tracer_response): baik/unggul tidak divalidasi,
-    // BE yang menghitung otomatis.
-    if (!meta?.is_system_calculated) {
+    // Indikator system-calculated (tracer_response) tidak divalidasi (dihitung BE).
+    // Indikator yang dikosongkan sama sekali boleh, karena tidak semua standar
+    // LAM menetapkan angka untuk tiap indikator — kecuali yang sudah tersimpan,
+    // karena endpoint update tidak menghapus threshold.
+    if (meta?.is_system_calculated) return;
+    const tersimpan = t.baik_threshold_id != null || t.unggul_threshold_id != null;
+    if (isEmptyRow(t) && !tersimpan) return;
+
+    {
       if (t.baik == null || Number.isNaN(t.baik)) row.baik = "Wajib";
       else if (t.baik < 0 || t.baik > 100) row.baik = "0 - 100";
       if (t.unggul == null || Number.isNaN(t.unggul)) row.unggul = "Wajib";
       else if (t.unggul < 0 || t.unggul > 100) row.unggul = "0 - 100";
-      else if (!row.baik && t.unggul < t.baik) row.unggul = "Harus ≥ Baik";
+      else if (!row.baik && t.baik != null && t.unggul < t.baik) row.unggul = "Harus ≥ Baik";
     }
 
     // Indikator dengan parameter dinamis (bulan / multiplier UMP): wajib diisi > 0
@@ -186,6 +211,8 @@ const validateStandar = (
   });
 
   if (Object.keys(tErrs).length) e.thresholds = tErrs;
+  const manual = f.thresholds.filter((t) => !indicatorById[t.indicator_id]?.is_system_calculated);
+  if (manual.length > 0 && manual.every(isEmptyRow)) e.thresholdsEmpty = "Isi minimal satu indikator";
   return e;
 };
 
@@ -458,12 +485,12 @@ export const useThresholdManagement = () => {
       version_name: s.version_name,
       year: s.year,
       is_active: s.is_active,
-      thresholds: s.thresholds.map((t) => ({ ...t })),
+      thresholds: withAllIndicators(s.thresholds.map((t) => ({ ...t })), indicators),
     });
     setIsStdDialogOpen(true);
   };
 
-  const updateThreshold = (indicator_id: number, field: "baik" | "unggul", value: number) => {
+  const updateThreshold = (indicator_id: number, field: "baik" | "unggul", value: number | null) => {
     setStdForm((f) => ({
       ...f,
       thresholds: f.thresholds.map((t) =>
@@ -473,7 +500,7 @@ export const useThresholdManagement = () => {
   };
 
   // Baru — untuk indikator dengan dynamic_param_unit (employment_time, salary_above_ump)
-  const updateThresholdParam = (indicator_id: number, value: number) => {
+  const updateThresholdParam = (indicator_id: number, value: number | null) => {
     setStdForm((f) => ({
       ...f,
       thresholds: f.thresholds.map((t) =>
@@ -546,21 +573,37 @@ export const useThresholdManagement = () => {
         }
 
         // Indikator system-calculated (tracer_response) tidak dikirim sama sekali —
-        // BE menolak (422) request bulk update yang menyertakan indicator_id-nya.
-        const bulkPayload: ThresholdBulkUpdateItem[] = stdForm.thresholds
-          .filter((t) => !indicatorById[t.indicator_id]?.is_system_calculated)
-          .map((t) => {
-            const meta = indicatorById[t.indicator_id];
-            return {
-              indicator_id: t.indicator_id,
-              baik_id: t.baik_threshold_id!,
-              baik_value: t.baik,
-              unggul_id: t.unggul_threshold_id!,
-              unggul_value: t.unggul,
-              param_value: meta?.dynamic_param_unit ? t.param_value ?? null : undefined,
-            };
-          });
-        const res = await apiService.bulkUpdateThresholds(editingStandar._versionId, bulkPayload);
+        // BE menolak (422) request bulk update/create yang menyertakan indicator_id-nya.
+        const manual = stdForm.thresholds.filter((t) => !indicatorById[t.indicator_id]?.is_system_calculated);
+        const paramOf = (t: IndicatorThreshold) =>
+          indicatorById[t.indicator_id]?.dynamic_param_unit ? t.param_value ?? null : undefined;
+
+        // Yang sudah tersimpan diperbarui; yang belum tersimpan tapi kini diisi dibuat
+        // baru di versi yang sama; yang tetap kosong dilewati.
+        const existing = manual.filter((t) => t.baik_threshold_id != null && t.unggul_threshold_id != null);
+        const added = manual.filter((t) => t.baik_threshold_id == null && !isEmptyRow(t));
+
+        let res: Awaited<ReturnType<typeof apiService.bulkUpdateThresholds>> | null = null;
+        if (existing.length > 0) {
+          const updatePayload: ThresholdBulkUpdateItem[] = existing.map((t) => ({
+            indicator_id: t.indicator_id,
+            baik_id: t.baik_threshold_id!,
+            baik_value: t.baik ?? undefined,
+            unggul_id: t.unggul_threshold_id!,
+            unggul_value: t.unggul ?? undefined,
+            param_value: paramOf(t),
+          }));
+          res = await apiService.bulkUpdateThresholds(editingStandar._versionId, updatePayload);
+        }
+        if (added.length > 0) {
+          const createPayload: ThresholdBulkCreateItem[] = added.map((t) => ({
+            indicator_id: t.indicator_id,
+            baik: t.baik ?? undefined,
+            unggul: t.unggul ?? undefined,
+            param_value: paramOf(t),
+          }));
+          res = await apiService.bulkCreateThresholds(editingStandar._versionId, createPayload);
+        }
 
         setStandars((prev) =>
           prev.map((s) =>
@@ -570,20 +613,23 @@ export const useThresholdManagement = () => {
                   version_name: stdForm.version_name,
                   year: stdForm.year,
                   is_active: stdForm.is_active,
-                  thresholds: (res.data?.thresholds ?? []).map((t) => ({
-                    indicator_id: t.indicator_id,
-                    indicator_name: t.indicator_name,
-                    baik_threshold_id: t.baik.threshold_id,
-                    baik: t.baik.value,
-                    unggul_threshold_id: t.unggul.threshold_id,
-                    unggul: t.unggul.value,
-                    param_value: t.dynamic_param?.value ?? undefined,
-                    is_system_calculated: t.is_system_calculated,
-                  })),
+                  thresholds: res
+                    ? (res.data?.thresholds ?? []).map((t) => ({
+                        indicator_id: t.indicator_id,
+                        indicator_name: t.indicator_name,
+                        baik_threshold_id: t.baik.threshold_id,
+                        baik: t.baik.value,
+                        unggul_threshold_id: t.unggul.threshold_id,
+                        unggul: t.unggul.value,
+                        param_value: t.dynamic_param?.value ?? undefined,
+                        is_system_calculated: t.is_system_calculated,
+                      }))
+                    : s.thresholds,
                 }
               : s,
           ),
         );
+        queryClient.invalidateQueries({ queryKey: ["dashboard-thresholds"] });
         toast({ title: "Standar diperbarui", description: stdForm.version_name });
       } else {
         const verRes = await apiService.createLamVersion({
@@ -595,14 +641,15 @@ export const useThresholdManagement = () => {
 
         // Indikator system-calculated (tracer_response) tidak dikirim sama sekali —
         // BE menolak (422) request bulk create yang menyertakan indicator_id-nya.
+        // Indikator yang dikosongkan tidak dikirim: standar ini memang tidak menetapkannya.
         const bulkPayload: ThresholdBulkCreateItem[] = stdForm.thresholds
-          .filter((t) => !indicatorById[t.indicator_id]?.is_system_calculated)
+          .filter((t) => !indicatorById[t.indicator_id]?.is_system_calculated && !isEmptyRow(t))
           .map((t) => {
             const meta = indicatorById[t.indicator_id];
             return {
               indicator_id: t.indicator_id,
-              baik: t.baik,
-              unggul: t.unggul,
+              baik: t.baik ?? undefined,
+              unggul: t.unggul ?? undefined,
               param_value: meta?.dynamic_param_unit ? t.param_value ?? null : undefined,
             };
           });
