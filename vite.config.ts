@@ -8,6 +8,18 @@ export default defineConfig(() => ({
   server: {
     host: "::",
     port: 8080,
+    // Quick tunnel Cloudflare memberi subdomain acak tiap dijalankan;
+    // awalan titik mengizinkan semua subdomainnya.
+    allowedHosts: [".trycloudflare.com"],
+    // /api diteruskan ke backend Laravel, sehingga cukup satu tunnel untuk
+    // frontend: browser di perangkat lain tidak perlu menjangkau localhost:8000.
+    // Berlaku bila VITE_API_URL=/api (lihat .env.local).
+    proxy: {
+      "/api": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [react()],
   resolve: {
