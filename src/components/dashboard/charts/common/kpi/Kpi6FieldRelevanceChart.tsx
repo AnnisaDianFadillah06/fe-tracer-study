@@ -74,23 +74,26 @@ const Kpi6FieldRelevanceChart = () => {
     });
   };
 
-  // Aggregate bar: per-prodi/tahun → per tahun
+  // Aggregate bar: per-prodi/tahun → per tahun. Penyebutnya lulusan bekerja
+  // yang kesesuaiannya terkategori (sesuai + tidak sesuai), sesuai rumus di
+  // MethodologyBlock -- bukan semua alumni, yang ikut menghitung alumni
+  // mencari kerja/studi lanjut dan membuat persentasenya tampak kecil.
   const comboData = useMemo(() => {
     if (!barHook.data?.data) return [];
-    const byTahun = new Map<string, { totalAlumni: number; totalSesuai: number }>();
+    const byTahun = new Map<string, { totalBekerja: number; totalSesuai: number }>();
     barHook.data.data.forEach((d) => {
-      const cur = byTahun.get(d.tahun_lulus) ?? { totalAlumni: 0, totalSesuai: 0 };
+      const cur = byTahun.get(d.tahun_lulus) ?? { totalBekerja: 0, totalSesuai: 0 };
       byTahun.set(d.tahun_lulus, {
-        totalAlumni: cur.totalAlumni + d.count_alumni,
-        totalSesuai: cur.totalSesuai + d.count_sesuai_bidang,
+        totalBekerja: cur.totalBekerja + d.count_sesuai_bidang + d.count_tidak_sesuai_bidang,
+        totalSesuai:  cur.totalSesuai + d.count_sesuai_bidang,
       });
     });
     return [...byTahun.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([year, v]) => ({
         year,
-        value: v.totalAlumni > 0 ? Math.round((v.totalSesuai / v.totalAlumni) * 100 * 10) / 10 : 0,
-        total: v.totalAlumni,
+        value: v.totalBekerja > 0 ? Math.round((v.totalSesuai / v.totalBekerja) * 100 * 10) / 10 : 0,
+        total: v.totalBekerja,
         n:     v.totalSesuai,
       }));
   }, [barHook.data]);
@@ -152,7 +155,7 @@ const Kpi6FieldRelevanceChart = () => {
         <KpiCard
           loading={isLoading} error={hasError}
           empty={!isLoading && comboData.length === 0}
-          title="Tren Kesesuaian Bidang Kerja"
+          title="Kesesuaian Bidang Kerja per Angkatan"
           subtitle={lamSubtitle(lam)}
           compareType="kesesuaian"
           headerExtra={<LamFilterControls lam={lam} />}

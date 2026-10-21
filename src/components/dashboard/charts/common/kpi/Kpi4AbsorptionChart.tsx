@@ -111,7 +111,7 @@ const Kpi4AbsorptionChart = () => {
         <KpiCard
           loading={isLoading} error={hasError}
           empty={!isLoading && comboData.length === 0}
-          title="Tren Keterserapan Lulusan"
+          title="Keterserapan Lulusan per Angkatan"
           subtitle={lamSubtitle(lam)}
           // fix #4: compareType harus "absorption" bukan "status"
           compareType="absorption"

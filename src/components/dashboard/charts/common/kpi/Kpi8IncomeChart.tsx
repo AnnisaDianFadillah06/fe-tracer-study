@@ -108,7 +108,7 @@ const Kpi8IncomeChart = () => {
           loading={barHook.loading}
           error={barHook.error}
           empty={isEmpty}
-          title={`Tren Pendapatan & % Lulusan ≥ ${ambangLabel}× UMP`}
+          title={`Pendapatan & % Lulusan ≥ ${ambangLabel}× UMP per Angkatan`}
           subtitle={lamSubtitle(lam)}
           compareType="income-kelompok"
           headerExtra={<LamFilterControls lam={lam} />}

@@ -130,7 +130,7 @@ const Kpi3ParticipationTrendChart = () => {
   return (
     <>
     <KpiCard loading={loading} error={error} empty={isEmpty}
-      title="Tren Response Rate Antar Periode"
+      title="Response Rate per Angkatan"
       subtitle={subtitle}
       compareType="participation-trend"
       methodology={

@@ -137,7 +137,7 @@ const Kpi7EntrepreneurshipChart = () => {
         <KpiCard
           loading={isLoading} error={hasError}
           empty={!isLoading && comboData.length === 0}
-          title="Tren Persentase Wirausaha"
+          title="Persentase Wirausaha per Angkatan"
           subtitle={lamSubtitle(lam)}
           compareType="entrepreneurship"
           headerExtra={<LamFilterControls lam={lam} />}
