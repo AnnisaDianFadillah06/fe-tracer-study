@@ -58,6 +58,8 @@ import { useMetodePembelajaranBandingkan, useMetodePembelajaranDrillDown } from 
 import { useKompetensiGapBandingkan, useKompetensiGapDrillDown } from "@/hooks/useKompetensi";
 import { useResponseRateBandingkan, useResponseRateDrillDown, statusNameToKey } from "@/hooks/useResponseRate";
 import { buildColorMap, getShortLabel } from "@/lib/chartColors";
+import Kpi13InstitutionComparisonChart from "@/components/dashboard/charts/common/kpi/Kpi13InstitutionComparisonChart";
+import type { Kpi13Metric } from "@/hooks/useKpi13Comparison";
 import {
   MOCK_STUDENTS, Student,
   SUMBER_BIAYA_OPTIONS, CARA_MENDAPAT_KERJA_OPTIONS, JENIS_INSTANSI_OPTIONS,
@@ -265,6 +267,24 @@ const ComparePage = () => {
   const isTrendType       = chartType === "trend";
   const isKepuasanType    = chartType === "kepuasan";
   const isKeterserapanBE  = isAbsorption || isStatusDistrib;
+
+  // Tab Employment Outcome → metrik KPI 13 yang dibandingkan terhadap
+  // threshold LAM masing-masing prodi, tampil di atas grafik distribusi.
+  const thresholdMetric: Kpi13Metric | null =
+    isKeterserapanBE                ? "keterserapan"
+    : isWaktuTunggu                 ? "masa_tunggu"
+    : isKesesuaian                  ? "kesesuaian"
+    : isWirausaha                   ? "wirausaha"
+    : isIncome || isIncomeKelompok  ? "pendapatan"
+    : null;
+  const thresholdParams = useMemo(() => {
+    const p: Record<string, string> = {};
+    for (const k of ["jenjang", "jurusan", "tahun_lulus", "minggu_snapshot"]) {
+      const v = searchParams.get(k);
+      if (v) p[k] = v;
+    }
+    return p;
+  }, [searchParams]);
   const isBeType          = isKeterserapanBE || isKesesuaian || isWaktuTunggu || isWirausaha || isIncome || isIncomeKelompok || isJenisInstansi || isTingkatInstansi || isSumberBiaya || isCompletion || isParticipation || isLearning || isCompetency;
 
   // selectedProdi hanya untuk tampilan chip — tidak dipakai untuk fetch
@@ -1001,6 +1021,12 @@ const ComparePage = () => {
             </div>
           ) : null;
         })()}
+
+        {thresholdMetric && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <Kpi13InstitutionComparisonChart metric={thresholdMetric} params={thresholdParams} />
+          </motion.div>
+        )}
 
         {/* ══════════════════════════════════════════════════════════════════
             KETERSERAPAN (absorption + status distribution) — data dari BE
