@@ -14,6 +14,7 @@ import {
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import SummaryCards, {
   SummaryCardItem,
+  scopeLabelForTahun,
 } from "@/components/dashboard/SummaryCards";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -136,7 +137,7 @@ const OverviewPageContent = ({
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-[1400px] mx-auto">
-        <SummaryCards items={summary} />
+        <SummaryCards items={summary} scopeLabel={scopeLabelForTahun(tahunLulus)} />
 
         <Tabs defaultValue={isKaprodi ? "k2" : "k1"} className="space-y-4">
           <TabsList className="flex flex-wrap h-auto bg-muted/40 p-1.5 rounded-xl gap-1.5">

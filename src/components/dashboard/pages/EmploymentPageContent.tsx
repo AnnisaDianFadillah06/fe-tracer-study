@@ -9,7 +9,9 @@ import {
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import SummaryCards, {
   SummaryCardItem,
+  scopeLabelForTahun,
 } from "@/components/dashboard/SummaryCards";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Kpi4AbsorptionChart,
@@ -47,12 +49,13 @@ function buildEmploymentCards(cards: EmploymentSummaryCards): SummaryCardItem[] 
 
 const EmploymentPageContent = () => {
   const { data: cards } = useEmploymentSummary();
+  const { tahunLulus } = useGlobalFilters();
   const hasExpectedShape = cards && cards.keterserapan && cards.masa_tunggu_cepat;
   const summary = hasExpectedShape ? buildEmploymentCards(cards) : FALLBACK_SUMMARY;
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-[1400px] mx-auto">
-        <SummaryCards items={summary} />
+        <SummaryCards items={summary} scopeLabel={scopeLabelForTahun(tahunLulus)} />
 
         <Tabs defaultValue="k4" className="space-y-4">
           <TabsList className="flex flex-wrap h-auto bg-muted/40 p-1.5 rounded-xl gap-1.5">

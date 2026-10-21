@@ -11,7 +11,24 @@ export interface SummaryCardItem {
   trendUp?: boolean;
 }
 
-const SummaryCards = ({ items, className }: { items: SummaryCardItem[]; className?: string }) => {
+/**
+ * Cakupan angkatan kartu ringkasan. Kartu mengikuti filter Tahun Lulus;
+ * "Semua Tahun" berarti seluruh angkatan digabung -- beda dengan grafik
+ * distribusi/pie di bawahnya yang default ke tahun terakhir, jadi cakupannya
+ * perlu tertulis agar keduanya tidak dibandingkan begitu saja.
+ */
+export const scopeLabelForTahun = (tahunLulus: string) =>
+  !tahunLulus || tahunLulus === "all" ? "Semua angkatan" : `Angkatan ${tahunLulus}`;
+
+const SummaryCards = ({
+  items,
+  className,
+  scopeLabel,
+}: {
+  items: SummaryCardItem[];
+  className?: string;
+  scopeLabel?: string;
+}) => {
   return (
     <div className={`flex flex-wrap justify-center gap-3 ${className ?? ""}`}>
       {items.map((it, i) => (
@@ -27,11 +44,16 @@ const SummaryCards = ({ items, className }: { items: SummaryCardItem[]; classNam
             <div className={`w-8 h-8 rounded-md flex items-center justify-center ${it.color ?? "bg-primary/10 text-primary"}`}>
               <it.icon className="w-4 h-4" />
             </div>
-            {it.trend && (
-              <span className={`text-[11px] font-semibold ${it.trendUp ? "text-emerald-500" : "text-destructive"}`}>
-                {it.trend}
-              </span>
-            )}
+            <div className="flex items-center gap-1.5">
+              {it.trend && (
+                <span className={`text-[11px] font-semibold ${it.trendUp ? "text-emerald-500" : "text-destructive"}`}>
+                  {it.trend}
+                </span>
+              )}
+              {scopeLabel && (
+                <span className="text-[10px] font-medium text-muted-foreground">{scopeLabel}</span>
+              )}
+            </div>
           </div>
           <p className="text-xs font-medium text-muted-foreground leading-tight">{it.title}</p>
           <p className="font-heading text-lg font-bold leading-tight">{it.value}</p>

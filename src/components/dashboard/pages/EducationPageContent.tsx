@@ -1,6 +1,7 @@
 import { BookOpen, Sparkles, Wallet, GraduationCap, Award, Activity } from "lucide-react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import SummaryCards, { SummaryCardItem } from "@/components/dashboard/SummaryCards";
+import SummaryCards, { SummaryCardItem, scopeLabelForTahun } from "@/components/dashboard/SummaryCards";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Kpi9CompetencyGapChart,
@@ -35,11 +36,12 @@ function buildEducationCards(cards: EducationSummaryCards): SummaryCardItem[] {
 
 const EducationPageContent = () => {
   const { data: cards, loading } = useEducationSummary();
+  const { tahunLulus } = useGlobalFilters();
   const summary = cards ? buildEducationCards(cards) : FALLBACK_SUMMARY;
   return (
     <DashboardLayout>
       <div className="space-y-4 max-w-[1400px] mx-auto">
-        <SummaryCards items={summary} />
+        <SummaryCards items={summary} scopeLabel={scopeLabelForTahun(tahunLulus)} />
 
         <Tabs defaultValue="k9" className="space-y-4">
           <TabsList className="flex flex-wrap h-auto bg-muted/40 p-1.5 rounded-xl gap-1.5">
