@@ -68,8 +68,8 @@ const Kpi9CompetencyGapChart = () => {
       title="Analisis Gap Kompetensi Lulusan"
       subtitle={
         view === "radar"
-          ? "Radar chart — profil kompetensi saat lulus vs kebutuhan industri"
-          : "Bar horizontal — gap per kompetensi (hijau = aman, merah = di bawah industri)"
+          ? "Radar chart — profil kompetensi saat lulus vs yang dibutuhkan di pekerjaan"
+          : "Bar horizontal — gap per kompetensi (hijau = aman, merah = di bawah kebutuhan pekerjaan)"
       }
       compareType="competency"
       headerExtra={
@@ -95,14 +95,14 @@ const Kpi9CompetencyGapChart = () => {
       methodology={
         view === "radar" ? (
           <MethodologyBlock
-            description="Membandingkan rata-rata skor kompetensi yang dimiliki saat lulus dengan skor kompetensi yang dibutuhkan industri."
+            description="Membandingkan rata-rata skor kompetensi yang dimiliki saat lulus dengan skor kompetensi yang dibutuhkan dalam pekerjaan — keduanya penilaian alumni (kuesioner f17 A & B)."
             formula={<>Skor Kompetensi = Σ Skor Likert (1–5) / Jumlah Responden</>}
           />
         ) : (
           <MethodologyBlock
-            description="Selisih rata-rata skor kompetensi saat lulus terhadap kebutuhan industri."
-            formula={<>Gap = Skor Saat Lulus − Skor Kebutuhan Industri</>}
-            notes="Gap negatif berarti kompetensi lulusan di bawah ekspektasi industri."
+            description="Selisih rata-rata skor kompetensi saat lulus terhadap kebutuhan di pekerjaan."
+            formula={<>Gap = Skor Saat Lulus − Skor Dibutuhkan di Pekerjaan</>}
+            notes="Gap negatif berarti kompetensi saat lulus di bawah yang dibutuhkan dalam pekerjaan."
           />
         )
       }
@@ -133,17 +133,20 @@ const Kpi9CompetencyGapChart = () => {
                     angle={90}
                     axisLine={false}
                   />
+                  {/* "Dibutuhkan" digambar lebih dulu (di belakang) supaya area
+                      oranye yang semi-transparan tidak menimpa area biru dan
+                      membuatnya tampak abu-abu. */}
                   <Radar
-                    name="Saat Lulus" dataKey="lulus"
-                    stroke={C.blue} fill={C.blue} fillOpacity={0.35}
-                    dot={{ r: 5, fill: C.blue, strokeWidth: 0 }}
+                    name="Dibutuhkan di Pekerjaan" dataKey="industri"
+                    stroke={C.orange} fill={C.orange} fillOpacity={0.2}
+                    dot={{ r: 5, fill: C.orange, strokeWidth: 0 }}
                     activeDot={{ r: 7 } as any}
                     strokeWidth={2}
                   />
                   <Radar
-                    name="Kebutuhan Industri" dataKey="industri"
-                    stroke={C.orange} fill={C.orange} fillOpacity={0.2}
-                    dot={{ r: 5, fill: C.orange, strokeWidth: 0 }}
+                    name="Saat Lulus" dataKey="lulus"
+                    stroke={C.blue} fill={C.blue} fillOpacity={0.35}
+                    dot={{ r: 5, fill: C.blue, strokeWidth: 0 }}
                     activeDot={{ r: 7 } as any}
                     strokeWidth={2}
                   />
@@ -234,24 +237,26 @@ const Kpi9CompetencyGapChart = () => {
                     style={{ background: C.orange }}
                   />
                   <span>
-                    <strong>Kebutuhan Industri</strong> — ekspektasi industri terhadap kompetensi.
+                    <strong>Dibutuhkan di Pekerjaan</strong> — tingkat kompetensi yang diperlukan dalam pekerjaan alumni saat ini.
                   </span>
                 </li>
               </ul>
               <div className="text-sm text-muted-foreground border-t border-border pt-3 space-y-1">
-                <p><strong>1</strong> = sangat kecil / sangat kurang</p>
+                <p><strong>1</strong> = sangat rendah</p>
+                <p><strong>2</strong> = rendah</p>
                 <p><strong>3</strong> = cukup</p>
-                <p><strong>5</strong> = sangat besar / sangat baik</p>
+                <p><strong>4</strong> = tinggi</p>
+                <p><strong>5</strong> = sangat tinggi</p>
               </div>
               <p className="text-sm text-muted-foreground">
-                Semakin luas area biru menutup area oranye, semakin sesuai kompetensi lulusan dengan kebutuhan industri.
+                Semakin luas area biru menutup area oranye, semakin sesuai kompetensi lulusan dengan kebutuhan pekerjaannya.
               </p>
             </>
           ) : (
             <>
               <h4 className="font-semibold text-foreground text-[15px]">Cara Membaca Gap</h4>
               <p className="text-muted-foreground">
-                Bar menunjukkan <strong>selisih</strong> skor kompetensi lulusan terhadap kebutuhan industri.
+                Bar menunjukkan <strong>selisih</strong> skor kompetensi lulusan terhadap kebutuhan di pekerjaan.
               </p>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-start gap-2.5">
@@ -261,7 +266,7 @@ const Kpi9CompetencyGapChart = () => {
                   />
                   <span>
                     <strong>Hijau (positif)</strong> — kompetensi lulusan{" "}
-                    <em>melampaui</em> persepsi kebutuhan industri. Ini kondisi yang baik.
+                    <em>melampaui</em> kebutuhan di pekerjaan. Ini kondisi yang baik.
                   </span>
                 </li>
                 <li className="flex items-start gap-2.5">
@@ -271,7 +276,7 @@ const Kpi9CompetencyGapChart = () => {
                   />
                   <span>
                     <strong>Merah (negatif)</strong> — kompetensi lulusan{" "}
-                    <em>di bawah</em> kebutuhan industri. Indikator yang perlu perhatian / perbaikan kurikulum.
+                    <em>di bawah</em> kebutuhan di pekerjaan. Indikator yang perlu perhatian / perbaikan kurikulum.
                   </span>
                 </li>
               </ul>

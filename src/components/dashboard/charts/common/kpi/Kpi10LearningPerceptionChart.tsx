@@ -36,8 +36,8 @@ const Kpi10LearningPerceptionChart = () => {
       compareType="learning"
       methodology={
         <MethodologyBlock
-          description="Persepsi alumni terhadap efektivitas metode pembelajaran selama kuliah — diukur dengan skala Likert 1–5."
-          formula={<>Skor Metode = Σ Jawaban Responden / Jumlah Responden<br/>Skala: 1 = Sangat Kurang, 5 = Sangat Baik</>}
+          description="Persepsi alumni tentang seberapa besar penekanan tiap metode pembelajaran di program studinya — skala Likert 1–5."
+          formula={<>Skor Metode = 6 − (Σ Jawaban Responden / Jumlah Responden)<br/>Kuesioner: 1 = Sangat Besar … 5 = Tidak Sama Sekali, dibalik agar 5 = Sangat Besar</>}
         />
       }
     >
@@ -82,18 +82,18 @@ const Kpi10LearningPerceptionChart = () => {
         <aside className="rounded-lg border border-border bg-muted/30 p-5 text-sm leading-relaxed flex flex-col gap-3">
           <h4 className="font-semibold text-foreground text-[15px]">Cara Membaca Grafik</h4>
           <p className="text-muted-foreground">
-            Nilai pada radar merupakan <strong>rata-rata skor persepsi alumni</strong> terhadap efektivitas
-            metode pembelajaran selama kuliah, diukur dengan skala Likert <strong>1–5</strong>.
+            Nilai pada radar merupakan <strong>rata-rata skor persepsi alumni</strong> tentang seberapa besar
+            penekanan tiap metode pembelajaran selama kuliah, diukur dengan skala Likert <strong>1–5</strong>.
           </p>
           <div className="text-sm text-muted-foreground border-t border-border pt-3 space-y-1">
-            <p><strong>1</strong> = sangat kurang</p>
-            <p><strong>2</strong> = kurang</p>
-            <p><strong>3</strong> = cukup</p>
-            <p><strong>4</strong> = baik</p>
-            <p><strong>5</strong> = sangat baik</p>
+            <p><strong>1</strong> = tidak sama sekali</p>
+            <p><strong>2</strong> = kurang besar</p>
+            <p><strong>3</strong> = cukup besar</p>
+            <p><strong>4</strong> = besar</p>
+            <p><strong>5</strong> = sangat besar</p>
           </div>
           <p className="text-sm text-muted-foreground">
-            Semakin luas area biru menutup polygon, semakin merata kualitas metode pembelajaran yang dirasakan alumni.
+            Semakin luas area biru menutup polygon, semakin besar dan merata penekanan metode pembelajaran yang dirasakan alumni.
           </p>
         </aside>
       </div>
