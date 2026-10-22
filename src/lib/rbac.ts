@@ -75,6 +75,9 @@ export type Permission =
   | "admin.etl"
   | "admin.questionnaire"
   | "admin.questionnaire.request"
+  // Impor jawaban berformat PDDikti (tombol di Manajemen Kuesioner). BE
+  // menggate /api/pddikti-imports dengan role:head_tracer,tracer_team.
+  | "admin.response_import"
   | "admin.approval"
   | "admin.master"
   // Publikasi ke masyarakat umum: unggah laporan tahunan dan atur rentang
@@ -120,6 +123,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "admin.threshold",
     "admin.etl",
     "admin.questionnaire",
+    "admin.response_import",
     "admin.approval",
     "admin.master",
     "admin.public_report",
@@ -142,6 +146,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
     "dashboard.insight",
     "admin.questionnaire",
     "admin.questionnaire.request",
+    "admin.response_import",
     "admin.approval",
     "admin.stakeholder",
     // UR-006 (Tim Tracer): "mengelola kuesioner sehari-hari, data master,

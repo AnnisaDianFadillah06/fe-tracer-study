@@ -63,11 +63,14 @@ import {
   Loader2,
   Plus,
   Trash2,
+  Upload,
   Users,
   XCircle,
   Search,
 } from "lucide-react";
 import PilihTahun from "@/components/common/PilihTahun";
+import PddiktiImportDialog from "@/components/form/PddiktiImportDialog";
+import { hasPermission } from "@/lib/rbac";
 
 const statusStyles: Record<string, string> = {
   published: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
@@ -85,6 +88,8 @@ const DaftarKuisionerPage = () => {
   const { toast } = useToast();
   const { currentRole } = useRole();
   const isHeadTracer = currentRole === "head_tracer";
+  const canImport = hasPermission(currentRole, "admin.response_import");
+  const [importOpen, setImportOpen] = useState(false);
 
   const [forms, setForms] = useState<BackendQuestionnaire[]>([]);
   const [programMap, setProgramMap] = useState<Record<number, string>>({});
@@ -282,13 +287,22 @@ const DaftarKuisionerPage = () => {
             mode="kuesioner"
             onSelect={(t) => setGraduationYearFilter(t === null ? "all" : String(t))}
             actions={
-              <Button onClick={() => navigate("/dashboard/form-management/new")}>
-                <Plus className="mr-2 h-4 w-4" />
-                {isHeadTracer ? "Tambah Kuisioner" : "Ajukan Kuisioner Baru"}
-              </Button>
+              <>
+                <Button onClick={() => navigate("/dashboard/form-management/new")}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {isHeadTracer ? "Tambah Kuisioner" : "Ajukan Kuisioner Baru"}
+                </Button>
+                {canImport && (
+                  <Button variant="outline" onClick={() => setImportOpen(true)}>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Impor Data PDDikti
+                  </Button>
+                )}
+              </>
             }
           />
         </div>
+        {canImport && <PddiktiImportDialog open={importOpen} onOpenChange={setImportOpen} />}
       </DashboardLayout>
     );
   }
