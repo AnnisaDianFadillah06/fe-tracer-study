@@ -31,7 +31,35 @@ import { useFakultas, FAKULTAS_QUERY_KEY, type Fakultas } from "@/hooks/common/u
 import { useDegrees, DEGREES_QUERY_KEY, type Degree } from "@/hooks/common/useDegrees";
 
 // ── Prodi Tab ────────────────────────────────────────────────
-interface Prodi { id: string; name: string; code: string; dikti_code?: string; degree: string; jurusan: string; isActive: boolean; }
+interface Prodi { id: string; name: string; code: string; dikti_code?: string; degree: string; jurusan: string; accreditation?: string; accredited_until?: string; isActive: boolean; }
+
+// Saran isian, bukan daftar tertutup -- lihat catatan di dialog Prodi.
+const ACCREDITATION_OPTIONS = ["Unggul", "Baik Sekali", "Baik", "A", "B", "C"];
+
+/**
+ * Peringkat akreditasi beserta masa berlakunya. Yang sudah lewat ditandai
+ * supaya admin tahu prodi mana yang perlu diperbarui sertifikatnya.
+ */
+const AccreditationCell = ({ accreditation, until }: { accreditation?: string; until?: string }) => {
+  if (!accreditation) return <span className="text-xs text-muted-foreground">Belum diisi</span>;
+
+  // Dibandingkan sebagai string YYYY-MM-DD, jadi tidak terganggu zona waktu.
+  const today = new Date().toLocaleDateString("en-CA");
+  const expired = !!until && until < today;
+  const untilLabel = until
+    ? new Date(`${until}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
+    : null;
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="flex items-center gap-1.5">
+        <span className="font-medium">{accreditation}</span>
+        {expired && <Badge variant="destructive" className="px-1.5 py-0 text-[10px]">Kedaluwarsa</Badge>}
+      </span>
+      {untilLabel && <span className="text-xs text-muted-foreground">s.d. {untilLabel}</span>}
+    </div>
+  );
+};
 
 // ── Provinsi Tab ─────────────────────────────────────────────
 interface Provinsi { id: string; name: string; code: string; }
@@ -312,7 +340,7 @@ const MasterDataPage = () => {
   const [prodiList, setProdiList] = useState<Prodi[]>([]);
   const [prodiDialog, setProdiDialog] = useState(false);
   const [editProdi, setEditProdi] = useState<Prodi | null>(null);
-  const [prodiForm, setProdiForm] = useState({ name: "", code: "", dikti_code: "", degree: "", jurusan: "" });
+  const [prodiForm, setProdiForm] = useState({ name: "", code: "", dikti_code: "", degree: "", jurusan: "", accreditation: "", accredited_until: "" });
   const [deleteProdiId, setDeleteProdiId] = useState<string | null>(null);
   const [prodiSearch, setProdiSearch] = useState("");
 
@@ -345,7 +373,9 @@ const MasterDataPage = () => {
       const programs = data.data ?? data;
       setProdiList((programs as any[]).map((p: any) => ({
         id: String(p.id), name: p.name, code: p.code, dikti_code: p.dikti_code ?? "",
-        degree: p.degree, jurusan: p.jurusan, isActive: p.is_active !== false,
+        degree: p.degree, jurusan: p.jurusan,
+        accreditation: p.accreditation ?? "", accredited_until: p.accredited_until ?? "",
+        isActive: p.is_active !== false,
       })));
     } catch {
       // Kegagalan muat ulang tidak membatalkan penyimpanan yang sudah
@@ -369,7 +399,9 @@ const MasterDataPage = () => {
         const programs = prodiRes.data.data ?? prodiRes.data;
         setProdiList((programs as any[]).map((p: any) => ({
           id: String(p.id), name: p.name, code: p.code, dikti_code: p.dikti_code ?? "",
-          degree: p.degree, jurusan: p.jurusan, isActive: p.is_active !== false,
+          degree: p.degree, jurusan: p.jurusan,
+          accreditation: p.accreditation ?? "", accredited_until: p.accredited_until ?? "",
+          isActive: p.is_active !== false,
         })));
         setProvList((provRes.data.data as any[]).map((p: any) => ({ id: String(p.id), name: p.name, code: p.code })));
         setKotaList((kotaRes.data.data as any[]).map((c: any) => ({ id: String(c.id), name: c.name, provinsiId: c.province_code, code: c.code })));
@@ -392,17 +424,24 @@ const MasterDataPage = () => {
   const [deleteKotaId, setDeleteKotaId] = useState<string | null>(null);
 
   // ── Prodi handlers ─────────────────────────────────────────
-  const openProdiCreate = () => { setEditProdi(null); setProdiForm({ name: "", code: "", dikti_code: "", degree: activeCodes[0] ?? "", jurusan: "" }); setProdiDialog(true); };
-  const openProdiEdit = (p: Prodi) => { setEditProdi(p); setProdiForm({ name: p.name, code: p.code, dikti_code: p.dikti_code ?? "", degree: p.degree, jurusan: p.jurusan }); setProdiDialog(true); };
+  const openProdiCreate = () => { setEditProdi(null); setProdiForm({ name: "", code: "", dikti_code: "", degree: activeCodes[0] ?? "", jurusan: "", accreditation: "", accredited_until: "" }); setProdiDialog(true); };
+  const openProdiEdit = (p: Prodi) => { setEditProdi(p); setProdiForm({ name: p.name, code: p.code, dikti_code: p.dikti_code ?? "", degree: p.degree, jurusan: p.jurusan, accreditation: p.accreditation ?? "", accredited_until: p.accredited_until ?? "" }); setProdiDialog(true); };
   const saveProdi = async () => {
     if (!prodiForm.name || !prodiForm.code || !prodiForm.jurusan) { toast({ title: "Error", description: "Semua field wajib diisi.", variant: "destructive" }); return; }
+    // Akreditasi kosong dikirim sebagai null supaya backend benar-benar
+    // mengosongkannya, bukan menyimpan string kosong.
+    const payload = {
+      ...prodiForm,
+      accreditation: prodiForm.accreditation.trim() || null,
+      accredited_until: prodiForm.accredited_until || null,
+    };
     try {
       if (editProdi) {
-        await api.put(`/programs/${editProdi.id}`, prodiForm);
+        await api.put(`/programs/${editProdi.id}`, payload);
         setProdiList(prodiList.map((p) => p.id === editProdi.id ? { ...p, ...prodiForm, isActive: true } : p));
         toast({ title: "Berhasil", description: "Prodi diperbarui." });
       } else {
-        const { data } = await api.post("/programs", prodiForm);
+        const { data } = await api.post("/programs", payload);
         const created = data.data ?? data;
         setProdiList([...prodiList, { id: String(created.id), ...prodiForm, isActive: true }]);
         toast({ title: "Berhasil", description: "Prodi ditambahkan." });
@@ -669,10 +708,10 @@ const MasterDataPage = () => {
             <Card>
               <CardContent className="pt-6">
                 <Table>
-                  <TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Kode PDDIKTI/Prodi</TableHead><TableHead>Nama</TableHead><TableHead>Jenjang</TableHead><TableHead>Jurusan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Kode PDDIKTI/Prodi</TableHead><TableHead>Nama</TableHead><TableHead>Jenjang</TableHead><TableHead>Jurusan</TableHead><TableHead>Akreditasi</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
                   <TableBody>
                     <TableStateRow
-                      colSpan={6} isLoading={isLoading} error={loadError}
+                      colSpan={7} isLoading={isLoading} error={loadError}
                       isEmpty={filteredProdi.length === 0}
                       emptyText={prodiSearch ? "Tidak ada prodi yang cocok dengan pencarian." : "Belum ada data program studi."}
                     />
@@ -690,6 +729,7 @@ const MasterDataPage = () => {
                         <TableCell className="font-medium">{p.name}</TableCell>
                         <TableCell>{p.degree}</TableCell>
                         <TableCell className="text-muted-foreground">{p.jurusan}</TableCell>
+                        <TableCell><AccreditationCell accreditation={p.accreditation} until={p.accredited_until} /></TableCell>
                         <TableCell className="text-right">
                           <Button variant="ghost" size="icon" onClick={() => openProdiEdit(p)}><Edit className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="icon" onClick={() => setDeleteProdiId(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -896,6 +936,34 @@ const MasterDataPage = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label>Peringkat Akreditasi</Label>
+                {/* Teks bebas dengan saran, bukan Select: istilah peringkat
+                    berbeda antar lembaga (BAN-PT lama A/B/C, IAPS 4.0, LAM). */}
+                <Input
+                  list="accreditation-options"
+                  value={prodiForm.accreditation}
+                  onChange={(e) => setProdiForm({ ...prodiForm, accreditation: e.target.value })}
+                  placeholder="mis. Unggul"
+                  maxLength={30}
+                />
+                <datalist id="accreditation-options">
+                  {ACCREDITATION_OPTIONS.map((o) => <option key={o} value={o} />)}
+                </datalist>
+              </div>
+              <div>
+                <Label>Berlaku Sampai</Label>
+                <Input
+                  type="date"
+                  value={prodiForm.accredited_until}
+                  onChange={(e) => setProdiForm({ ...prodiForm, accredited_until: e.target.value })}
+                />
+              </div>
+            </div>
+            <p className="-mt-2 text-xs text-muted-foreground">
+              Kosongkan bila prodi belum terakreditasi. Perubahan tampil di Insight setelah ETL berikutnya.
+            </p>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setProdiDialog(false)}>Batal</Button><Button onClick={saveProdi}>Simpan</Button></DialogFooter>
         </DialogContent>
